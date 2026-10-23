@@ -31,12 +31,12 @@ The prototype retains its existing application ID and signing certificate for Gi
 
 ## Approval and publication
 
-The 0.35.0 preview is a local review build. Do not upload it, change repository visibility, or remove the current GitHub APK until the owner approves it. After approval:
+The owner approved the 0.35.0 GitHub APK and public source publication. Future APK changes require owner review before replacing the published build. Publication follows this order:
 
 1. Publish the tested matching source and version tag.
 2. Upload only the GitHub-edition APK as the release's sole manually uploaded asset; GitHub supplies source archives automatically. Never upload a Play APK, Play AAB, or paid-build artifact to GitHub, including Actions artifacts.
 3. Verify the remote APK digest before removing the superseded release and tag.
 4. Update the README and About website to the new direct APK URL.
-5. Make the repository public, as authorized conditional on APK approval.
+5. Keep the approved source repository public so the free APK and corresponding GPL source are available together.
 
 Keep local historical APKs for recovery; removing the superseded GitHub release does not require deleting them from the workspace.
