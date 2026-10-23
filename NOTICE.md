@@ -1,8 +1,13 @@
 ReadAlong
 Copyright (c) 2026 lukeherc-cpu
-SPDX-License-Identifier: GPL-3.0-only
 
-ReadAlong's original application code is licensed under GNU General Public License version 3 only. You may redistribute and modify it under those terms. It is provided without warranty; see the included full license.
+ReadAlong's original application code is licensed under GNU General Public
+License version 3 only, with the additional Needle Runtime Linking Exception
+at the end of LICENSE. Distributed ReadAlong modifications remain subject
+to GPLv3's source requirements. The unmodified Apache-2.0 Cactus Needle
+runtime may be linked and distributed without its native source under that
+narrow additional permission. The program is provided without warranty.
 
-Corresponding source: https://github.com/lukeherc-cpu/ReadAlong
-Third-party libraries, fonts and other identified dependencies retain their own licenses and notices.
+Corresponding application source: https://github.com/lukeherc-cpu/ReadAlong
+Third-party libraries, fonts and other identified dependencies retain their
+own licenses and notices.

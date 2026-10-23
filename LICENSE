@@ -672,3 +672,22 @@ may consider it more useful to permit linking proprietary applications with
 the library.  If this is what you want to do, use the GNU Lesser General
 Public License instead of this License.  But first, please read
 <https://www.gnu.org/licenses/why-not-lgpl.html>.
+
+
+ADDITIONAL PERMISSION UNDER GNU GPL VERSION 3 SECTION 7
+Needle Runtime Linking Exception
+
+The copyright holders of ReadAlong grant an additional permission to link
+or combine ReadAlong with an unmodified Needle native runtime distributed
+by Cactus Compute under the Apache License, Version 2.0, and to convey the
+resulting combination.
+
+For a combination covered by this permission, the Corresponding Source
+need not include the source code of that unmodified Needle native runtime.
+Corresponding Source for ReadAlong, including its JNI bridge, modifications,
+and build scripts, must still be provided as required by GNU GPL version 3.
+
+This permission applies only to that unmodified runtime. It does not
+relicense Needle, waive its own license conditions, extend to another
+library, or permit distributing closed-source modifications of ReadAlong.
+All other conditions of GNU GPL version 3 continue to apply.

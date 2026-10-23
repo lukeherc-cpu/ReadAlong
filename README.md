@@ -47,4 +47,4 @@ Get the newest APK from this repository's GitHub Releases page. Source control c
 
 ## License
 
-ReadAlong's original application code is licensed under [GNU GPLv3](LICENSE) (`GPL-3.0-only`). You may use, modify and redistribute it, including commercially, under those terms. Distributed modified versions must provide corresponding source. Third-party dependencies and fonts retain their own licenses; see [NOTICE.md](NOTICE.md) and the bundled dependency notices.
+ReadAlong's original application code is licensed under [GNU GPLv3](LICENSE) with the narrow Needle Runtime Linking Exception at the end of LICENSE. You may use, modify and redistribute it, including commercially, under those terms. Distributed modified versions must provide corresponding source. Third-party dependencies and fonts retain their own licenses; see [NOTICE.md](NOTICE.md) and the bundled dependency notices.
