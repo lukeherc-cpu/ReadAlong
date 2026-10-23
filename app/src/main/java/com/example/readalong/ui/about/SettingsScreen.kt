@@ -1,6 +1,5 @@
 package com.example.readalong.ui.about
 
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.background
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.clickable
@@ -33,7 +32,6 @@ fun SettingsScreen(app: ReadAlongApplication, onBack: () -> Unit, onModel: () ->
     var pendingTheme by remember { mutableStateOf<Boolean?>(null) }
     var pendingColor by remember { mutableStateOf<Long?>(null) }
     var backgroundPicker by remember { mutableStateOf(false) }
-    var other by remember { mutableStateOf(false) }
     fun save(change: (com.example.readalong.data.preferences.AppPreferences) -> com.example.readalong.data.preferences.AppPreferences) { scope.launch { app.appPreferences.update(change) } }
     val clipboard = androidx.compose.ui.platform.LocalClipboard.current
     var copied by remember { mutableStateOf(false) }
@@ -43,6 +41,7 @@ fun SettingsScreen(app: ReadAlongApplication, onBack: () -> Unit, onModel: () ->
             IconButton(onClick = onBack) { Icon(painterResource(R.drawable.ic_back), "Back to library") }
             Text("Settings", style = MaterialTheme.typography.headlineMedium)
         }
+        if (!preferences.tipJarInOther) TipJarSection(false) { move -> save { it.copy(tipJarInOther = move) } }
         SectionLabel("Appearance")
         SettingsGroup {
             PreferenceSwitch("Theme", preferences.libraryLight, "Light library", valueLabel = if (preferences.libraryLight) "Light" else "Dark") { value -> pendingTheme = value }
@@ -74,16 +73,14 @@ fun SettingsScreen(app: ReadAlongApplication, onBack: () -> Unit, onModel: () ->
         }
         SectionLabel("Other")
         SettingsGroup {
-            SettingsRow("Other", onClick = { other = !other }) { Icon(painterResource(R.drawable.ic_down), null, Modifier.size(24.dp).graphicsLayer { rotationZ = if (other) 180f else 0f }) }
-            if (other) {
                 SettingsRow("Offline speech models", onClick = onModel)
                 SettingsRow(if (copied) "Crash details copied" else "Copy crash details", onClick = { scope.launch {
                     val report = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.example.readalong.data.diagnostics.CrashDiagnostics.read(app) }
                     clipboard.setClipEntry(androidx.compose.ui.platform.ClipEntry(android.content.ClipData.newPlainText("ReadAlong crash details", report))); copied = true
                 } })
                 SettingsRow("About ReadAlong", onClick = onAbout)
-            }
         }
+        if (preferences.tipJarInOther) TipJarSection(true) { move -> save { it.copy(tipJarInOther = move) } }
         Spacer(Modifier.height(12.dp))
     } }
     if (appFont) com.example.readalong.ui.reading.AppFontDialog(preferences.appFont, { appFont = false }) { font -> save { it.copy(appFont = font) }; appFont = false }

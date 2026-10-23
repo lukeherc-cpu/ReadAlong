@@ -31,6 +31,7 @@ data class AppPreferences(
     val homeGuideHidden: Boolean = false,
     val playerGuideHidden: Boolean = false,
     val readerGuideHidden: Boolean = false,
+    val tipJarInOther: Boolean = false,
 )
 
 class AppPreferencesStore(private val context: Context) {
@@ -57,6 +58,7 @@ class AppPreferencesStore(private val context: Context) {
         p[booleanPreferencesKey("guide_home_hidden")] ?: false,
         p[booleanPreferencesKey("guide_player_hidden")] ?: false,
         p[booleanPreferencesKey("guide_reader_hidden")] ?: false,
+        p[booleanPreferencesKey("tip_jar_in_other")] ?: false,
     )
     val preferences = store.data.catch { if (it is IOException) emit(emptyPreferences()) else throw it }.map(::decode)
     suspend fun update(change: (AppPreferences) -> AppPreferences) {
@@ -84,6 +86,7 @@ class AppPreferencesStore(private val context: Context) {
         p[booleanPreferencesKey("guide_home_hidden")] = value.homeGuideHidden
         p[booleanPreferencesKey("guide_player_hidden")] = value.playerGuideHidden
         p[booleanPreferencesKey("guide_reader_hidden")] = value.readerGuideHidden
+        p[booleanPreferencesKey("tip_jar_in_other")] = value.tipJarInOther
         }
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.example.readalong.ui.launch.LaunchAppearance.apply(context, decode(saved)) }
     }

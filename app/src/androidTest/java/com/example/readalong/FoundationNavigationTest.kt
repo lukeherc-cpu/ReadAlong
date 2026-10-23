@@ -48,7 +48,6 @@ class FoundationNavigationTest {
     fun launchAboutAndReturnToLibrary() {
         waitForLibrary()
         compose.onNodeWithContentDescription("Settings").performClick()
-        compose.onNodeWithText("Other").performScrollTo().performClick()
         compose.onNodeWithText("About ReadAlong").performScrollTo().performClick()
         compose.onNodeWithText("Library preview").assertIsDisplayed()
         compose.onNodeWithContentDescription("Back to library").performClick()
@@ -59,7 +58,6 @@ class FoundationNavigationTest {
     fun aboutDestinationSurvivesActivityRecreationAndSystemBack() {
         waitForLibrary()
         compose.onNodeWithContentDescription("Settings").performClick()
-        compose.onNodeWithText("Other").performScrollTo().performClick()
         compose.onNodeWithText("About ReadAlong").performScrollTo().performClick()
         compose.activityRule.scenario.recreate()
         compose.onNodeWithText("About ReadAlong").assertIsDisplayed()

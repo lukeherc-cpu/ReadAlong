@@ -2,9 +2,11 @@
 
 ReadAlong is a native Android audiobook player with on-device transcription and synchronized EPUB reading.
 
-**[Download ReadAlong APK](https://github.com/lukeherc-cpu/ReadAlong/releases/download/v0.34.1-preview/ReadAlong-0.34.1-preview.apk)**
+**[Download ReadAlong APK](https://github.com/lukeherc-cpu/ReadAlong/releases/download/v0.35.0-preview/ReadAlong-0.35.0-preview.apk)**
 
-Current release: **0.34.1-preview** (version code 27). Android 8.0 or newer; ARM64 device required.
+Current release: **0.35.0-preview** (version code 28). Android 8.0 or newer; ARM64 device required.
+
+The GitHub edition is free with an optional [Ko-fi tip jar](https://ko-fi.com/readalong). The Google Play edition is planned as a $0.99 download with no tip jar. Both share the same reading and playback features; see [distribution and build details](DISTRIBUTION.md).
 
 ## Features
 
@@ -20,8 +22,9 @@ Current release: **0.34.1-preview** (version code 27). Android 8.0 or newer; ARM
 Open this folder in Android Studio, or use the included Gradle wrapper. Install Android SDK 37, NDK 28.2.13676358 and CMake 3.22.1. Use JDK 21 or the compatible JDK bundled with current Android Studio. Configure your SDK in an untracked `local.properties` or through Android Studio.
 
 ```sh
-./gradlew :app:assembleDebug
-./gradlew :app:assembleRelease
+./gradlew :app:assembleGithubDebug
+./gradlew :app:assembleGithubRelease
+./gradlew :app:bundlePlayRelease
 ```
 
 The release task produces an unsigned APK; sign it with your own release key. Keep signing keys outside source control. To update an existing installation, its signing certificate must match.
@@ -31,8 +34,8 @@ The pinned Android ARM64 Needle runtime is included under `third_party/needle/pr
 ## Checks
 
 ```sh
-./gradlew :app:testDebugUnitTest :app:lintDebug
-./gradlew :app:assembleDebugAndroidTest
+./gradlew :app:testGithubDebugUnitTest :app:lintGithubDebug
+./gradlew :app:assembleGithubDebugAndroidTest
 ```
 
 Some instrumentation tests need an ARM64 device or an emulator with ARM translation, and opt-in tests require a locally installed speech model or private audiobook fixtures. Fixtures, personal books, build caches, recordings and historical APKs are intentionally excluded.

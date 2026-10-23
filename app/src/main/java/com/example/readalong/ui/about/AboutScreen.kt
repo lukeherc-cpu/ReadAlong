@@ -31,7 +31,8 @@ import com.example.readalong.R
 fun AboutScreen(onBack: () -> Unit, onSpeechModel: () -> Unit) {
     var showLicenses by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     val context = androidx.compose.ui.platform.LocalContext.current
-    val notices = androidx.compose.runtime.remember { listOf("NOTICE.txt", "cactus-whistle.txt", "jsoup-LICENSE.txt").joinToString("\n\n") { name ->
+    val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+    val notices = androidx.compose.runtime.remember { listOf("readalong-notice.txt", "readalong-GPL-3.0.txt", "NOTICE.txt", "cactus-whistle.txt", "jsoup-LICENSE.txt").joinToString("\n\n") { name ->
         context.assets.open("licenses/$name").bufferedReader().use { it.readText() }
     } }
     Scaffold { insets ->
@@ -59,6 +60,7 @@ fun AboutScreen(onBack: () -> Unit, onSpeechModel: () -> Unit) {
                 Spacer(Modifier.height(24.dp))
                 Text(stringResource(R.string.about_description), style = MaterialTheme.typography.bodyLarge)
                 Text("Version ${context.packageManager.getPackageInfo(context.packageName, 0).versionName}", style = MaterialTheme.typography.labelMedium)
+                androidx.compose.material3.TextButton(onClick = { uriHandler.openUri("https://github.com/lukeherc-cpu/ReadAlong") }) { Text("Source code · GPLv3") }
                 androidx.compose.material3.TextButton(onClick = { showLicenses = true }) { Text("Software licenses") }
                 androidx.compose.material3.OutlinedButton(onClick = onSpeechModel) { Text("Local speech model") }
                 Spacer(Modifier.height(32.dp))
