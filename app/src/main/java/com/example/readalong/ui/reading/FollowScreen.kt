@@ -70,6 +70,7 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
         surface = if (preferences.theme == "SEPIA") Color(0xFFF0E6D2) else Color(0xFFFAF9F5),
         onSurface = Color(0xFF242820), onBackground = Color(0xFF242820))
     MaterialTheme(colorScheme = colors) {
+        val readerFont = readingFont(preferences.fontFamily)
         val items = model.readerPages.collectAsLazyPagingItems()
         var retainedPage by remember(book.id) { mutableStateOf<androidx.paging.ItemSnapshotList<com.example.readalong.domain.model.TranscriptSegment>?>(null) }
         val page = items.itemSnapshotList
@@ -101,6 +102,7 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
         var chromeVisible by rememberSaveable(book.id) { mutableStateOf(!state.isPlaying) }
         var controlTap by remember { mutableLongStateOf(0L) }
         val view = androidx.compose.ui.platform.LocalView.current
+        val textDensity = androidx.compose.ui.platform.LocalDensity.current
         val activity = remember(view) {
             generateSequence(view.context) { (it as? android.content.ContextWrapper)?.baseContext }
                 .take(16).filterIsInstance<android.app.Activity>().firstOrNull()
@@ -211,18 +213,32 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
             if (items.itemCount == 0) return@LaunchedEffect
             if (positioned != target.generation) {
                 val index = target.index.coerceIn(0, items.itemCount - 1)
-                val layout = layouts[index]
-                if (target.characterOffset > 0 && layout == null) {
+                val paragraph = if (index < items.itemCount) items.peek(index) else null
+                val expectedSize = preferences.fontSize * if (paragraph?.formatting?.kind?.startsWith("H") == true) 1.25f else 1f
+                val columnPx = frame?.previewWidthPx?.takeIf { it > 0 } ?: view.width
+                val quoteInset = if (paragraph?.formatting?.kind in listOf("QUOTE", "LIST")) 16.dp else 0.dp
+                val expectedWidth = columnPx - with(textDensity) { (preferences.margin.dp * 2 + quoteInset).roundToPx() }
+                val layout = layouts[index]?.takeIf {
+                    it.layoutInput.style.fontSize == expectedSize.sp &&
+                        it.layoutInput.style.fontFamily == readerFont &&
+                        kotlin.math.abs(it.layoutInput.constraints.maxWidth - expectedWidth) <= 2 &&
+                        it.layoutInput.style.lineHeight == (preferences.fontSize * preferences.lineSpacing).sp
+                }
+                if ((target.characterOffset > 0 || target.lineOffsetPx > 0) && layout == null) {
                     // First make an offscreen target visible so Paging/Text can measure it.
                     // Do not mark it positioned until this same effect applies its character offset.
-                    list.requestScrollToItem(index)
+                    if (list.layoutInfo.visibleItemsInfo.none { it.index == index }) list.requestScrollToItem(index)
                     return@LaunchedEffect
                 }
                 val offset = if (target.characterOffset > 0 && layout != null)
                     layout.getLineTop(layout.getLineForOffset(target.characterOffset.coerceAtMost(layout.layoutInput.text.length))).toInt() else 0
                 // One request owns both paragraph and character positioning. Separate effects
                 // could race and reset a retained pager to the paragraph's opening line.
-                list.requestScrollToItem(index, offset)
+                val lineHeight = layout?.let {
+                    val line = it.getLineForOffset(target.characterOffset.coerceAtMost(it.layoutInput.text.length))
+                    (it.getLineBottom(line) - it.getLineTop(line)).toInt().coerceAtLeast(1)
+                }
+                list.requestScrollToItem(index, offset + target.lineOffsetPx.coerceIn(0, lineHeight?.minus(1) ?: Int.MAX_VALUE))
                 positioned = target.generation
             } else if (contentReady && following && !readingOnly && panel == null) {
                 pendingTapSeek?.let { expected ->
@@ -297,22 +313,33 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
             tapJob?.cancel(); pendingTapSeek = null; following = true; userScrolled = false
             playback.skip(if (direction < 0) -appSettings.readerBack * 1000L else appSettings.readerForward * 1000L)
         }
-        fun listen() { model.setReadOnly(false, currentAudioPosition); following = true; userScrolled = false; playback.listenFrom(audio) }
+        var switchingMode by remember { mutableStateOf(false) }
         fun changeMode(bookMode: Boolean) {
-            if (bookMode == readingOnly) return
+            if (bookMode == readingOnly || switchingMode || positioned != start?.generation) return
             tapJob?.cancel(); panel = null
+            switchingMode = true
+            playback.pause()
+            // Capture the displayed line in either direction, not the old listening clock.
+            // The same character survives font/margin changes between the two presentations.
+            val index = list.firstVisibleItemIndex
+            val paragraph = if (index < items.itemCount) items.peek(index) else null
+            val layout = layouts[index]
+            val offset = list.firstVisibleItemScrollOffset
+            val line = layout?.getLineForVerticalPosition(offset.toFloat())
+            val character = line?.let { layout?.getLineStart(it) } ?: 0
+            val viewport = paragraph?.let { ReaderViewport(index, character,
+                line?.let { (offset - (layout?.getLineTop(it) ?: 0f)).toInt().coerceAtLeast(0) } ?: offset) }
+            following = false; pendingTapSeek = null; userScrolled = false; chromeVisible = true
             scope.launch {
-                if (readingOnly) {
-                    val index = list.firstVisibleItemIndex
-                    val paragraph = if (index < items.itemCount) items.peek(index) else null
-                    paragraph?.let {
-                        val character = layouts[index]?.getOffsetForPosition(Offset(0f, list.firstVisibleItemScrollOffset.toFloat())) ?: 0
-                        model.saveBookViewport(it, index, character)
+                try {
+                    paragraph?.let { model.saveBookViewport(it, index, character) }
+                    model.setReadOnly(bookMode, currentAudioPosition, viewport)
+                    if (!bookMode && paragraph != null && paragraph.startMs >= 0) {
+                        model.sentenceTarget(paragraph, character, notifyWhenUnavailable = false)?.let(playback::seek)
                     }
+                } finally {
+                    switchingMode = false
                 }
-                playback.pause()
-                following = !bookMode; userScrolled = false; chromeVisible = true
-                model.setReadOnly(bookMode, currentAudioPosition)
             }
         }
         // Change ink and paper together. Animating only paper briefly paints white ink
@@ -414,6 +441,7 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
                 LazyColumn(Modifier.weight(1f).nestedScroll(scroll).testTag("follow_passages"), state = list,
                     contentPadding = PaddingValues(start = preferences.margin.dp + columnInset, end = preferences.margin.dp + columnInset,
                         top = 64.dp + cutoutTop, bottom = if (readingOnly) 24.dp else 100.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+                    if (renderedCount == 0 && items.loadState.refresh is LoadState.Loading) item { PassageSkeleton() }
                     items(renderedCount, key = { index ->
                         val paragraph = if (fallbackPage != null) fallbackPage[index] else if (index < items.itemCount) items.peek(index) else null
                         paragraph?.id ?: "unloaded:$index"
@@ -429,7 +457,7 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
                                 focus.takeIf { !readingOnly && (active != null || activeSingle) }, Color.White,
                                 if (preferences.theme == "DARK") Color.Transparent else palette.background)
                             DisposableEffect(index) { onDispose { layouts.remove(index); paragraphTops.remove(index) } }
-                            Text(styled, modifier = Modifier.fillMaxWidth().onGloballyPositioned { paragraphTops[index] = it.positionInRoot().y }.padding(start = if (paragraph.formatting?.kind in listOf("QUOTE", "LIST")) 16.dp else 0.dp).semantics {
+                            Text(styled, modifier = Modifier.fillMaxWidth().testTag("reader_paragraph").onGloballyPositioned { paragraphTops[index] = it.positionInRoot().y }.padding(start = if (paragraph.formatting?.kind in listOf("QUOTE", "LIST")) 16.dp else 0.dp).semantics {
                                 selected = !readingOnly && (active != null || activeSingle)
                                 onLongClick(if (paragraph.imported) "Set sync point" else "Correct this passage") {
                                     if (readingOnly) { chromeVisible = true } else if (paragraph.imported) { playback.pause(); following = false; model.editSync(paragraph, currentAudioPosition) }
@@ -447,13 +475,13 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
                                 }) { point ->
                                     sentencePressed(paragraph, layouts[index]?.getOffsetForPosition(point) ?: 0)
                                 }
-                            }, onTextLayout = { layouts[index] = it }, fontFamily = readingFont(preferences.fontFamily),
+                            }, onTextLayout = { layouts[index] = it }, fontFamily = readerFont,
                                 color = if (readingOnly) MaterialTheme.colorScheme.onBackground else if (preferences.theme == "DARK") Color.White.copy(alpha = .52f) else Color(0xFF64716C),
                                 fontSize = (preferences.fontSize * if (paragraph.formatting?.kind?.startsWith("H") == true) 1.25f else 1f).sp,
                                 fontWeight = if (paragraph.formatting?.kind?.startsWith("H") == true) FontWeight.Bold else FontWeight.Normal,
                                 textAlign = if (paragraph.formatting?.centered == true || paragraph.formatting?.kind == "BREAK") TextAlign.Center else TextAlign.Start,
                                 lineHeight = (preferences.fontSize * preferences.lineSpacing).sp)
-                        } else Text("Loading passage…")
+                        } else PassageSkeleton()
                     }
                     if (items.loadState.append is LoadState.Error) item { TextButton(onClick = items::retry) { Text("Retry loading text") } }
                 }

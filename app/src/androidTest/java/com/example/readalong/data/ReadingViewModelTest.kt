@@ -20,6 +20,68 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class ReadingViewModelTest {
+    @Test fun modeSwitchUsesVisibleChapterAndCharacterInsteadOfEitherSavedPosition() = runBlocking {
+        val app = ApplicationProvider.getApplicationContext<ReadAlongApplication>()
+        val db = Room.inMemoryDatabaseBuilder(app, ReadAlongDatabase::class.java).build()
+        val models = ViewModelStore()
+        try {
+            val id = "mode-position"
+            db.bookDao().upsertBooks(listOf(com.example.readalong.data.book.DemoBooks.books.first().copy(id = id, isDemo = false)))
+            val blocks = (0..6).map { n -> ImportedEpubBlockEntity(id, "position-edition", n, n, "chapter-$n",
+                "Chapter $n. " + "The visible reading line must survive switching modes. ".repeat(30),
+                "P", "[]", false, "[]", if (n < 5) n * 60_000L else -1L, if (n < 5) (n + 1) * 60_000L else -1L, 1f) }
+            db.importedEpubDao().put(ImportedEpubEntity(id, "position-edition", "", "Original", "ALIGNED", "", "EPUB", 0, 7, 5, 5, 7, 0))
+            db.importedEpubDao().putBlocks(blocks)
+            db.readingDao().putProgress(ReadingProgressEntity(id, "epub:position-edition:4", 240_000, 1, "position-edition", 4))
+            db.bookDao().putMetadata(LibraryMetadataEntity("book_viewport:$id",
+                """{"edition":"position-edition","index":4,"id":"epub:position-edition:4","character":900}"""))
+            val model = ReadingViewModel(id, db, TranscriptRepository(db), ReaderPreferencesStore(app), GeneratedEpubRepository(app, db), ProcessingRepository(app, db, app.speechModel))
+            models.put("reader", model)
+            model.openReader(60_000)
+            val first = withTimeout(5000) { model.readerStart.first { it != null } }!!
+            assertEquals(1, first.index)
+            model.setReadOnly(true, 60_000, com.example.readalong.ui.reading.ReaderViewport(2, 220, 7))
+            val plain = withTimeout(5000) { model.readerStart.first { it?.bookMode == true } }!!
+            assertEquals("Old plain-reading bookmark must not win", 2, plain.index)
+            assertEquals(220, plain.characterOffset)
+            assertEquals(7, plain.lineOffsetPx)
+            assertEquals(first.pagerGeneration, plain.pagerGeneration)
+            // Reading beyond the transcribed part cannot be represented by an audio timestamp.
+            // It must still stay on the exact EPUB passage when switching to ReadAlong.
+            db.importedEpubDao().put(db.importedEpubDao().find(id)!!.copy(preference = "GENERATED"))
+            model.setReadOnly(false, 60_000, com.example.readalong.ui.reading.ReaderViewport(5, 540, 3))
+            val follow = withTimeout(5000) { model.readerStart.first { it != null && !it.bookMode && it.generation > plain.generation } }!!
+            assertTrue(follow.imported)
+            assertEquals("position-edition", follow.editionId)
+            assertEquals(5, follow.index)
+            assertEquals(540, follow.characterOffset)
+            assertEquals(3, follow.lineOffsetPx)
+            assertEquals(first.pagerGeneration, follow.pagerGeneration)
+            assertNull(model.error.value)
+        } finally { withContext(Dispatchers.Main) { models.clear() }; db.close() }
+    }
+
+    @Test fun generatedTextAlsoKeepsItsViewportWhenSwitchingToReadOnly() = runBlocking {
+        val app = ApplicationProvider.getApplicationContext<ReadAlongApplication>()
+        val db = Room.inMemoryDatabaseBuilder(app, ReadAlongDatabase::class.java).build()
+        val models = ViewModelStore()
+        try {
+            val id = RoomBookRepository(db, seedSamples = true).observeBooks().first().first().id
+            val model = ReadingViewModel(id, db, TranscriptRepository(db), ReaderPreferencesStore(app), GeneratedEpubRepository(app, db), ProcessingRepository(app, db, app.speechModel))
+            models.put("reader", model)
+            model.openReader(1000)
+            val first = withTimeout(10_000) { model.readerStart.first { it?.generated == true } }!!
+            model.setReadOnly(true, 1000, com.example.readalong.ui.reading.ReaderViewport(2, 25, 4))
+            val plain = withTimeout(5000) { model.readerStart.first { it?.bookMode == true } }!!
+            assertTrue(plain.generated)
+            assertFalse(plain.imported)
+            assertEquals(2, plain.index)
+            assertEquals(25, plain.characterOffset)
+            assertEquals(4, plain.lineOffsetPx)
+            assertEquals(first.pagerGeneration, plain.pagerGeneration)
+        } finally { withContext(Dispatchers.Main) { models.clear() }; db.close() }
+    }
+
     @Test fun switchingReadingModeKeepsTheSameOriginalEpubPagerMounted() = runBlocking {
         val app = ApplicationProvider.getApplicationContext<ReadAlongApplication>()
         val db = Room.inMemoryDatabaseBuilder(app, ReadAlongDatabase::class.java).build()

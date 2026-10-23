@@ -99,10 +99,25 @@ class ReadingViewModel(val bookId: String, val database: ReadAlongDatabase, priv
     private val mutableReadOnly = MutableStateFlow(initialReadOnly)
     val readOnly = mutableReadOnly.asStateFlow()
     val bookPreferences = (bookPreferencesStore ?: preferencesStore).preferences.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ReaderPreferences(theme = "LIGHT"))
-    fun setReadOnly(enabled: Boolean, position: Long) = action {
+    fun setReadOnly(enabled: Boolean, position: Long, viewport: ReaderViewport? = null) = action {
         if (mutableReadOnly.value == enabled) return@action
+        val current = mutableStart.value
+        // Changing presentation must not reopen at either mode's older bookmark/audio clock.
+        // Keep the edition and Paging generation, including original EPUB text without timing.
+        if (current != null) {
+            ++openRequest
+            mutableStart.value = current.copy(
+                index = viewport?.index ?: current.index,
+                characterOffset = viewport?.character ?: current.characterOffset,
+                lineOffsetPx = viewport?.lineOffsetPx ?: current.lineOffsetPx,
+                generation = ++readerGeneration,
+                bookMode = enabled
+            )
+            mutableReadOnly.value = enabled
+            return@action
+        }
         mutableReadOnly.value = enabled
-        loadReader(position, resume = enabled, generated = true, retainPager = true)
+        loadReader(position, resume = false, generated = true)
     }
     suspend fun saveBookViewport(segment: TranscriptSegment, index: Int, character: Int) {
         database.bookDao().putMetadata(com.example.readalong.data.local.LibraryMetadataEntity("book_viewport:$bookId",
@@ -178,7 +193,7 @@ class ReadingViewModel(val bookId: String, val database: ReadAlongDatabase, priv
             try {
                 val results = withContext(Dispatchers.IO) {
                     val imported = database.importedEpubDao().find(bookId)
-                    val useImported = imported != null && (mutableReadOnly.value || imported.useForReading())
+                    val useImported = imported != null && (mutableStart.value?.imported ?: (mutableReadOnly.value || imported.useForReading()))
                     val edition = if (useImported) imported?.editionId else database.readingDao().findVersion(bookId)?.activeEditionId
                     val scan = com.example.readalong.domain.reading.PassageSearch(query.take(500))
                     val hits = mutableListOf<ReadingSearchResult>()
@@ -331,7 +346,7 @@ class ReadingViewModel(val bookId: String, val database: ReadAlongDatabase, priv
         val edition = database.importedEpubDao().find(bookId) ?: return@action
         val block = database.importedEpubDao().block(bookId, edition.editionId, index) ?: return@action
         visible(block.toReadingSegment())
-        mutableStart.value = start.copy(index = index, generation = ++readerGeneration, characterOffset = 0)
+        mutableStart.value = start.copy(index = index, generation = ++readerGeneration, characterOffset = 0, lineOffsetPx = 0)
     }
     suspend fun indexAt(position: Long, generated: Boolean = mutableStart.value?.generated == true, imported: Boolean = mutableStart.value?.imported == true): Int {
         val dao = database.readingDao()
@@ -360,7 +375,7 @@ class ReadingViewModel(val bookId: String, val database: ReadAlongDatabase, priv
         } finally { mutableSyncBusy.value = false }
     }
     /** Resolve taps from persisted canonical words, including passages outside the current audio window. */
-    suspend fun sentenceTarget(paragraph: TranscriptSegment, offset: Int): Long? = try { withContext(Dispatchers.IO) {
+    suspend fun sentenceTarget(paragraph: TranscriptSegment, offset: Int, notifyWhenUnavailable: Boolean = true): Long? = try { withContext(Dispatchers.IO) {
         suspend fun target(segment: TranscriptSegment, at: Int): Long? {
             val ids = segment.anchors.map { it.id }.ifEmpty { listOf(segment.id) }
             val sources = database.readingDao().sourceSegments(bookId, ids).map { it.toSegment() }.associateBy { it.id }
@@ -390,7 +405,7 @@ class ReadingViewModel(val bookId: String, val database: ReadAlongDatabase, priv
             }
         }
         if (result != null) withContext(Dispatchers.Main.immediate) { visible(located, result!!) }
-        else withContext(Dispatchers.Main.immediate) { notice("No earlier sentence has audio timing yet. Keep listening while transcription prepares it.") }
+        else if (notifyWhenUnavailable) withContext(Dispatchers.Main.immediate) { notice("No earlier sentence has audio timing yet. Keep listening while transcription prepares it.") }
         result
     } } catch (cancelled: CancellationException) { throw cancelled }
     catch (_: Exception) { withContext(Dispatchers.Main.immediate) { notice("This saved passage could not be loaded. Reopen the book to retry; audio and EPUB are kept.") }; null }
@@ -476,8 +491,8 @@ class ReadingViewModel(val bookId: String, val database: ReadAlongDatabase, priv
     fun settings(value: ReaderPreferences) = action { preferencesStore.save(value) }
     private val center = MutableStateFlow(0L)
     val passages = center.flatMapLatest { position ->
-        combine(repository.window(bookId, position), database.importedEpubDao().window(bookId, position), database.readingDao().generatedWindow(bookId, position), importedEdition) { raw, epubBlocks, generated, edition ->
-            val shown = if (edition?.useForReading() == true) epubBlocks.map { it.toReadingSegment() } else generated.map { it.toSegment() }
+        combine(repository.window(bookId, position), database.importedEpubDao().window(bookId, position), database.readingDao().generatedWindow(bookId, position), importedEdition, readerStart) { raw, epubBlocks, generated, edition, start ->
+            val shown = if (start?.imported ?: (edition?.useForReading() == true)) epubBlocks.map { it.toReadingSegment() } else generated.map { it.toSegment() }
             // A publisher paragraph can span many audio windows. Its opening words must
             // remain available even when the current raw window has moved beyond them.
             val missing = shown.flatMap { it.anchors.map { anchor -> anchor.id } }.distinct().filter { id -> raw.none { it.id == id } }
@@ -510,7 +525,10 @@ class ReadingViewModel(val bookId: String, val database: ReadAlongDatabase, priv
     }
 }
 
-data class ReaderStart(val index: Int, val generation: Int, val generated: Boolean = false, val imported: Boolean = false, val editionId: String? = null, val characterOffset: Int = 0, val bookMode: Boolean = false, val pagerGeneration: Int = generation)
+data class ReaderStart(val index: Int, val generation: Int, val generated: Boolean = false, val imported: Boolean = false, val editionId: String? = null, val characterOffset: Int = 0, val bookMode: Boolean = false, val pagerGeneration: Int = generation, val lineOffsetPx: Int = 0)
+
+/** First visible text line, plus the portion already scrolled past within that line. */
+data class ReaderViewport(val index: Int, val character: Int, val lineOffsetPx: Int = 0)
 
 data class CorrectionDraft(val id: String, val original: String, val text: String, val audioMs: Long)
 

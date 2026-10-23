@@ -3,7 +3,7 @@
 Audiobook player for Android that highlights the text as the narrator reads. Works offline, with your own files.
 Turn any DRM-free audiobook into readable text on your phone, or sync it to an EPUB you already own. No account, no uploads.
 
-**[Download ReadAlong 0.35.0 Preview](https://github.com/lukeherc-cpu/ReadAlong/releases/download/v0.35.0-preview/ReadAlong-0.35.0-preview.apk)** · [View the release](https://github.com/lukeherc-cpu/ReadAlong/releases/tag/v0.35.0-preview)
+**[Download ReadAlong 0.35.1 Preview](https://github.com/lukeherc-cpu/ReadAlong/releases/download/v0.35.1-preview/ReadAlong-0.35.1-preview.apk)** · [View the release](https://github.com/lukeherc-cpu/ReadAlong/releases/tag/v0.35.1-preview)
 
 ReadAlong works with your own audiobook files. It does not include a book catalogue, sell books, or require an account to listen and read.
 
@@ -26,9 +26,9 @@ ReadAlong works with your own audiobook files. It does not include a book catalo
 
 ## Download and install
 
-The current download is **ReadAlong 0.35.0 Preview** for **Android 8.0 or later on an ARM64 device**. It runs on compatible phones and tablets.
+The current download is **ReadAlong 0.35.1 Preview** for **Android 8.0 or later on an ARM64 device**. It runs on compatible phones and tablets.
 
-1. [Download the APK](https://github.com/lukeherc-cpu/ReadAlong/releases/download/v0.35.0-preview/ReadAlong-0.35.0-preview.apk) on your Android device.
+1. [Download the APK](https://github.com/lukeherc-cpu/ReadAlong/releases/download/v0.35.1-preview/ReadAlong-0.35.1-preview.apk) on your Android device.
 2. Open it and allow installation from your browser or file manager if Android asks.
 3. Open ReadAlong and choose an audiobook folder. You can choose **Later** and add books from the library instead.
 
@@ -116,7 +116,7 @@ Speech recognition can mishear names or unfamiliar words. Hold a passage in the 
 
 Choose the **book** side of the switch at the top of the full-screen reader to read without sentence highlighting or playback controls. Choose the **book with headphones** to return to listening and reading together.
 
-Reading mode keeps its own position and appearance preferences. Its light view uses a white page with dark text; its dark view uses a black page with light text. Switching modes saves your reading position.
+The two modes share your current passage and keep separate appearance preferences. Switching keeps the same text in view, even with different fonts or text sizes. Read-only mode uses a white page with dark text in light mode and a black page with light text in dark mode. Returning to ReadAlong moves the audio to the displayed passage when its timing is available.
 
 You can also choose **Start in read only** in Settings if you usually want a book to open as a reading page. With an imported EPUB, its text can be read before audio matching is complete.
 
