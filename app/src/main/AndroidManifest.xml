@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROCESSING" />
+    <application
+        android:name=".ReadAlongApplication"
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.ReadAlong">
+        <receiver android:name=".data.transcription.DismissTranscriptionReceiver" android:exported="false" />
+        <receiver android:name=".data.transcription.ResumeTranscriptionReceiver" android:exported="false" />
+        <receiver android:name=".data.transcription.PauseTranscriptionReceiver" android:exported="false" />
+        <service android:name=".data.processing.AudiobookTranscriptionService" android:foregroundServiceType="dataSync|mediaProcessing" android:exported="false" />
+        <service android:name=".data.transcription.ModelValidationService" android:process=":model_validation" android:exported="false" />
+        <service android:name=".data.transcription.SecondRecognitionService" android:process=":recognition_2" android:exported="false" />
+        <service android:name=".data.transcription.ThirdRecognitionService" android:process=":recognition_3" android:exported="false" />
+        <service android:name=".data.transcription.RecognitionService" android:process=":recognition" android:exported="false" />
+        <service android:name="androidx.work.impl.foreground.SystemForegroundService" android:foregroundServiceType="dataSync|mediaProcessing" tools:node="merge" />
+        <service android:name=".playback.AudiobookService" android:foregroundServiceType="mediaPlayback" android:exported="true">
+            <intent-filter><action android:name="androidx.media3.session.MediaSessionService" /></intent-filter>
+        </service>
+        <provider android:name="androidx.core.content.FileProvider" android:authorities="${applicationId}.files" android:exported="false" android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
+        </provider>
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:theme="@style/Theme.ReadAlong"
+            android:windowSoftInputMode="adjustResize">
+
+        </activity>
+        <activity android:name=".ui.launch.BlueLightLauncher" android:exported="true" android:enabled="true" android:icon="@mipmap/launcher_blue_light" android:theme="@style/Launch_Blue_Light" android:label="@string/app_name" android:windowSoftInputMode="adjustResize"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity>
+        <activity android:name=".ui.launch.BlueDarkLauncher" android:exported="true" android:enabled="false" android:icon="@mipmap/launcher_blue_dark" android:theme="@style/Launch_Blue_Dark" android:label="@string/app_name" android:windowSoftInputMode="adjustResize"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity>
+        <activity android:name=".ui.launch.TealLightLauncher" android:exported="true" android:enabled="false" android:icon="@mipmap/launcher_teal_light" android:theme="@style/Launch_Teal_Light" android:label="@string/app_name" android:windowSoftInputMode="adjustResize"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity>
+        <activity android:name=".ui.launch.TealDarkLauncher" android:exported="true" android:enabled="false" android:icon="@mipmap/launcher_teal_dark" android:theme="@style/Launch_Teal_Dark" android:label="@string/app_name" android:windowSoftInputMode="adjustResize"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity>
+        <activity android:name=".ui.launch.GreenLightLauncher" android:exported="true" android:enabled="false" android:icon="@mipmap/launcher_green_light" android:theme="@style/Launch_Green_Light" android:label="@string/app_name" android:windowSoftInputMode="adjustResize"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity>
+        <activity android:name=".ui.launch.GreenDarkLauncher" android:exported="true" android:enabled="false" android:icon="@mipmap/launcher_green_dark" android:theme="@style/Launch_Green_Dark" android:label="@string/app_name" android:windowSoftInputMode="adjustResize"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity>
+        <activity android:name=".ui.launch.AmberLightLauncher" android:exported="true" android:enabled="false" android:icon="@mipmap/launcher_amber_light" android:theme="@style/Launch_Amber_Light" android:label="@string/app_name" android:windowSoftInputMode="adjustResize"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity>
+        <activity android:name=".ui.launch.AmberDarkLauncher" android:exported="true" android:enabled="false" android:icon="@mipmap/launcher_amber_dark" android:theme="@style/Launch_Amber_Dark" android:label="@string/app_name" android:windowSoftInputMode="adjustResize"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity>
+        <activity android:name=".ui.launch.OrangeLightLauncher" android:exported="true" android:enabled="false" android:icon="@mipmap/launcher_orange_light" android:theme="@style/Launch_Orange_Light" android:label="@string/app_name" android:windowSoftInputMode="adjustResize"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity>
+        <activity android:name=".ui.launch.OrangeDarkLauncher" android:exported="true" android:enabled="false" android:icon="@mipmap/launcher_orange_dark" android:theme="@style/Launch_Orange_Dark" android:label="@string/app_name" android:windowSoftInputMode="adjustResize"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity>
+        <activity android:name=".ui.launch.CoralLightLauncher" android:exported="true" android:enabled="false" android:icon="@mipmap/launcher_coral_light" android:theme="@style/Launch_Coral_Light" android:label="@string/app_name" android:windowSoftInputMode="adjustResize"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity>
+        <activity android:name=".ui.launch.CoralDarkLauncher" android:exported="true" android:enabled="false" android:icon="@mipmap/launcher_coral_dark" android:theme="@style/Launch_Coral_Dark" android:label="@string/app_name" android:windowSoftInputMode="adjustResize"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity>
+        <activity android:name=".ui.launch.RoseLightLauncher" android:exported="true" android:enabled="false" android:icon="@mipmap/launcher_rose_light" android:theme="@style/Launch_Rose_Light" android:label="@string/app_name" android:windowSoftInputMode="adjustResize"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity>
+        <activity android:name=".ui.launch.RoseDarkLauncher" android:exported="true" android:enabled="false" android:icon="@mipmap/launcher_rose_dark" android:theme="@style/Launch_Rose_Dark" android:label="@string/app_name" android:windowSoftInputMode="adjustResize"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity>
+        <activity android:name=".ui.launch.PurpleLightLauncher" android:exported="true" android:enabled="false" android:icon="@mipmap/launcher_purple_light" android:theme="@style/Launch_Purple_Light" android:label="@string/app_name" android:windowSoftInputMode="adjustResize"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity>
+        <activity android:name=".ui.launch.PurpleDarkLauncher" android:exported="true" android:enabled="false" android:icon="@mipmap/launcher_purple_dark" android:theme="@style/Launch_Purple_Dark" android:label="@string/app_name" android:windowSoftInputMode="adjustResize"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity>
+        <activity android:name=".ui.launch.IndigoLightLauncher" android:exported="true" android:enabled="false" android:icon="@mipmap/launcher_indigo_light" android:theme="@style/Launch_Indigo_Light" android:label="@string/app_name" android:windowSoftInputMode="adjustResize"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity>
+        <activity android:name=".ui.launch.IndigoDarkLauncher" android:exported="true" android:enabled="false" android:icon="@mipmap/launcher_indigo_dark" android:theme="@style/Launch_Indigo_Dark" android:label="@string/app_name" android:windowSoftInputMode="adjustResize"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity>
+        <activity android:name=".ui.launch.SlateLightLauncher" android:exported="true" android:enabled="false" android:icon="@mipmap/launcher_slate_light" android:theme="@style/Launch_Slate_Light" android:label="@string/app_name" android:windowSoftInputMode="adjustResize"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity>
+        <activity android:name=".ui.launch.SlateDarkLauncher" android:exported="true" android:enabled="false" android:icon="@mipmap/launcher_slate_dark" android:theme="@style/Launch_Slate_Dark" android:label="@string/app_name" android:windowSoftInputMode="adjustResize"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity>
+    </application>
+
+</manifest>

@@ -1,0 +1,14 @@
+ReadAlong offline recognition uses Cactus Whistle and the Needle runtime, Apache-2.0.
+https://github.com/cactus-compute/needle
+https://huggingface.co/Cactus-Compute/whistle
+https://huggingface.co/Cactus-Compute/needle3
+
+Whistle weights are downloaded only after the user requests installation.
+Audiobook audio and transcripts stay on the device. Runtime telemetry is disabled.
+
+EPUB parsing uses jsoup 1.23.2, MIT-licensed; its notice is included.
+https://jsoup.org/
+
+Java API compatibility uses desugar_jdk_libs 2.1.5,
+GNU General Public License version 2 with the Classpath Exception.
+https://github.com/google/desugar_jdk_libs

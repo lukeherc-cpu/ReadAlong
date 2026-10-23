@@ -1,0 +1,10 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:paddingTop="4dp" android:paddingBottom="8dp">
+    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical" android:paddingEnd="12dp">
+        <TextView android:id="@+id/transcription_title" android:layout_width="match_parent" android:layout_height="wrap_content" android:maxLines="2" android:ellipsize="end" android:textSize="15sp" android:textStyle="bold" style="@style/TextAppearance.Compat.Notification.Title"/>
+        <TextView android:id="@+id/transcription_chapter" android:layout_width="match_parent" android:layout_height="wrap_content" android:maxLines="2" android:ellipsize="end" android:textSize="12sp" android:layout_marginTop="8dp" style="@style/TextAppearance.Compat.Notification.Info"/>
+        <TextView android:id="@+id/transcription_chapter_progress" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="12sp" android:layout_marginTop="4dp" style="@style/TextAppearance.Compat.Notification.Info"/>
+        <TextView android:id="@+id/transcription_book" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="12sp" android:layout_marginTop="4dp" style="@style/TextAppearance.Compat.Notification.Info"/>
+        <ImageView android:id="@+id/transcription_progress" android:scaleType="fitXY" android:layout_width="match_parent" android:layout_height="5dp" android:layout_marginTop="6dp"/>
+    </LinearLayout>
+    <ImageButton android:id="@+id/transcription_pause" android:layout_width="44dp" android:layout_height="44dp" android:background="@android:color/transparent" android:padding="0dp" android:contentDescription="Pause transcription"/>
+</LinearLayout>

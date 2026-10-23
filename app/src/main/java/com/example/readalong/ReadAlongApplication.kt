@@ -1,0 +1,98 @@
+package com.example.readalong
+
+import android.app.Application
+import kotlinx.coroutines.*
+import androidx.room.withTransaction
+import com.example.readalong.data.book.RoomBookRepository
+import com.example.readalong.data.local.ReadAlongDatabase
+import com.example.readalong.domain.repository.BookRepository
+import com.example.readalong.playback.DemoPlaybackController
+
+class ReadAlongApplication : Application() {
+    // One database/repository for the application; no global mutable state or DI framework.
+    val database by lazy { ReadAlongDatabase.create(this) }
+    val audioImporter by lazy { com.example.readalong.data.importing.AudioImporter(this, database, onEpubFound = { id, uri -> importedEpub.import(id, uri) }, onImported = { processing.imported(it) }, onTranscriptFound = { id, uri ->
+        com.example.readalong.data.transcription.DesktopTranscriptImporter(this, database, processing, generatedEpub).import(id, uri)
+        if (database.importedEpubDao().find(id) != null) importedEpub.preference(id, "EPUB")
+        importedEpub.requestAlignment(id)
+    }) }
+    val bookRepository: BookRepository by lazy {
+        RoomBookRepository(database)
+    }
+    val speechModel by lazy { com.example.readalong.data.transcription.SpeechModelStore(this) }
+    val whistleEngine by lazy { com.example.readalong.data.transcription.WhistleTranscriptionEngine(this, speechModel) }
+    val processing by lazy { com.example.readalong.data.processing.ProcessingRepository(this, database, speechModel) }
+    @Volatile var appearanceSettings = com.example.readalong.data.preferences.AppPreferences()
+        private set
+    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    override fun onCreate() {
+        super.onCreate()
+        val processName = if (android.os.Build.VERSION.SDK_INT >= 28) getProcessName()
+            else java.io.File("/proc/self/cmdline").readText().substringBefore('\u0000')
+        com.example.readalong.data.diagnostics.CrashDiagnostics.install(this)
+        if (processName != packageName) return
+        applicationScope.launch { appPreferences.preferences.collect {
+            appearanceSettings = it
+            com.example.readalong.ui.launch.LaunchAppearance.apply(this@ReadAlongApplication, it)
+        } }
+        val powerReceiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(context: android.content.Context, intent: android.content.Intent) {
+                applicationScope.launch {
+                    try { processing.powerChanged() }
+                    catch (cancelled: CancellationException) { throw cancelled }
+                    catch (_: Exception) { android.util.Log.w("ReadAlong", "Power recovery will retry through WorkManager.") }
+                }
+            }
+        }
+        androidx.core.content.ContextCompat.registerReceiver(this, powerReceiver,
+            android.content.IntentFilter().apply {
+                addAction(android.content.Intent.ACTION_POWER_CONNECTED)
+                addAction(android.content.Intent.ACTION_POWER_DISCONNECTED)
+                addAction(android.content.Intent.ACTION_BATTERY_CHANGED)
+            }, androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED)
+
+        applicationScope.launch {
+            try { com.example.readalong.data.transcription.TranscriptionNotifications.observe(this@ReadAlongApplication) }
+            catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { android.util.Log.w("ReadAlong", "Transcription notifications will resume on next app launch.") }
+        }
+        applicationScope.launch {
+            try { com.example.readalong.data.transcription.AutomaticModelDownload.ensure(this@ReadAlongApplication, speechModel) }
+            catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { android.util.Log.w("ReadAlong", "Automatic model setup will retry at next launch.") }
+        }
+        applicationScope.launch {
+            // Recognition scratch files never contain book metadata. Only remove abandoned files, not active inputs.
+            listOf(java.io.File(filesDir, "recognition"), java.io.File(cacheDir, "recognition")).forEach { dir ->
+                dir.listFiles()?.filter { it.isFile && System.currentTimeMillis() - it.lastModified() > 86_400_000 }?.forEach { it.delete() }
+            }
+            try { speechModel.cleanAbandonedImports(); processing.recover(); importedEpub.recover() }
+            catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { android.util.Log.w("ReadAlong", "Background preparation recovery will retry when requested.") }
+        }
+    }
+    fun advanceTranscriptionQueue() {
+        applicationScope.launch {
+            delay(250) // Finish foreground teardown before arming the next durable job.
+            try { processing.advanceQueue() }
+            catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { android.util.Log.w("ReadAlong", "Queue handoff will retry on app launch.") }
+        }
+    }
+    fun transcriptionInterrupted(bookId: String, workId: String, reason: String = "Background transcription stopped.") {
+        applicationScope.launch {
+            try {
+                delay(250) // Let foreground teardown and explicit-pause state settle first.
+                processing.recoverInterrupted(bookId, workId, reason)
+            } catch (_: Exception) { android.util.Log.w("ReadAlong", "The durable transcription guard will retry recovery.") }
+        }
+    }
+    val generatedEpub by lazy { com.example.readalong.data.epub.GeneratedEpubRepository(this, database) }
+    val importedEpub by lazy { com.example.readalong.data.epub.ImportedEpubRepository(this, database) }
+    val appPreferences by lazy { com.example.readalong.data.preferences.AppPreferencesStore(this) }
+    val bookReaderPreferences by lazy { com.example.readalong.data.preferences.ReaderPreferencesStore.forBooks(this) }
+    val readerPreferences by lazy { com.example.readalong.data.preferences.ReaderPreferencesStore(this) }
+    val transcriptRepository by lazy { com.example.readalong.data.reading.TranscriptRepository(database) }
+    val playbackStore by lazy { com.example.readalong.playback.PlaybackStore() }
+    val playback by lazy { com.example.readalong.playback.PlaybackCoordinator(this, bookRepository, database, playbackStore) }
+}

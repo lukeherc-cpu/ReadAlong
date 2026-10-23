@@ -1,0 +1,215 @@
+package com.example.readalong.ui.player
+
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.testTag
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.dp
+import com.example.readalong.data.processing.progress
+import com.example.readalong.R
+import com.example.readalong.domain.model.Book
+import com.example.readalong.playback.*
+import com.example.readalong.ui.components.BookCover
+
+@Composable
+fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, onCollapse: () -> Unit, onFinished: (Boolean) -> Unit, reading: com.example.readalong.ui.reading.ReadingViewModel, onSpeechModel: () -> Unit, onFollow: () -> Unit) {
+    LaunchedEffect(book.id) { reading.warmPreview() }
+    val appSettings = com.example.readalong.ui.theme.LocalAppSettings.current
+    var showText by rememberSaveable(book.id) { mutableStateOf(appSettings.openingView != "COVER") }
+    val flip by animateFloatAsState(if (showText) 180f else 0f, tween(380), label = "Cover flip")
+    var panel by remember { mutableStateOf<String?>(null) }
+    val export = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/epub+zip")) { it?.let(reading::export) }
+    var menu by remember { mutableStateOf(false) }
+    var dragging by remember { mutableStateOf(false) }
+    var draggedPosition by remember { mutableFloatStateOf(0f) }
+    val bookmarks by reading.bookmarks.collectAsStateWithLifecycle()
+    val timeRemaining by reading.timeRemaining.collectAsStateWithLifecycle()
+    val job by reading.processingJob.collectAsStateWithLifecycle()
+    val timingRepair by reading.needsAudioTimingRepair.collectAsStateWithLifecycle()
+    var timingRepairDismissed by rememberSaveable(book.id) { mutableStateOf(false) }
+    if (timingRepair && !timingRepairDismissed) AlertDialog(onDismissRequest = { timingRepairDismissed = true },
+        title = { Text("Update saved audio timing") },
+        text = { Text("This MP3's seek table shifted the old transcription timestamps. Rebuild this book once to apply accurate audio timing. Your listening position and original EPUB are kept. Future interruptions resume from saved progress.") },
+        confirmButton = { TextButton(onClick = { timingRepairDismissed = true; reading.rebuildTranscription() }) { Text("Rebuild audio timing") } },
+        dismissButton = { TextButton(onClick = { timingRepairDismissed = true }) { Text("Later") } })
+    val execution by reading.execution.collectAsStateWithLifecycle()
+    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val readingError by reading.error.collectAsStateWithLifecycle()
+    val start = state.chapterStartMs
+    val chapterDuration = state.chapterDurationMs
+    val chapterPosition = state.chapterPositionMs
+    val palette = com.example.readalong.ui.components.rememberCoverPalette(book)
+    val colors = darkColorScheme(primary = palette.accent, onPrimary = Color(0xFF142332), background = Color(0xFF101418), secondaryContainer = palette.preview)
+    val screenHeight = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
+    MaterialTheme(colorScheme = colors) {
+    Box(Modifier.fillMaxSize().background(palette.background)) {
+    val showBuffering by produceState(false, state.isLoading) {
+        value = false
+        if (state.isLoading) { kotlinx.coroutines.delay(600); value = true }
+    }
+    if (appSettings.blurredPlayer && !appSettings.alwaysBasicColor) com.example.readalong.ui.components.BlurredCover(book.coverUri, Modifier.fillMaxSize())
+    Scaffold(containerColor = Color.Transparent, contentColor = colors.onSurface) { insets ->
+        Column(
+            Modifier.fillMaxSize()
+                .padding(insets).verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onCollapse) { Icon(painterResource(R.drawable.ic_down), "Collapse player") }
+                Spacer(Modifier.weight(1f))
+                Box {
+                    IconButton(onClick = { menu = true }) { Icon(painterResource(R.drawable.ic_more), "More options") }
+                    DropdownMenu(menu, { menu = false }) {
+                        DropdownMenuItem(text = { Text(if (book.isFinished) "Mark unfinished" else "Mark finished") }, onClick = { onFinished(!book.isFinished); menu = false })
+                        DropdownMenuItem(text = { Text("Export generated EPUB") }, onClick = { menu = false; export.launch("ReadAlong-${book.id}.epub") })
+                        DropdownMenuItem(text = { Text("Bookmarks (${bookmarks.size})") }, onClick = { panel = "bookmarks"; menu = false })
+                    }
+                }
+            }
+            BoxWithConstraints(Modifier.widthIn(max = 960.dp).fillMaxWidth().padding(horizontal = 24.dp)) {
+                val wide = maxWidth >= 640.dp
+                val artwork: @Composable () -> Unit = {
+                    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        if (book.mediaState == "MISSING") Text("Media unavailable · restore file access", color = colors.error)
+                        Box(Modifier.widthIn(max = if (wide) 360.dp else (screenHeight * 0.40f).coerceIn(260.dp, 380.dp))
+                            .fillMaxWidth().aspectRatio(1f).graphicsLayer {
+                                rotationY = flip
+                                cameraDistance = 16 * density
+                            }) {
+                            // Keep the preview composed, measured and following even while the art faces forward.
+                            Box(Modifier.fillMaxSize().graphicsLayer { rotationY = 180f; alpha = if (flip > 90f) 1f else 0f }
+                                .then(if (flip <= 90f) Modifier.clearAndSetSemantics { } else Modifier)) {
+                                com.example.readalong.ui.reading.FollowCard(state, reading, onFollow, com.example.readalong.ui.reading.LocalReaderSurfaceColor.current.takeIf { it != Color.Unspecified } ?: palette.preview,
+                                    onCover = { showText = false }, visible = flip > 90f, modifier = if (showText) com.example.readalong.ui.reading.LocalReaderSurface.current else Modifier)
+                            }
+                            if (flip <= 90f) Box(Modifier.fillMaxSize().testTag("flip_cover")
+                                .clickable(role = Role.Button, onClickLabel = "Show reading preview") { showText = true }) {
+                                BookCover(book, Modifier.fillMaxSize(), large = true)
+                            }
+                        }
+                    }
+                }
+                val controls: @Composable ColumnScope.() -> Unit = {
+                com.example.readalong.ui.components.MarqueeTitle(book.title, Modifier.fillMaxWidth(), MaterialTheme.typography.headlineMedium)
+                Text(state.chapterTitle, style = MaterialTheme.typography.titleMedium, color = colors.onSurfaceVariant)
+                Slider(
+                    value = if (dragging) draggedPosition else chapterPosition.toFloat().coerceAtMost(chapterDuration.toFloat()),
+                    onValueChange = { dragging = true; draggedPosition = it },
+                    onValueChangeFinished = { playback.seek(start + draggedPosition.toLong()); dragging = false },
+                    valueRange = 0f..chapterDuration.toFloat(),
+                    modifier = Modifier.semantics { contentDescription = "Seek within chapter" },
+                )
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(clockTime(chapterPosition), style = MaterialTheme.typography.bodySmall)
+                    Text(if (state.durationMs > 0) "${clockTime(state.durationMs - state.positionMs)} left" else "Duration unavailable", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+                    Text(clockTime(chapterDuration), style = MaterialTheme.typography.bodySmall)
+                }
+                state.error?.let { Text(it, color = colors.error, style = MaterialTheme.typography.bodySmall) }
+
+                Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+                    PlayerAction("Rewind ${appSettings.playerBack} seconds", R.drawable.ic_rewind, "${appSettings.playerBack}", { playback.skip(-appSettings.playerBack * 1000L) })
+                    FilledIconButton(onClick = playback::toggle, modifier = Modifier.size(76.dp), shape = CircleShape) {
+                        com.example.readalong.ui.components.PlayPauseIcon(state.isPlaying, Modifier.size(36.dp))
+                    }
+                    PlayerAction("Forward ${appSettings.playerForward} seconds", R.drawable.ic_forward, "${appSettings.playerForward}", { playback.skip(appSettings.playerForward * 1000L) })
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = { panel = "speed" }) { Text("${state.speed}×") }
+                    PlayerAction("Sleep timer", R.drawable.ic_sleep, if (state.sleepEndsAt != null || state.sleepAtChapterEnd) "On" else "Sleep", { panel = "sleep" })
+                    PlayerAction("Bookmarks", R.drawable.ic_bookmark, "Bookmark", { panel = "bookmarks" })
+                    PlayerAction("Chapters", R.drawable.ic_chapters, "Chapters", { panel = "chapters" })
+                }
+                com.example.readalong.ui.reading.EpubSyncProgress(reading)
+                ReadableProgressCard(book, job, timeRemaining, reading, state.positionMs, execution, onSpeechModel)
+                readingError?.let { Text(it, color = colors.error, style = MaterialTheme.typography.bodySmall) }
+                Spacer(Modifier.height(12.dp))
+                }
+                if (wide) Row(horizontalArrangement = Arrangement.spacedBy(32.dp)) {
+                    Box(Modifier.weight(0.9f)) { artwork() }
+                    Column(Modifier.weight(1.1f), verticalArrangement = Arrangement.spacedBy(12.dp), content = controls)
+                } else Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    artwork()
+                    controls()
+                }
+            }
+        }
+    }
+    if (showBuffering) LinearProgressIndicator(Modifier.align(Alignment.TopCenter).fillMaxWidth().height(2.dp).semantics { contentDescription = "Buffering audio" })
+    }
+    if (panel == "bookmarks") BookmarksDialog(reading, state.positionMs, playback::seek, { panel = null })
+    if (panel != null && panel != "bookmarks") {
+        AlertDialog(
+            onDismissRequest = { panel = null },
+            title = { Text(when (panel) { "speed" -> "Playback speed"; "sleep" -> "Sleep timer"; "chapters" -> "Chapters"; "bookmarks" -> "Bookmarks"; else -> "Follow Along" }) },
+            text = {
+                LazyColumn(Modifier.heightIn(max = 360.dp)) {
+                    when (panel) {
+                        "speed" -> items(PlaybackSpeeds) { speed -> TextButton(onClick = { playback.speed(speed); panel = null }, modifier = Modifier.fillMaxWidth()) { Text("$speed×") } }
+                        "sleep" -> {
+                            item { TextButton(onClick = { playback.sleep(null); panel = null }) { Text("Off") } }
+                            items(listOf(5, 10, 15, 30, 45, 60)) { minutes -> TextButton(onClick = { playback.sleep(minutes); panel = null }) { Text("$minutes minutes") } }
+                            item { TextButton(onClick = { playback.sleepAtChapterEnd(); panel = null }) { Text("End of chapter") } }
+                        }
+                        "chapters" -> {
+                            if (book.isDemo) items(((state.durationMs + 1_799_999) / 1_800_000).toInt()) { index ->
+                                TextButton(onClick = { playback.chapter(index); panel = null }) { Text("Demo chapter ${index + 1} · ${clockTime(index * 1_800_000L)}") }
+                            } else items(state.chapters, key = { it.index }) { item ->
+                                TextButton(onClick = { playback.chapter(item.index); panel = null }) {
+                                    Column(Modifier.fillMaxWidth()) {
+                                        Text(item.title)
+                                        Text(clockTime(item.startMs), style = MaterialTheme.typography.labelSmall)
+                                    }
+                                }
+                            }
+                        }
+                        "bookmarks" -> {
+                            if (bookmarks.isEmpty()) item { Text("No bookmarks yet.") }
+                            items(bookmarks, key = { it.id }) { bookmark ->
+                                Row {
+                                    TextButton(onClick = { playback.seek(bookmark.audioMs); panel = null }, modifier = Modifier.weight(1f)) { Text(clockTime(bookmark.audioMs)) }
+                                    TextButton(onClick = { reading.deleteBookmark(bookmark.id) }) { Text("Remove") }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { panel = null }) { Text("Close") } },
+        )
+    }
+    }
+}
+
+@Composable
+private fun PlayerAction(description: String, icon: Int, label: String, onClick: () -> Unit) {
+    Column(
+        Modifier.widthIn(min = 48.dp).heightIn(min = 56.dp).clickable(role = Role.Button, onClickLabel = description, onClick = onClick).padding(4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Icon(painterResource(icon), description, Modifier.size(26.dp))
+        Text(label, style = MaterialTheme.typography.labelSmall)
+    }
+}
+

@@ -1,0 +1,16 @@
+# Local configuration and build output
+.gradle/
+.idea/
+.kotlin/
+**/build/
+**/.cxx/
+**/.externalNativeBuild/
+local.properties
+*.iml
+.DS_Store
+*.jks
+*.keystore
+# Release APKs belong in GitHub Releases, not source history.
+*.apk
+*.aab
+*.idsig
