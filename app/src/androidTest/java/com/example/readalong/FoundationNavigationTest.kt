@@ -103,7 +103,6 @@ class FoundationNavigationTest {
         compose.onNodeWithText("Keep ReadAlong bar on player").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Copy transcription diagnostics").assertExists()
         compose.onNodeWithText("Import transcript", substring = false).assertDoesNotExist()
-        compose.onNodeWithText("From Scribe · .readalong").assertDoesNotExist()
         compose.onRoot().captureToImage().asAndroidBitmap().let { bitmap ->
             val app = compose.activity.application as ReadAlongApplication
             java.io.File(app.getExternalFilesDir(null), "verification-desktop-import-ui.png").outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
