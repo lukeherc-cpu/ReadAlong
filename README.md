@@ -1,6 +1,7 @@
 # ReadAlong
 
-ReadAlong is an Android audiobook player that lets you follow the narration on the page. It can turn an audiobook into readable text on your device, or match the recording to an EPUB you already own. Listen with the words highlighted, tap a sentence to hear it, or put the audio aside and read.
+Audiobook player for Android that highlights the text as the narrator reads. Works offline, with your own files.
+Turn any DRM-free audiobook into readable text on your phone, or sync it to an EPUB you already own. No account, no uploads.
 
 **[Download ReadAlong 0.35.0 Preview](https://github.com/lukeherc-cpu/ReadAlong/releases/download/v0.35.0-preview/ReadAlong-0.35.0-preview.apk)** · [View the release](https://github.com/lukeherc-cpu/ReadAlong/releases/tag/v0.35.0-preview)
 
