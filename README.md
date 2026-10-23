@@ -2,7 +2,9 @@
 
 ReadAlong is a native Android audiobook player with on-device transcription and synchronized EPUB reading.
 
-Current release: [**0.34.1-preview**](https://github.com/lukeherc-cpu/ReadAlong/releases/tag/v0.34.1-preview) (version code 27). Android 8.0 or newer; ARM64 device required.
+**[Download ReadAlong APK](https://github.com/lukeherc-cpu/ReadAlong/releases/download/v0.34.1-preview/ReadAlong-0.34.1-preview.apk)**
+
+Current release: **0.34.1-preview** (version code 27). Android 8.0 or newer; ARM64 device required.
 
 ## Features
 
@@ -12,7 +14,6 @@ Current release: [**0.34.1-preview**](https://github.com/lukeherc-cpu/ReadAlong/
 - Light/dark palettes, matching launcher icons, reading and app fonts, and custom font importing.
 - Background playback and foreground-service transcription with notification controls.
 
-Manual Scribe transcript importing is unavailable in this release.
 
 ## Build
 
