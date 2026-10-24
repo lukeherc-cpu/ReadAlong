@@ -164,7 +164,8 @@ fun ReadAlongApp(libraryViewModel: LibraryViewModel, app: com.example.readalong.
                         }) }
                 },
             )
-            sheetBook?.let { book -> if (sheet.value > 0f) com.example.readalong.ui.player.PlayerTransform(book, readerSettings.theme, { sheet.value }) }
+            sheetBook?.let { book -> if (sheet.value > 0f) com.example.readalong.ui.player.PlayerTransform(book, readerSettings.theme, { sheet.value },
+                chapterTitle = if (playbackState.bookId == book.id) playbackState.chapterTitle else "") }
             }
             com.example.readalong.ui.components.FirstVisitGuide(app, com.example.readalong.ui.components.GuidePage.HOME,
                 guideEligible && selected == null && actionError == null && state is com.example.readalong.ui.library.LibraryUiState.Ready)
