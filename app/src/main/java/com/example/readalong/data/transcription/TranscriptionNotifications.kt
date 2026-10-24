@@ -29,7 +29,7 @@ object TranscriptionNotifications {
     internal fun recoveryId(bookId: String): Int = notificationId(bookId) xor 0x40000000
     internal fun recovery(context: Context, bookId: String): android.app.Notification {
         context.getSystemService(NotificationManager::class.java).createNotificationChannel(NotificationChannel(CHANNEL, "Audiobook transcription", NotificationManager.IMPORTANCE_LOW))
-        return NotificationCompat.Builder(context, CHANNEL).setSmallIcon(R.drawable.ic_book)
+        return NotificationCompat.Builder(context, CHANNEL).setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("Resuming transcription").setContentText("Restoring saved progress…")
             .setOngoing(true).setOnlyAlertOnce(true).setShowWhen(false)
             .setGroup("readalong-transcription").setSortKey(sortKey(positions[bookId] ?: 0L, bookId)).build()
@@ -47,7 +47,7 @@ object TranscriptionNotifications {
         val manager = context.getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(NotificationChannel(STOPPED_CHANNEL, "Transcription updates", NotificationManager.IMPORTANCE_DEFAULT))
         if (NotificationManagerCompat.from(context).areNotificationsEnabled()) manager.notify(ID + 4,
-            NotificationCompat.Builder(context, STOPPED_CHANNEL).setSmallIcon(R.drawable.ic_book)
+            NotificationCompat.Builder(context, STOPPED_CHANNEL).setSmallIcon(R.drawable.ic_notification)
                 .setContentTitle("One book transcribes at a time")
                 .setContentText("Pause a transcription before starting another book.").setAutoCancel(true).build())
     }
@@ -119,7 +119,7 @@ object TranscriptionNotifications {
         val delete = PendingIntent.getBroadcast(context, notificationId(bookId), Intent(context, DismissTranscriptionReceiver::class.java)
             .setData(android.net.Uri.parse("readalong://dismiss/${android.net.Uri.encode(bookId)}"))
             .putExtra("bookId", bookId), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-        return NotificationCompat.Builder(context, CHANNEL).setSmallIcon(R.drawable.ic_book).setContentTitle(title).setContentText(label)
+        return NotificationCompat.Builder(context, CHANNEL).setSmallIcon(R.drawable.ic_notification).setContentTitle(title).setContentText(label)
             .setSubText(estimate).setCustomContentView(content).setCustomBigContentView(expanded)
             .setStyle(NotificationCompat.DecoratedCustomViewStyle()).setContentIntent(open)
             .addExtras(android.os.Bundle().apply { putString("readalongBookId", bookId) }).setGroup("readalong-transcription").setSortKey(sortKey(positions[bookId] ?: 0L, bookId)).setWhen(stableWhen(context, bookId)).setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_SUMMARY).setDeleteIntent(delete).setOngoing(true).setOnlyAlertOnce(true).setShowWhen(false).build()
@@ -136,7 +136,7 @@ object TranscriptionNotifications {
             else -> explanation
         }
         if (NotificationManagerCompat.from(context).areNotificationsEnabled()) manager.notify("stopped:$bookId", ID + 1,
-            NotificationCompat.Builder(context, STOPPED_CHANNEL).setSmallIcon(R.drawable.ic_book).setContentTitle("Transcription stopped").setSubText(title)
+            NotificationCompat.Builder(context, STOPPED_CHANNEL).setSmallIcon(R.drawable.ic_notification).setContentTitle("Transcription stopped").setSubText(title)
                 .setContentText(text).setStyle(NotificationCompat.BigTextStyle().bigText(text)).setContentIntent(open)
                 .setAutoCancel(true).addAction(R.drawable.ic_forward, "Retry", retry).build())
     }
