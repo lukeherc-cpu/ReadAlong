@@ -42,20 +42,29 @@ class EpubAligner {
 
     private fun alignPass(blocks: List<EpubBlock>, segments: List<TranscriptSegment>, checkpoint: () -> Unit,
         recoverOpening: Boolean = false): AlignmentResult {
-        val book = tokens(blocks.map { it.text }, checkpoint)
-        val speech = tokens(segments.map { it.text }, checkpoint)
+        // Whole books run in the app process: share one String per distinct word across both sides.
+        val words = HashMap<String, String>()
+        val book = tokens(blocks.map { it.text }, words, checkpoint)
+        val speech = tokens(segments.map { it.text }, words, checkpoint)
         val mapped = IntArray(speech.size) { -1 }; val scores = FloatArray(speech.size)
         val anchored = BooleanArray(speech.size)
         val width = 4
-        val bookPhrases = phrases(book, width, checkpoint)
-        val speechPhrases = phrases(speech, width, checkpoint)
-        val pairs = speechPhrases.entries.mapNotNull { (hash, s) ->
-            val b = bookPhrases[hash]
-            if (s < 0 || b == null || b < 0 || (0 until width).any { speech[s + it].value != book[b + it].value }) null else Pair(s, b)
-        }.sortedBy { it.first }
+        // Both phrase indexes are scoped here so they can be collected before the gap pass.
+        val pairs = run {
+            val bookPhrases = phrases(book, width, checkpoint)
+            val speechPhrases = phrases(speech, width, checkpoint)
+            // Packed (speech shl 32 | book): speech positions are unique, so sorting by value sorts by speech.
+            val found = LongArray(max(0, speech.size - width + 1)); var count = 0
+            speechPhrases.forEach { hash, s ->
+                val b = bookPhrases[hash]
+                if (!(s < 0 || b < 0 || (0 until width).any { speech[s + it].value != book[b + it].value })) found[count++] = (s.toLong() shl 32) or b.toLong()
+            }
+            found.copyOf(count).also { it.sort() }
+        }
         val chain = monotonic(pairs)
         val anchors = mutableListOf<Pair<Int, Int>>()
-        chain.forEach { pair ->
+        chain.forEach { packed ->
+            val pair = Pair((packed ushr 32).toInt(), packed.toInt())
             if (anchors.isEmpty() || (pair.first >= anchors.last().first + width && pair.second >= anchors.last().second + width)) anchors += pair
         }
         fun gap(s0: Int, s1: Int, b0: Int, b1: Int) {
@@ -165,7 +174,7 @@ class EpubAligner {
     }
 
     private data class Token(val value: String, val owner: Int, val start: Int, val end: Int)
-    private fun tokens(texts: List<String>, checkpoint: () -> Unit): List<Token> {
+    private fun tokens(texts: List<String>, words: HashMap<String, String>, checkpoint: () -> Unit): List<Token> {
         val result = ArrayList<Token>()
         texts.forEachIndexed { owner, text ->
             checkpoint()
@@ -175,33 +184,65 @@ class EpubAligner {
                     .replace(combiningMarks, "")
                 val number = value.toIntOrNull()
                 val normalized = if (number != null && number in 0..20) numbers[number] else value
-                result += Token(normalized, owner, match.range.first, match.range.last + 1)
+                result += Token(words.getOrPut(normalized) { normalized }, owner, match.range.first, match.range.last + 1)
             }
         }
         return result
     }
-    private fun phrases(tokens: List<Token>, width: Int, checkpoint: () -> Unit): Map<Long, Int> {
-        val result = HashMap<Long, Int>()
+    private fun phrases(tokens: List<Token>, width: Int, checkpoint: () -> Unit): PhraseIndex {
+        val result = PhraseIndex(tokens.size - width + 1)
         for (i in 0..tokens.size - width) {
             if (i % 1000 == 0) checkpoint()
             var hash = 1125899906842597L
             for (j in 0 until width) { tokens[i + j].value.forEach { hash = hash * 31 + it.code }; hash = hash * 31 + 0 }
-            result[hash] = if (result.containsKey(hash)) -1 else i
+            result.add(hash, i)
         }
         return result
     }
-    private fun monotonic(pairs: List<Pair<Int, Int>>): List<Pair<Int, Int>> {
-        if (pairs.isEmpty()) return emptyList()
+
+    /**
+     * Open-addressing Long -> Int map with the same semantics as the former HashMap<Long, Int>:
+     * a repeated phrase becomes -1. Primitive arrays avoid boxing an entry per word of a whole book.
+     */
+    private class PhraseIndex(expected: Int) {
+        private val mask: Int
+        private val keys: LongArray
+        private val values: IntArray
+        init {
+            var capacity = 16
+            while (capacity < expected.toLong() * 3 / 2) capacity = capacity shl 1
+            mask = capacity - 1
+            keys = LongArray(capacity)
+            values = IntArray(capacity) { EMPTY }
+        }
+        private fun slot(key: Long): Int {
+            val mixed = key * -7046029254386353131L
+            var at = (mixed xor (mixed ushr 32)).toInt() and mask
+            while (values[at] != EMPTY && keys[at] != key) at = (at + 1) and mask
+            return at
+        }
+        fun add(key: Long, index: Int) {
+            val at = slot(key)
+            if (values[at] == EMPTY) { keys[at] = key; values[at] = index } else values[at] = -1
+        }
+        /** The phrase's unique position, or -1 when it is absent or repeated. */
+        operator fun get(key: Long): Int = values[slot(key)].let { if (it == EMPTY) -1 else it }
+        fun forEach(action: (Long, Int) -> Unit) { for (at in values.indices) if (values[at] != EMPTY) action(keys[at], values[at]) }
+        private companion object { const val EMPTY = Int.MIN_VALUE }
+    }
+    /** Longest chain increasing in both positions, over packed (speech shl 32 | book) pairs. */
+    private fun monotonic(pairs: LongArray): LongArray {
+        if (pairs.isEmpty()) return LongArray(0)
         val tails = IntArray(pairs.size); val parents = IntArray(pairs.size) { -1 }; var length = 0
         pairs.indices.forEach { i ->
             var lo = 0; var hi = length
-            while (lo < hi) { val mid = (lo + hi) / 2; if (pairs[tails[mid]].second < pairs[i].second) lo = mid + 1 else hi = mid }
+            while (lo < hi) { val mid = (lo + hi) / 2; if (pairs[tails[mid]].toInt() < pairs[i].toInt()) lo = mid + 1 else hi = mid }
             if (lo > 0) parents[i] = tails[lo - 1]
             tails[lo] = i; if (lo == length) length++
         }
-        val chain = mutableListOf<Pair<Int, Int>>(); var at = tails[length - 1]
-        while (at >= 0) { chain += pairs[at]; at = parents[at] }
-        return chain.asReversed()
+        val chain = LongArray(length); var at = tails[length - 1]; var k = length - 1
+        while (at >= 0) { chain[k--] = pairs[at]; at = parents[at] }
+        return chain
     }
     private fun similarity(a: String, b: String): Float {
         if (a == b) return 1f
