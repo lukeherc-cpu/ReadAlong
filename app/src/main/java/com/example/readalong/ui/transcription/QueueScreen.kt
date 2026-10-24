@@ -1,7 +1,12 @@
 package com.example.readalong.ui.transcription
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -49,8 +54,23 @@ class QueueViewModel(private val app: ReadAlongApplication) : ViewModel() {
     fun pause(id: String) = action { repository.cancel(id) }
     fun remove(id: String) = action { repository.removeFromQueue(id) }
     fun add(id: String) = action { repository.addToQueue(id) }
-    fun reorder(ids: List<String>) = action { repository.reorder(ids) }
-    fun move(id: String, direction: Int) = action { repository.move(id, direction) }
+    /** Saves the new order. A book dragged to the top starts transcribing; the displaced book keeps its checkpoint. */
+    fun reorder(ids: List<String>) = action {
+        val before = queuedIds()
+        repository.reorder(ids)
+        startIfPromoted(before.firstOrNull(), ids.firstOrNull())
+    }
+    fun move(id: String, direction: Int) = action {
+        val before = queuedIds()
+        repository.move(id, direction)
+        if (direction == -1 && before.indexOf(id) == 1) startIfPromoted(before.first(), id)
+    }
+    private fun queuedIds() = books.value.filter { it.item.state !in setOf("WAITING_SELECTION", "READY") }.map { it.item.bookId }
+    private suspend fun startIfPromoted(oldFirst: String?, newFirst: String?) {
+        if (newFirst == null || newFirst == oldFirst) return
+        val state = books.value.firstOrNull { it.item.bookId == newFirst }?.item?.state
+        if (state !in activeStates) repository.playQueued(newFirst)
+    }
     fun dismissError() { mutableError.value = null }
     private fun action(block: suspend () -> Unit) { viewModelScope.launch {
         try { mutableError.value = null; block() }
@@ -73,14 +93,28 @@ fun QueueScreen(model: QueueViewModel, onBack: () -> Unit) {
     val finished = books.filter { it.item.state == "READY" }
     var adding by rememberSaveable { mutableStateOf(false) }
     var order by remember { mutableStateOf(emptyList<String>()) }
-    var dragging by remember { mutableStateOf<String?>(null) }
-    var dragOffset by remember { mutableFloatStateOf(0f) }
+    val drag = remember { QueueDrag() }
     val currentQueued by rememberUpdatedState(queued)
     val list = rememberLazyListState()
     val scope = rememberCoroutineScope()
     LaunchedEffect(queued.map { it.item.bookId }) {
-        if (dragging == null || order.toSet() != queued.map { it.item.bookId }.toSet()) {
-            order = queued.map { it.item.bookId }; dragging = null; dragOffset = 0f
+        if (drag.key == null || order.toSet() != queued.map { it.item.bookId }.toSet()) {
+            order = queued.map { it.item.bookId }; drag.reset()
+        }
+    }
+    // Edge auto-scroll runs every frame while a card is held near the top or bottom, so the list
+    // keeps moving under a still finger. The scrolled distance is added back to the card so it
+    // stays under the finger instead of drifting with the list.
+    LaunchedEffect(drag.key) {
+        if (drag.key == null) return@LaunchedEffect
+        while (isActive && drag.key != null) {
+            withFrameNanos { }
+            val speed = drag.edgeSpeed(list)
+            if (speed != 0f) {
+                val consumed = list.scrollBy(speed)
+                drag.moveBy(consumed)
+                drag.swapIfNeeded(list, order) { order = it }
+            }
         }
     }
     val ordered = order.mapNotNull { id -> queued.firstOrNull { it.item.bookId == id } }
@@ -98,7 +132,13 @@ fun QueueScreen(model: QueueViewModel, onBack: () -> Unit) {
             if (ordered.isEmpty()) item(key = "empty") { Text("Press + to add a book. Play starts transcription.", style = MaterialTheme.typography.bodyMedium) }
             items(ordered, key = { it.item.bookId }) { entry ->
                 val id = entry.item.bookId
-                QueueCard(entry, (if (dragging == id) Modifier else Modifier.animateItem()).zIndex(if (dragging == id) 1f else 0f).graphicsLayer { if (dragging == id) translationY = dragOffset },
+                val held = drag.key == id
+                val lift by animateFloatAsState(if (held && !drag.dropping) 1f else 0f, tween(160, easing = QueueEasing), label = "Queue lift")
+                QueueCard(entry, (if (held) Modifier else Modifier.animateItem(placementSpec = tween(220, easing = QueueEasing))).zIndex(if (held) 1f else 0f).graphicsLayer {
+                        if (held) translationY = drag.offset.value
+                        scaleX = 1f + .025f * lift; scaleY = scaleX
+                        shadowElevation = 10.dp.toPx() * lift; shape = RoundedCornerShape(28.dp); clip = false
+                    },
                     onPlay = { if (entry.item.state in activeStates) model.pause(id) else model.next(id) }, onTrash = { model.remove(id) },
                     handle = {
                         val color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -106,30 +146,19 @@ fun QueueScreen(model: QueueViewModel, onBack: () -> Unit) {
                             contentDescription = "Reorder ${entry.item.title}"
                             customActions = listOf(CustomAccessibilityAction("Move up") { model.move(id, -1); true }, CustomAccessibilityAction("Move down") { model.move(id, 1); true })
                         }.pointerInput(id) {
-                            detectDragGestures(onDragStart = { dragging = id; dragOffset = 0f }, onDragCancel = { dragging = null; dragOffset = 0f; order = currentQueued.map { it.item.bookId } }, onDragEnd = {
-                                val ids = order
-                                dragging = null; dragOffset = 0f
-                                if (ids.toSet() == currentQueued.map { it.item.bookId }.toSet()) model.reorder(ids)
-                            }) { change, amount ->
-                                change.consume(); dragOffset += amount.y
-                                val visible = list.layoutInfo.visibleItemsInfo
-                                val current = visible.firstOrNull { it.key == id } ?: return@detectDragGestures
-                                val center = current.offset + current.size / 2 + dragOffset
-                                val target = visible.firstOrNull { it.key in order && it.key != id && center >= it.offset && center < it.offset + it.size }
-                                if (target != null) {
-                                    val old = order.indexOf(id); val next = order.indexOf(target.key)
-                                    if (old >= 0 && next >= 0) {
-                                        order = order.toMutableList().apply { add(next, removeAt(old)) }
-                                        dragOffset -= target.offset - current.offset
+                            detectVerticalDragGestures(
+                                onDragStart = { scope.launch { drag.start(id) } },
+                                onDragEnd = {
+                                    scope.launch {
+                                        drag.drop()
+                                        val ids = order
+                                        if (ids.toSet() == currentQueued.map { it.item.bookId }.toSet()) model.reorder(ids)
                                     }
-                                }
-                                val edge = 72.dp.toPx()
-                                val scroll = when {
-                                    center < list.layoutInfo.viewportStartOffset + edge -> -12.dp.toPx()
-                                    center > list.layoutInfo.viewportEndOffset - edge -> 12.dp.toPx()
-                                    else -> 0f
-                                }
-                                if (scroll != 0f) scope.launch { list.scrollBy(scroll) }
+                                },
+                                onDragCancel = { scope.launch { drag.drop(); order = currentQueued.map { it.item.bookId } } },
+                            ) { change, amount ->
+                                change.consume()
+                                scope.launch { drag.moveBy(amount); drag.swapIfNeeded(list, order) { order = it } }
                             }
                         }, contentAlignment = Alignment.Center) {
                             Canvas(Modifier.size(20.dp)) {
@@ -171,6 +200,69 @@ fun QueueScreen(model: QueueViewModel, onBack: () -> Unit) {
 }
 
 private val activeStates = setOf("QUEUED", "PROCESSING", "PARTIAL_READY", "GENERATING_EPUB")
+private val QueueEasing = CubicBezierEasing(.2f, 0f, .1f, 1f)
+
+/**
+ * Drag state for the queue. A swap happens when the held card's leading edge crosses the middle
+ * of its neighbour, which gives natural hysteresis (no flip-flopping between two cards of
+ * different heights), and the next swap waits until the list has laid out the previous one, so
+ * stale positions can't undo it. That stale undo was the "stuck, move the book above it down" glitch.
+ */
+@Stable
+private class QueueDrag {
+    var key by mutableStateOf<String?>(null); private set
+    var dropping by mutableStateOf(false); private set
+    val offset = Animatable(0f)
+    private var awaitingIndex: Int? = null
+
+    suspend fun start(id: String) { offset.snapTo(0f); dropping = false; awaitingIndex = null; key = id }
+    suspend fun moveBy(amount: Float) { if (key != null && !dropping) offset.snapTo(offset.value + amount) }
+    /** Glides the card into its slot instead of snapping, then releases it. */
+    suspend fun drop() {
+        if (key == null) return
+        dropping = true
+        offset.animateTo(0f, tween(200, easing = QueueEasing))
+        reset()
+    }
+    fun reset() { key = null; dropping = false; awaitingIndex = null }
+
+    fun edgeSpeed(list: LazyListState): Float {
+        val id = key ?: return 0f
+        if (dropping) return 0f
+        val info = list.layoutInfo
+        val held = info.visibleItemsInfo.firstOrNull { it.key == id } ?: return 0f
+        val top = held.offset + offset.value; val bottom = top + held.size
+        val edge = info.viewportSize.height * .12f
+        return when {
+            top < info.viewportStartOffset + edge -> -speed((info.viewportStartOffset + edge - top) / edge)
+            bottom > info.viewportEndOffset - edge -> speed((bottom - (info.viewportEndOffset - edge)) / edge)
+            else -> 0f
+        }
+    }
+    private fun speed(depth: Float) = 4f + 22f * depth.coerceIn(0f, 1f)
+
+    suspend fun swapIfNeeded(list: LazyListState, order: List<String>, update: (List<String>) -> Unit) {
+        val id = key ?: return
+        if (dropping) return
+        val visible = list.layoutInfo.visibleItemsInfo
+        val held = visible.firstOrNull { it.key == id } ?: return
+        awaitingIndex?.let { expected -> if (held.index != expected) return else awaitingIndex = null }
+        val top = held.offset + offset.value; val bottom = top + held.size
+        val up = offset.value < 0
+        val target = (if (up) visible.lastOrNull { it.key in order && it.key != id && it.index < held.index && top < it.offset + it.size / 2f }
+            else visible.firstOrNull { it.key in order && it.key != id && it.index > held.index && bottom > it.offset + it.size / 2f }) ?: return
+        val from = order.indexOf(id); val to = order.indexOf(target.key)
+        if (from < 0 || to < 0) return
+        // Where the held card will be laid out after the move, so it doesn't jump on screen.
+        val newTop = if (up) target.offset else target.offset + target.size - held.size
+        // Moving into or out of the first visible slot makes LazyColumn re-anchor and jump; pin it.
+        val first = list.firstVisibleItemIndex
+        if (held.index == first || target.index == first) list.requestScrollToItem(first, list.firstVisibleItemScrollOffset)
+        update(order.toMutableList().apply { add(to, removeAt(from)) })
+        awaitingIndex = target.index
+        offset.snapTo(top - newTop)
+    }
+}
 
 @Composable
 private fun QueueCard(entry: QueueBook, modifier: Modifier = Modifier, onPlay: (() -> Unit)? = null, onTrash: () -> Unit, handle: (@Composable () -> Unit)? = null) {
@@ -178,6 +270,9 @@ private fun QueueCard(entry: QueueBook, modifier: Modifier = Modifier, onPlay: (
     val progress = entry.job?.progress()
     val palette = entry.book?.let { com.example.readalong.ui.components.rememberCoverPalette(it) }
     val accent = (if (com.example.readalong.ui.theme.LocalAppSettings.current.libraryLight) palette?.preview else palette?.accent) ?: MaterialTheme.colorScheme.primary
+    val bar = com.example.readalong.ui.components.animatedFraction((progress?.bookPercent ?: 0) / 100f)
+    val bookPercent by com.example.readalong.ui.components.animatedPercent(progress?.bookPercent ?: 0)
+    val chapterPercent by com.example.readalong.ui.components.animatedPercent(progress?.chapterPercent ?: 0)
     Surface(modifier.testTag("queue:${entry.item.bookId}"), shape = RoundedCornerShape(28.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .7f)) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp)) {
             Text(entry.item.title, style = MaterialTheme.typography.titleLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -189,9 +284,9 @@ private fun QueueCard(entry: QueueBook, modifier: Modifier = Modifier, onPlay: (
                         entry.item.state == "WAITING_QUEUE" -> "Waiting in queue"
                         entry.item.message?.startsWith("Waiting for charging") == true -> "Waiting for charging"
                         entry.job?.planJson == null -> "Ready to transcribe"
-                        else -> "${entry.chapter} · ${progress?.chapterPercent ?: 0}%"
+                        else -> "${entry.chapter} · $chapterPercent%"
                     }, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    LinearProgressIndicator(progress = { (progress?.bookPercent ?: 0) / 100f }, modifier = Modifier.fillMaxWidth().height(4.dp), color = accent, trackColor = accent.copy(alpha = .2f))
+                    LinearProgressIndicator(progress = { bar.value }, modifier = Modifier.fillMaxWidth().height(4.dp), color = accent, trackColor = accent.copy(alpha = .2f))
                 }
                 if (onPlay != null) IconButton(onClick = onPlay) { Icon(painterResource(if (entry.item.state in activeStates) R.drawable.ic_pause else R.drawable.ic_play),
                     if (entry.item.state in activeStates) "Pause ${entry.item.title}" else "Transcribe ${entry.item.title}", Modifier.size(28.dp)) }
@@ -201,7 +296,7 @@ private fun QueueCard(entry: QueueBook, modifier: Modifier = Modifier, onPlay: (
             TextButton(onClick = { details = !details }, contentPadding = PaddingValues(0.dp), modifier = Modifier.heightIn(min = 32.dp)) {
                 Text("Details", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Icon(painterResource(R.drawable.ic_down), if (details) "Hide details" else "Show details", Modifier.size(16.dp).graphicsLayer { rotationZ = if (details) 180f else 0f })
-                Spacer(Modifier.width(8.dp)); Text("Full book ${progress?.bookPercent ?: 0}%", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.width(8.dp)); Text("Full book $bookPercent%", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             if (details) Text(entry.item.message.orEmpty(), style = MaterialTheme.typography.bodySmall)
         }

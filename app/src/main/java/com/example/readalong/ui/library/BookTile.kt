@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import com.example.readalong.R
 import com.example.readalong.domain.model.Book
 import com.example.readalong.ui.components.BookCover
+import com.example.readalong.ui.components.navSharedCover
 
 @Composable
 fun BookTile(book: Book, selected: Boolean = false, onLongClick: () -> Unit = {}, onClick: () -> Unit) {
@@ -41,7 +42,7 @@ fun BookTile(book: Book, selected: Boolean = false, onLongClick: () -> Unit = {}
             .combinedClickable(role = Role.Button, onClickLabel = openLabel, onLongClickLabel = "Edit book", onLongClick = onLongClick, onClick = onClick),
     ) {
         Box {
-            BookCover(book, Modifier.fillMaxWidth())
+            BookCover(book, Modifier.fillMaxWidth().navSharedCover(com.example.readalong.ui.components.coverKey(book.id)))
             if (showMetadata) Surface(
                 modifier = Modifier.align(Alignment.BottomStart).padding(10.dp),
                 shape = RoundedCornerShape(8.dp),
@@ -53,8 +54,9 @@ fun BookTile(book: Book, selected: Boolean = false, onLongClick: () -> Unit = {}
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    val ring = com.example.readalong.ui.components.animatedFraction(book.progressPercent / 100f, "Listening progress")
                     CircularProgressIndicator(
-                        progress = { book.progressPercent / 100f },
+                        progress = { ring.value },
                         modifier = Modifier.size(14.dp).clearAndSetSemantics { },
                         color = Color.White,
                         trackColor = Color.White.copy(alpha = .3f),
