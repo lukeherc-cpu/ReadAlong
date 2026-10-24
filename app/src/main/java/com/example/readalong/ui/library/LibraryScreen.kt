@@ -2,6 +2,7 @@ package com.example.readalong.ui.library
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.lazy.grid.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -10,6 +11,9 @@ import kotlinx.coroutines.launch
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -60,15 +64,16 @@ fun LibraryScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             item(key = "toolbar", span = { GridItemSpan(maxLineSpan) }) {
-                CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.primary) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onAbout) { Icon(painterResource(R.drawable.ic_settings), "Settings") }
-                    IconButton(onClick = onFolders) { Icon(painterResource(R.drawable.ic_bookshelf), "Audiobook folders") }
-                    Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { com.example.readalong.ui.launch.LibraryLogo(scanningFolder, transcribing, settings.animateTranscriptionLogo, onQueue) }
-                    IconButton(onClick = { searchVisible = !searchVisible; if (!searchVisible) query = "" }) { Icon(painterResource(R.drawable.ic_search), "Search library") }
-                    importControls()
-
-                }
+                // Title and logo on the left (they open the queue); actions grouped on the right.
+                Row(Modifier.fillMaxWidth().heightIn(min = 64.dp), verticalAlignment = Alignment.CenterVertically) {
+                    com.example.readalong.ui.launch.LibraryHeader(scanningFolder, transcribing, settings.animateTranscriptionLogo, onQueue)
+                    Spacer(Modifier.weight(1f))
+                    CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onSurface) {
+                        IconButton(onClick = { searchVisible = !searchVisible; if (!searchVisible) query = "" }) { Icon(painterResource(R.drawable.ic_search), "Search library") }
+                        IconButton(onClick = onFolders) { Icon(painterResource(R.drawable.ic_bookshelf), "Audiobook folders") }
+                        IconButton(onClick = onAbout) { Icon(painterResource(R.drawable.ic_settings), "Settings") }
+                        importControls()
+                    }
                 }
             }
             if (state is LibraryUiState.Ready) {
@@ -94,7 +99,7 @@ fun LibraryScreen(
                 }
                 // One-time hint for the long-press menu; it also goes away the first time a book is long-pressed.
                 if (groups.isNotEmpty() && !settings.longPressTipHidden && !searchVisible) item(key = "long-press-tip", span = { GridItemSpan(maxLineSpan) }) {
-                    Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.secondaryContainer) {
+                    Surface(shape = RoundedCornerShape(com.example.readalong.ui.theme.Corners.medium), color = MaterialTheme.colorScheme.secondaryContainer) {
                         Row(Modifier.fillMaxWidth().padding(start = 16.dp, top = 4.dp, bottom = 4.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text("Tip: press and hold a book to change its title, cover or status.", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSecondaryContainer)
@@ -117,26 +122,25 @@ fun LibraryScreen(
                                 modifier = Modifier.semantics { heading() },
                             )
                             if (group == groups.first()) Box {
-                                IconButton(onClick = { sortMenu = true }, modifier = Modifier.testTag("library_sort")) { Icon(painterResource(R.drawable.ic_sort), "Sort and view", tint = MaterialTheme.colorScheme.primary) }
+                                IconButton(onClick = { sortMenu = true }, modifier = Modifier.testTag("library_sort")) { Icon(painterResource(R.drawable.ic_sort), "Sort and view", tint = MaterialTheme.colorScheme.onSurfaceVariant) }
                                 DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
                                     DropdownMenuItem(text = { Text(if (settings.listLibrary) "Cover mode" else "List mode") }, onClick = { scope.launch { app?.appPreferences?.update { it.copy(listLibrary = !settings.listLibrary) } }; sortMenu = false })
                                     LibrarySort.entries.forEach { choice -> DropdownMenuItem(text = { Text(stringResource(if (choice == LibrarySort.RECENT) R.string.sort_recent else R.string.sort_title)) }, onClick = { sortName = choice.name; sortMenu = false }) }
                                 }
-                            } else Text(group.books.size.toString(), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelLarge)
+                            } else Text(group.books.size.toString(), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
                         }
                     }
                     items(group.books, key = { "book:${it.id}" }) { book -> Box(Modifier.animateItem(fadeInSpec = tween(180), placementSpec = tween(260, easing = com.example.readalong.ui.reading.ReaderMotionEasing), fadeOutSpec = tween(120))) { if (settings.listLibrary) BookListRow(book, selected = book.id == selectedBookId, onLongClick = { hideTip(); onLongBook(book) }) { onBook(book.id) } else BookTile(book, selected = book.id == selectedBookId, onLongClick = { hideTip(); onLongBook(book) }) { onBook(book.id) } } }
                 }
+            } else if (state == LibraryUiState.Loading) {
+                // Placeholder tiles while the library loads, shaped like the real ones.
+                items(4, key = { "skeleton:$it" }) { LibrarySkeletonTile() }
             } else {
                 item(key = "status", span = { GridItemSpan(maxLineSpan) }) {
                     Column(Modifier.fillMaxWidth().padding(vertical = 48.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        if (state == LibraryUiState.Loading) {
-                            CircularProgressIndicator()
-                        } else {
-                            Text(stringResource(R.string.library_error), textAlign = TextAlign.Center)
-                            Spacer(Modifier.height(16.dp))
-                            Button(onClick = onRetry) { Text(stringResource(R.string.try_again)) }
-                        }
+                        Text(stringResource(R.string.library_error), textAlign = TextAlign.Center)
+                        Spacer(Modifier.height(16.dp))
+                        Button(onClick = onRetry) { Text(stringResource(R.string.try_again)) }
                     }
                 }
             }
@@ -148,7 +152,7 @@ fun LibraryScreen(
 @Composable
 private fun LibraryMessage(title: String, message: String, actions: (@Composable () -> Unit)? = null) {
     Column(Modifier.fillMaxWidth().padding(vertical = if (actions != null) 24.dp else 48.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Icon(painterResource(R.drawable.ic_book), null, Modifier.size(48.dp), tint = MaterialTheme.colorScheme.primary)
+        com.example.readalong.ui.components.ReadAlongArtwork(if (actions != null) R.drawable.art_folder else R.drawable.art_book, Modifier.size(120.dp))
         Text(title, style = MaterialTheme.typography.titleLarge)
         Text(message, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyLarge)
         actions?.invoke()
@@ -159,4 +163,16 @@ private fun LibraryMessage(title: String, message: String, actions: (@Composable
 @Composable
 private fun LibraryPreview() {
     ReadAlongTheme { LibraryScreen(state = LibraryUiState.Ready(emptyList()), onRetry = {}, onAbout = {}, onBook = {}) }
+}
+
+@Composable
+private fun LibrarySkeletonTile() {
+    val pulse = androidx.compose.animation.core.rememberInfiniteTransition(label = "Skeleton")
+    val alpha by pulse.animateFloat(.45f, .85f, androidx.compose.animation.core.infiniteRepeatable(tween(800), androidx.compose.animation.core.RepeatMode.Reverse), label = "Skeleton alpha")
+    val shade = MaterialTheme.colorScheme.surfaceVariant
+    Column(Modifier.graphicsLayer { this.alpha = alpha }, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Box(Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(com.example.readalong.ui.theme.Corners.medium)).background(shade))
+        Box(Modifier.fillMaxWidth(.8f).height(14.dp).clip(RoundedCornerShape(7.dp)).background(shade))
+        Box(Modifier.fillMaxWidth(.5f).height(12.dp).clip(RoundedCornerShape(6.dp)).background(shade))
+    }
 }

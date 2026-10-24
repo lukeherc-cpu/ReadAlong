@@ -27,7 +27,7 @@ fun ModelScreen(model: ModelViewModel, onBack: () -> Unit) {
     var details by remember { mutableStateOf(false) }
     Scaffold { insets -> Column(Modifier.fillMaxSize().padding(insets).verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) { IconButton(onClick = onBack) { Icon(painterResource(R.drawable.ic_back), "Back") }; Text("Offline speech model", style = MaterialTheme.typography.headlineSmall) }
-        Surface(shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp), color = if (status.installed) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant) {
+        Surface(shape = androidx.compose.foundation.shape.RoundedCornerShape(com.example.readalong.ui.theme.Corners.large), color = if (status.installed) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant) {
             Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(if (status.installed) "Installed and ready" else "One-time download · 17 MB", style = MaterialTheme.typography.titleLarge)
                 Text(if (status.installed) "ReadAlong can turn your audiobooks into text on this phone. Nothing is uploaded."

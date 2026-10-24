@@ -97,6 +97,7 @@ fun QueueScreen(model: QueueViewModel, onBack: () -> Unit) {
     val currentQueued by rememberUpdatedState(queued)
     val list = rememberLazyListState()
     val scope = rememberCoroutineScope()
+    val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
     LaunchedEffect(queued.map { it.item.bookId }) {
         if (drag.key == null || order.toSet() != queued.map { it.item.bookId }.toSet()) {
             order = queued.map { it.item.bookId }; drag.reset()
@@ -137,7 +138,7 @@ fun QueueScreen(model: QueueViewModel, onBack: () -> Unit) {
                 QueueCard(entry, (if (held) Modifier else Modifier.animateItem(placementSpec = tween(220, easing = QueueEasing))).zIndex(if (held) 1f else 0f).graphicsLayer {
                         if (held) translationY = drag.offset.value
                         scaleX = 1f + .025f * lift; scaleY = scaleX
-                        shadowElevation = 10.dp.toPx() * lift; shape = RoundedCornerShape(28.dp); clip = false
+                        shadowElevation = 10.dp.toPx() * lift; shape = RoundedCornerShape(com.example.readalong.ui.theme.Corners.large); clip = false
                     },
                     onPlay = { if (entry.item.state in activeStates) model.pause(id) else model.next(id) }, onTrash = { model.remove(id) },
                     handle = {
@@ -147,8 +148,9 @@ fun QueueScreen(model: QueueViewModel, onBack: () -> Unit) {
                             customActions = listOf(CustomAccessibilityAction("Move up") { model.move(id, -1); true }, CustomAccessibilityAction("Move down") { model.move(id, 1); true })
                         }.pointerInput(id) {
                             detectVerticalDragGestures(
-                                onDragStart = { scope.launch { drag.start(id) } },
+                                onDragStart = { haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.GestureThresholdActivate); scope.launch { drag.start(id) } },
                                 onDragEnd = {
+                                    haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.GestureEnd)
                                     scope.launch {
                                         drag.drop()
                                         val ids = order
@@ -162,8 +164,8 @@ fun QueueScreen(model: QueueViewModel, onBack: () -> Unit) {
                             }
                         }, contentAlignment = Alignment.Center) {
                             Canvas(Modifier.size(20.dp)) {
-                                val radius = 2.5.dp.toPx()
-                                listOf(.25f, .75f).forEach { x -> listOf(.25f, .75f).forEach { y -> drawCircle(color, radius, Offset(size.width*x, size.height*y)) } }
+                                val radius = 2.dp.toPx()
+                                listOf(.3f, .7f).forEach { x -> listOf(.15f, .5f, .85f).forEach { y -> drawCircle(color, radius, Offset(size.width*x, size.height*y)) } }
                             }
                         }
                     })
@@ -180,7 +182,7 @@ fun QueueScreen(model: QueueViewModel, onBack: () -> Unit) {
             }
             if (available.isEmpty()) item(key = "nothing-available") { Text("Every book has been added to the queue.", style = MaterialTheme.typography.bodyMedium) }
             items(available, key = { it.item.bookId }) { entry ->
-                Surface(shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .45f)) {
+                Surface(shape = RoundedCornerShape(com.example.readalong.ui.theme.Corners.large), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .45f)) {
                     Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text(entry.item.title, Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
                         IconButton(onClick = { model.add(entry.item.bookId) }) { Icon(painterResource(R.drawable.ic_add), "Add ${entry.item.title} to queue") }
@@ -273,7 +275,7 @@ private fun QueueCard(entry: QueueBook, modifier: Modifier = Modifier, onPlay: (
     val bar = com.example.readalong.ui.components.animatedFraction((progress?.bookPercent ?: 0) / 100f)
     val bookPercent by com.example.readalong.ui.components.animatedPercent(progress?.bookPercent ?: 0)
     val chapterPercent by com.example.readalong.ui.components.animatedPercent(progress?.chapterPercent ?: 0)
-    Surface(modifier.testTag("queue:${entry.item.bookId}"), shape = RoundedCornerShape(28.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .7f)) {
+    Surface(modifier.testTag("queue:${entry.item.bookId}"), shape = RoundedCornerShape(com.example.readalong.ui.theme.Corners.large), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .7f)) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp)) {
             Text(entry.item.title, style = MaterialTheme.typography.titleLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {

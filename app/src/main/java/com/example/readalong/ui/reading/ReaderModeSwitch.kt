@@ -23,7 +23,7 @@ internal const val ModeSwitchMillis = 260
 
 @Composable
 internal fun ReaderModeSwitch(bookMode: Boolean, select: (Boolean) -> Unit) {
-    val shape = RoundedCornerShape(28.dp)
+    val shape = RoundedCornerShape(com.example.readalong.ui.theme.Corners.large)
     val x by animateDpAsState(if (bookMode) 0.dp else 52.dp, tween(ModeSwitchMillis, easing = ReaderMotionEasing), label = "Reading mode selection")
     Box(Modifier.width(104.dp).height(44.dp).background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = .7f), shape)
         .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = .2f), shape).selectableGroup().clickable { select(!bookMode) }) {

@@ -10,6 +10,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.Alignment
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.verticalScroll
@@ -127,7 +130,7 @@ fun ImportPriorityPrompt(model: ImportViewModel) {
 
 @Composable
 private fun IllustratedOption(title: String, subtitle: String, art: Int, prominent: Boolean, onClick: () -> Unit) {
-    Surface(onClick = onClick, shape = androidx.compose.foundation.shape.RoundedCornerShape(22.dp),
+    Surface(onClick = onClick, shape = androidx.compose.foundation.shape.RoundedCornerShape(com.example.readalong.ui.theme.Corners.large),
         color = if (prominent) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
         border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = .25f))) {
         Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -143,14 +146,13 @@ private fun IllustratedOption(title: String, subtitle: String, art: Int, promine
 
 @Composable
 internal fun ReadingChoice(title: String, subtitle: String, art: Int, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
-    Surface(onClick = onClick, modifier = modifier, shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+    Surface(onClick = onClick, modifier = modifier.semantics { this.selected = selected; role = androidx.compose.ui.semantics.Role.RadioButton }, shape = androidx.compose.foundation.shape.RoundedCornerShape(com.example.readalong.ui.theme.Corners.large),
         color = if (selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = .6f) else MaterialTheme.colorScheme.surface,
         border = androidx.compose.foundation.BorderStroke(if (selected) 2.dp else 1.dp, if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = .3f))) {
         Column(Modifier.fillMaxSize().padding(10.dp), horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
             com.example.readalong.ui.components.ReadAlongArtwork(art, Modifier.fillMaxWidth().height(76.dp))
             Text(title, modifier = Modifier.weight(1f).fillMaxWidth(), style = MaterialTheme.typography.labelLarge, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
             Text(subtitle, Modifier.fillMaxWidth(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-            RadioButton(selected, onClick = null)
         }
     }
 }

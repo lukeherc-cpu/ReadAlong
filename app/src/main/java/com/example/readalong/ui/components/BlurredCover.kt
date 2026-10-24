@@ -52,7 +52,8 @@ fun BlurredCover(uri: String?, modifier: Modifier = Modifier) {
     image?.let {
         Box(modifier) {
             Image(it.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .66f)))
+            // Clearer at the top so the cover's colour shows; darker behind the title and controls.
+            Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Brush.verticalGradient(0f to Color.Black.copy(alpha = .38f), .45f to Color.Black.copy(alpha = .62f), 1f to Color.Black.copy(alpha = .82f))))
         }
     }
 }

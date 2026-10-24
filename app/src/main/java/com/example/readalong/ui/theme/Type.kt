@@ -21,21 +21,29 @@ val Typography = Typography(
     ),
 )
 
-fun appTypography(font: FontFamily, extraBold: Boolean = false): Typography = Typography.copy(
-    displayLarge = Typography.displayLarge.copy(fontFamily = font, fontWeight = if (extraBold) FontWeight.ExtraBold else Typography.displayLarge.fontWeight),
-    displayMedium = Typography.displayMedium.copy(fontFamily = font, fontWeight = if (extraBold) FontWeight.ExtraBold else Typography.displayMedium.fontWeight),
-    displaySmall = Typography.displaySmall.copy(fontFamily = font, fontWeight = if (extraBold) FontWeight.ExtraBold else Typography.displaySmall.fontWeight),
-    headlineLarge = Typography.headlineLarge.copy(fontFamily = font, fontWeight = if (extraBold) FontWeight.ExtraBold else Typography.headlineLarge.fontWeight),
-    headlineMedium = Typography.headlineMedium.copy(fontFamily = font, fontWeight = if (extraBold) FontWeight.ExtraBold else Typography.headlineMedium.fontWeight),
-    headlineSmall = Typography.headlineSmall.copy(fontFamily = font, fontWeight = if (extraBold) FontWeight.ExtraBold else Typography.headlineSmall.fontWeight),
-    titleLarge = Typography.titleLarge.copy(fontFamily = font, fontWeight = if (extraBold) FontWeight.ExtraBold else Typography.titleLarge.fontWeight),
-    titleMedium = Typography.titleMedium.copy(fontFamily = font, fontWeight = if (extraBold) FontWeight.ExtraBold else Typography.titleMedium.fontWeight),
-    titleSmall = Typography.titleSmall.copy(fontFamily = font, fontWeight = if (extraBold) FontWeight.ExtraBold else Typography.titleSmall.fontWeight),
-    bodyLarge = Typography.bodyLarge.copy(fontFamily = font, fontWeight = if (extraBold) FontWeight.ExtraBold else Typography.bodyLarge.fontWeight),
-    bodyMedium = Typography.bodyMedium.copy(fontFamily = font, fontWeight = if (extraBold) FontWeight.ExtraBold else Typography.bodyMedium.fontWeight),
-    bodySmall = Typography.bodySmall.copy(fontFamily = font, fontWeight = if (extraBold) FontWeight.ExtraBold else Typography.bodySmall.fontWeight),
-    labelLarge = Typography.labelLarge.copy(fontFamily = font, fontWeight = if (extraBold) FontWeight.ExtraBold else Typography.labelLarge.fontWeight),
-    labelMedium = Typography.labelMedium.copy(fontFamily = font, fontWeight = if (extraBold) FontWeight.ExtraBold else Typography.labelMedium.fontWeight),
-    // 12 sp floor: nothing in the app is smaller (Material's default is 11 sp).
-    labelSmall = Typography.labelSmall.copy(fontSize = 12.sp, lineHeight = 16.sp, fontFamily = font, fontWeight = if (extraBold) FontWeight.ExtraBold else Typography.labelSmall.fontWeight),
-)
+/**
+ * Three weights only: regular for reading, semi-bold for titles, labels and buttons, extra-bold for
+ * the big headlines. (Every style used to be extra-bold, which left no hierarchy.)
+ */
+fun appTypography(font: FontFamily, @Suppress("UNUSED_PARAMETER") extraBold: Boolean = false): Typography {
+    // Tabular digits everywhere, so counting times and percentages don't shift sideways.
+    fun TextStyle.as_(weight: FontWeight) = copy(fontFamily = font, fontWeight = weight, fontFeatureSettings = "tnum")
+    return Typography.copy(
+        displayLarge = Typography.displayLarge.as_(FontWeight.ExtraBold),
+        displayMedium = Typography.displayMedium.as_(FontWeight.ExtraBold),
+        displaySmall = Typography.displaySmall.as_(FontWeight.ExtraBold),
+        headlineLarge = Typography.headlineLarge.as_(FontWeight.ExtraBold),
+        headlineMedium = Typography.headlineMedium.as_(FontWeight.ExtraBold),
+        headlineSmall = Typography.headlineSmall.as_(FontWeight.SemiBold),
+        titleLarge = Typography.titleLarge.as_(FontWeight.SemiBold),
+        titleMedium = Typography.titleMedium.as_(FontWeight.SemiBold),
+        titleSmall = Typography.titleSmall.as_(FontWeight.SemiBold),
+        bodyLarge = Typography.bodyLarge.as_(FontWeight.Normal),
+        bodyMedium = Typography.bodyMedium.as_(FontWeight.Normal),
+        bodySmall = Typography.bodySmall.as_(FontWeight.Normal),
+        labelLarge = Typography.labelLarge.as_(FontWeight.SemiBold),
+        labelMedium = Typography.labelMedium.as_(FontWeight.SemiBold),
+        // 12 sp floor: nothing in the app is smaller (Material's default is 11 sp).
+        labelSmall = Typography.labelSmall.copy(fontSize = 12.sp, lineHeight = 16.sp).as_(FontWeight.SemiBold),
+    )
+}

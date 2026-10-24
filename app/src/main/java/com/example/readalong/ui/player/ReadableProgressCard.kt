@@ -99,7 +99,7 @@ fun ReadableProgressCard(book: Book, job: ProcessingJobEntity?, estimate: String
 @Composable
 internal fun ReadAlongBar(title: String, subtitle: String, progress: (() -> Float)?, onClick: () -> Unit, addEpub: (() -> Unit)?, addingEpub: Boolean = false) {
     val ink = MaterialTheme.colorScheme.onSurface
-    Surface(shape = RoundedCornerShape(22.dp), color = Color.White.copy(alpha = .09f), contentColor = ink,
+    Surface(shape = RoundedCornerShape(com.example.readalong.ui.theme.Corners.large), color = Color.White.copy(alpha = .09f), contentColor = ink,
         border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .08f))) {
         Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f).clickable(onClickLabel = title, onClick = onClick).padding(start = 18.dp, end = 14.dp, top = 14.dp, bottom = 14.dp),

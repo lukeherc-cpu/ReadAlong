@@ -42,7 +42,7 @@ fun ReadAlongSourceDialog(busy: Boolean, message: String?, hasEpub: Boolean = fa
         }) { Text(if (align && !hasEpub) "Choose EPUB" else "Make ReadAlong", maxLines = 1, softWrap = false) }
     }) {
         bookTitle?.let { Text(it, style = MaterialTheme.typography.titleMedium) }
-        if (explain) Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = .55f)) {
+        if (explain) Surface(shape = RoundedCornerShape(com.example.readalong.ui.theme.Corners.large), color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = .55f)) {
             Text("A ReadAlong is your audiobook's text on screen, highlighted sentence by sentence as you listen. It's made on your phone, and nothing is uploaded.",
                 Modifier.padding(14.dp), style = MaterialTheme.typography.bodyMedium)
         }

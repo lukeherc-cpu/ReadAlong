@@ -61,7 +61,6 @@ internal fun FirstVisitGuideDialog(page: GuidePage, finish: (Boolean) -> Unit) {
                     com.example.readalong.ui.launch.PageTurnLogo(0f, Modifier.size(36.dp))
                 }
                 GuideItem(R.drawable.ic_bookshelf, "Library folders", "Add or remove the folders your books come from.")
-                GuideItem(R.drawable.ic_more, "Edit a book", "Press and hold a book to change its title, cover or status.")
                 GuideItem(R.drawable.ic_settings, "Settings", "Change appearance, playback and ReadAlong options.")
             }
             GuidePage.PLAYER -> {
@@ -72,7 +71,7 @@ internal fun FirstVisitGuideDialog(page: GuidePage, finish: (Boolean) -> Unit) {
                 GuideItem(R.drawable.ic_settings, "Settings", "Adjust fonts, spacing and reading appearance.")
                 GuideItem(R.drawable.ic_search, "Search", "Find words in this book.")
                 GuideRow("Reading mode", "Switch between listening along and reading on your own.") {
-                    Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.secondaryContainer) {
+                    Surface(shape = RoundedCornerShape(com.example.readalong.ui.theme.Corners.medium), color = MaterialTheme.colorScheme.secondaryContainer) {
                         Row(Modifier.padding(4.dp)) {
                             Icon(painterResource(R.drawable.ic_book), null, Modifier.size(22.dp))
                             Icon(painterResource(R.drawable.ic_readalong), null, Modifier.size(22.dp))
