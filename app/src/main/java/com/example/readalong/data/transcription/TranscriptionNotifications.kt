@@ -18,6 +18,8 @@ import com.example.readalong.data.processing.progress
 import com.example.readalong.data.processing.notificationLabel
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import java.util.UUID
 
 /** One ongoing notification, including between checkpoint workers. No extra foreground service. */
@@ -142,7 +144,11 @@ object TranscriptionNotifications {
     suspend fun observe(app: ReadAlongApplication) {
         val manager = app.getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(NotificationChannel(CHANNEL, "Audiobook transcription", NotificationManager.IMPORTANCE_LOW))
-        app.processing.queue.collectLatest { queue ->
+        // Restart only when the set of cards can change. Status text and checkpoint counts change
+        // many times per chunk; the 2-second loop below already reads them fresh. Restarting on
+        // each one cancelled updates before they were posted, especially for very long books.
+        app.processing.queue.map { items -> items.map { it.copy(message = null, completedUnits = 0, totalUnits = 0) } }
+            .distinctUntilChanged().collectLatest { queue ->
             queue.forEach { positions[it.bookId] = it.queuePosition }
             for (item in queue) {
                 if (item.state == "FAILED") {
@@ -164,7 +170,7 @@ object TranscriptionNotifications {
             // Remove the previous version's single progress card after upgrading.
             manager.cancel(ID)
             while (currentCoroutineContext().isActive && visible.isNotEmpty()) {
-                for (item in visible) {
+                for (item in visible) try {
                     val job = app.database.processingDao().find(item.bookId) ?: continue
                     val paused = job.state == "CANCELLED"
                     val progress = job.progress()
@@ -180,6 +186,10 @@ object TranscriptionNotifications {
                         val notification = compact(app, item.title, chapter, status, progress.bookPercent, open, action, paused, job.bookId)
                         synchronized(deliveryLock) { if (!dismissed(app, job.bookId)) manager.notify(id, notification) }
                     }
+                } catch (cancelled: CancellationException) { throw cancelled }
+                catch (failure: Exception) {
+                    // Skip this refresh for one book; keep updating the others and retry in 2 seconds.
+                    android.util.Log.w("ReadAlong", "Progress notification refresh skipped: ${failure.javaClass.simpleName}")
                 }
                 delay(2_000)
             }

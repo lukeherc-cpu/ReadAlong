@@ -52,9 +52,14 @@ class ReadAlongApplication : Application() {
             }, androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED)
 
         applicationScope.launch {
-            try { com.example.readalong.data.transcription.TranscriptionNotifications.observe(this@ReadAlongApplication) }
-            catch (cancelled: CancellationException) { throw cancelled }
-            catch (_: Exception) { android.util.Log.w("ReadAlong", "Transcription notifications will resume on next app launch.") }
+            // Keep progress cards alive for the whole process: one transient database or
+            // notification error must not stop updates until the next app launch.
+            while (isActive) {
+                try { com.example.readalong.data.transcription.TranscriptionNotifications.observe(this@ReadAlongApplication) }
+                catch (cancelled: CancellationException) { throw cancelled }
+                catch (failure: Exception) { android.util.Log.w("ReadAlong", "Transcription notifications restarting after ${failure.javaClass.simpleName}.") }
+                delay(5_000)
+            }
         }
         applicationScope.launch {
             try { com.example.readalong.data.transcription.AutomaticModelDownload.ensure(this@ReadAlongApplication, speechModel) }
