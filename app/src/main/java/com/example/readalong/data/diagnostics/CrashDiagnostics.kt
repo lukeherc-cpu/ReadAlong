@@ -22,6 +22,8 @@ object CrashDiagnostics {
         }
     }
     fun read(context: Context): String = runCatching {
-        File(context.filesDir, "last-crash.txt").takeIf { it.length() in 1..16000 }?.readText() ?: "No captured crash."
+        val crash = File(context.filesDir, "last-crash.txt").takeIf { it.length() in 1..16000 }?.readText() ?: "No captured crash."
+        val background = BackgroundFailures.read(context)
+        if (background == null) crash else "$crash\nRecovered background errors:\n$background"
     }.getOrDefault("Crash report unavailable.")
 }

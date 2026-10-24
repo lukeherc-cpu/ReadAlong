@@ -213,6 +213,9 @@ class ImportedEpubRepository(private val context: Context, private val database:
         val edition = dao.find(bookId) ?: return@withContext
         val revision = database.readingDao().findVersion(bookId)?.transcriptRevision ?: 0
         if (database.bookDao().metadata("epub_alignment_version:$bookId") == "${edition.editionId}:$ALIGNMENT_FORMAT_VERSION" && edition.alignedRevision == revision && edition.state !in setOf("FAILED", "QUEUED", "ALIGNING")) return@withContext
+        // After an out-of-memory failure, wait before trying this book again (see EpubAlignmentWorker).
+        val outOfMemoryAt = database.bookDao().metadata("epub_alignment_oom:$bookId")?.toLongOrNull()
+        if (outOfMemoryAt != null && System.currentTimeMillis() - outOfMemoryAt in 0 until 15 * 60_000L) return@withContext
         // Coalesce checkpoints: one running alignment and at most one successor, rather than thousands of queued copies.
         val pending = manager.getWorkInfosForUniqueWork("epub-alignment:$bookId").get().count { !it.state.isFinished }
         if (pending >= 2) return@withContext
@@ -374,6 +377,16 @@ class EpubAlignmentWorker(context: Context, parameters: WorkerParameters) : Coro
             } else Result.retry()
         } catch (_: TimeoutCancellationException) { Result.retry() }
         catch (cancelled: CancellationException) { throw cancelled }
+        catch (outOfMemory: OutOfMemoryError) {
+            // Matching a very long book can exhaust the app heap. The aligner's buffers are
+            // garbage once this frame unwinds, so keep playback and transcription alive, record
+            // the failure, and back off instead of retrying at every transcription checkpoint.
+            android.util.Log.e("ReadAlong", "EPUB alignment ran out of memory; backing off.")
+            runCatching { app.database.bookDao().putMetadata(com.example.readalong.data.local.LibraryMetadataEntity(
+                "epub_alignment_oom:$bookId", System.currentTimeMillis().toString())) }
+            runCatching { app.importedEpub.failed(bookId, editionId, "This EPUB is too large to match in one pass right now. ReadAlong will retry later; the generated text and audio remain available.") }
+            Result.failure()
+        }
         catch (failure: Exception) {
             app.importedEpub.failed(bookId, editionId, failure.message ?: "EPUB alignment failed. The generated text and audio remain available.")
             Result.failure()

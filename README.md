@@ -3,7 +3,7 @@
 Audiobook player for Android that highlights the text as the narrator reads. Works offline, with your own files.
 Turn any DRM-free audiobook into readable text on your phone, or sync it to an EPUB you already own. No account, no uploads.
 
-**[Download ReadAlong 0.35.2 Preview](https://github.com/lukeherc-cpu/ReadAlong/releases/download/v0.35.2-preview/ReadAlong-0.35.2-preview.apk)** · [View the release](https://github.com/lukeherc-cpu/ReadAlong/releases/tag/v0.35.2-preview)
+**[Download ReadAlong 0.35.3 Preview](https://github.com/lukeherc-cpu/ReadAlong/releases/download/v0.35.3-preview/ReadAlong-0.35.3-preview.apk)** · [View the release](https://github.com/lukeherc-cpu/ReadAlong/releases/tag/v0.35.3-preview)
 
 ReadAlong works with your own audiobook files. It does not include a book catalogue, sell books, or require an account to listen and read.
 
@@ -26,9 +26,9 @@ ReadAlong works with your own audiobook files. It does not include a book catalo
 
 ## Download and install
 
-The current download is **ReadAlong 0.35.2 Preview** for **Android 8.0 or later on an ARM64 device**. It runs on compatible phones and tablets.
+The current download is **ReadAlong 0.35.3 Preview** for **Android 8.0 or later on an ARM64 device**. It runs on compatible phones and tablets.
 
-1. [Download the APK](https://github.com/lukeherc-cpu/ReadAlong/releases/download/v0.35.2-preview/ReadAlong-0.35.2-preview.apk) on your Android device.
+1. [Download the APK](https://github.com/lukeherc-cpu/ReadAlong/releases/download/v0.35.3-preview/ReadAlong-0.35.3-preview.apk) on your Android device.
 2. Open it and allow installation from your browser or file manager if Android asks.
 3. Open ReadAlong and choose an audiobook folder. You can choose **Later** and add books from the library instead.
 

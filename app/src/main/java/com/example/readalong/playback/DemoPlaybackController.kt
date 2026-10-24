@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.asStateFlow
 
 /** Silent, labeled simulation for sample books; replaced by service playback for real media. */
 class DemoPlaybackController(private val repository: BookRepository) {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate + com.example.readalong.data.diagnostics.BackgroundFailures.handler("Demo playback"))
     private val mutableState = MutableStateFlow(PlaybackState())
     val state = mutableState.asStateFlow()
 
