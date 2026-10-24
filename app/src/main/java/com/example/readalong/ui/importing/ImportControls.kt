@@ -314,9 +314,9 @@ private object LibriSyncDownloads {
         val manager = context.getSystemService(android.app.NotificationManager::class.java)
         manager.createNotificationChannel(android.app.NotificationChannel(CHANNEL, "Downloads", android.app.NotificationManager.IMPORTANCE_LOW))
         if (!androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled()) return
-        val builder = androidx.core.app.NotificationCompat.Builder(context, CHANNEL).setSmallIcon(android.R.drawable.stat_sys_download)
+        val builder = androidx.core.app.NotificationCompat.Builder(context, CHANNEL).setSmallIcon(com.example.readalong.R.drawable.ic_notification)
             .setContentTitle(text).setOnlyAlertOnce(true).setOngoing(!done)
-        if (done) builder.setSmallIcon(android.R.drawable.stat_sys_download_done).setAutoCancel(true)
+        if (done) builder.setSmallIcon(com.example.readalong.R.drawable.ic_notification).setAutoCancel(true)
         else builder.setProgress(100, ((fraction ?: 0f) * 100).toInt(), fraction == null)
         runCatching { manager.notify(NOTIFICATION, builder.build()) }
     }
