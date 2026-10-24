@@ -13,8 +13,7 @@ import kotlin.coroutines.coroutineContext
 
 /** Decodes only a bounded interval to 16 kHz mono float PCM, without playing or copying the audiobook. */
 class AudioDecoder(private val context: Context) {
-    // MP4 sample tables can be large. Bound transient Java/codec memory while all three
-    // native recognition processes continue concurrently with their warm models.
+    // Codec preparation stays serialized while the foreground owner processes one book.
     companion object { private val decoding = kotlinx.coroutines.sync.Semaphore(1) }
     suspend fun decode(uri: Uri, startMs: Long, durationMs: Long, destination: File): Long = decoding.withPermit {
         decodeInterval(uri, startMs, durationMs, destination)
@@ -25,6 +24,7 @@ class AudioDecoder(private val context: Context) {
         var codec: MediaCodec? = null
         var mp3: Mp3PacketSource? = null
         var mp4: Mp4PacketSource? = null
+        var aac: IndexedAacPacketSource? = null
         var decodedEndUs = Long.MIN_VALUE
         var firstDecodedUs = Long.MAX_VALUE
         var beforeEndUs = Long.MIN_VALUE
@@ -104,13 +104,20 @@ class AudioDecoder(private val context: Context) {
             }
             val input = if (mp4Container) {
                 try {
-                    mp4 = Mp4PacketSource(context, uri)
-                    mp4.open(fromUs)
+                    aac = IndexedAacPacketSource(context, uri)
+                    aac.open(fromUs)
                 } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
                 catch (_: Exception) {
-                    // Preserve platform support for variants such as fragmented MP4.
-                    runCatching { mp4?.close() }; mp4 = null
-                    platformInput()
+                    runCatching { aac?.close() }; aac = null
+                    try {
+                        mp4 = Mp4PacketSource(context, uri)
+                        mp4.open(fromUs)
+                    } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                    catch (_: Exception) {
+                        // Preserve support for fragmented MP4 and non-AAC variants.
+                        runCatching { mp4?.close() }; mp4 = null
+                        platformInput()
+                    }
                 }
             } else platformInput()
             format(input)
@@ -147,17 +154,19 @@ class AudioDecoder(private val context: Context) {
                             val buffer = requireNotNull(codec.getInputBuffer(index))
                             val packet = mp3?.next()
                             val mp4Packet = mp4?.next()
-                            val time = if (mp3 != null) packet?.timeUs ?: untilUs else if (mp4 != null) mp4Packet?.timeUs ?: untilUs else extractor.sampleTime
+                            val aacPacket = aac?.next()
+                            val time = if (aac != null) aacPacket?.timeUs ?: untilUs else if (mp3 != null) packet?.timeUs ?: untilUs else if (mp4 != null) mp4Packet?.timeUs ?: untilUs else extractor.sampleTime
                             // AAC edit lists may expose valid priming packets with negative PTS.
                             // Only readSampleData's -1 means EOF; a negative timestamp does not.
                             val size = if (time >= untilUs + 500_000) -1
+                                else if (aac != null) aacPacket?.bytes?.let { buffer.put(it); it.size } ?: -1
                                 else if (mp3 != null) packet?.bytes?.let { buffer.put(it); it.size } ?: -1
                                 else if (mp4 != null) mp4Packet?.bytes?.let { buffer.put(it); it.size } ?: -1
                                 else extractor.readSampleData(buffer, 0)
                             if (size < 0) {
                                 reachedEof = time < untilUs + 500_000
                                 codec.queueInputBuffer(index, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM); inputEnded = true }
-                            else { codec.queueInputBuffer(index, 0, size, time, 0); if (mp3 == null && mp4 == null) extractor.advance() }
+                            else { codec.queueInputBuffer(index, 0, size, time, 0); if (mp3 == null && mp4 == null && aac == null) extractor.advance() }
                             advanced = true
                         }
                     }
@@ -204,6 +213,9 @@ class AudioDecoder(private val context: Context) {
                 if (buffer.position() > 0) output.write(buffer.array(), 0, buffer.position())
             }
             return written * 1000L / 16000
-        } finally { runCatching { codec?.stop() }; codec?.release(); extractor.release(); mp3?.close(); mp4?.close() }
+        } finally {
+            runCatching { codec?.stop() }; runCatching { codec?.release() }; runCatching { extractor.release() }
+            runCatching { mp3?.close() }; runCatching { mp4?.close() }; runCatching { aac?.close() }
+        }
     }
 }
