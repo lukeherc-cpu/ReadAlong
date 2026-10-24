@@ -7,7 +7,7 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.fillMaxSize
-import com.example.readalong.ui.components.navContainer
+import androidx.compose.foundation.background
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -85,9 +85,11 @@ fun ReadAlongApp(libraryViewModel: LibraryViewModel, app: com.example.readalong.
     androidx.compose.animation.SharedTransitionLayout {
     androidx.compose.runtime.CompositionLocalProvider(com.example.readalong.ui.components.LocalNavSharedScope provides this) {
     NavHost(navController = navController, startDestination = Routes.Library) {
+        // From the mini player the player slides up over the library like a sheet, and slides back
+        // down on close: translation only, so it stays smooth even while the player composes.
         composable(Routes.Library,
-            exitTransition = { androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(180)) },
-            popEnterTransition = { androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(180)) }) { libraryEntry ->
+            exitTransition = { if (targetState.openedFromMini()) androidx.compose.animation.ExitTransition.KeepUntilTransitionsFinished else androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(180)) },
+            popEnterTransition = { if (initialState.openedFromMini()) androidx.compose.animation.EnterTransition.None else androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(180)) }) { libraryEntry ->
             androidx.compose.runtime.CompositionLocalProvider(com.example.readalong.ui.components.LocalNavVisibilityScope provides this) {
             // Ignore callbacks from outgoing destinations after their entry has been popped.
             fun open(route: String) { if (navController.currentBackStackEntry?.id == libraryEntry.id) navController.navigate(route) { launchSingleTop = true } }
@@ -148,8 +150,8 @@ fun ReadAlongApp(libraryViewModel: LibraryViewModel, app: com.example.readalong.
             AboutScreen(onBack = { navController.popBackStack() }, onSpeechModel = { navController.navigate("speech-model") })
         }
         composable(Routes.Book, arguments = listOf(navArgument("bookId") { type = NavType.StringType }, navArgument("fromMini") { type = NavType.BoolType; defaultValue = false }),
-            enterTransition = { androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(180)) },
-            popExitTransition = { androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(180)) }) { entry ->
+            enterTransition = { if (targetState.openedFromMini()) androidx.compose.animation.slideInVertically(androidx.compose.animation.core.tween(360, easing = com.example.readalong.ui.reading.ReaderMotionEasing)) { it } else androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(180)) },
+            popExitTransition = { if (initialState.openedFromMini()) androidx.compose.animation.slideOutVertically(androidx.compose.animation.core.tween(300, easing = androidx.compose.animation.core.CubicBezierEasing(.4f, 0f, .9f, .6f))) { it } else androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(180)) }) { entry ->
             androidx.compose.runtime.CompositionLocalProvider(com.example.readalong.ui.components.LocalNavVisibilityScope provides this) {
             val bookId = requireNotNull(entry.arguments?.getString("bookId"))
             val fromMini = entry.arguments?.getBoolean("fromMini") == true
@@ -198,8 +200,7 @@ fun ReadAlongApp(libraryViewModel: LibraryViewModel, app: com.example.readalong.
                 val surfaceState = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
                 // Opened from the mini player: the mini player grows into this screen. Opened from the
                 // library: the cover flies from its tile into the player.
-                androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.fillMaxSize()
-                    .navContainer(if (fromMini) com.example.readalong.ui.components.playerKey(bookId) else null, 18.dp, small = false)) {
+                androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.fillMaxSize()) {
                 androidx.compose.runtime.CompositionLocalProvider(com.example.readalong.ui.components.LocalPlayerCoverKey provides
                     if (fromMini) null else com.example.readalong.ui.components.coverKey(bookId)) {
                 androidx.compose.animation.SharedTransitionLayout {
@@ -252,6 +253,9 @@ fun ReadAlongApp(libraryViewModel: LibraryViewModel, app: com.example.readalong.
                 }
                 }
                 }
+            } else if (fromMini && state is com.example.readalong.ui.book.BookUiState.Loading) {
+                // The book is already playing; it loads within a frame or two. Keep the sliding sheet plain.
+                androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.fillMaxSize().background(androidx.compose.material3.MaterialTheme.colorScheme.background))
             } else {
                 BookScreen(state, busy, updateFailed, { navController.popBackStack() }, model::retry, model::setFinished)
             }
@@ -261,3 +265,5 @@ fun ReadAlongApp(libraryViewModel: LibraryViewModel, app: com.example.readalong.
     }
     }
 }
+
+private fun androidx.navigation.NavBackStackEntry.openedFromMini() = arguments?.getBoolean("fromMini") == true

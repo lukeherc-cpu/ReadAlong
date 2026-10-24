@@ -67,7 +67,13 @@ fun ReadAlongSearchField(query: String, onQuery: (String) -> Unit, onClose: () -
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search))
         }
         IconButton(onClick = onClose, modifier = Modifier.semantics { contentDescription = "Close search" }) {
-            Text("×", fontSize = 26.sp, color = content.copy(alpha = .75f))
+            // Drawn, not a "×" glyph: font metrics put the glyph below the optical centre.
+            val stroke = content.copy(alpha = .75f)
+            androidx.compose.foundation.Canvas(Modifier.size(14.dp)) {
+                val w = 2.dp.toPx()
+                drawLine(stroke, androidx.compose.ui.geometry.Offset.Zero, androidx.compose.ui.geometry.Offset(size.width, size.height), w, androidx.compose.ui.graphics.StrokeCap.Round)
+                drawLine(stroke, androidx.compose.ui.geometry.Offset(size.width, 0f), androidx.compose.ui.geometry.Offset(0f, size.height), w, androidx.compose.ui.graphics.StrokeCap.Round)
+            }
         }
     }
 }
