@@ -25,6 +25,7 @@ class ProcessingRunner(private val database: ReadAlongDatabase, private val epub
                     sourceFingerprint = TranscriptionPlan.fingerprint(database, bookId)).also { jobs.put(it) }
             }
             val units = TranscriptionPlan.decode(requireNotNull(initial.planJson))
+            check(initial.completedUnits in 0..units.size) { "Saved checkpoint is outside this audio plan." }
             if (initial.sourceFingerprint != TranscriptionPlan.fingerprint(database, bookId)) throw AudioLayoutChanged()
             // A process may stop after the atomic transcript/checkpoint commit but before
             // publishing its reading edition. Repair that derived view without recognizing
@@ -37,7 +38,10 @@ class ProcessingRunner(private val database: ReadAlongDatabase, private val epub
                 database.bookDao().putMetadata(LibraryMetadataEntity(com.example.readalong.data.audio.Mp3Timing.versionKey(bookId),
                     com.example.readalong.data.audio.Mp3Timing.VERSION))
             }
-            for ((index, input) in units.withIndex()) {
+            // Start at the durable checkpoint. Re-reading the full job (including its large
+            // plan JSON) for every completed chunk makes late-book one-unit batches quadratic.
+            for (index in initial.completedUnits until units.size) {
+                val input = units[index]
                 val job = current(bookId, workId)
                 if (index < job.completedUnits) continue
                 update(bookId, workId, ProcessingState.PROCESSING, if (book.isDemo) "Preparing sample chapter ${index + 1} of ${units.size}." else "Transcribing chunk ${index + 1} of ${units.size} with ${com.example.readalong.domain.transcription.SpeechModels.find(engine.id)?.name ?: "Offline speech model"}…")
