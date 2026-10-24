@@ -107,45 +107,89 @@ class AudiobookTranscriptionService : Service() {
     private suspend fun prepareBook(book: String, workId: String) {
         val resources = TranscriptionResources(app)
         var complete = false
-        RecognitionConnection(app).withSession { connection ->
-        while (!complete && currentCoroutineContext().isActive) {
-            val job = app.database.processingDao().find(book) ?: break
-            if (job.workId != workId || !ProcessingState.valueOf(job.state).active || !app.processing.isTurn(book, workId)) break
-            if (ChargingPolicy.shouldWait(app)) { app.processing.waitForCharging(book, workId); break }
-            if (!wakeLock.isHeld) wakeLock.acquire(6 * 60 * 60_000L)
-            if (resources.tooHot()) {
-                status(book, workId, "QUEUED", "Device is hot. Waiting to cool; completed text is saved.")
-                delay(30_000); continue
-            }
-            try {
-                complete = withTimeout(9 * 60_000L) {
-                    run {
-                        val began = android.os.SystemClock.elapsedRealtime()
-                        var previousTime = began
-                        val budget = com.example.readalong.domain.transcription.TranscriptionBatch()
-                        val engine = WhistleTranscriptionEngine(app, app.speechModel, job.engineId, connection) { message -> status(book, workId, "PROCESSING", message) }
-                        ProcessingRunner(app.database, app.generatedEpub).run(book, workId, engine, com.example.readalong.domain.transcription.TranscriptionBatch.MAX_UNITS) {
-                            try { app.importedEpub.requestAlignment(book) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { }
-                            val now = android.os.SystemClock.elapsedRealtime()
-                            val keepGoing = budget.continueAfter(now - previousTime, now - began, resources.conserve())
-                            previousTime = now
-                            keepGoing && !ChargingPolicy.shouldWait(app) && app.processing.isTurn(book, workId)
+        var stop = false
+        // Each pass owns one recognition binding. A failure ends the pass, which releases the
+        // binding, so an automatic retry binds a fresh recognition process, the same thing
+        // pause/play does. Reusing a binding to a process that died left retries stuck.
+        while (!complete && !stop && currentCoroutineContext().isActive) {
+            var retryIn = 0L
+            val failure = try {
+                RecognitionConnection(app).withSession { connection ->
+                    var failed: Exception? = null
+                    while (!complete && currentCoroutineContext().isActive) {
+                        val job = app.database.processingDao().find(book)
+                        if (job == null || job.workId != workId || !ProcessingState.valueOf(job.state).active || !app.processing.isTurn(book, workId)) { stop = true; break }
+                        if (ChargingPolicy.shouldWait(app)) { app.processing.waitForCharging(book, workId); stop = true; break }
+                        if (!wakeLock.isHeld) wakeLock.acquire(6 * 60 * 60_000L)
+                        if (resources.tooHot()) {
+                            status(book, workId, "QUEUED", "Device is hot. Waiting to cool; completed text is saved.")
+                            delay(30_000); continue
+                        }
+                        try {
+                            complete = withTimeout(9 * 60_000L) {
+                                val began = android.os.SystemClock.elapsedRealtime()
+                                var previousTime = began
+                                val budget = com.example.readalong.domain.transcription.TranscriptionBatch()
+                                val engine = WhistleTranscriptionEngine(app, app.speechModel, job.engineId, connection) { message -> status(book, workId, "PROCESSING", message) }
+                                ProcessingRunner(app.database, app.generatedEpub).run(book, workId, engine, com.example.readalong.domain.transcription.TranscriptionBatch.MAX_UNITS) {
+                                    try { app.importedEpub.requestAlignment(book) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { }
+                                    val now = android.os.SystemClock.elapsedRealtime()
+                                    val keepGoing = budget.continueAfter(now - previousTime, now - began, resources.conserve())
+                                    previousTime = now
+                                    keepGoing && !ChargingPolicy.shouldWait(app) && app.processing.isTurn(book, workId)
+                                }
+                            }
+                            app.importedEpub.requestAlignment(book)
+                            if (!complete) {
+                                status(book, workId, "QUEUED", "Completed text saved. Continuing transcription…")
+                                if (resources.conserve()) delay(if (resources.warm()) 30_000 else 1_000)
+                                else yield()
+                            }
+                        } catch (error: Exception) {
+                            if (error is CancellationException && error !is TimeoutCancellationException) throw error
+                            failed = error; break
                         }
                     }
+                    failed
                 }
-                app.importedEpub.requestAlignment(book)
-                if (!complete) {
-                    status(book, workId, "QUEUED", "Completed text saved. Continuing transcription…")
-                    if (resources.conserve()) delay(if (resources.warm()) 30_000 else 1_000)
-                    else yield()
-                }
-            } catch (failure: Exception) {
-                if (failure is CancellationException && failure !is TimeoutCancellationException) throw failure
-                if (PreparationRetry.record(app.database, book, workId, failure)) delay(30_000)
-                else { status(book, workId, "FAILED", "Could not finish this section. ${PreparationRetry.explanation(failure)} Completed text is saved."); break }
+            } catch (error: Exception) {
+                // Binding or connecting failed (including the connect watchdog).
+                if (error is CancellationException && error !is TimeoutCancellationException) throw error
+                error
+            } ?: continue
+            when (val decision = PreparationRetry.decide(app.database, book, workId, failure)) {
+                is PreparationRetry.Decision.Retry -> retryIn = decision.delayMs
+                PreparationRetry.Decision.Exhausted -> { giveUp(book, workId, "Automatic retries didn't work. Tap Retry to try again; completed text is saved.", failure); stop = true }
+                PreparationRetry.Decision.NotRetryable -> { giveUp(book, workId, "Could not finish this section. ${PreparationRetry.explanation(failure)} Completed text is saved.", failure); stop = true }
             }
+            if (retryIn > 0) countdown(book, workId, retryIn, failure)
         }
+    }
+
+    /** Waits before an automatic retry, showing the time left. Stops waiting if the job was paused or replaced. */
+    private suspend fun countdown(book: String, workId: String, delayMs: Long, failure: Throwable) {
+        android.util.Log.w("ReadAlong", "Transcription retry in ${delayMs / 1000}s after ${failure.javaClass.simpleName}: ${failure.message}")
+        var left = delayMs
+        while (left > 0) {
+            val job = app.database.processingDao().find(book) ?: return
+            if (job.workId != workId || !ProcessingState.valueOf(job.state).active) return
+            val attempt = job.message?.let { Regex("attempt (\\d+ of \\d+)").find(it)?.groupValues?.get(1) }
+            status(book, workId, "QUEUED", "Temporary problem. Retrying automatically in ${(left + 999) / 1000} s" +
+                (attempt?.let { " (attempt $it)" } ?: "") + ". Completed text is saved.")
+            val step = minOf(left, 5_000L); delay(step); left -= step
         }
+    }
+
+    /** Marks the book FAILED and posts the separate "Transcription stopped" notification (with Retry) right away. */
+    private suspend fun giveUp(book: String, workId: String, message: String, failure: Throwable) {
+        android.util.Log.w("ReadAlong", "Transcription stopped after ${failure.javaClass.simpleName}: ${failure.message}")
+        status(book, workId, "FAILED", message)
+        val job = app.database.processingDao().find(book) ?: return
+        if (job.workId != workId || job.state != "FAILED") return
+        val title = app.database.bookDao().findBook(book)?.title ?: "Audiobook"
+        runCatching { TranscriptionNotifications.stopped(app, book, title, message) }
+        // The queue observer would otherwise post the same notification a second time.
+        app.database.bookDao().putMetadata(com.example.readalong.data.local.LibraryMetadataEntity("stop_notification:$book", workId))
     }
     private suspend fun finishBook(book: String, workId: String) {
         if (destroyed || sessions[book]?.workId != workId) return

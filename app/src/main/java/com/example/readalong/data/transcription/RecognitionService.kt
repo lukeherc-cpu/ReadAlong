@@ -18,9 +18,6 @@ open class RecognitionService : Service() {
     private val handler = Handler(Looper.getMainLooper())
     private var busy = false
     private var activeRequest: String? = null
-    // CPUs Android allowed this process when the model (and Whistle's thread pool) was loaded.
-    private var loadedCpus: String? = null
-    private var restarting = false
     private val cancelled = AtomicBoolean(false)
     private val messenger = Messenger(object : Handler(Looper.getMainLooper()) {
         override fun handleMessage(message: Message) {
@@ -30,22 +27,7 @@ open class RecognitionService : Service() {
             }
             if (message.what != RECOGNIZE) return
             val reply = message.replyTo ?: return
-            if (restarting) { sendRestart(reply); return }
             if (busy) { send(reply, null, "Speech recognition is busy. Retry shortly."); return }
-            // Whistle sizes its thread pool and pins workers to the fast cores it can see when the
-            // model loads. When ReadAlong leaves or returns to the screen, Android moves this process
-            // to a different CPU set (on many phones the background set lacks the fastest cores), and
-            // the pinned workers end up crowded onto too few cores: background chunks ran many times
-            // slower. The runtime has no unload or re-pin API, so restart this private process between
-            // chunks and let the client retry at once; the new pool matches the current CPU set.
-            val cpus = CpuSet.allowed()
-            if (loadedCpus != null && cpus != null && cpus != loadedCpus) {
-                android.util.Log.i("ReadAlong", "Recognition CPU set changed ($loadedCpus -> $cpus); restarting the runtime.")
-                restarting = true
-                sendRestart(reply)
-                handler.postDelayed({ android.os.Process.killProcess(android.os.Process.myPid()) }, 400)
-                return
-            }
             val model = message.data.getString("model") ?: return
             val pcm = message.data.getString("pcm") ?: return
             if (message.data.getString("backend", "whistle") != "whistle") {
@@ -57,7 +39,6 @@ open class RecognitionService : Service() {
                 send(reply, null, "Speech recognition input is unavailable."); return
             }
             activeRequest = message.data.getString("requestId") ?: return
-            if (loadedCpus == null) loadedCpus = cpus
             busy = true; cancelled.set(false)
             try { reply.send(Message.obtain(null, PROGRESS).apply { arg1 = -1 }) } catch (_: RemoteException) { }
             executor.execute {
@@ -76,10 +57,6 @@ open class RecognitionService : Service() {
             }
         }
     })
-    private fun sendRestart(reply: Messenger) {
-        try { reply.send(Message.obtain(null, RESULT).apply { data = Bundle().apply { putBoolean("restart", true) } }) }
-        catch (_: RemoteException) { }
-    }
     private fun send(reply: Messenger, result: String?, error: String?) {
         try { reply.send(Message.obtain(null, RESULT).apply { data = Bundle().apply { putString("result", result); putString("error", error) } }) }
         catch (_: RemoteException) { }
@@ -101,13 +78,6 @@ open class RecognitionService : Service() {
     companion object { const val RECOGNIZE = 1; const val CANCEL = 2; const val RESULT = 3; const val PROGRESS = 4 }
 }
 class ModelValidationService : RecognitionService()
-
-/** The CPUs this process may run on, as Android's cpuset currently allows (main thread, never pinned). */
-internal object CpuSet {
-    fun allowed(): String? = runCatching { parse(java.io.File("/proc/self/status").readText()) }.getOrNull()
-    fun parse(status: String): String? = status.lineSequence().firstOrNull { it.startsWith("Cpus_allowed_list:") }
-        ?.substringAfter(':')?.trim()?.takeIf { it.isNotEmpty() }
-}
 
 /** Main-thread only. An older service's teardown must not kill a newly bound instance. */
 private object RecognitionProcessLifetime {
