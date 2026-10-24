@@ -207,6 +207,10 @@ class PauseTranscriptionReceiver : BroadcastReceiver() {
         val pending = goAsync()
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try { (context.applicationContext as ReadAlongApplication).processing.cancel(bookId) }
+            catch (failure: Exception) {
+                // No exception handler covers this scope: an uncaught error here would crash the app.
+                android.util.Log.w("ReadAlong", "Pause from notification failed: ${failure.javaClass.simpleName}")
+            }
             finally { pending.finish() }
         }
     }
