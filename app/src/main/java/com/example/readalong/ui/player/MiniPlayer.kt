@@ -26,9 +26,12 @@ import com.example.readalong.R
 import com.example.readalong.domain.model.Book
 import com.example.readalong.playback.PlaybackState
 import com.example.readalong.ui.components.BookCover
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
 
 @Composable
-fun MiniPlayer(book: Book, state: PlaybackState, onOpen: () -> Unit, onToggle: () -> Unit, readerTheme: String = "DARK", onDismiss: (() -> Unit)? = null) {
+fun MiniPlayer(book: Book, state: PlaybackState, onOpen: () -> Unit, onToggle: () -> Unit, readerTheme: String = "DARK", onDismiss: (() -> Unit)? = null,
+    onDrag: ((Float) -> Unit)? = null, onDragEnd: ((Float) -> Unit)? = null) {
     val palette = com.example.readalong.ui.components.rememberCoverPalette(book)
     val settings = com.example.readalong.ui.theme.LocalAppSettings.current
     val colored = settings.coloredMiniPlayer
@@ -62,7 +65,15 @@ fun MiniPlayer(book: Book, state: PlaybackState, onOpen: () -> Unit, onToggle: (
     Surface(onClick = onOpen, modifier = Modifier.semantics {
         contentDescription = "Expand mini player"
         if (onDismiss != null) customActions = listOf(CustomAccessibilityAction("Dismiss mini player") { visible.targetState = false; true })
-    }.fillMaxWidth(), shape = RoundedCornerShape(18.dp), color = if (colored) background else basicBackground, contentColor = if (colored) foreground else basicForeground, shadowElevation = 8.dp) {
+    }.fillMaxWidth().then(if (onDrag == null) Modifier else Modifier.pointerInput(book.id) {
+        // Vertical drags pull the player up; horizontal swipes still dismiss.
+        val tracker = androidx.compose.ui.input.pointer.util.VelocityTracker()
+        detectVerticalDragGestures(
+            onDragStart = { tracker.resetTracking() },
+            onDragEnd = { onDragEnd?.invoke(tracker.calculateVelocity().y) },
+            onDragCancel = { onDragEnd?.invoke(0f) },
+        ) { change, amount -> change.consume(); tracker.addPosition(change.uptimeMillis, change.position); onDrag(amount) }
+    }), shape = RoundedCornerShape(18.dp), color = if (colored) background else basicBackground, contentColor = if (colored) foreground else basicForeground, shadowElevation = 8.dp) {
         Row(Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             BookCover(book, Modifier.size(52.dp), showTitle = false)
             Column(Modifier.weight(1f)) {

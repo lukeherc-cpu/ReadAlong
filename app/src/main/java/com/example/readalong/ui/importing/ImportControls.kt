@@ -10,6 +10,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.readalong.data.importing.FolderMode
@@ -47,13 +49,19 @@ fun FoldersScreen(model: ImportViewModel, onBack: () -> Unit) {
     val message by model.message.collectAsStateWithLifecycle()
     var pendingUri by rememberSaveable { mutableStateOf<String?>(null) }
     var removing by remember { mutableStateOf<com.example.readalong.data.local.FolderEntity?>(null) }
+    var audible by rememberSaveable { mutableStateOf(false) }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri -> pendingUri = uri?.toString() }
     Scaffold { insets ->
         LazyColumn(Modifier.fillMaxSize().padding(insets), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             item { TextButton(onClick = onBack) { Text("Back to library") } }
             item { Text("Library folders", style = MaterialTheme.typography.headlineLarge) }
             item { Text("Library folders are scanned automatically whenever you return home. Audio stays in the folder you choose.") }
-            item { Button(onClick = { picker.launch(null) }, enabled = !busy) { Text("Add folder") } }
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Button(onClick = { picker.launch(null) }, enabled = !busy) { Text("Add folder") }
+                    OutlinedButton(onClick = { audible = true }, enabled = !busy) { Text("Import from Audible") }
+                }
+            }
             item { if (busy) LinearProgressIndicator(Modifier.fillMaxWidth()); message?.let { Text(it, style = MaterialTheme.typography.bodySmall) } }
             if (folders.none { it.mode == FolderMode.LIBRARY.name }) item { Text("No folders added yet.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
             items(folders.filter { it.mode == FolderMode.LIBRARY.name }, key = { it.uri }) { folder ->
@@ -75,6 +83,7 @@ fun FoldersScreen(model: ImportViewModel, onBack: () -> Unit) {
     pendingUri?.let { uri ->
         LaunchedEffect(uri) { model.folder(Uri.parse(uri), FolderMode.LIBRARY); pendingUri = null }
     }
+    if (audible) AudibleImportDialog(onChooseFolder = { audible = false; picker.launch(null) }, onDismiss = { audible = false })
     removing?.let { folder ->
         AlertDialog(onDismissRequest = { removing = null }, title = { Text("Remove folder access?") },
             text = { Text("Are you sure? This removes every book in this folder from your library and deletes its saved metadata, readable text and transcription progress. Original audio files stay on your device.") },
@@ -163,6 +172,42 @@ internal fun ReadingChoice(title: String, subtitle: String, art: Int, selected: 
             Text(title, modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelLarge)
             Text(subtitle, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             RadioButton(selected, onClick = null)
+        }
+    }
+}
+
+/** Latest LibriSync release, the app that downloads a person's own Audible purchases to a folder. */
+private const val LIBRISYNC_RELEASES = "https://github.com/Promises/LibriSync/releases/latest"
+
+@Composable
+private fun AudibleImportDialog(onChooseFolder: () -> Unit, onDismiss: () -> Unit) {
+    val links = androidx.compose.ui.platform.LocalUriHandler.current
+    AlertDialog(onDismissRequest = onDismiss, title = { Text("Import from Audible") }, text = {
+        Column(Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Text("ReadAlong can't sign in to Audible itself. A free app called LibriSync downloads the audiobooks you've bought to a folder on your phone, and ReadAlong reads them from there.")
+            AudibleStep(1, "Install LibriSync", "Download the latest version from its release page.") {
+                TextButton(onClick = { runCatching { links.openUri(LIBRISYNC_RELEASES) } }, contentPadding = PaddingValues(0.dp)) { Text("Open LibriSync releases") }
+            }
+            AudibleStep(2, "Sign in to your Audible account", "Open LibriSync and sign in with the account you buy audiobooks with.")
+            AudibleStep(3, "Choose where books are saved", "In LibriSync's settings, set the download folder to a new folder called \u201cAudible audiobooks\u201d. Saving each book as a single file works best.")
+            AudibleStep(4, "Download your books", "Pick the audiobooks you want in LibriSync and download them.")
+            AudibleStep(5, "Add the folder here", "Tap \u201cChoose Audible folder\u201d below and select \u201cAudible audiobooks\u201d. Your books appear in your library, and new downloads show up each time you come back to ReadAlong.")
+            Text("Only your own purchases are downloaded, and they stay on your phone.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }, confirmButton = { Button(onClick = onChooseFolder) { Text("Choose Audible folder") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Close") } })
+}
+
+@Composable
+private fun AudibleStep(number: Int, title: String, body: String, extra: (@Composable () -> Unit)? = null) {
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Surface(shape = androidx.compose.foundation.shape.CircleShape, color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.size(28.dp)) {
+            Box(contentAlignment = Alignment.Center) { Text("$number", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onPrimaryContainer) }
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(title, style = MaterialTheme.typography.titleSmall)
+            Text(body, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            extra?.invoke()
         }
     }
 }
