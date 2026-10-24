@@ -89,7 +89,7 @@ class ReadAlongApplication : Application() {
             catch (_: Exception) { android.util.Log.w("ReadAlong", "Queue handoff will retry on app launch.") }
         }
     }
-    fun transcriptionInterrupted(bookId: String, workId: String, reason: String = "Background transcription stopped.") {
+    fun transcriptionInterrupted(bookId: String, workId: String, reason: String = "Your ReadAlong stopped in the background.") {
         applicationScope.launch {
             try {
                 delay(250) // Let foreground teardown and explicit-pause state settle first.

@@ -52,7 +52,7 @@ class ProcessingRunner(private val database: ReadAlongDatabase, private val epub
                 val unitBegan = android.os.SystemClock.elapsedRealtime()
                 val segments = engine.transcribe(input).toList() // A real unit contains at most 30 seconds of audio.
                 coroutineContext.ensureActive()
-                if (book.isDemo) check(segments.isNotEmpty()) { "No readable text was produced." }
+                if (book.isDemo) check(segments.isNotEmpty()) { "No words were found in this audio." }
                 TranscriptIndex(segments) // Validates canonical interval ordering before committing.
                 check(segments.all { it.bookId == bookId && it.chapterId == input.chapterId && it.startMs >= input.startMs && it.endMs <= input.endMs })
                 database.withTransaction {
@@ -88,10 +88,10 @@ class ProcessingRunner(private val database: ReadAlongDatabase, private val epub
             if (database.readingDao().count(bookId) == 0) {
                 update(bookId, workId, ProcessingState.READY, "Processing finished, but no speech was recognized. Audio remains available.")
             } else {
-                update(bookId, workId, ProcessingState.GENERATING_EPUB, if (book.isDemo) "Building the sample EPUB." else "Building the readable EPUB.")
+                update(bookId, workId, ProcessingState.GENERATING_EPUB, if (book.isDemo) "Building the sample EPUB." else "Finishing your ReadAlong…")
                 epub.generate(bookId)
                 update(bookId, workId, ProcessingState.READY,
-                    if (book.isDemo) "Sample readable version ready · synthetic timestamps · no narration." else "Whole-book readable version ready · ${com.example.readalong.domain.transcription.SpeechModels.find(engine.id)?.name ?: "Offline speech model"} · recognition may contain errors.")
+                    if (book.isDemo) "Sample ReadAlong ready." else "Whole-book readable version ready · ${com.example.readalong.domain.transcription.SpeechModels.find(engine.id)?.name ?: "Offline speech model"} · recognition may contain errors.")
             }
             return true
         } catch (cancelled: CancellationException) { throw cancelled }
@@ -103,7 +103,7 @@ class ProcessingRunner(private val database: ReadAlongDatabase, private val epub
                     if (failure is AudioLayoutChanged) database.importedEpubDao().invalidateAudioMapping(bookId)
                     jobs.put(latest.copy(state = if (PreparationRetry.transient(failure)) ProcessingState.QUEUED.name else ProcessingState.FAILED.name,
                         message = if (failure is AudioLayoutChanged) "The audio file order, duration or chapter boundaries changed. Retry preparation to build a new plan. The saved edition and listening position are preserved." else if (failure is com.example.readalong.data.transcription.SpeechPreparationException) failure.explanation
-                        else "Couldn't prepare readable text. Check model, audio access and free storage, then retry. Completed text, audio and saved positions are preserved.", updatedAt = System.currentTimeMillis()))
+                        else "Couldn't finish this ReadAlong. Check that the audio is still there and there's free space, then try again. Progress so far is kept.", updatedAt = System.currentTimeMillis()))
                 }
             }
             throw failure

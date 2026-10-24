@@ -27,12 +27,17 @@ fun LibraryLogo(scanningFolder: String?, transcribing: Boolean = false, animate:
         val phase by transition.animateFloat(0f, 1f, infiniteRepeatable(tween(1100, easing = PageTurnEasing)), label = "Page turn")
         phase
     } else 0f
-    Column(Modifier.widthIn(min = 64.dp).clickable(onClickLabel = "Open transcription queue", onClick = onClick).semantics(mergeDescendants = true) {
-        contentDescription = "Transcription queue"
-        stateDescription = if (transcribing) "Transcribing" else scanningFolder?.let { "Scanning $it" } ?: "Library up to date"
+    Column(Modifier.widthIn(min = 64.dp).clickable(onClickLabel = "Open the queue", onClick = onClick).semantics(mergeDescendants = true) {
+        contentDescription = "ReadAlong queue"
+        stateDescription = if (transcribing) "Transcribing" else scanningFolder?.let { "Syncing $it" } ?: "Library up to date"
     }, horizontalAlignment = Alignment.CenterHorizontally) {
         PageTurnLogo(page, Modifier.size(52.dp))
-        if (transcribing) Text("Transcribing", fontSize = 8.sp, lineHeight = 10.sp, color = MaterialTheme.colorScheme.primary)
+        // The label's line is always reserved, so the toolbar doesn't jump when work starts or stops.
+        Box(Modifier.height(14.dp), contentAlignment = Alignment.Center) {
+            // The page turns for either job; say which one.
+            val label = if (transcribing) "Transcribing" else if (scanningFolder != null) "Syncing" else null
+            if (label != null) Text(label, fontSize = 12.sp, lineHeight = 14.sp, color = MaterialTheme.colorScheme.primary)
+        }
     }
 }
 

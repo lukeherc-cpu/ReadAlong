@@ -41,13 +41,13 @@ class FirstVisitGuidesTest {
                 compose.onNodeWithText(guide.title).assertIsDisplayed()
                 when (guide) {
                     GuidePage.HOME -> listOf("Add audiobooks", "Search", "Queue", "Library folders", "Settings")
-                    GuidePage.PLAYER -> listOf("Cover art", "Create ReadAlong")
+                    GuidePage.PLAYER -> listOf("Cover art", "Make a ReadAlong")
                     GuidePage.READER -> listOf("Settings", "Search", "Reading mode", "Chapters", "Back")
                 }.forEach { compose.onNodeWithText(it).assertExists() }
                 capture("guide-${guide.name.lowercase()}-${if (theme) "light" else "dark"}")
             }
         }
-        compose.onNodeWithText("Do not show this again").performClick()
+        compose.onNodeWithText("Don't show this again").performClick()
         compose.onNodeWithTag("guide_dont_show").assertIsOff()
         compose.onNodeWithText("Got it").performClick()
         compose.runOnIdle { assertEquals(false, choice) }
@@ -71,7 +71,7 @@ class FirstVisitGuidesTest {
             compose.runOnIdle { showing = true }; compose.waitForIdle()
             compose.onNode(isDialog()).assertDoesNotExist()
             compose.runOnIdle { page = GuidePage.PLAYER }
-            compose.onNodeWithText("Do not show this again").performClick()
+            compose.onNodeWithText("Don't show this again").performClick()
             compose.onNodeWithText("Got it").performClick()
             assertFalse(runBlocking { app.appPreferences.preferences.first().playerGuideHidden })
             compose.runOnIdle { page = GuidePage.READER }
@@ -89,11 +89,12 @@ class FirstVisitGuidesTest {
         var showing by mutableStateOf(true)
         try {
             compose.setContent { CompositionLocalProvider(LocalAppSettings provides original.copy(chargingOnly = false)) { ReadAlongTheme {
-                if (showing) com.example.readalong.ui.transcription.TranscriptionBatteryWarning(app)
+                if (showing) com.example.readalong.ui.transcription.BackgroundPreparationPrompt(app, showNow = true)
             } } }
-            compose.onNodeWithText("Only transcribe while charging").performClick()
+            // Shown when the first ReadAlong is running; the test drives it without one, so force the first-time state.
+            compose.onNodeWithText("Only while charging").performClick()
             compose.onNode(isToggleable()).assertIsOn()
-            compose.onNodeWithText("Continue →").performClick()
+            compose.onAllNodes(hasText("Not now") or hasText("Continue")).onFirst().performClick()
             compose.waitUntil { runBlocking { app.appPreferences.preferences.first().chargingOnly } }
             assertTrue(runBlocking { app.appPreferences.preferences.first().batteryWarningSeen })
             compose.runOnIdle { showing = false }
