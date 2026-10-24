@@ -30,6 +30,18 @@ class RecognitionConnection(private val context: Context, private val service: C
 
     suspend fun transcribe(model: File, pcm: File, backend: String = "whistle", onMetrics: (LongArray) -> Unit = {}, onProgress: (Int) -> Unit = {}): String {
         if (service == null) return withSession { it.transcribe(model, pcm, backend, onMetrics, onProgress) }
+        // The recognition process restarts itself when Android changes its CPU set (see
+        // RecognitionService). That is not a failure: wait for the fresh process and resend.
+        repeat(4) { attempt ->
+            try { return transcribeOnce(model, pcm, backend, onMetrics, onProgress) }
+            catch (_: RecognitionRestart) { delay(400L + 400L * attempt) }
+        }
+        return transcribeOnce(model, pcm, backend, onMetrics, onProgress)
+    }
+
+    private class RecognitionRestart : IOException("Recognition runtime restarting.")
+
+    private suspend fun transcribeOnce(model: File, pcm: File, backend: String, onMetrics: (LongArray) -> Unit, onProgress: (Int) -> Unit): String {
         return withContext(Dispatchers.Main) {
         withTimeout(8 * 60_000L) { suspendCancellableCoroutine { continuation ->
             val requestId = java.util.UUID.randomUUID().toString()
@@ -44,6 +56,10 @@ class RecognitionConnection(private val context: Context, private val service: C
                         return
                     }
                     if (message.what != RecognitionService.RESULT) return
+                    if (message.data.getBoolean("restart")) {
+                        if (continuation.isActive) continuation.resumeWith(Result.failure(RecognitionRestart()))
+                        unbind(); return
+                    }
                     if (continuation.isActive) {
                         message.data.getLongArray("metrics")?.let(onMetrics)
                         val error = message.data.getString("error")
