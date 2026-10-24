@@ -74,7 +74,7 @@ private class TransformShape(private val progress: () -> Float, private val from
 }
 
 @Composable
-fun PlayerTransform(book: Book, readerTheme: String, progress: () -> Float, modifier: Modifier = Modifier) {
+fun PlayerTransform(book: Book, readerTheme: String, progress: () -> Float, modifier: Modifier = Modifier, chapterTitle: String = "") {
     val palette = com.example.readalong.ui.components.rememberCoverPalette(book)
     val settings = com.example.readalong.ui.theme.LocalAppSettings.current
     val (miniBackground, miniForeground) = miniPlayerColors(book, readerTheme)
@@ -91,13 +91,18 @@ fun PlayerTransform(book: Book, readerTheme: String, progress: () -> Float, modi
             alpha = ((p - .15f) / .45f).coerceIn(0f, 1f)
         }) {
             if (settings.blurredPlayer && !settings.alwaysBasicColor) com.example.readalong.ui.components.BlurredCover(book.coverUri, Modifier.fillMaxSize())
-            Column(Modifier.fillMaxSize().statusBarsPadding().padding(top = 56.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Box(Modifier.padding(horizontal = 24.dp).widthIn(max = (screenHeight * 0.40f).coerceIn(260.dp, 380.dp)).fillMaxWidth().aspectRatio(1f)) {
-                    if (settings.openingView == "COVER") BookCover(book, Modifier.fillMaxSize(), large = true)
-                    else Box(Modifier.fillMaxSize().clip(RoundedCornerShape(24.dp)).background(palette.preview))
+            // Same measurements as PlayerScreen (top bar 56 dp, 24 dp margins, 12 dp gaps, left-aligned
+            // title and chapter), so nothing moves when the real player takes over.
+            val playerColors = androidx.compose.material3.darkColorScheme()
+            Column(Modifier.fillMaxSize().statusBarsPadding().padding(top = 56.dp).padding(horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+                    Box(Modifier.widthIn(max = (screenHeight * 0.40f).coerceIn(260.dp, 380.dp)).fillMaxWidth().aspectRatio(1f)) {
+                        if (settings.openingView == "COVER") BookCover(book, Modifier.fillMaxSize(), large = true)
+                        else Box(Modifier.fillMaxSize().clip(RoundedCornerShape(24.dp)).background(palette.preview))
+                    }
                 }
-                Text(book.title, Modifier.padding(horizontal = 28.dp, vertical = 16.dp), color = Color.White, style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(book.title, Modifier.fillMaxWidth(), color = playerColors.onSurface, style = MaterialTheme.typography.headlineMedium, maxLines = 1, softWrap = false, overflow = TextOverflow.Clip)
+                if (chapterTitle.isNotBlank()) Text(chapterTitle, color = playerColors.onSurfaceVariant, style = MaterialTheme.typography.titleMedium, maxLines = 1)
             }
         }
         // The mini player's row rides the top of the container and fades as it grows.

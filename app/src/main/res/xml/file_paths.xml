@@ -3,4 +3,5 @@
     <files-path name="covers" path="covers/" />
     <files-path name="editions" path="editions/" />
     <cache-path name="exports" path="exports/" />
+    <cache-path name="downloads" path="downloads/" />
 </paths>
