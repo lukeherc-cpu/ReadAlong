@@ -145,9 +145,12 @@ class ReadingViewModel(val bookId: String, val database: ReadAlongDatabase, priv
     val chapters = mutableChapters.asStateFlow()
     val contents = combine(chapters, processingJob, readerStart, importedContents) { savedChapters, job, start, epubChapters ->
         if (start?.imported == true) return@combine epubChapters
-        val plan = job?.planJson?.let { com.example.readalong.data.processing.TranscriptionPlan.decode(it) }.orEmpty()
-        if (plan.isEmpty()) savedChapters.map { ReadingChapter(it.chapterId, it.startMs, it.title, "Available", true) }
-        else {
+        // Cached and decoded off the main thread: the plan can be thousands of units, and this
+        // flow re-emits on every transcription status update while the reader is open.
+        val plan = com.example.readalong.data.processing.cachedPlan(job?.planJson)
+        val fallback = { savedChapters.map { ReadingChapter(it.chapterId, it.startMs, it.title, "Available", true) } }
+        if (plan.isEmpty()) fallback()
+        else try {
             val named = database.mediaDao().chapters(bookId).associate { it.id to it.title }
             val files = database.mediaDao().audioFiles(bookId).associate { it.id to it.name }
             plan.withIndex().groupBy { it.value.chapterId }.entries.mapIndexed { index, (id, entries) ->
@@ -164,8 +167,12 @@ class ReadingViewModel(val bookId: String, val database: ReadAlongDatabase, priv
                 ReadingChapter(id, entries.first().value.startMs, named[id] ?: files[id] ?: "Chapter ${index + 1}", status,
                     savedChapters.any { it.chapterId == id })
             }
+        } catch (cancelled: CancellationException) { throw cancelled }
+        catch (failure: Exception) {
+            android.util.Log.w("ReadAlong", "Contents fell back to saved chapters: ${failure.javaClass.simpleName}")
+            fallback()
         }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    }.flowOn(kotlinx.coroutines.Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     init {
         viewModelScope.launch {
             importedEdition.filterNotNull().distinctUntilChangedBy { it.editionId to it.updatedAt }.collectLatest { edition ->
