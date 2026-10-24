@@ -11,6 +11,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -182,11 +183,35 @@ private const val LIBRISYNC_RELEASES = "https://github.com/Promises/LibriSync/re
 @Composable
 private fun AudibleImportDialog(onChooseFolder: () -> Unit, onDismiss: () -> Unit) {
     val links = androidx.compose.ui.platform.LocalUriHandler.current
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = rememberCoroutineScope()
+    var download by remember { mutableStateOf(LibriSyncDownloads.current) }
+    var installed by remember { mutableStateOf(libriSyncInstalled(context)) }
+    // Coming back from Android's installer (or settings): check again.
+    androidx.lifecycle.compose.LifecycleEventEffect(androidx.lifecycle.Lifecycle.Event.ON_RESUME) { installed = libriSyncInstalled(context) }
+    // While the APK downloads, follow the system download manager's progress.
+    LaunchedEffect((download as? LibriSyncDownload.Downloading)?.id) {
+        val id = (download as? LibriSyncDownload.Downloading)?.id ?: return@LaunchedEffect
+        while (true) {
+            val next = queryLibriSyncDownload(context, id)
+            download = next; LibriSyncDownloads.current = next
+            if (next !is LibriSyncDownload.Downloading) break
+            kotlinx.coroutines.delay(250)
+        }
+    }
     AlertDialog(onDismissRequest = onDismiss, title = { Text("Import from Audible") }, text = {
         Column(Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Text("ReadAlong can't sign in to Audible itself. A free app called LibriSync downloads the audiobooks you've bought to a folder on your phone, and ReadAlong reads them from there.")
-            AudibleStep(1, "Install LibriSync", "Download the latest version from its release page.") {
-                TextButton(onClick = { runCatching { links.openUri(LIBRISYNC_RELEASES) } }, contentPadding = PaddingValues(0.dp)) { Text("Open LibriSync releases") }
+            AudibleStep(1, "Install LibriSync", if (installed) "LibriSync is installed." else
+                "Tap \u201cDownload LibriSync\u201d and wait for the bar to fill. Then tap \u201cInstall LibriSync\u201d and choose Install. If Android asks, allow ReadAlong to install apps, come back, and tap \u201cInstall LibriSync\u201d again.") {
+                LibriSyncButton(installed, download, onDownload = {
+                    if (download !is LibriSyncDownload.Finding && download !is LibriSyncDownload.Downloading) scope.launch {
+                        download = LibriSyncDownload.Finding
+                        download = runCatching { startLibriSyncDownload(context) }.getOrElse { LibriSyncDownload.Failed }
+                    }
+                }, onInstall = { id -> installLibriSync(context, id) }, onOpen = {
+                    context.packageManager.getLaunchIntentForPackage(LIBRISYNC_PACKAGE)?.let { runCatching { context.startActivity(it) } }
+                }, onReleasePage = { runCatching { links.openUri(LIBRISYNC_RELEASES) } })
             }
             AudibleStep(2, "Sign in to your Audible account", "Open LibriSync and sign in with the account you buy audiobooks with.")
             AudibleStep(3, "Choose where books are saved", "In LibriSync's settings, set the download folder to a new folder called \u201cAudible audiobooks\u201d. Saving each book as a single file works best.")
@@ -209,5 +234,105 @@ private fun AudibleStep(number: Int, title: String, body: String, extra: (@Compo
             Text(body, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             extra?.invoke()
         }
+    }
+}
+
+private const val LIBRISYNC_PACKAGE = "tech.henning.librisync"
+
+private sealed interface LibriSyncDownload {
+    data object Idle : LibriSyncDownload
+    data object Finding : LibriSyncDownload
+    data class Downloading(val id: Long, val version: String, val fraction: Float?) : LibriSyncDownload
+    data class Downloaded(val id: Long, val version: String) : LibriSyncDownload
+    data object Failed : LibriSyncDownload
+}
+
+/** Keeps a running download across closing and reopening the dialog. */
+private object LibriSyncDownloads { var current: LibriSyncDownload = LibriSyncDownload.Idle }
+
+private fun libriSyncInstalled(context: android.content.Context) = context.packageManager.getLaunchIntentForPackage(LIBRISYNC_PACKAGE) != null
+
+@Composable
+private fun LibriSyncButton(installed: Boolean, download: LibriSyncDownload, onDownload: () -> Unit, onInstall: (Long) -> Unit, onOpen: () -> Unit, onReleasePage: () -> Unit) {
+    Column(Modifier.padding(top = 6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        when {
+            installed -> Button(onClick = onOpen) { Text("Open LibriSync") }
+            download is LibriSyncDownload.Downloaded -> Button(onClick = { onInstall(download.id) }) { Text("Install LibriSync") }
+            download is LibriSyncDownload.Downloading -> {
+                val shown by androidx.compose.animation.core.animateFloatAsState(download.fraction ?: 0f, label = "LibriSync download")
+                if (download.fraction == null) LinearProgressIndicator(Modifier.fillMaxWidth().height(6.dp))
+                else LinearProgressIndicator(progress = { shown }, modifier = Modifier.fillMaxWidth().height(6.dp))
+                Text("Downloading LibriSync ${download.version}" + (download.fraction?.let { " \u00b7 ${(it * 100).toInt()}%" } ?: ""),
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            download is LibriSyncDownload.Finding -> {
+                LinearProgressIndicator(Modifier.fillMaxWidth().height(6.dp))
+                Text("Finding the latest version", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            else -> Button(onClick = onDownload) { Text("Download LibriSync") }
+        }
+        if (download is LibriSyncDownload.Failed && !installed) {
+            Text("The download didn't work. Check your connection and try again, or get it from the release page.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            TextButton(onClick = onReleasePage, contentPadding = PaddingValues(0.dp)) { Text("Open release page") }
+        }
+    }
+}
+
+/**
+ * Starts downloading the APK of LibriSync's latest stable release (GitHub's "latest" skips drafts
+ * and pre-releases) with the system download manager. Picks the universal APK, else one for this
+ * phone's CPU.
+ */
+private suspend fun startLibriSyncDownload(context: android.content.Context): LibriSyncDownload = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+    val connection = (java.net.URL("https://api.github.com/repos/Promises/LibriSync/releases/latest").openConnection() as java.net.HttpURLConnection).apply {
+        setRequestProperty("Accept", "application/vnd.github+json"); connectTimeout = 15_000; readTimeout = 15_000
+    }
+    val release = try {
+        check(connection.responseCode == 200) { "GitHub returned ${connection.responseCode}" }
+        org.json.JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
+    } finally { connection.disconnect() }
+    val assets = release.getJSONArray("assets").let { list -> (0 until list.length()).map { list.getJSONObject(it) } }
+        .filter { it.getString("name").endsWith(".apk", ignoreCase = true) }
+    val asset = assets.firstOrNull { it.getString("name").contains("universal", ignoreCase = true) }
+        ?: android.os.Build.SUPPORTED_ABIS.firstNotNullOfOrNull { abi -> assets.firstOrNull { it.getString("name").contains(abi, ignoreCase = true) } }
+        ?: assets.singleOrNull()
+        ?: error("No APK in the latest release")
+    val version = release.optString("tag_name").ifBlank { "latest" }
+    val request = android.app.DownloadManager.Request(android.net.Uri.parse(asset.getString("browser_download_url")))
+        .setTitle("LibriSync $version")
+        .setMimeType("application/vnd.android.package-archive")
+        .setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE)
+        .setDestinationInExternalFilesDir(context, android.os.Environment.DIRECTORY_DOWNLOADS, "LibriSync-$version.apk")
+    val id = context.getSystemService(android.app.DownloadManager::class.java).enqueue(request)
+    LibriSyncDownload.Downloading(id, version, null).also { LibriSyncDownloads.current = it }
+}
+
+private fun queryLibriSyncDownload(context: android.content.Context, id: Long): LibriSyncDownload {
+    val manager = context.getSystemService(android.app.DownloadManager::class.java)
+    val version = (LibriSyncDownloads.current as? LibriSyncDownload.Downloading)?.version ?: "latest"
+    manager.query(android.app.DownloadManager.Query().setFilterById(id))?.use { cursor ->
+        if (!cursor.moveToFirst()) return LibriSyncDownload.Failed
+        val status = cursor.getInt(cursor.getColumnIndexOrThrow(android.app.DownloadManager.COLUMN_STATUS))
+        val done = cursor.getLong(cursor.getColumnIndexOrThrow(android.app.DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR))
+        val total = cursor.getLong(cursor.getColumnIndexOrThrow(android.app.DownloadManager.COLUMN_TOTAL_SIZE_BYTES))
+        return when (status) {
+            android.app.DownloadManager.STATUS_SUCCESSFUL -> LibriSyncDownload.Downloaded(id, version)
+            android.app.DownloadManager.STATUS_FAILED -> LibriSyncDownload.Failed
+            else -> LibriSyncDownload.Downloading(id, version, if (total > 0) (done.toFloat() / total).coerceIn(0f, 1f) else null)
+        }
+    }
+    return LibriSyncDownload.Failed
+}
+
+/** Opens Android's installer for the downloaded APK, or first the "install unknown apps" setting. */
+private fun installLibriSync(context: android.content.Context, id: Long) {
+    if (android.os.Build.VERSION.SDK_INT >= 26 && !context.packageManager.canRequestPackageInstalls()) {
+        runCatching { context.startActivity(android.content.Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, android.net.Uri.parse("package:${context.packageName}"))) }
+        return
+    }
+    val uri = context.getSystemService(android.app.DownloadManager::class.java).getUriForDownloadedFile(id) ?: return
+    runCatching {
+        context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW).setDataAndType(uri, "application/vnd.android.package-archive")
+            .addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 }

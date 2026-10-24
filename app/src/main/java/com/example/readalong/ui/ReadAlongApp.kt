@@ -33,7 +33,7 @@ import com.example.readalong.ui.library.LibraryViewModel
 private object Routes {
     const val Library = "library"
     const val About = "about"
-    const val Book = "book/{bookId}?fromMini={fromMini}&dragged={dragged}"
+    const val Book = "book/{bookId}?fromMini={fromMini}"
 }
 
 @OptIn(androidx.compose.animation.ExperimentalSharedTransitionApi::class)
@@ -76,6 +76,8 @@ fun ReadAlongApp(libraryViewModel: LibraryViewModel, app: com.example.readalong.
     if (normalPrompts && !importPromptPending) com.example.readalong.ui.transcription.BackgroundPreparationPrompt(app)
     val speechSetup: com.example.readalong.ui.transcription.ModelViewModel = viewModel(factory = com.example.readalong.ui.transcription.ModelViewModel.factory(app, app.speechModel, app.processing))
     val setupScope = androidx.compose.runtime.rememberCoroutineScope()
+    // The book whose player the mini-player transform is opening or closing (outlives the library screen).
+    var transformBook by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<com.example.readalong.domain.model.Book?>(null) }
     fun setupStage(stage: Int) { setupScope.launch { app.appPreferences.update { it.copy(setupStage = stage) } } }
     androidx.compose.runtime.LaunchedEffect(appSettings.setupStage) {
         if (appSettings.setupStage == 1) setupStage(2) // Upgrade an unfinished older setup.
@@ -110,13 +112,30 @@ fun ReadAlongApp(libraryViewModel: LibraryViewModel, app: com.example.readalong.
                 onDismissRequest = actions::dismissError, title = { androidx.compose.material3.Text("Couldn't update book") },
                 text = { androidx.compose.material3.Text(actionError!!) },
                 confirmButton = { androidx.compose.material3.TextButton(onClick = actions::dismissError) { androidx.compose.material3.Text("Close") } })
-            // Dragging the mini player up pulls a sheet that looks like the player; letting go past a
-            // third (or with an upward fling) hands over to the real player at the same height.
-            val sheet = androidx.compose.runtime.remember { androidx.compose.animation.core.Animatable(0f) }
-            val sheetHeight = with(androidx.compose.ui.platform.LocalDensity.current) { androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp.toPx() }
-            fun openPlayer(book: com.example.readalong.domain.model.Book, dragged: Boolean) {
-                com.example.readalong.ui.player.PlayerSheetHandoff.progress = if (dragged) sheet.value else 0f
-                navController.navigate("book/${Uri.encode(book.id)}?fromMini=true&dragged=$dragged") { launchSingleTop = true }
+            // Mini player <-> player: the library grows a container from the mini player's bounds to the
+            // full screen (tap, or follow a drag), then the real player fades in on top of it. Closing
+            // a player opened this way plays it in reverse. See PlayerTransform.
+            val returning = androidx.compose.runtime.remember { com.example.readalong.ui.player.PlayerSheetHandoff.closing }
+            val sheet = androidx.compose.runtime.remember { androidx.compose.animation.core.Animatable(if (returning != null) 1f else 0f) }
+            var sheetBook by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(if (returning != null) transformBook else null) }
+            androidx.compose.runtime.LaunchedEffect(Unit) {
+                if (returning != null) {
+                    com.example.readalong.ui.player.PlayerSheetHandoff.closing = null
+                    sheet.animateTo(0f, androidx.compose.animation.core.tween(220, easing = com.example.readalong.ui.reading.ReaderMotionEasing))
+                    sheetBook = null
+                }
+            }
+            val sheetTravel = (com.example.readalong.ui.player.PlayerSheetHandoff.miniBounds?.top ?: with(androidx.compose.ui.platform.LocalDensity.current) { 600.dp.toPx() }).coerceAtLeast(1f)
+            var opening by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+            fun openPlayer(book: com.example.readalong.domain.model.Book) {
+                if (opening) return
+                opening = true; sheetBook = book; transformBook = book
+                setupScope.launch {
+                    val left = 1f - sheet.value
+                    sheet.animateTo(1f, androidx.compose.animation.core.tween((220 * left).toInt().coerceAtLeast(70), easing = if (sheet.value > 0f) androidx.compose.animation.core.LinearOutSlowInEasing else com.example.readalong.ui.reading.ReaderMotionEasing))
+                    if (navController.currentBackStackEntry?.id == libraryEntry.id) navController.navigate("book/${Uri.encode(book.id)}?fromMini=true") { launchSingleTop = true }
+                    opening = false
+                }
             }
             androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.fillMaxSize()) {
             LibraryScreen(
@@ -135,16 +154,17 @@ fun ReadAlongApp(libraryViewModel: LibraryViewModel, app: com.example.readalong.
                     onBook = { navController.navigate("book/${Uri.encode(it)}") { launchSingleTop = true } }) },
                 importStatus = { com.example.readalong.ui.importing.ImportStatus(importModel) },
                 miniPlayer = {
-                    activeBook?.let { book -> MiniPlayer(book, playbackState, { openPlayer(book, dragged = false) }, playback::toggle, readerTheme = readerSettings.theme,
+                    activeBook?.let { book -> MiniPlayer(book, playbackState, { openPlayer(book) }, playback::toggle, readerTheme = readerSettings.theme,
                         onDismiss = { setupScope.launch { playback.releaseBook(book.id) } },
-                        onDrag = { dy -> setupScope.launch { sheet.snapTo((sheet.value - dy / sheetHeight).coerceIn(0f, 1f)) } },
+                        onDrag = { dy -> if (!opening) { sheetBook = book; setupScope.launch { sheet.snapTo((sheet.value - dy / sheetTravel).coerceIn(0f, 1f)) } } },
                         onDragEnd = { velocity ->
-                            if (sheet.value > .3f || velocity < -900f) openPlayer(book, dragged = true)
-                            else setupScope.launch { sheet.animateTo(0f, androidx.compose.animation.core.tween(150, easing = com.example.readalong.ui.reading.ReaderMotionEasing)) }
+                            if (opening) Unit
+                            else if (sheet.value > .3f || velocity < -900f) openPlayer(book)
+                            else setupScope.launch { sheet.animateTo(0f, androidx.compose.animation.core.tween(160, easing = com.example.readalong.ui.reading.ReaderMotionEasing)); sheetBook = null }
                         }) }
                 },
             )
-            activeBook?.let { book -> if (sheet.value > 0f) com.example.readalong.ui.player.PlayerSheetShell(book, androidx.compose.ui.Modifier.graphicsLayer { translationY = (1f - sheet.value) * size.height }) }
+            sheetBook?.let { book -> if (sheet.value > 0f) com.example.readalong.ui.player.PlayerTransform(book, readerSettings.theme, { sheet.value }) }
             }
             com.example.readalong.ui.components.FirstVisitGuide(app, com.example.readalong.ui.components.GuidePage.HOME,
                 guideEligible && selected == null && actionError == null && state is com.example.readalong.ui.library.LibraryUiState.Ready)
@@ -167,18 +187,13 @@ fun ReadAlongApp(libraryViewModel: LibraryViewModel, app: com.example.readalong.
         composable(Routes.About) {
             AboutScreen(onBack = { navController.popBackStack() }, onSpeechModel = { navController.navigate("speech-model") })
         }
-        composable(Routes.Book, arguments = listOf(navArgument("bookId") { type = NavType.StringType }, navArgument("fromMini") { type = NavType.BoolType; defaultValue = false }, navArgument("dragged") { type = NavType.BoolType; defaultValue = false }),
-            enterTransition = {
-                if (targetState.openedFromMini()) {
-                    // From a drag, continue from where the finger let go, at the same speed.
-                    val from = if (targetState.arguments?.getBoolean("dragged") == true) com.example.readalong.ui.player.PlayerSheetHandoff.progress.coerceIn(0f, 1f) else 0f
-                    androidx.compose.animation.slideInVertically(androidx.compose.animation.core.tween((180 * (1f - from)).toInt().coerceAtLeast(60), easing = if (from > 0f) androidx.compose.animation.core.LinearOutSlowInEasing else com.example.readalong.ui.reading.ReaderMotionEasing)) { (it * (1f - from)).toInt() }
-                } else androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(180))
-            },
-            popExitTransition = { if (initialState.openedFromMini()) androidx.compose.animation.slideOutVertically(androidx.compose.animation.core.tween(160, easing = androidx.compose.animation.core.CubicBezierEasing(.4f, 0f, .9f, .6f))) { it } else androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(180)) }) { entry ->
+        composable(Routes.Book, arguments = listOf(navArgument("bookId") { type = NavType.StringType }, navArgument("fromMini") { type = NavType.BoolType; defaultValue = false }),
+            enterTransition = { if (targetState.openedFromMini()) androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(110)) else androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(180)) },
+            popExitTransition = { if (initialState.openedFromMini()) androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(90)) else androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(180)) }) { entry ->
             androidx.compose.runtime.CompositionLocalProvider(com.example.readalong.ui.components.LocalNavVisibilityScope provides this) {
             val bookId = requireNotNull(entry.arguments?.getString("bookId"))
             val fromMini = entry.arguments?.getBoolean("fromMini") == true
+            fun closeFromMini() { if (fromMini) com.example.readalong.ui.player.PlayerSheetHandoff.closing = bookId }
             val model: BookViewModel = viewModel(factory = BookViewModel.factory(bookId, bookRepository))
             val reading: com.example.readalong.ui.reading.ReadingViewModel = viewModel(factory = com.example.readalong.ui.reading.ReadingViewModel.factory(bookId, app.database, app.transcriptRepository, app.readerPreferences, app.generatedEpub, app.processing, app.importedEpub, app.bookReaderPreferences, !fromMini && appSettings.openingView == "READ_ONLY"))
             val frameLayer = androidx.compose.ui.graphics.rememberGraphicsLayer()
@@ -188,6 +203,7 @@ fun ReadAlongApp(libraryViewModel: LibraryViewModel, app: com.example.readalong.
                 if (value != mode) { readerFrame.frozen = android.animation.ValueAnimator.areAnimatorsEnabled(); mode = value }
             }
             androidx.activity.compose.BackHandler(enabled = mode != "player") { setReaderMode("player") }
+            androidx.activity.compose.BackHandler(enabled = mode == "player" && fromMini) { closeFromMini(); navController.popBackStack() }
             val state by model.state.collectAsStateWithLifecycle()
             val busy by model.busy.collectAsStateWithLifecycle()
             val updateFailed by model.updateFailed.collectAsStateWithLifecycle()
@@ -268,7 +284,7 @@ fun ReadAlongApp(libraryViewModel: LibraryViewModel, app: com.example.readalong.
                 if (visibleMode == "follow") {
                     com.example.readalong.ui.reading.FollowScreen(book, displayState, playback, reading, { setReaderMode("player") })
                 } else {
-                    PlayerScreen(book, displayState, playback, { navController.popBackStack() }, model::setFinished, reading,
+                    PlayerScreen(book, displayState, playback, { closeFromMini(); navController.popBackStack() }, model::setFinished, reading,
                         { navController.navigate("speech-model") }, { reading.preloadReader(displayState.positionMs); setReaderMode("follow") })
                 }
                 }

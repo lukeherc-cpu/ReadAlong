@@ -65,7 +65,7 @@ fun MiniPlayer(book: Book, state: PlaybackState, onOpen: () -> Unit, onToggle: (
     Surface(onClick = onOpen, modifier = Modifier.semantics {
         contentDescription = "Expand mini player"
         if (onDismiss != null) customActions = listOf(CustomAccessibilityAction("Dismiss mini player") { visible.targetState = false; true })
-    }.fillMaxWidth().then(if (onDrag == null) Modifier else Modifier.pointerInput(book.id) {
+    }.fillMaxWidth().miniPlayerBounds().then(if (onDrag == null) Modifier else Modifier.pointerInput(book.id) {
         // Vertical drags pull the player up; horizontal swipes still dismiss.
         val tracker = androidx.compose.ui.input.pointer.util.VelocityTracker()
         detectVerticalDragGestures(
