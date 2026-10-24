@@ -184,7 +184,11 @@ object TranscriptionNotifications {
                     if (NotificationManagerCompat.from(app).areNotificationsEnabled()) {
                         val status = if (paused) "Paused · tap play to resume" else if (job.message?.startsWith("Waiting for charging") == true) "Waiting for charging" else estimate
                         val notification = compact(app, item.title, chapter, status, progress.bookPercent, open, action, paused, job.bookId)
-                        synchronized(deliveryLock) { if (!dismissed(app, job.bookId)) manager.notify(id, notification) }
+                        // A swiped card stays hidden, but Android re-shows the foreground service's own
+                        // "0%" card whenever the service restarts. Keep a card that is on screen current.
+                        synchronized(deliveryLock) {
+                            if (!dismissed(app, job.bookId) || manager.activeNotifications.any { it.id == id }) manager.notify(id, notification)
+                        }
                     }
                 } catch (cancelled: CancellationException) { throw cancelled }
                 catch (failure: Exception) {
