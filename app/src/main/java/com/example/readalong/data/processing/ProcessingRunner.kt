@@ -21,7 +21,11 @@ class ProcessingRunner(private val database: ReadAlongDatabase, private val epub
             val book = requireNotNull(database.bookDao().findBook(bookId))
             val initial = database.withTransaction {
                 val job = current(bookId, workId)
-                if (job.planJson != null) job else job.copy(planJson = TranscriptionPlan.encode(TranscriptionPlan.inputs(database, bookId)),
+                // One-time conversion of a legacy (pre-0.35.3) plan to the compact form; the
+                // units are identical, so the saved checkpoint index stays valid.
+                if (job.planJson != null) (if (job.planJson.trimStart().startsWith("["))
+                    job.copy(planJson = TranscriptionPlan.encode(TranscriptionPlan.decode(job.planJson))).also { jobs.put(it) } else job)
+                else job.copy(planJson = TranscriptionPlan.encode(TranscriptionPlan.inputs(database, bookId)),
                     sourceFingerprint = TranscriptionPlan.fingerprint(database, bookId)).also { jobs.put(it) }
             }
             val units = TranscriptionPlan.decode(requireNotNull(initial.planJson))
