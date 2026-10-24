@@ -52,7 +52,7 @@ fun BlurredCover(uri: String?, modifier: Modifier = Modifier) {
     image?.let {
         Box(modifier) {
             Image(it.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .60f)))
+            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .66f)))
         }
     }
 }

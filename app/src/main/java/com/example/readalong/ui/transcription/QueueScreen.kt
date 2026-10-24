@@ -127,9 +127,9 @@ fun QueueScreen(model: QueueViewModel, onBack: () -> Unit) {
                     Text("Queue", style = MaterialTheme.typography.headlineLarge, modifier = Modifier.weight(1f))
                     IconButton(onClick = { adding = true }) { Icon(painterResource(R.drawable.ic_add), "Add book to queue") }
                 }
-                Text("${queued.count { it.item.state in activeStates }} of 1 transcribing", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(if (queued.any { it.item.state in activeStates }) "Transcribing" else "Nothing in progress", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            if (ordered.isEmpty()) item(key = "empty") { Text("Press + to add a book. Play starts transcription.", style = MaterialTheme.typography.bodyMedium) }
+            if (ordered.isEmpty()) item(key = "empty") { Text("Tap + to add a book, then tap play on it to start its ReadAlong.", style = MaterialTheme.typography.bodyMedium) }
             items(ordered, key = { it.item.bookId }) { entry ->
                 val id = entry.item.bookId
                 val held = drag.key == id
@@ -178,7 +178,7 @@ fun QueueScreen(model: QueueViewModel, onBack: () -> Unit) {
                     TextButton(enabled = available.isNotEmpty(), onClick = model::addAll) { Text("Add all") }
                 }
             }
-            if (available.isEmpty()) item(key = "nothing-available") { Text("Every book has been added to the queue.", style = MaterialTheme.typography.bodySmall) }
+            if (available.isEmpty()) item(key = "nothing-available") { Text("Every book has been added to the queue.", style = MaterialTheme.typography.bodyMedium) }
             items(available, key = { it.item.bookId }) { entry ->
                 Surface(shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .45f)) {
                     Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -279,13 +279,14 @@ private fun QueueCard(entry: QueueBook, modifier: Modifier = Modifier, onPlay: (
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(when {
-                        entry.item.state == "READY" -> "Full book · 100%"
-                        entry.item.state == "WAITING_MODEL" -> "Waiting for Whistle"
-                        entry.item.state == "WAITING_QUEUE" -> "Waiting in queue"
-                        entry.item.message?.startsWith("Waiting for charging") == true -> "Waiting for charging"
+                        entry.item.state == "READY" -> "Whole book · 100%"
+                        entry.item.state == "WAITING_MODEL" -> "Needs the offline speech model"
+                        entry.item.state == "WAITING_QUEUE" -> "Waiting in queue · $bookPercent% of book"
+                        entry.item.message?.startsWith("Waiting for charging") == true -> "Waiting for charging · $bookPercent% of book"
                         entry.job?.planJson == null -> "Ready to transcribe"
-                        else -> "${entry.chapter} · $chapterPercent%"
-                    }, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        // Same number as the player's ReadAlong card: the whole book first, the chapter second.
+                        else -> "$bookPercent% of book" + (entry.chapter.takeIf { it.isNotBlank() }?.let { " · $it" } ?: "")
+                    }, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     LinearProgressIndicator(progress = { bar.value }, modifier = Modifier.fillMaxWidth().height(4.dp), color = accent, trackColor = accent.copy(alpha = .2f))
                 }
                 if (onPlay != null) IconButton(onClick = onPlay) { Icon(painterResource(if (entry.item.state in activeStates) R.drawable.ic_pause else R.drawable.ic_play),
@@ -294,11 +295,11 @@ private fun QueueCard(entry: QueueBook, modifier: Modifier = Modifier, onPlay: (
                 handle?.invoke()
             }
             TextButton(onClick = { details = !details }, contentPadding = PaddingValues(0.dp), modifier = Modifier.heightIn(min = 32.dp)) {
-                Text("Details", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Details", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Icon(painterResource(R.drawable.ic_down), if (details) "Hide details" else "Show details", Modifier.size(16.dp).graphicsLayer { rotationZ = if (details) 180f else 0f })
-                Spacer(Modifier.width(8.dp)); Text("Full book $bookPercent%", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (entry.item.state != "READY" && entry.job?.planJson != null) { Spacer(Modifier.width(8.dp)); Text("This chapter $chapterPercent%", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             }
-            if (details) Text(entry.item.message.orEmpty(), style = MaterialTheme.typography.bodySmall)
+            if (details) Text(entry.item.message.orEmpty(), style = MaterialTheme.typography.bodyMedium)
         }
     }
 }

@@ -41,6 +41,9 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
     }
 
     suspend fun title(bookId: String) = books.findBook(bookId)?.title ?: "Audiobook"
+    suspend fun duration(bookId: String) = books.findBook(bookId)?.durationMs
+    /** An EPUB was added or found beside the audio; unlike [matchedEpub] this doesn't import it. */
+    suspend fun hasFolderEpub(bookId: String) = database.importedEpubDao().find(bookId) != null || books.metadata("folder_epub:$bookId") != null
 
     fun persist(uri: Uri) {
         try { resolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }

@@ -38,21 +38,19 @@ class ReferenceDialogsTest {
                     ReadAlongTheme {
                         Surface(Modifier.fillMaxSize()) {
                             when (page) {
-                                "folder" -> com.example.readalong.ui.importing.LibrarySetupPrompt(model) { page = "battery" }
-                                "battery" -> com.example.readalong.ui.transcription.TranscriptionBatteryWarning(app)
+                                "folder" -> com.example.readalong.ui.importing.WelcomeScreen(model) { page = "background" }
                                 "background" -> com.example.readalong.ui.transcription.BackgroundPreparationPrompt(app, force = true)
                             }
                         }
                     }
                 }
             }
-            capture("library-setup")
-            compose.onNodeWithText("Later").performClick()
-            capture("battery")
-            compose.onNodeWithText("Only transcribe while charging").assertIsDisplayed()
-            compose.runOnIdle { page = "background" }
+            compose.onNodeWithTag("welcome_next").performClick()
+            compose.onNodeWithText("Choose audiobook folder").assertIsDisplayed()
+            compose.onNodeWithText("Skip for now").performClick()
+            compose.waitForIdle()
             capture("background")
-            compose.onNodeWithText("Allow background processing").assertIsDisplayed()
+            compose.onNodeWithText("Allow background work").assertIsDisplayed()
             compose.onNodeWithText("Not now").assertIsDisplayed()
         } finally { store.clear(); runBlocking { app.appPreferences.update { original } } }
     }
@@ -86,11 +84,9 @@ class ReferenceDialogsTest {
             assertTrue(model.message.value, model.priority.value.isNotEmpty())
             book = model.priority.value.first().id
             capture("create-readalong")
-            compose.onNodeWithText("Read along with your audiobook?").assertIsDisplayed()
-            compose.onNodeWithText("Create ReadAlong").performClick()
-            capture("audiobook-added")
-            compose.onNodeWithText("Use ReadAlong transcription only").performClick()
-            compose.onAllNodesWithText("Create ReadAlong").onLast().assertIsEnabled()
+            compose.onNodeWithText("Make a ReadAlong").assertIsDisplayed()
+            compose.onNodeWithText("From the audio").performClick()
+            compose.onAllNodesWithText("Make ReadAlong").onLast().assertIsEnabled()
             compose.onNodeWithText("Later").performClick()
             assertEquals("WAITING_SELECTION", runBlocking { app.database.processingDao().find(book!!)!!.state })
         } finally {

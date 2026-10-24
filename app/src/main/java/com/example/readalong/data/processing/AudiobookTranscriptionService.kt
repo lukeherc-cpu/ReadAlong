@@ -13,7 +13,7 @@ import kotlinx.coroutines.*
 
 /** One foreground service owns one checkpointed book at a time. */
 class AudiobookTranscriptionService : Service() {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + com.example.readalong.data.diagnostics.BackgroundFailures.handler("Transcription service"))
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + com.example.readalong.data.diagnostics.BackgroundFailures.handler("ReadAlong in progress"))
     private data class Session(val workId: String, val task: Job)
     // Mutated only on Main; recognition and checkpoint work runs on IO.
     private val sessions = linkedMapOf<String, Session>()
@@ -38,9 +38,9 @@ class AudiobookTranscriptionService : Service() {
         if (intent.action == ACTION_RESUME) {
             // A notification PendingIntent starts this service directly. Acknowledge Android's
             // foreground deadline BEFORE Room, WorkManager or audio-plan work can suspend.
-            try { foreground(book, intent.getStringExtra("title") ?: "Audiobook", "Resuming transcription…") }
+            try { foreground(book, intent.getStringExtra("title") ?: "Audiobook", "Continuing your ReadAlong…") }
             catch (failure: Exception) {
-                TranscriptionNotifications.stopped(this, book, "Transcription paused", "Android could not start background transcription. Open ReadAlong to resume; completed text is saved.")
+                TranscriptionNotifications.stopped(this, book, "ReadAlong paused", "Android stopped ReadAlong from working in the background. Open ReadAlong to continue; progress is saved.")
                 if (sessions.isEmpty()) stopSelf(startId)
                 return START_NOT_STICKY
             }
@@ -52,7 +52,7 @@ class AudiobookTranscriptionService : Service() {
                         app.processing.transcribeNext(book)
                 } catch (cancelled: CancellationException) { throw cancelled }
                 catch (failure: Exception) {
-                    TranscriptionNotifications.stopped(this@AudiobookTranscriptionService, book, "Transcription paused", "Couldn't resume transcription. Completed text is saved; tap Retry.")
+                    TranscriptionNotifications.stopped(this@AudiobookTranscriptionService, book, "ReadAlong paused", "Couldn't continue your ReadAlong. Progress is saved; tap Retry.")
                 } finally {
                     withContext(NonCancellable + Dispatchers.Main) {
                         pendingCommands--
@@ -84,7 +84,7 @@ class AudiobookTranscriptionService : Service() {
         if (running(book, workId) && sessions[book]?.task?.isActive == true) return START_REDELIVER_INTENT
         if (sessions.filterKeys { it != book }.values.count { it.task.isActive } >= ProcessingRepository.MAX_ACTIVE) {
             scope.launch {
-                try { status(book, workId, "QUEUED", "Waiting for the previous transcription session to close.") }
+                try { status(book, workId, "QUEUED", "Finishing the previous book first…") }
                 catch (cancelled: CancellationException) { throw cancelled }
                 catch (failure: Exception) { android.util.Log.w("ReadAlong", "Queue status update failed: ${failure.javaClass.simpleName}") }
             }
@@ -97,7 +97,7 @@ class AudiobookTranscriptionService : Service() {
         val task = scope.launch(start = CoroutineStart.LAZY) {
             try { previous?.join(); prepareBook(book, workId) }
             catch (cancelled: CancellationException) { throw cancelled }
-            catch (failure: Exception) { status(book, workId, "FAILED", "Transcription stopped. ${PreparationRetry.explanation(failure)} Completed text is saved.") }
+            catch (failure: Exception) { status(book, workId, "FAILED", "Your ReadAlong stopped. ${PreparationRetry.explanation(failure)} Progress is saved.") }
             finally { withContext(NonCancellable + Dispatchers.Main) { finishBook(book, workId) } }
         }
         sessions[book] = Session(workId, task)
@@ -141,7 +141,7 @@ class AudiobookTranscriptionService : Service() {
                             }
                             app.importedEpub.requestAlignment(book)
                             if (!complete) {
-                                status(book, workId, "QUEUED", "Completed text saved. Continuing transcription…")
+                                status(book, workId, "QUEUED", "Progress saved. Continuing…")
                                 if (resources.conserve()) delay(if (resources.warm()) 30_000 else 1_000)
                                 else yield()
                             }
@@ -159,8 +159,8 @@ class AudiobookTranscriptionService : Service() {
             } ?: continue
             when (val decision = PreparationRetry.decide(app.database, book, workId, failure)) {
                 is PreparationRetry.Decision.Retry -> retryIn = decision.delayMs
-                PreparationRetry.Decision.Exhausted -> { giveUp(book, workId, "Automatic retries didn't work. Tap Retry to try again; completed text is saved.", failure); stop = true }
-                PreparationRetry.Decision.NotRetryable -> { giveUp(book, workId, "Could not finish this section. ${PreparationRetry.explanation(failure)} Completed text is saved.", failure); stop = true }
+                PreparationRetry.Decision.Exhausted -> { giveUp(book, workId, "ReadAlong tried a few times and couldn't continue. Progress is saved; tap Retry.", failure); stop = true }
+                PreparationRetry.Decision.NotRetryable -> { giveUp(book, workId, "${PreparationRetry.explanation(failure)} Progress is saved; tap Retry.", failure); stop = true }
             }
             if (retryIn > 0) countdown(book, workId, retryIn, failure)
         }
@@ -174,13 +174,13 @@ class AudiobookTranscriptionService : Service() {
             val job = app.database.processingDao().find(book) ?: return
             if (job.workId != workId || !ProcessingState.valueOf(job.state).active) return
             val attempt = job.message?.let { Regex("attempt (\\d+ of \\d+)").find(it)?.groupValues?.get(1) }
-            status(book, workId, "QUEUED", "Temporary problem. Retrying automatically in ${(left + 999) / 1000} s" +
-                (attempt?.let { " (attempt $it)" } ?: "") + ". Completed text is saved.")
+            status(book, workId, "QUEUED", "Hit a snag. Trying again in ${(left + 999) / 1000} s" +
+                (attempt?.let { " (attempt $it)" } ?: "") + ". Progress is saved.")
             val step = minOf(left, 5_000L); delay(step); left -= step
         }
     }
 
-    /** Marks the book FAILED and posts the separate "Transcription stopped" notification (with Retry) right away. */
+    /** Marks the book FAILED and posts the separate "ReadAlong stopped" notification (with Retry) right away. */
     private suspend fun giveUp(book: String, workId: String, message: String, failure: Throwable) {
         android.util.Log.w("ReadAlong", "Transcription stopped after ${failure.javaClass.simpleName}: ${failure.message}")
         status(book, workId, "FAILED", message)
@@ -235,7 +235,7 @@ class AudiobookTranscriptionService : Service() {
             app.database.processingDao().put(current.copy(state = state, message = message, updatedAt = System.currentTimeMillis()))
     }
     override fun onTimeout(startId: Int, fgsType: Int) {
-        runningBooks.toMap().forEach { (book, work) -> app.transcriptionInterrupted(book, work, "Android’s background time limit was reached. Resume transcription; completed text is saved.") }
+        runningBooks.toMap().forEach { (book, work) -> app.transcriptionInterrupted(book, work, "Android paused ReadAlong after a long time in the background. Open ReadAlong to continue; progress is saved.") }
         sessions.values.forEach { it.task.cancel() }
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_DETACH); stopSelf()
     }

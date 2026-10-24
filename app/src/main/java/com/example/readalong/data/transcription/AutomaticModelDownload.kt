@@ -17,7 +17,7 @@ object AutomaticModelDownload {
             if (!store.needsAutomaticSetup()) return@withContext
             val manager = WorkManager.getInstance(context)
             if (manager.getWorkInfosForUniqueWork(ModelInstallWorker.WORK_NAME).get().any { !it.state.isFinished }) return@withContext
-            store.report("QUEUED", 0, "Whistle downloads automatically when a connection is available.")
+            store.report("QUEUED", 0, "The speech model will download when you're online.")
             manager.enqueueUniqueWork(ModelInstallWorker.WORK_NAME, ExistingWorkPolicy.KEEP,
                 ModelInstallWorker.request(automatic = true)).result.get()
         }

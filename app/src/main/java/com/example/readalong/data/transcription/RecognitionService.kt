@@ -27,16 +27,16 @@ open class RecognitionService : Service() {
             }
             if (message.what != RECOGNIZE) return
             val reply = message.replyTo ?: return
-            if (busy) { send(reply, null, "Speech recognition is busy. Retry shortly."); return }
+            if (busy) { send(reply, null, "The speech model is busy. It will try again shortly."); return }
             val model = message.data.getString("model") ?: return
             val pcm = message.data.getString("pcm") ?: return
             if (message.data.getString("backend", "whistle") != "whistle") {
-                send(reply, null, "This version uses Cactus Whistle. Rebuild the older transcription."); return
+                send(reply, null, "This ReadAlong was made with an older speech model. Redo it to continue."); return
             }
             if (!File(model).canonicalPath.startsWith(filesDir.canonicalPath + "/") ||
                 !(File(pcm).canonicalPath.startsWith(cacheDir.canonicalPath + "/") ||
                     File(pcm).canonicalPath.startsWith(File(filesDir, "recognition").canonicalPath + "/"))) {
-                send(reply, null, "Speech recognition input is unavailable."); return
+                send(reply, null, "ReadAlong couldn't read this audio."); return
             }
             activeRequest = message.data.getString("requestId") ?: return
             busy = true; cancelled.set(false)
@@ -48,9 +48,9 @@ open class RecognitionService : Service() {
                 } catch (failure: Throwable) {
                     android.util.Log.w("ReadAlong", "Whistle recognition failed: ${failure.javaClass.simpleName}")
                     val error = when (failure) {
-                        is UnsatisfiedLinkError -> "Whistle's Android runtime couldn't load. Use a supported ARM64 device and update ReadAlong."
-                        is OutOfMemoryError -> "Not enough free memory for Whistle. Close other apps and retry."
-                        else -> "Whistle couldn't process this audio (${failure.javaClass.simpleName}: ${failure.message.orEmpty().take(160)}). Check model storage and retry."
+                        is UnsatisfiedLinkError -> "The speech model can't run on this phone. It needs a 64-bit ARM phone and the latest ReadAlong."
+                        is OutOfMemoryError -> "Not enough free memory. Close some other apps and try again."
+                        else -> "The speech model couldn't process this part of the audio (${failure.javaClass.simpleName}: ${failure.message.orEmpty().take(160)})."
                     }
                     handler.post { busy = false; if (!cancelled.get()) send(reply, null, error) }
                 }

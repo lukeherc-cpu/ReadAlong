@@ -28,12 +28,12 @@ class ProcessingRepository(private val context: Context, private val database: R
             .setInitialDelay(30, TimeUnit.SECONDS).addTag("readable-recovery").build()
         manager.enqueueUniqueWork(recoveryName(bookId), if (append) ExistingWorkPolicy.APPEND_OR_REPLACE else ExistingWorkPolicy.REPLACE, guard).result.get()
     }
-    suspend fun recoverInterrupted(bookId: String, expectedWorkId: String, reason: String = "Transcription was interrupted.") = lock.withLock { withContext(Dispatchers.IO) {
+    suspend fun recoverInterrupted(bookId: String, expectedWorkId: String, reason: String = "Your ReadAlong was interrupted.") = lock.withLock { withContext(Dispatchers.IO) {
         val current = database.processingDao().find(bookId) ?: return@withContext
         if (current.workId != expectedWorkId || !ProcessingState.valueOf(current.state).active || AudiobookTranscriptionService.running(bookId, expectedWorkId)) return@withContext
         val next = request(bookId)
         database.processingDao().put(current.copy(workId = next.id.toString(), state = "QUEUED",
-            message = if (ChargingPolicy.shouldWait(context)) "Waiting for charging. Completed text is saved; transcription resumes when connected to power."
+            message = if (ChargingPolicy.shouldWait(context)) "Waiting for charging. Progress is saved; it continues when you plug in."
                 else "$reason Resuming automatically from saved progress…", updatedAt = System.currentTimeMillis()))
         manager.enqueueUniqueWork(name(bookId), ExistingWorkPolicy.REPLACE, next).result.get()
     } }
@@ -71,7 +71,7 @@ class ProcessingRepository(private val context: Context, private val database: R
         // Importing a collection must not pick a book for the listener or enqueue the whole library.
         if (database.processingDao().find(bookId) == null) database.processingDao().put(
             ProcessingJobEntity(bookId, UUID.randomUUID().toString(), SpeechModelStore.ID, "WAITING_SELECTION", 0, 0,
-                "Audio is ready. Start transcription from the player when you want readable text.", System.currentTimeMillis()))
+                "Ready to play. Make a ReadAlong from the player whenever you like.", System.currentTimeMillis()))
     }
     /** Opening the listening book promotes eligible work; explicit pauses and finished books remain intact. */
     suspend fun ensureStarted(bookId: String) = prepare(bookId, onlyIfNeeded = true,
@@ -207,12 +207,12 @@ class ProcessingRepository(private val context: Context, private val database: R
                 }
                 database.processingDao().put(ProcessingJobEntity(bookId, request.id.toString(), engineId, "QUEUED",
                     if (resumable) old!!.completedUnits.coerceAtMost(units.size) else 0, units.size,
-                    "Preparation queued. Android may defer work to protect battery; completed text stays available.",
+                    "Starting your ReadAlong…",
                     System.currentTimeMillis(), plan, fingerprint, queuePosition))
             }
             if (book.isDemo || ChargingPolicy.shouldWait(context)) {
                 if (!book.isDemo) database.processingDao().find(bookId)?.let {
-                    database.processingDao().put(it.copy(message = "Waiting for charging. Completed text is saved; transcription resumes when connected to power."))
+                    database.processingDao().put(it.copy(message = "Waiting for charging. Progress is saved; it continues when you plug in."))
                 }
                 manager.enqueueUniqueWork(name(bookId), ExistingWorkPolicy.REPLACE, request).result.get()
             } else {
@@ -226,10 +226,10 @@ class ProcessingRepository(private val context: Context, private val database: R
         catch (failure: Exception) {
             val current = database.processingDao().find(bookId)
             if (current?.workId == request.id.toString() && ProcessingState.valueOf(current.state).active) {
-                database.processingDao().put(current.copy(state = "QUEUED", message = "Android deferred the foreground start. Scheduled transcription will resume from saved progress.", updatedAt = System.currentTimeMillis()))
+                database.processingDao().put(current.copy(state = "QUEUED", message = "Android delayed the start. Your ReadAlong will continue from where it left off.", updatedAt = System.currentTimeMillis()))
                 manager.enqueueUniqueWork(name(bookId), ExistingWorkPolicy.REPLACE, request).result.get()
             } else database.processingDao().put((current ?: ProcessingJobEntity(bookId, request.id.toString(), engineId, "FAILED", 0, 0, null, 0))
-                .copy(state = "FAILED", message = failure.message ?: "Couldn't queue preparation. Check audio access and retry.", updatedAt = System.currentTimeMillis()))
+                .copy(state = "FAILED", message = failure.message ?: "Couldn't start this ReadAlong. Make sure the audio is still in its folder, then try again.", updatedAt = System.currentTimeMillis()))
         }
     } }
 
@@ -239,7 +239,7 @@ class ProcessingRepository(private val context: Context, private val database: R
         if (current.workId != workId || !ProcessingState.valueOf(current.state).active) return@withContext
         val next = request(bookId, cooldownMs = cooldownMs)
         database.processingDao().put(current.copy(workId = next.id.toString(), state = "QUEUED",
-            message = if (ChargingPolicy.shouldWait(context)) "Waiting for charging. Completed text is saved; transcription resumes when connected to power."
+            message = if (ChargingPolicy.shouldWait(context)) "Waiting for charging. Progress is saved; it continues when you plug in."
                 else if (cooldownMs > 0) "Cooling down before the next section. Completed text is saved."
                 else "${current.completedUnits} of ${current.totalUnits} chunks ready. Waiting for Android to schedule the next chunk.", updatedAt = System.currentTimeMillis()))
         manager.enqueueUniqueWork(name(bookId), ExistingWorkPolicy.APPEND_OR_REPLACE, next).result.get()
@@ -251,7 +251,7 @@ class ProcessingRepository(private val context: Context, private val database: R
         if (current.workId != workId || !ProcessingState.valueOf(current.state).active) return@withContext
         val next = request(bookId)
         database.processingDao().put(current.copy(workId = next.id.toString(), state = "QUEUED",
-            message = "Waiting for charging. Completed text is saved; transcription resumes when connected to power.", updatedAt = System.currentTimeMillis()))
+            message = "Waiting for charging. Progress is saved; it continues when you plug in.", updatedAt = System.currentTimeMillis()))
         manager.enqueueUniqueWork(name(bookId), ExistingWorkPolicy.REPLACE, next).result.get()
     } }
 
@@ -289,7 +289,7 @@ class ProcessingRepository(private val context: Context, private val database: R
         // foreground-service launch would be restricted by Android in the background.
         val next = request(bookId, expedite = true)
         database.processingDao().put(current.copy(workId = next.id.toString(), state = "QUEUED",
-            message = "Power connected. Resuming transcription from saved progress…", updatedAt = System.currentTimeMillis()))
+            message = "Plugged in. Continuing your ReadAlong…", updatedAt = System.currentTimeMillis()))
         manager.enqueueUniqueWork(name(bookId), ExistingWorkPolicy.REPLACE, next).result.get()
     } }
 
@@ -319,7 +319,7 @@ class ProcessingRepository(private val context: Context, private val database: R
     }
     private suspend fun defer(job: ProcessingJobEntity) {
         database.processingDao().put(job.copy(state = "WAITING_QUEUE",
-            message = "Waiting in queue. Transcription starts automatically when the current book finishes.", updatedAt = System.currentTimeMillis()))
+            message = "Waiting in queue. It starts when the current book finishes.", updatedAt = System.currentTimeMillis()))
         manager.cancelUniqueWork(name(job.bookId)).result.get()
         manager.cancelUniqueWork(recoveryName(job.bookId)).result.get()
         withContext(Dispatchers.Main.immediate) { AudiobookTranscriptionService.pauseBook(job.bookId) }
@@ -332,7 +332,7 @@ class ProcessingRepository(private val context: Context, private val database: R
             val job = database.processingDao().find(bookId) ?: return@withTransaction
             if (ProcessingState.valueOf(job.state).active) database.bookDao().putMetadata(LibraryMetadataEntity("transcription_queue_running", "false"))
             if (ProcessingState.valueOf(job.state).active || job.state in setOf("WAITING_MODEL", "WAITING_QUEUE")) database.processingDao().put(job.copy(state = "CANCELLED",
-                message = "Preparation paused. Completed text and audio remain available.", updatedAt = System.currentTimeMillis()))
+                message = "Paused. Progress so far is kept.", updatedAt = System.currentTimeMillis()))
         }
         manager.cancelUniqueWork(name(bookId)).result.get()
         manager.cancelUniqueWork(recoveryName(bookId)).result.get()
@@ -344,18 +344,42 @@ class ProcessingRepository(private val context: Context, private val database: R
         if (old != null && old.state != "WAITING_SELECTION") return@withLock
         val position = (database.processingDao().registeredQueue().maxOfOrNull { it.queuePosition } ?: -1) + 1
         database.processingDao().put((old ?: ProcessingJobEntity(bookId, UUID.randomUUID().toString(), SpeechModelStore.ID, "CANCELLED", 0, 0, null, 0))
-            .copy(state = "WAITING_QUEUE", queuePosition = position, message = "Waiting in queue. Play starts this book now.", updatedAt = System.currentTimeMillis()))
+            .copy(state = "WAITING_QUEUE", queuePosition = position, message = "Waiting in queue.", updatedAt = System.currentTimeMillis()))
     }
     suspend fun removeFromQueue(bookId: String) {
         cancel(bookId)
         lock.withLock {
             database.processingDao().find(bookId)?.let { job ->
-                database.processingDao().put(job.copy(state = "WAITING_SELECTION", message = "Removed from queue. Saved text and checkpoints are kept.", updatedAt = System.currentTimeMillis()))
+                database.processingDao().put(job.copy(state = "WAITING_SELECTION", message = "Removed from the queue. Progress so far is kept.", updatedAt = System.currentTimeMillis()))
             }
             database.bookDao().removeMetadata("paused_notification:$bookId")
             if (database.bookDao().metadata("paused_transcription_notification") == bookId) database.bookDao().removeMetadata("paused_transcription_notification")
             context.getSystemService(android.app.NotificationManager::class.java).cancel(com.example.readalong.data.transcription.TranscriptionNotifications.notificationId(bookId))
         }
+    }
+    /**
+     * Trash on the player: stops this book, deletes everything made from its audio (text, timing,
+     * corrections, EPUB audio matching) and takes it out of the queue, so it's "not transcribed"
+     * again. Audio, an added EPUB's own text and the listening position are kept.
+     */
+    suspend fun removeTranscript(bookId: String) {
+        cancel(bookId)
+        lock.withLock { withContext(Dispatchers.IO) {
+            database.withTransaction {
+                database.readingDao().clearTranscript(bookId)
+                database.readingDao().clearGenerated(bookId)
+                database.readingDao().clearCorrections(bookId)
+                database.importedEpubDao().find(bookId)?.let { edition -> database.importedEpubDao().put(edition.copy(state = "WAITING_TRANSCRIPT", alignedRevision = -1,
+                    matchedSegments = 0, totalSegments = 0, matchedTokens = 0, totalTokens = 0, message = "Make a ReadAlong to match this EPUB to the audio.", updatedAt = System.currentTimeMillis())) }
+                database.importedEpubDao().clearAlignment(bookId)
+                database.readingDao().findVersion(bookId)?.let { version -> database.readingDao().putVersion(version.copy(state = "PARTIAL_READY", message = null,
+                    completedChapters = 0, generatedUri = null, generatedRevision = -1, transcriptRevision = version.transcriptRevision + 1, updatedAt = System.currentTimeMillis())) }
+                database.processingDao().delete(bookId)
+            }
+            listOf("paused_notification:$bookId", "transcription_estimate:$bookId", "keep_queue_order:$bookId").forEach { database.bookDao().removeMetadata(it) }
+            if (database.bookDao().metadata("paused_transcription_notification") == bookId) database.bookDao().removeMetadata("paused_transcription_notification")
+            context.getSystemService(android.app.NotificationManager::class.java).cancel(com.example.readalong.data.transcription.TranscriptionNotifications.notificationId(bookId))
+        } }
     }
     suspend fun reorder(bookIds: List<String>) = lock.withLock {
         database.withTransaction {
@@ -380,7 +404,7 @@ class ProcessingRepository(private val context: Context, private val database: R
                     val latest = database.processingDao().find(job.bookId)
                     if (latest != null && model.find(latest.engineId) == null && ProcessingState.valueOf(latest.state).active) {
                         database.processingDao().put(latest.copy(state = "CANCELLED",
-                            message = "The previous speech engine was replaced. Resume to prepare this book with Whistle; saved text and listening position are kept.", updatedAt = System.currentTimeMillis()))
+                            message = "ReadAlong has a new speech model. Resume to make this book's ReadAlong with it; your listening position is kept.", updatedAt = System.currentTimeMillis()))
                         withContext(Dispatchers.IO) { manager.cancelUniqueWork(name(job.bookId)).result.get() }
                         withContext(Dispatchers.Main.immediate) { AudiobookTranscriptionService.pauseBook(job.bookId) }
                     }
@@ -402,4 +426,4 @@ class ProcessingRepository(private val context: Context, private val database: R
 
 }
 
-class TranscriptionLimitException : IllegalStateException("One book transcribes at a time. Other books wait in the queue.")
+class TranscriptionLimitException : IllegalStateException("One book is transcribed at a time. Others wait in the queue.")

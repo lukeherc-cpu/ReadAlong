@@ -36,5 +36,6 @@ fun appTypography(font: FontFamily, extraBold: Boolean = false): Typography = Ty
     bodySmall = Typography.bodySmall.copy(fontFamily = font, fontWeight = if (extraBold) FontWeight.ExtraBold else Typography.bodySmall.fontWeight),
     labelLarge = Typography.labelLarge.copy(fontFamily = font, fontWeight = if (extraBold) FontWeight.ExtraBold else Typography.labelLarge.fontWeight),
     labelMedium = Typography.labelMedium.copy(fontFamily = font, fontWeight = if (extraBold) FontWeight.ExtraBold else Typography.labelMedium.fontWeight),
-    labelSmall = Typography.labelSmall.copy(fontFamily = font, fontWeight = if (extraBold) FontWeight.ExtraBold else Typography.labelSmall.fontWeight),
+    // 12 sp floor: nothing in the app is smaller (Material's default is 11 sp).
+    labelSmall = Typography.labelSmall.copy(fontSize = 12.sp, lineHeight = 16.sp, fontFamily = font, fontWeight = if (extraBold) FontWeight.ExtraBold else Typography.labelSmall.fontWeight),
 )

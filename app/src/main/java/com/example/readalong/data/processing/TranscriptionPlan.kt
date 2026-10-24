@@ -17,7 +17,7 @@ object TranscriptionPlan {
         val inputs = mutableListOf<TranscriptionInput>()
         var bookOffset = 0L
         for (file in files) {
-            val duration = requireNotNull(file.durationMs) { "Audio duration is unknown. Play or rescan the file before preparing its readable version." }
+            val duration = requireNotNull(file.durationMs) { "ReadAlong couldn't read this book's length. Play it for a moment, then try again." }
             check(duration > 0)
             var position = 0L
             while (position < duration) {

@@ -21,29 +21,27 @@ class ImportViewModel(private val importer: AudioImporter, private val epubs: co
     private val mutablePriority = MutableStateFlow(emptyList<ImportPriorityBook>())
     val priority = mutablePriority.asStateFlow()
     internal suspend fun offerPriority(ids: List<String>) {
-        mutablePriority.value = mutablePriority.value + ids.filter { processing?.observe(it)?.first()?.state != "READY" }.map { ImportPriorityBook(it, importer.title(it)) }
+        mutablePriority.value = mutablePriority.value + ids.filter { processing?.observe(it)?.first()?.state != "READY" }
+            .map { ImportPriorityBook(it, importer.title(it), importer.duration(it), importer.hasFolderEpub(it)) }
     }
     fun skipPriority() { mutablePriority.value = mutablePriority.value.drop(1) }
-    fun choosePriority(first: Boolean) = action("Preparing ReadAlong…") {
+    /** The new book's "Make a ReadAlong" choice: from the audio, or matched to an EPUB (picked now or found in its folder). */
+    fun startPriority(align: Boolean, uri: Uri?) = action("Starting your ReadAlong…") {
         val book = mutablePriority.value.firstOrNull() ?: return@action ""
-        if (first && importer.matchedEpub(book.id)) {
-            epubs?.preference(book.id, "EPUB")
-            requireNotNull(processing).transcribeNext(book.id)
-            skipPriority()
-            "Matching ReadAlong to the EPUB from your audiobook folder."
-        } else {
-            skipPriority()
-            if (first) { mutableAddedBook.value = book.id; mutableEpubUploaded.value = false }
-            if (first) "Choose a reading source." else "Audio is ready. Start transcription later from the player."
-        }
+        if (uri != null) requireNotNull(epubs).import(book.id, uri)
+        else if (align) importer.matchedEpub(book.id)
+        epubs?.preference(book.id, if (align) "EPUB" else "GENERATED")
+        requireNotNull(processing).transcribeNext(book.id)
+        skipPriority()
+        "Making your ReadAlong. You can pause it from the player or the queue."
     }
-    fun startAdded(align: Boolean, uri: Uri?) = action("Preparing ReadAlong…") {
+    fun startAdded(align: Boolean, uri: Uri?) = action("Starting your ReadAlong…") {
         val id = mutableAddedBook.value ?: return@action ""
         if (uri != null) { requireNotNull(epubs).import(id, uri); mutableEpubUploaded.value = true }
         epubs?.preference(id, if (align) "EPUB" else "GENERATED")
         requireNotNull(processing).transcribeNext(id)
         finishAdding()
-        "Transcription started. You can pause it in the player or queue."
+        "Making your ReadAlong. You can pause it from the player or the queue."
     }
     private val mutableAddedBook = MutableStateFlow<String?>(null)
     val addedBook = mutableAddedBook.asStateFlow()
@@ -67,10 +65,10 @@ class ImportViewModel(private val importer: AudioImporter, private val epubs: co
         val book = requireNotNull(mutableAddedBook.value)
         requireNotNull(epubs).import(book, uri)
         mutableEpubUploaded.value = true
-        "EPUB uploaded. Its original text will be used throughout Follow Along."
+        "EPUB added. Your ReadAlong will use its text."
     }
     fun rescan(folder: FolderEntity) = action { val result = importer.scan(Uri.parse(folder.uri)); result.message }
-    fun remove(folder: FolderEntity) = action { importer.removeFolder(folder); "Folder removed, including its books, metadata and transcription progress." }
+    fun remove(folder: FolderEntity) = action { importer.removeFolder(folder); "Folder removed from your library." }
     private val mutableScanningFolder = MutableStateFlow<String?>(null)
     val scanningFolder = mutableScanningFolder.asStateFlow()
     private var autoScan: kotlinx.coroutines.Job? = null
@@ -99,7 +97,7 @@ class ImportViewModel(private val importer: AudioImporter, private val epubs: co
             showMessage(pendingMessage)
             try { showMessage(work()) }
             catch (cancelled: CancellationException) { throw cancelled }
-            catch (failure: Exception) { showMessage(failure.message ?: "Couldn't import audio. Please try again.") }
+            catch (failure: Exception) { showMessage(failure.message ?: "Couldn't add that audio. Please try again.") }
             finally { mutableBusy.value = false }
         }
     }
@@ -111,4 +109,4 @@ class ImportViewModel(private val importer: AudioImporter, private val epubs: co
     }
 }
 
-data class ImportPriorityBook(val id: String, val title: String)
+data class ImportPriorityBook(val id: String, val title: String, val durationMs: Long? = null, val folderEpub: Boolean = false)

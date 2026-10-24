@@ -179,7 +179,7 @@ class EpubAligner {
         texts.forEachIndexed { owner, text ->
             checkpoint()
             tokenPattern.findAll(text).forEach { match ->
-                require(result.size < 600_000) { "This edition exceeds the alignment word limit. The generated transcript is still available." }
+                require(result.size < 600_000) { "This EPUB is too long to match to the audio. Your ReadAlong made from the audio still works." }
                 val value = Normalizer.normalize(match.value.lowercase(Locale.ROOT), Normalizer.Form.NFKD)
                     .replace(combiningMarks, "")
                 val number = value.toIntOrNull()

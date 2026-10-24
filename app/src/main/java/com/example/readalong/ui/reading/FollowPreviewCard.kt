@@ -189,7 +189,7 @@ fun FollowCard(state: PlaybackState, model: ReadingViewModel, onExpand: () -> Un
                 Text("Cover", color = ink)
             }
             if (showExpand) IconButton(onClick = onExpand, modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)) {
-                Icon(painterResource(R.drawable.ic_fullscreen), "Full screen Follow Along", tint = ink)
+                Icon(painterResource(R.drawable.ic_fullscreen), "Read in full screen", tint = ink)
             }
         }
     }

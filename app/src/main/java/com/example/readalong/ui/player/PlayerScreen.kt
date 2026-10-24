@@ -11,6 +11,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -34,7 +36,7 @@ import com.example.readalong.ui.components.BookCover
 import com.example.readalong.ui.components.navSharedCover
 
 @Composable
-fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, onCollapse: () -> Unit, onFinished: (Boolean) -> Unit, reading: com.example.readalong.ui.reading.ReadingViewModel, onSpeechModel: () -> Unit, onFollow: () -> Unit) {
+fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, onCollapse: () -> Unit, onFinished: (Boolean) -> Unit, reading: com.example.readalong.ui.reading.ReadingViewModel, onSpeechModel: () -> Unit, onFollow: () -> Unit, onFolders: () -> Unit = {}) {
     LaunchedEffect(book.id) { reading.warmPreview() }
     val appSettings = com.example.readalong.ui.theme.LocalAppSettings.current
     var showText by rememberSaveable(book.id) { mutableStateOf(appSettings.openingView != "COVER") }
@@ -50,11 +52,14 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
     val timingRepair by reading.needsAudioTimingRepair.collectAsStateWithLifecycle()
     var timingRepairDismissed by rememberSaveable(book.id) { mutableStateOf(false) }
     if (timingRepair && !timingRepairDismissed) AlertDialog(onDismissRequest = { timingRepairDismissed = true },
-        title = { Text("Update saved audio timing") },
-        text = { Text("This MP3's seek table shifted the old transcription timestamps. Rebuild this book once to apply accurate audio timing. Your listening position and original EPUB are kept. Future interruptions resume from saved progress.") },
-        confirmButton = { TextButton(onClick = { timingRepairDismissed = true; reading.rebuildTranscription() }) { Text("Rebuild audio timing") } },
+        title = { Text("Text timing is a little off") },
+        text = { Text("The highlighting in this book's ReadAlong can drift from the audio. Fixing it makes the ReadAlong again; your listening position and EPUB are kept.") },
+        confirmButton = { TextButton(onClick = { timingRepairDismissed = true; reading.rebuildTranscription() }) { Text("Fix timing") } },
         dismissButton = { TextButton(onClick = { timingRepairDismissed = true }) { Text("Later") } })
     val execution by reading.execution.collectAsStateWithLifecycle()
+    val tipScope = rememberCoroutineScope()
+    val tipApp = androidx.compose.ui.platform.LocalContext.current.applicationContext as? com.example.readalong.ReadAlongApplication
+    fun hideCoverTip() { if (!appSettings.coverTipHidden) tipScope.launch { tipApp?.appPreferences?.update { it.copy(coverTipHidden = true) } } }
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
     val context = androidx.compose.ui.platform.LocalContext.current
     val readingError by reading.error.collectAsStateWithLifecycle()
@@ -83,8 +88,8 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                 Box {
                     IconButton(onClick = { menu = true }) { Icon(painterResource(R.drawable.ic_more), "More options") }
                     DropdownMenu(menu, { menu = false }) {
-                        DropdownMenuItem(text = { Text(if (book.isFinished) "Mark unfinished" else "Mark finished") }, onClick = { onFinished(!book.isFinished); menu = false })
-                        DropdownMenuItem(text = { Text("Export generated EPUB") }, onClick = { menu = false; export.launch("ReadAlong-${book.id}.epub") })
+                        DropdownMenuItem(text = { Text(if (book.isFinished) "Mark as not finished" else "Mark as finished") }, onClick = { onFinished(!book.isFinished); menu = false })
+                        DropdownMenuItem(text = { Text("Save ReadAlong as EPUB") }, onClick = { menu = false; export.launch("ReadAlong-${book.id}.epub") })
                         DropdownMenuItem(text = { Text("Bookmarks (${bookmarks.size})") }, onClick = { panel = "bookmarks"; menu = false })
                     }
                 }
@@ -93,7 +98,12 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                 val wide = maxWidth >= 640.dp
                 val artwork: @Composable () -> Unit = {
                     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        if (book.mediaState == "MISSING") Text("Media unavailable · restore file access", color = colors.error)
+                        if (book.mediaState == "MISSING") Surface(shape = RoundedCornerShape(16.dp), color = colors.errorContainer) {
+                            Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text("Can't find this book's audio. Its folder may have moved or been renamed.", color = colors.onErrorContainer, style = MaterialTheme.typography.bodyMedium)
+                                TextButton(onClick = onFolders, contentPadding = PaddingValues(0.dp)) { Text("Choose folder again", color = colors.onErrorContainer) }
+                            }
+                        }
                         Box(Modifier.widthIn(max = if (wide) 360.dp else (screenHeight * 0.40f).coerceIn(260.dp, 380.dp))
                             .fillMaxWidth().aspectRatio(1f).graphicsLayer {
                                 rotationY = flip
@@ -107,8 +117,16 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                                     colorOf = com.example.readalong.ui.reading.LocalReaderSurfaceColor.current)
                             }
                             if (flip <= 90f) Box(Modifier.fillMaxSize().testTag("flip_cover")
-                                .clickable(role = Role.Button, onClickLabel = "Show reading preview") { showText = true }) {
+                                .clickable(role = Role.Button, onClickLabel = "Show the text") { showText = true; hideCoverTip() }) {
                                 BookCover(book, Modifier.fillMaxSize().navSharedCover(com.example.readalong.ui.components.LocalPlayerCoverKey.current), large = true)
+                                // Until it's been used once: the cover is also the way to the text.
+                                if (!appSettings.coverTipHidden && job != null && job?.state != "WAITING_SELECTION") Surface(Modifier.align(Alignment.BottomCenter).padding(12.dp),
+                                    shape = RoundedCornerShape(50), color = Color.Black.copy(alpha = .62f), contentColor = Color.White) {
+                                    Row(Modifier.padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Icon(painterResource(R.drawable.ic_highlighted_book), null, Modifier.size(18.dp))
+                                        Text("Tap the cover for the text", style = MaterialTheme.typography.labelLarge)
+                                    }
+                                }
                             }
                         }
                     }
@@ -125,7 +143,7 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                 )
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(clockTime(chapterPosition), style = MaterialTheme.typography.bodySmall)
-                    Text(if (state.durationMs > 0) "${clockTime(state.durationMs - state.positionMs)} left" else "Duration unavailable", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+                    Text(if (state.durationMs > 0) "${clockTime(state.durationMs - state.positionMs)} left in book" else "Length unknown", style = MaterialTheme.typography.bodySmall, color = colors.onSurface)
                     Text(clockTime(chapterDuration), style = MaterialTheme.typography.bodySmall)
                 }
                 state.error?.let { Text(it, color = colors.error, style = MaterialTheme.typography.bodySmall) }
@@ -164,7 +182,7 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
     if (panel != null && panel != "bookmarks") {
         AlertDialog(
             onDismissRequest = { panel = null },
-            title = { Text(when (panel) { "speed" -> "Playback speed"; "sleep" -> "Sleep timer"; "chapters" -> "Chapters"; "bookmarks" -> "Bookmarks"; else -> "Follow Along" }) },
+            title = { Text(when (panel) { "speed" -> "Playback speed"; "sleep" -> "Sleep timer"; "chapters" -> "Chapters"; "bookmarks" -> "Bookmarks"; else -> "ReadAlong" }) },
             text = {
                 LazyColumn(Modifier.heightIn(max = 360.dp)) {
                     when (panel) {
@@ -176,7 +194,7 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                         }
                         "chapters" -> {
                             if (book.isDemo) items(((state.durationMs + 1_799_999) / 1_800_000).toInt()) { index ->
-                                TextButton(onClick = { playback.chapter(index); panel = null }) { Text("Demo chapter ${index + 1} · ${clockTime(index * 1_800_000L)}") }
+                                TextButton(onClick = { playback.chapter(index); panel = null }) { Text("Chapter ${index + 1} · ${clockTime(index * 1_800_000L)}") }
                             } else items(state.chapters, key = { it.index }) { item ->
                                 TextButton(onClick = { playback.chapter(item.index); panel = null }) {
                                     Column(Modifier.fillMaxWidth()) {

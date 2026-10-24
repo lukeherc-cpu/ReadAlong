@@ -28,9 +28,9 @@ object TranscriptionNotifications {
     fun notificationId(bookId: String): Int = 10_000 + (bookId.hashCode() and 0x3fffffff)
     internal fun recoveryId(bookId: String): Int = notificationId(bookId) xor 0x40000000
     internal fun recovery(context: Context, bookId: String): android.app.Notification {
-        context.getSystemService(NotificationManager::class.java).createNotificationChannel(NotificationChannel(CHANNEL, "Audiobook transcription", NotificationManager.IMPORTANCE_LOW))
+        context.getSystemService(NotificationManager::class.java).createNotificationChannel(NotificationChannel(CHANNEL, "ReadAlongs in progress", NotificationManager.IMPORTANCE_LOW))
         return NotificationCompat.Builder(context, CHANNEL).setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("Resuming transcription").setContentText("Restoring saved progress…")
+            .setContentTitle("Continuing your ReadAlong").setContentText("Picking up where it left off…")
             .setOngoing(true).setOnlyAlertOnce(true).setShowWhen(false)
             .setGroup("readalong-transcription").setSortKey(sortKey(positions[bookId] ?: 0L, bookId)).build()
     }
@@ -45,11 +45,14 @@ object TranscriptionNotifications {
 
     fun limitReached(context: Context) {
         val manager = context.getSystemService(NotificationManager::class.java)
-        manager.createNotificationChannel(NotificationChannel(STOPPED_CHANNEL, "Transcription updates", NotificationManager.IMPORTANCE_DEFAULT))
+        manager.createNotificationChannel(NotificationChannel(STOPPED_CHANNEL, "ReadAlong updates", NotificationManager.IMPORTANCE_DEFAULT))
         if (NotificationManagerCompat.from(context).areNotificationsEnabled()) manager.notify(ID + 4,
             NotificationCompat.Builder(context, STOPPED_CHANNEL).setSmallIcon(R.drawable.ic_notification)
-                .setContentTitle("One book transcribes at a time")
-                .setContentText("Pause a transcription before starting another book.").setAutoCancel(true).build())
+                .setContentTitle("Already making a ReadAlong")
+                .setContentText("One book is transcribed at a time. The next starts when this one finishes; you can change the order in the queue.")
+                .setStyle(NotificationCompat.BigTextStyle().bigText("One book is transcribed at a time. The next starts when this one finishes; you can change the order in the queue."))
+                .setContentIntent(PendingIntent.getActivity(context, ID + 4, com.example.readalong.ui.launch.LaunchAppearance.intent(context), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))
+                .setAutoCancel(true).build())
     }
     private const val STOPPED_CHANNEL = "transcription-stopped"
     private const val CHANNEL = "whisper-transcription"
@@ -71,10 +74,10 @@ object TranscriptionNotifications {
         prefs.getLong(key, 0L).takeIf { it > 0L } ?: System.currentTimeMillis().also { prefs.edit().putLong(key, it).apply() }
     }
     fun build(context: Context, title: String, label: String, bookId: String, percent: Int): android.app.Notification {
-        context.getSystemService(NotificationManager::class.java).createNotificationChannel(NotificationChannel(CHANNEL, "Audiobook transcription", NotificationManager.IMPORTANCE_LOW))
+        context.getSystemService(NotificationManager::class.java).createNotificationChannel(NotificationChannel(CHANNEL, "ReadAlongs in progress", NotificationManager.IMPORTANCE_LOW))
         val open = PendingIntent.getActivity(context, notificationId(bookId), com.example.readalong.ui.launch.LaunchAppearance.intent(context), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         val pause = PendingIntent.getBroadcast(context, notificationId(bookId), Intent(context, PauseTranscriptionReceiver::class.java).putExtra("bookId", bookId), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-        return compact(context, title, label, "Creating readable version", percent, open, pause, bookId = bookId)
+        return compact(context, title, label, "Making ReadAlong", percent, open, pause, bookId = bookId)
     }
     private fun compact(context: Context, title: String, label: String, estimate: String, percent: Int, open: PendingIntent, pause: PendingIntent, paused: Boolean = false, bookId: String): android.app.Notification {
         val settings = (context.applicationContext as? ReadAlongApplication)?.appearanceSettings ?: com.example.readalong.data.preferences.AppPreferences()
@@ -98,23 +101,23 @@ object TranscriptionNotifications {
         }
         val content = android.widget.RemoteViews(context.packageName, R.layout.transcription_notification).apply {
             setTextViewText(R.id.transcription_title, title)
-            setTextViewText(R.id.transcription_label, label.replace(" / ", "  |  "))
+            setTextViewText(R.id.transcription_label, label.replace(" / Full book ", "  |  Whole book ").replace(" / ", "  |  "))
             setImageViewBitmap(R.id.transcription_progress, progressImage)
             setImageViewBitmap(R.id.transcription_pause, pauseImage)
             setOnClickPendingIntent(R.id.transcription_pause, pause)
-            setContentDescription(R.id.transcription_pause, if (paused) "Resume transcription" else "Pause transcription")
+            setContentDescription(R.id.transcription_pause, if (paused) "Resume" else "Pause")
         }
         val expanded = android.widget.RemoteViews(context.packageName, R.layout.transcription_notification_expanded).apply {
             setTextViewText(R.id.transcription_title, title)
             val chapterLabel = label.substringBeforeLast(" / Full book ")
             val percentLabel = Regex("(\\d+)%$").find(chapterLabel)?.groupValues?.get(1) ?: "0"
             setTextViewText(R.id.transcription_chapter, chapterLabel.substringBeforeLast(" · "))
-            setTextViewText(R.id.transcription_chapter_progress, "Chapter · $percentLabel% complete")
-            setTextViewText(R.id.transcription_book, "Full book · $percent% complete")
+            setTextViewText(R.id.transcription_chapter_progress, "This chapter · $percentLabel%")
+            setTextViewText(R.id.transcription_book, "Whole book · $percent%")
             setImageViewBitmap(R.id.transcription_progress, progressImage)
             setImageViewBitmap(R.id.transcription_pause, pauseImage)
             setOnClickPendingIntent(R.id.transcription_pause, pause)
-            setContentDescription(R.id.transcription_pause, if (paused) "Resume transcription" else "Pause transcription")
+            setContentDescription(R.id.transcription_pause, if (paused) "Resume" else "Pause")
         }
         val delete = PendingIntent.getBroadcast(context, notificationId(bookId), Intent(context, DismissTranscriptionReceiver::class.java)
             .setData(android.net.Uri.parse("readalong://dismiss/${android.net.Uri.encode(bookId)}"))
@@ -127,23 +130,23 @@ object TranscriptionNotifications {
 
     fun stopped(context: Context, bookId: String, title: String, explanation: String) {
         val manager = context.getSystemService(NotificationManager::class.java)
-        manager.createNotificationChannel(NotificationChannel(STOPPED_CHANNEL, "Transcription needs attention", NotificationManager.IMPORTANCE_DEFAULT))
+        manager.createNotificationChannel(NotificationChannel(STOPPED_CHANNEL, "Your ReadAlong needs attention", NotificationManager.IMPORTANCE_DEFAULT))
         val open = PendingIntent.getActivity(context, bookId.hashCode(), com.example.readalong.ui.launch.LaunchAppearance.intent(context), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         val retry = resumeAction(context, bookId, title)
         val text = when {
             explanation.contains("audio file order", true) -> "Audio file changed."
-            explanation.length > 140 -> "Transcription paused unexpectedly. Completed text is saved."
+            explanation.length > 140 -> "Your ReadAlong paused unexpectedly. Progress is saved."
             else -> explanation
         }
         if (NotificationManagerCompat.from(context).areNotificationsEnabled()) manager.notify("stopped:$bookId", ID + 1,
-            NotificationCompat.Builder(context, STOPPED_CHANNEL).setSmallIcon(R.drawable.ic_notification).setContentTitle("Transcription stopped").setSubText(title)
+            NotificationCompat.Builder(context, STOPPED_CHANNEL).setSmallIcon(R.drawable.ic_notification).setContentTitle("ReadAlong stopped").setSubText(title)
                 .setContentText(text).setStyle(NotificationCompat.BigTextStyle().bigText(text)).setContentIntent(open)
                 .setAutoCancel(true).addAction(R.drawable.ic_forward, "Retry", retry).build())
     }
 
     suspend fun observe(app: ReadAlongApplication) {
         val manager = app.getSystemService(NotificationManager::class.java)
-        manager.createNotificationChannel(NotificationChannel(CHANNEL, "Audiobook transcription", NotificationManager.IMPORTANCE_LOW))
+        manager.createNotificationChannel(NotificationChannel(CHANNEL, "ReadAlongs in progress", NotificationManager.IMPORTANCE_LOW))
         // Restart only when the set of cards can change. Status text and checkpoint counts change
         // many times per chunk; the 2-second loop below already reads them fresh. Restarting on
         // each one cancelled updates before they were posted, especially for very long books.
@@ -155,7 +158,7 @@ object TranscriptionNotifications {
                     val job = app.database.processingDao().find(item.bookId) ?: continue
                     val key = "stop_notification:${item.bookId}"
                     if (app.database.bookDao().metadata(key) != job.workId && NotificationManagerCompat.from(app).areNotificationsEnabled()) {
-                        stopped(app, item.bookId, item.title, job.message ?: "Transcription stopped. Completed text is saved.")
+                        stopped(app, item.bookId, item.title, job.message ?: "Your ReadAlong stopped. Progress is saved.")
                         app.database.bookDao().putMetadata(com.example.readalong.data.local.LibraryMetadataEntity(key, job.workId))
                     }
                 } else if (item.state in listOf("QUEUED", "PROCESSING", "PARTIAL_READY", "READY")) manager.cancel("stopped:${item.bookId}", ID + 1)
@@ -226,7 +229,7 @@ class ResumeTranscriptionReceiver : BroadcastReceiver() {
                     .setAction(com.example.readalong.data.processing.AudiobookTranscriptionService.ACTION_RESUME)
                     .putExtra("bookId", bookId))
         } catch (_: Exception) {
-            TranscriptionNotifications.stopped(context, bookId, "Transcription paused", "Android could not resume transcription. Tap Retry; completed text is saved.")
+            TranscriptionNotifications.stopped(context, bookId, "ReadAlong paused", "Android couldn't continue your ReadAlong. Progress is saved; tap Retry.")
         }
     }
 }

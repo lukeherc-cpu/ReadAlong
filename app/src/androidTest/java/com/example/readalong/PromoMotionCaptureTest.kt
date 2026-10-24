@@ -135,7 +135,7 @@ class PromoMotionCaptureTest {
          zIndexInOverlay=if(mode==screen)1f else 0f,boundsTransform={_,_->tween(300,easing=CubicBezierEasing(.2f,0f,.1f,1f))},
          clipInOverlayDuringTransition=OverlayClip(androidx.compose.foundation.shape.RoundedCornerShape(radius)))}
         CompositionLocalProvider(LocalReaderDrawFrame provides(mode==screen),LocalReaderFrame provides frame,LocalReaderSurface provides surface,
-         LocalReaderSurfaceColor provides color,LocalReaderInsets provides ReaderInsets(24.dp,56.dp,24.dp),LocalReaderTransforming provides moving){
+         LocalReaderSurfaceColor provides { color },LocalReaderInsets provides ReaderInsets(24.dp,56.dp,24.dp),LocalReaderTransforming provides moving){
          holder.SaveableStateProvider(mode){
           if(mode=="follow")FollowScreen(book,ps,app.playback,reader,{frame.frozen=true;screen="player"})
           else PlayerScreen(book,ps,app.playback,{screen="library"},{},reader,{}, {reader.preloadReader(ps.positionMs);frame.frozen=true;screen="follow"})
@@ -155,7 +155,7 @@ class PromoMotionCaptureTest {
    compose.onNodeWithTag("library_grid").performTouchInput{swipeDown(durationMillis=700)};rest(700)
    tap("open-book",compose.onNodeWithTag("book:${ids[0]}"));rest(1600);compose.runOnIdle{app.playback.seek(23060)};rest(400);shot("player")
    tap("cover-flip",compose.onNodeWithTag("flip_cover"));rest(1500);shot("preview")
-   tap("expand",compose.onNodeWithContentDescription("Full screen Follow Along"));rest(1000);shot("reader-paused")
+   tap("expand",compose.onNodeWithContentDescription("Read in full screen"));rest(1000);shot("reader-paused")
    tap("play",compose.onNodeWithContentDescription("Play"));rest(3600)
    // First text tap reveals controls. Second text tap seeks through the real reader callback.
    val target=compose.onNodeWithText("And what is the use",substring=true)

@@ -56,12 +56,12 @@ interface ImportedEpubDao {
     /** New text for the same verified audio: preserve manual timing and allow alignment immediately. */
     @Transaction suspend fun resetTranscriptMapping(bookId: String) {
         find(bookId)?.let { put(it.copy(state = "QUEUED", alignedRevision = -1, matchedSegments = 0, totalSegments = 0,
-            matchedTokens = 0, totalTokens = 0, message = "Syncing EPUB with the imported transcript…")) }
+            matchedTokens = 0, totalTokens = 0, message = "Matching your EPUB to the audio…")) }
         clearAutomaticAlignment(bookId)
     }
     @Transaction suspend fun invalidateAudioMapping(bookId: String) {
         find(bookId)?.let { put(it.copy(state = "AUDIO_CHANGED", alignedRevision = -1, matchedSegments = 0, totalSegments = 0,
-            matchedTokens = 0, totalTokens = 0, manualCount = 0, message = "Audio layout changed. EPUB text is kept; audio matching will update from the new transcript.")) }
+            matchedTokens = 0, totalTokens = 0, manualCount = 0, message = "The audio files changed. Your EPUB is kept and will be matched to the audio again.")) }
         clearAlignment(bookId)
     }
 }

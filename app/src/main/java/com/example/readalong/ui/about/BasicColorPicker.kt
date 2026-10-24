@@ -13,7 +13,7 @@ import com.example.readalong.ui.launch.LaunchPalettes
 @Composable
 fun BasicColorPicker(initial: Long, close: () -> Unit, save: (Long) -> Unit) {
     var selected by remember { mutableStateOf(LaunchPalettes.closest(initial).color) }
-    AlertDialog(onDismissRequest = close, title = { Text("Basic color") }, text = {
+    AlertDialog(onDismissRequest = close, title = { Text("Accent color") }, text = {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Choose a matching color for the app, launcher icon and opening animation.", style = MaterialTheme.typography.bodySmall)
             LaunchPalettes.all.chunked(2).forEach { row ->

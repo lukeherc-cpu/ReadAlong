@@ -27,11 +27,9 @@ class FirstVisitNavigationTest {
                 app.database.bookDao().putMetadata(com.example.readalong.data.local.LibraryMetadataEntity("battery_prompt_v1", "test"))
                 app.appPreferences.update { AppPreferences(setupStage = 0) }
             }
-            compose.waitUntil(10_000) { compose.onAllNodesWithText("Your audiobook library").fetchSemanticsNodes().isNotEmpty() }
-            compose.onNodeWithText("Later").performClick()
-            compose.onNodeWithText("Offline transcription uses battery").assertIsDisplayed()
-            compose.onNodeWithText("Offline Follow Along").assertDoesNotExist()
-            compose.onNodeWithText("Continue →").performClick()
+            compose.waitUntil(10_000) { compose.onAllNodesWithTag("welcome").fetchSemanticsNodes().isNotEmpty() }
+            compose.onNodeWithTag("welcome_next").performClick()
+            compose.onNodeWithText("Skip for now").performClick()
             compose.waitUntil(5000) { compose.onAllNodesWithText("Your library").fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithTag("guide_dont_show").assertIsOn()
             compose.onNodeWithText("Got it").performClick()
@@ -40,7 +38,7 @@ class FirstVisitNavigationTest {
             compose.waitUntil(10_000) { compose.onAllNodesWithText("Your player").fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithText("Got it").performClick()
             compose.onNodeWithTag("flip_cover").performClick()
-            compose.onNodeWithContentDescription("Full screen Follow Along").performClick()
+            compose.onNodeWithContentDescription("Read in full screen").performClick()
             compose.waitUntil(5000) { compose.onAllNodesWithText("ReadAlong controls").fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithText("Got it").performClick()
             compose.waitUntil { runBlocking { app.appPreferences.preferences.first().readerGuideHidden } }

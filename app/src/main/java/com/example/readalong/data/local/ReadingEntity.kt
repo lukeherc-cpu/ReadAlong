@@ -93,6 +93,8 @@ interface ReadingDao {
     suspend fun deleteRange(bookId: String, startMs: Long, endMs: Long)
     @Query("DELETE FROM transcript_segments WHERE bookId = :bookId")
     suspend fun clearTranscript(bookId: String)
+    @Query("DELETE FROM transcript_corrections WHERE bookId = :bookId")
+    suspend fun clearCorrections(bookId: String)
     @Query("SELECT * FROM reading_progress WHERE bookId = :bookId")
     suspend fun progress(bookId: String): ReadingProgressEntity?
     @Upsert suspend fun putProgress(progress: ReadingProgressEntity)

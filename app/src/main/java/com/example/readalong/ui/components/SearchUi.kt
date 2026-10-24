@@ -68,12 +68,7 @@ fun ReadAlongSearchField(query: String, onQuery: (String) -> Unit, onClose: () -
         }
         IconButton(onClick = onClose, modifier = Modifier.semantics { contentDescription = "Close search" }) {
             // Drawn, not a "×" glyph: font metrics put the glyph below the optical centre.
-            val stroke = content.copy(alpha = .75f)
-            androidx.compose.foundation.Canvas(Modifier.size(14.dp)) {
-                val w = 2.dp.toPx()
-                drawLine(stroke, androidx.compose.ui.geometry.Offset.Zero, androidx.compose.ui.geometry.Offset(size.width, size.height), w, androidx.compose.ui.graphics.StrokeCap.Round)
-                drawLine(stroke, androidx.compose.ui.geometry.Offset(size.width, 0f), androidx.compose.ui.geometry.Offset(0f, size.height), w, androidx.compose.ui.graphics.StrokeCap.Round)
-            }
+            CloseGlyph(content.copy(alpha = .75f))
         }
     }
 }
@@ -127,5 +122,15 @@ fun highlightMatches(text: String, query: String, accent: Color): AnnotatedStrin
             addStyle(SpanStyle(color = accent, fontWeight = FontWeight.Bold), at, at + needle.length)
             from = at + needle.length
         }
+    }
+}
+
+/** A drawn X, optically centred (a "×" glyph sits low). [description] labels it when it isn't inside a labelled button. */
+@Composable
+fun CloseGlyph(color: Color, description: String? = null) {
+    androidx.compose.foundation.Canvas(Modifier.size(14.dp).then(if (description != null) Modifier.semantics { contentDescription = description } else Modifier)) {
+        val w = 2.dp.toPx()
+        drawLine(color, androidx.compose.ui.geometry.Offset.Zero, androidx.compose.ui.geometry.Offset(size.width, size.height), w, androidx.compose.ui.graphics.StrokeCap.Round)
+        drawLine(color, androidx.compose.ui.geometry.Offset(size.width, 0f), androidx.compose.ui.geometry.Offset(0f, size.height), w, androidx.compose.ui.graphics.StrokeCap.Round)
     }
 }

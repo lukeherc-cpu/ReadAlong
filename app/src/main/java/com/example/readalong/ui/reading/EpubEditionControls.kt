@@ -17,26 +17,26 @@ fun EpubEditionControls(model: ReadingViewModel, position: Long, compact: Boolea
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let(model::addEpub) }
     var confirmRemoval by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        if (!compact) Text("Reading edition · original EPUB by default", style = MaterialTheme.typography.titleSmall)
+        if (!compact) Text("Ebook (EPUB)", style = MaterialTheme.typography.titleSmall)
         TextButton(enabled = !busy, onClick = { picker.launch(arrayOf("application/epub+zip", "application/octet-stream")) }) {
-            Text(if (busy) "Adding EPUB…" else if (edition == null) "Add my EPUB (optional)" else "Replace my EPUB")
+            Text(if (busy) "Adding EPUB…" else if (edition == null) "Add my EPUB" else "Replace my EPUB")
         }
         if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
         if (!compact) EpubSyncProgress(model)
-        if (compact) edition?.let { Text("EPUB uploaded · ${it.title}", style = MaterialTheme.typography.bodySmall) }
+        if (compact) edition?.let { Text("EPUB added · ${it.title}", style = MaterialTheme.typography.bodyMedium) }
         else edition?.let { epub ->
             Text(epub.title, style = MaterialTheme.typography.bodyMedium)
-            Text(epub.message, style = MaterialTheme.typography.bodySmall)
-            if (epub.manualCount > 0) Text("${epub.manualCount} manual sync ${if (epub.manualCount == 1) "point" else "points"} · takes priority", style = MaterialTheme.typography.bodySmall)
-            TextButton(onClick = { model.chooseEdition("EPUB", position) }) { Text(if (epub.useForReading()) "● My EPUB · always (default)" else "Use my EPUB everywhere") }
-            TextButton(onClick = { model.chooseEdition("GENERATED", position) }) { Text(if (epub.preference == "GENERATED") "● ReadAlong generated" else "Use ReadAlong generated") }
-            Text("Your EPUB is shown in every reading view, including unmatched text. Short gaps between timed passages use estimated sentence timing, starting at the preceding passage’s end. Taps use that estimate; other unmatched text uses the nearest earlier timed sentence.", style = MaterialTheme.typography.bodySmall)
-            if (epub.state == "FAILED" || epub.state == "UNUSABLE") TextButton(onClick = model::retryAlignment) { Text("Retry EPUB alignment") }
+            Text(epub.message, style = MaterialTheme.typography.bodyMedium)
+            if (epub.manualCount > 0) Text("${epub.manualCount} sync ${if (epub.manualCount == 1) "point" else "points"} you set", style = MaterialTheme.typography.bodySmall)
+            TextButton(onClick = { model.chooseEdition("EPUB", position) }) { Text(if (epub.useForReading()) "● Show my EPUB's text" else "Show my EPUB's text") }
+            TextButton(onClick = { model.chooseEdition("GENERATED", position) }) { Text(if (epub.preference == "GENERATED") "● Show the text made from the audio" else "Show the text made from the audio") }
+            Text("Parts of the EPUB that don't match the audio exactly use the nearest timing.", style = MaterialTheme.typography.bodyMedium)
+            if (epub.state == "FAILED" || epub.state == "UNUSABLE") TextButton(onClick = model::retryAlignment) { Text("Try matching again") }
             TextButton(onClick = { confirmRemoval = true }) { Text("Remove my EPUB") }
         }
     }
     if (confirmRemoval) AlertDialog(onDismissRequest = { confirmRemoval = false }, title = { Text("Remove your EPUB?") },
-        text = { Text("The original file, generated edition, transcript and audiobook are kept.") },
+        text = { Text("Your EPUB file, audiobook and ReadAlong are kept.") },
         confirmButton = { TextButton(onClick = { model.removeEpub(position); confirmRemoval = false }) { Text("Remove") } },
         dismissButton = { TextButton(onClick = { confirmRemoval = false }) { Text("Cancel") } })
 }
