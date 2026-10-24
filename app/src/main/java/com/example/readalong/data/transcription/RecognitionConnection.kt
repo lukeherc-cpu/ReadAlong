@@ -8,6 +8,7 @@ import java.io.IOException
 import java.util.concurrent.atomic.AtomicBoolean
 
 class RecognitionConnection(private val context: Context, private val service: Class<out RecognitionService>? = null) {
+    companion object { const val CONNECT_TIMEOUT_MS = 30_000L }
     /** An extra binding keeps one private service/model alive between bounded chunk requests.
      * Always released on success, cancellation or error; no started service or idle model cache. */
     suspend fun <T> withSession(block: suspend (RecognitionConnection) -> T): T {
@@ -30,25 +31,22 @@ class RecognitionConnection(private val context: Context, private val service: C
 
     suspend fun transcribe(model: File, pcm: File, backend: String = "whistle", onMetrics: (LongArray) -> Unit = {}, onProgress: (Int) -> Unit = {}): String {
         if (service == null) return withSession { it.transcribe(model, pcm, backend, onMetrics, onProgress) }
-        // The recognition process restarts itself when Android changes its CPU set (see
-        // RecognitionService). That is not a failure: wait for the fresh process and resend.
-        repeat(4) { attempt ->
-            try { return transcribeOnce(model, pcm, backend, onMetrics, onProgress) }
-            catch (_: RecognitionRestart) { delay(400L + 400L * attempt) }
-        }
-        return transcribeOnce(model, pcm, backend, onMetrics, onProgress)
-    }
-
-    private class RecognitionRestart : IOException("Recognition runtime restarting.")
-
-    private suspend fun transcribeOnce(model: File, pcm: File, backend: String, onMetrics: (LongArray) -> Unit, onProgress: (Int) -> Unit): String {
         return withContext(Dispatchers.Main) {
         withTimeout(8 * 60_000L) { suspendCancellableCoroutine { continuation ->
             val requestId = java.util.UUID.randomUUID().toString()
             var remote: Messenger? = null
             val bound = AtomicBoolean(false)
             lateinit var connection: ServiceConnection
-            fun unbind() { if (bound.compareAndSet(true, false)) runCatching { context.unbindService(connection) } }
+            val main = Handler(Looper.getMainLooper())
+            // A recognition process that died may be restarted by Android only after a growing delay.
+            // Don't wait on it: fail fast, and the caller retries with a fresh session.
+            val watchdog = Runnable {
+                if (remote == null && continuation.isActive) {
+                    continuation.resumeWith(Result.failure(IOException("Speech recognition didn't start in time.")))
+                    if (bound.compareAndSet(true, false)) runCatching { context.unbindService(connection) }
+                }
+            }
+            fun unbind() { main.removeCallbacks(watchdog); if (bound.compareAndSet(true, false)) runCatching { context.unbindService(connection) } }
             val reply = Messenger(object : Handler(Looper.getMainLooper()) {
                 override fun handleMessage(message: Message) {
                     if (message.what == RecognitionService.PROGRESS) {
@@ -56,10 +54,6 @@ class RecognitionConnection(private val context: Context, private val service: C
                         return
                     }
                     if (message.what != RecognitionService.RESULT) return
-                    if (message.data.getBoolean("restart")) {
-                        if (continuation.isActive) continuation.resumeWith(Result.failure(RecognitionRestart()))
-                        unbind(); return
-                    }
                     if (continuation.isActive) {
                         message.data.getLongArray("metrics")?.let(onMetrics)
                         val error = message.data.getString("error")
@@ -72,6 +66,7 @@ class RecognitionConnection(private val context: Context, private val service: C
             })
             connection = object : ServiceConnection {
                 override fun onServiceConnected(name: ComponentName, binder: IBinder) {
+                    main.removeCallbacks(watchdog)
                     if (!continuation.isActive) { unbind(); return }
                     remote = Messenger(binder)
                     try { remote!!.send(Message.obtain(null, RecognitionService.RECOGNIZE).apply {
@@ -89,6 +84,7 @@ class RecognitionConnection(private val context: Context, private val service: C
             }
             bound.set(context.bindService(Intent(context, service), connection, Context.BIND_AUTO_CREATE or Context.BIND_IMPORTANT))
             if (!bound.get()) continuation.resumeWith(Result.failure(IOException("Couldn't start local recognition.")))
+            else main.postDelayed(watchdog, CONNECT_TIMEOUT_MS)
             continuation.invokeOnCancellation {
                 Handler(Looper.getMainLooper()).post {
                     runCatching { remote?.send(Message.obtain(null, RecognitionService.CANCEL).apply { data = Bundle().apply { putString("requestId", requestId) } }) }
