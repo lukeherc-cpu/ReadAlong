@@ -63,7 +63,8 @@ class AudiobookService : MediaSessionService() {
                     if (duration != null && index in files.indices && files[index].durationMs != duration) {
                         val item = files[index]
                         files = files.toMutableList().apply { set(index, item.copy(durationMs = duration)) }
-                        scope.launch { database.mediaDao().duration(item.id, duration) }
+                        // Saving a corrected duration is optional; a storage error must not stop playback.
+                        scope.launch { try { database.mediaDao().duration(item.id, duration) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { } }
                     }
                 }
                 override fun onPlayerError(failure: PlaybackException) {

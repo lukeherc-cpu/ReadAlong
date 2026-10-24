@@ -72,13 +72,22 @@ class AudiobookTranscriptionService : Service() {
         // An old session can finish while a newer start is waiting for Main delivery.
         try { foreground(book, intent.getStringExtra("title") ?: "Preparing audiobook", intent.getStringExtra("progress") ?: "Chapter · 0% / Full book 0%") }
         catch (failure: Exception) {
-            scope.launch { app.processing.recoverInterrupted(book, workId, "Android deferred background transcription (${failure.javaClass.simpleName}).")
-                withContext(Dispatchers.Main) { if (sessions.isEmpty()) stopSelf(startId) } }
+            scope.launch {
+                // This scope has no exception handler; an uncaught database error would crash the app.
+                try { app.processing.recoverInterrupted(book, workId, "Android deferred background transcription (${failure.javaClass.simpleName}).") }
+                catch (cancelled: CancellationException) { throw cancelled }
+                catch (recovery: Exception) { android.util.Log.w("ReadAlong", "Deferred-start recovery failed: ${recovery.javaClass.simpleName}") }
+                withContext(Dispatchers.Main) { if (sessions.isEmpty()) stopSelf(startId) }
+            }
             return START_NOT_STICKY
         }
         if (running(book, workId) && sessions[book]?.task?.isActive == true) return START_REDELIVER_INTENT
         if (sessions.filterKeys { it != book }.values.count { it.task.isActive } >= ProcessingRepository.MAX_ACTIVE) {
-            scope.launch { status(book, workId, "QUEUED", "Waiting for the previous transcription session to close.") }
+            scope.launch {
+                try { status(book, workId, "QUEUED", "Waiting for the previous transcription session to close.") }
+                catch (cancelled: CancellationException) { throw cancelled }
+                catch (failure: Exception) { android.util.Log.w("ReadAlong", "Queue status update failed: ${failure.javaClass.simpleName}") }
+            }
             return START_NOT_STICKY
         }
         if (!wakeLock.isHeld) wakeLock.acquire(6 * 60 * 60_000L)
