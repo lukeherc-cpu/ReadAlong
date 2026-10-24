@@ -84,7 +84,7 @@ fun BookActions(book: Book, model: BookActionsViewModel, onDismiss: () -> Unit) 
             edit = null
         }) { Text("Save") } }, dismissButton = { TextButton(onClick = { edit = null }) { Text("Cancel") } }) }
     if (delete) AlertDialog(onDismissRequest = { delete = false }, title = { Text("Delete this book?") },
-        text = { Text("Remove the book, saved positions and its prepared text from ReadAlong. Original audio and EPUB files stay in your folders.") },
+        text = { Text("This removes the book, its ReadAlong and its listening position from ReadAlong. The audio and EPUB files stay in your folders.") },
         confirmButton = { TextButton(onClick = { model.delete(book); onDismiss() }) { Text("Delete book") } },
         dismissButton = { TextButton(onClick = { delete = false }) { Text("Cancel") } })
 }

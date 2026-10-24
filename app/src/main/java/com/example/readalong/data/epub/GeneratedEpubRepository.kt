@@ -73,7 +73,7 @@ class GeneratedEpubRepository(private val context: Context, private val database
     private suspend fun generateLocked(bookId: String): Uri = withContext(Dispatchers.IO) {
         val dao = database.readingDao()
         val book = requireNotNull(database.bookDao().findBook(bookId))
-        val previous = requireNotNull(dao.findVersion(bookId)) { "The readable version isn't ready for export yet." }
+        val previous = requireNotNull(dao.findVersion(bookId)) { "This ReadAlong has no text to save yet." }
         previous.generatedUri?.takeIf { previous.generatedRevision == previous.transcriptRevision && previous.generatedFormat == 1 }?.let { saved ->
             val uri = Uri.parse(saved)
             val readable = runCatching { context.contentResolver.openFileDescriptor(uri, "r")?.use { true } ?: false }.getOrDefault(false)
@@ -85,7 +85,7 @@ class GeneratedEpubRepository(private val context: Context, private val database
         val partial = !book.isDemo && previous.totalChapters?.let { previous.completedChapters < it } == true
         val revision = previous.transcriptRevision
         val chapters = dao.chapters(bookId)
-        check(chapters.isNotEmpty()) { "The readable version isn't ready for export yet." }
+        check(chapters.isNotEmpty()) { "This ReadAlong has no text to save yet." }
         val audio = database.mediaDao().audioFiles(bookId)
         val embedded = database.mediaDao().chapters(bookId)
         val headings = chapters.mapIndexed { index, chapter -> EpubChapter(chapter.chapterId,
@@ -110,7 +110,7 @@ class GeneratedEpubRepository(private val context: Context, private val database
             val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", destination)
             withContext(NonCancellable) { database.withTransaction {
                 val latest = requireNotNull(dao.findVersion(bookId))
-                check(latest.transcriptRevision == revision) { "The transcript changed during export. Please try again." }
+                check(latest.transcriptRevision == revision) { "The ReadAlong changed while saving. Please try again." }
                 check(indexedSegments == dao.count(bookId)) { "The generated EPUB mapping is incomplete." }
                 dao.putVersion(latest.copy(generatedUri = uri.toString(), generatedRevision = revision,
                     activeEditionId = edition, generatedFormat = 1, updatedAt = System.currentTimeMillis()))

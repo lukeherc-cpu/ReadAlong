@@ -29,6 +29,8 @@ interface ProcessingDao {
     @Query("SELECT b.id AS bookId, b.title, COALESCE(p.state,'WAITING_SELECTION') AS state, COALESCE(p.completedUnits,0) AS completedUnits, COALESCE(p.totalUnits,0) AS totalUnits, COALESCE(p.queuePosition,0) AS queuePosition, b.addedAt, p.message, p.engineId, p.workId FROM books b LEFT JOIN processing_jobs p ON p.bookId = b.id WHERE b.isDemo = 0 ORDER BY p.queuePosition, b.addedAt, b.id")
     fun observeQueue(): Flow<List<PreparationQueueItem>>
     @Upsert suspend fun put(job: ProcessingJobEntity)
+    @Query("DELETE FROM processing_jobs WHERE bookId = :bookId")
+    suspend fun delete(bookId: String)
 }
 
 data class PreparationQueueItem(val bookId: String, val title: String, val state: String, val completedUnits: Int, val totalUnits: Int, val queuePosition: Long, val addedAt: Long, val message: String? = null, val engineId: String? = null, val workId: String? = null)

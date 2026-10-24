@@ -9,5 +9,5 @@ object SpeechModels {
         "https://huggingface.co/Cactus-Compute/whistle/resolve/ca5287601bef25af26dcf2e1b2bdc0843a7c19e5/whistle.cact")
     val all = listOf(whistle)
     fun find(id: String) = all.firstOrNull { it.id == id }
-    fun require(id: String) = requireNotNull(find(id)) { "This release uses Cactus Whistle. Rebuild this book to replace its older transcription engine." }
+    fun require(id: String) = requireNotNull(find(id)) { "ReadAlong has a new speech model. Redo this ReadAlong to keep going." }
 }

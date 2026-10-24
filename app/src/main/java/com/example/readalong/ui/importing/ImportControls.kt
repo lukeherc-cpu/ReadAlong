@@ -35,8 +35,8 @@ fun ImportControls(model: ImportViewModel, onFolders: () -> Unit, onBook: (Strin
     if (choosing) com.example.readalong.ui.components.IllustratedDialog("Add audiobook", { choosing = false }, actions = {
         TextButton(onClick = { choosing = false }) { Text("Cancel") }
     }) {
-        IllustratedOption("Audiobook folder", "Select a folder containing multiple audio files.", com.example.readalong.R.drawable.art_folder, true) { choosing = false; folder.launch(null) }
-        IllustratedOption("Audio files", "Select a single audio file or the parts of one book.", com.example.readalong.R.drawable.art_audio_file, false) {
+        IllustratedOption("Audiobook folder", "A folder with one book's audio files.", com.example.readalong.R.drawable.art_folder, true) { choosing = false; folder.launch(null) }
+        IllustratedOption("Audio files", "One audio file, or the parts of one book.", com.example.readalong.R.drawable.art_audio_file, false) {
             choosing = false; files.launch(arrayOf("audio/*", "application/octet-stream", "video/mp4"))
         }
     }
@@ -56,25 +56,24 @@ fun FoldersScreen(model: ImportViewModel, onBack: () -> Unit) {
         LazyColumn(Modifier.fillMaxSize().padding(insets), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             item { TextButton(onClick = onBack) { Text("Back to library") } }
             item { Text("Library folders", style = MaterialTheme.typography.headlineLarge) }
-            item { Text("Library folders are scanned automatically whenever you return home. Audio stays in the folder you choose.") }
+            item { Text("ReadAlong checks these folders for new books each time you come back. Your audio stays where it is.", style = MaterialTheme.typography.bodyLarge) }
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Button(onClick = { picker.launch(null) }, enabled = !busy) { Text("Add folder") }
                     OutlinedButton(onClick = { audible = true }, enabled = !busy) { Text("Import from Audible") }
                 }
             }
-            item { if (busy) LinearProgressIndicator(Modifier.fillMaxWidth()); message?.let { Text(it, style = MaterialTheme.typography.bodySmall) } }
+            item { if (busy) LinearProgressIndicator(Modifier.fillMaxWidth()); message?.let { Text(it, style = MaterialTheme.typography.bodyMedium) } }
             if (folders.none { it.mode == FolderMode.LIBRARY.name }) item { Text("No folders added yet.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
             items(folders.filter { it.mode == FolderMode.LIBRARY.name }, key = { it.uri }) { folder ->
                 Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceVariant) {
                     Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(folder.name, style = MaterialTheme.typography.titleLarge)
-                        Text(if (folder.mode == FolderMode.ONE_BOOK.name) "One audiobook" else "Library folder · each subfolder is a book", style = MaterialTheme.typography.bodySmall)
-                        Text(folder.uri, style = MaterialTheme.typography.bodySmall, maxLines = 2)
+                        Text(if (folder.mode == FolderMode.ONE_BOOK.name) "One audiobook" else "Each folder inside is one book", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         folder.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                         Row {
-                            TextButton(onClick = { model.rescan(folder) }, enabled = !busy) { Text("Rescan") }
-                            TextButton(onClick = { removing = folder }, enabled = !busy) { Text("Remove access") }
+                            TextButton(onClick = { model.rescan(folder) }, enabled = !busy) { Text("Check for new books") }
+                            TextButton(onClick = { removing = folder }, enabled = !busy) { Text("Remove folder") }
                         }
                     }
                 }
@@ -86,9 +85,9 @@ fun FoldersScreen(model: ImportViewModel, onBack: () -> Unit) {
     }
     if (audible) AudibleImportDialog(onChooseFolder = { audible = false; picker.launch(null) }, onDismiss = { audible = false })
     removing?.let { folder ->
-        AlertDialog(onDismissRequest = { removing = null }, title = { Text("Remove folder access?") },
-            text = { Text("Are you sure? This removes every book in this folder from your library and deletes its saved metadata, readable text and transcription progress. Original audio files stay on your device.") },
-            confirmButton = { TextButton(onClick = { model.remove(folder); removing = null }) { Text("Remove access") } },
+        AlertDialog(onDismissRequest = { removing = null }, title = { Text("Remove this folder?") },
+            text = { Text("Are you sure? Its books leave your library, along with their ReadAlongs and listening progress. The audio files stay on your phone.") },
+            confirmButton = { TextButton(onClick = { model.remove(folder); removing = null }) { Text("Remove folder", color = MaterialTheme.colorScheme.error) } },
             dismissButton = { TextButton(onClick = { removing = null }) { Text("Cancel") } })
     }
 }
@@ -99,7 +98,7 @@ fun ImportStatus(model: ImportViewModel) {
     val message by model.message.collectAsStateWithLifecycle()
     if (busy || message != null) Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-        message?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+        message?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
     }
 }
 
@@ -115,35 +114,10 @@ fun ImportPriorityPrompt(model: ImportViewModel) {
             onStart = model::startAdded)
     }
     pending.firstOrNull()?.takeIf { adding == null }?.let { book ->
-        com.example.readalong.ui.components.IllustratedDialog("Read along with your audiobook?", { if (!busy) model.skipPriority() },
-            artwork = { com.example.readalong.ui.components.ReadAlongArtwork() }, actions = {
-                OutlinedButton(enabled = !busy, onClick = { model.choosePriority(false) }) { Text("Later") }
-                Button(enabled = !busy, onClick = { model.choosePriority(true) }, modifier = Modifier.weight(1f)) { Text("Create ReadAlong", maxLines = 1, softWrap = false) }
-            }) {
-            Text(book.title, style = MaterialTheme.typography.titleMedium)
-            Text("Turn your audiobook into readable text that highlights each sentence as you listen.")
-            Text("Created locally on your device. This may take a while; you can keep listening while it works.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-            message?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+        key(book.id) {
+            ReadAlongSourceDialog(busy, message, hasEpub = book.folderEpub, onDismiss = { if (!busy) model.skipPriority() },
+                onStart = model::startPriority, bookTitle = book.title, durationMs = book.durationMs)
         }
-    }
-}
-
-@Composable
-fun LibrarySetupPrompt(model: ImportViewModel, onNext: () -> Unit) {
-    val busy by model.busy.collectAsStateWithLifecycle()
-    val message by model.message.collectAsStateWithLifecycle()
-    val folder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
-        uri?.let { model.folder(it, FolderMode.LIBRARY, onNext) }
-    }
-    com.example.readalong.ui.components.IllustratedDialog("Your audiobook library", {},
-        artwork = { com.example.readalong.ui.components.ReadAlongArtwork(com.example.readalong.R.drawable.art_folder) }, actions = {
-            TextButton(enabled = !busy, onClick = onNext, modifier = Modifier.weight(1f)) { Text("Later") }
-            Button(enabled = !busy, onClick = { folder.launch(null) }, modifier = Modifier.weight(1f)) { Text("Set folder") }
-        }) {
-        Text("Choose your audiobook library folder. Each book’s subfolder appears in your library, and new books are found when you return home.")
-        if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-        message?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
     }
 }
 
@@ -156,7 +130,7 @@ private fun IllustratedOption(title: String, subtitle: String, art: Int, promine
             com.example.readalong.ui.components.ReadAlongArtwork(art, Modifier.size(80.dp))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(title, style = MaterialTheme.typography.titleMedium)
-                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Text("›", style = MaterialTheme.typography.headlineMedium)
         }
@@ -170,8 +144,8 @@ internal fun ReadingChoice(title: String, subtitle: String, art: Int, selected: 
         border = androidx.compose.foundation.BorderStroke(if (selected) 2.dp else 1.dp, if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = .3f))) {
         Column(Modifier.fillMaxSize().padding(10.dp), horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
             com.example.readalong.ui.components.ReadAlongArtwork(art, Modifier.fillMaxWidth().height(76.dp))
-            Text(title, modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelLarge)
-            Text(subtitle, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(title, modifier = Modifier.weight(1f).fillMaxWidth(), style = MaterialTheme.typography.labelLarge, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            Text(subtitle, Modifier.fillMaxWidth(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
             RadioButton(selected, onClick = null)
         }
     }
@@ -181,7 +155,7 @@ internal fun ReadingChoice(title: String, subtitle: String, art: Int, selected: 
 private const val LIBRISYNC_RELEASES = "https://github.com/Promises/LibriSync/releases/latest"
 
 @Composable
-private fun AudibleImportDialog(onChooseFolder: () -> Unit, onDismiss: () -> Unit) {
+internal fun AudibleImportDialog(onChooseFolder: () -> Unit, onDismiss: () -> Unit) {
     val links = androidx.compose.ui.platform.LocalUriHandler.current
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()

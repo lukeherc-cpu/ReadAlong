@@ -32,6 +32,10 @@ data class AppPreferences(
     val playerGuideHidden: Boolean = false,
     val readerGuideHidden: Boolean = false,
     val tipJarInOther: Boolean = false,
+    /** The short "what is a ReadAlong" explanation has been shown. */
+    val readAlongExplained: Boolean = false,
+    val longPressTipHidden: Boolean = false,
+    val coverTipHidden: Boolean = false,
 )
 
 class AppPreferencesStore(private val context: Context) {
@@ -59,6 +63,9 @@ class AppPreferencesStore(private val context: Context) {
         p[booleanPreferencesKey("guide_player_hidden")] ?: false,
         p[booleanPreferencesKey("guide_reader_hidden")] ?: false,
         p[booleanPreferencesKey("tip_jar_in_other")] ?: false,
+        p[booleanPreferencesKey("readalong_explained")] ?: false,
+        p[booleanPreferencesKey("long_press_tip_hidden")] ?: false,
+        p[booleanPreferencesKey("cover_tip_hidden")] ?: false,
     )
     val preferences = store.data.catch { if (it is IOException) emit(emptyPreferences()) else throw it }.map(::decode)
     suspend fun update(change: (AppPreferences) -> AppPreferences) {
@@ -87,6 +94,9 @@ class AppPreferencesStore(private val context: Context) {
         p[booleanPreferencesKey("guide_player_hidden")] = value.playerGuideHidden
         p[booleanPreferencesKey("guide_reader_hidden")] = value.readerGuideHidden
         p[booleanPreferencesKey("tip_jar_in_other")] = value.tipJarInOther
+        p[booleanPreferencesKey("readalong_explained")] = value.readAlongExplained
+        p[booleanPreferencesKey("long_press_tip_hidden")] = value.longPressTipHidden
+        p[booleanPreferencesKey("cover_tip_hidden")] = value.coverTipHidden
         }
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.example.readalong.ui.launch.LaunchAppearance.apply(context, decode(saved)) }
     }

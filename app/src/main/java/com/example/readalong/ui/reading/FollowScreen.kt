@@ -143,6 +143,7 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
         val searchResults by model.searchResults.collectAsStateWithLifecycle()
         val searching by model.searching.collectAsStateWithLifecycle()
         val searchError by model.searchError.collectAsStateWithLifecycle()
+        val searchNotice by model.searchNotice.collectAsStateWithLifecycle()
         var searchQuery by rememberSaveable(book.id) { mutableStateOf("") }
         var following by rememberSaveable(book.id) { mutableStateOf(true) }
         var userScrolled by remember { mutableStateOf(false) }
@@ -425,7 +426,7 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
             }.testTag("reader_reveal_controls") else Modifier)) {
             Column(Modifier.fillMaxSize()) {
                 if (items.loadState.refresh is LoadState.Error) TextButton(onClick = items::retry) { Text("Retry loading text") }
-                else if (renderedCount == 0 && items.loadState.refresh !is LoadState.Loading) Text(version?.message ?: "Readable text is being prepared. You can keep listening.", Modifier.padding(24.dp))
+                else if (renderedCount == 0 && items.loadState.refresh !is LoadState.Loading) Text(version?.message ?: "Your ReadAlong is being made. Text appears here as it's ready; you can keep listening.", Modifier.padding(24.dp))
                 LazyColumn(Modifier.weight(1f).nestedScroll(scroll).testTag("follow_passages"), state = list,
                     contentPadding = PaddingValues(start = preferences.margin.dp + columnInset, end = preferences.margin.dp + columnInset,
                         top = 64.dp + cutoutTop, bottom = if (readingOnly) 24.dp else 100.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
@@ -481,7 +482,8 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
                     // Same look as the library search: accent progress line, a result count and rising cards.
                     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
                         SearchProgressLine(searching, searchAccent, Modifier.padding(top = 4.dp, bottom = 6.dp))
-                        searchError?.let { Text(it, Modifier.padding(8.dp), style = MaterialTheme.typography.bodySmall) }
+                        if (searchQuery.isNotBlank()) searchNotice?.let { Text(it, Modifier.padding(horizontal = 8.dp, vertical = 4.dp), style = MaterialTheme.typography.bodyMedium) }
+                        searchError?.let { Text(it, Modifier.padding(8.dp), style = MaterialTheme.typography.bodyMedium) }
                         if (searchQuery.isNotBlank() && !searching && searchError == null) SearchCountLabel(searchResults.size, capped = searchResults.size >= 20)
                         LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
                             itemsIndexed(searchResults, key = { _, it -> "${it.segment.id}:${it.offset}" }) { index, result ->
@@ -546,9 +548,9 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
             var replacement by remember(draft) { mutableStateOf(draft.text) }
             AlertDialog(onDismissRequest = model::dismissCorrection, title = { Text("Correct passage") }, text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Original recognition is kept. This correction changes only this passage in this book.", style = MaterialTheme.typography.bodySmall)
+                    Text("The text made from the audio is kept, so you can undo this. It changes only this passage.", style = MaterialTheme.typography.bodySmall)
                     OutlinedTextField(replacement, { replacement = it.take(8000) }, label = { Text("Corrected text") }, modifier = Modifier.heightIn(max = 240.dp))
-                    TextButton(onClick = { model.saveCorrection(draft.original, restore = true) }) { Text("Restore original recognition") }
+                    TextButton(onClick = { model.saveCorrection(draft.original, restore = true) }) { Text("Undo my correction") }
                 }
             }, confirmButton = { TextButton(enabled = replacement.isNotBlank(), onClick = { model.saveCorrection(replacement) }) { Text("Save") } },
                 dismissButton = { TextButton(onClick = model::dismissCorrection) { Text("Cancel") } })

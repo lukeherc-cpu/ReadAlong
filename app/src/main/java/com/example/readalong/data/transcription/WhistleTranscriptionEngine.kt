@@ -48,10 +48,10 @@ class WhistleTranscriptionEngine(private val context: Context, private val store
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (failure: Exception) {
             val explanation = when {
-                failure is ModelUnavailableException -> failure.message ?: "Install this book’s speech model, then retry."
-                failure is SecurityException -> "Audio access was lost. Choose the audiobook folder or files again, then retry."
-                phase == "Reading audio" -> "Couldn't decode this audio section. Check that the file plays and is available locally, then rescan the folder and retry."
-                else -> "Speech recognition stopped. Check that this book's model is installed and there is enough free memory, then retry."
+                failure is ModelUnavailableException -> failure.message ?: "Download the offline speech model in Settings, then try again."
+                failure is SecurityException -> "ReadAlong lost access to this book's audio. Choose its folder again in Library folders, then try again."
+                phase == "Reading audio" -> "Couldn't read part of this audio file. Check that it plays and is saved on this phone (not only in the cloud), then try again."
+                else -> "The speech model stopped. Check that it's installed (Settings → Offline speech models) and close other apps, then try again."
             }
             throw SpeechPreparationException(explanation, failure)
         } finally { pcm.delete() }

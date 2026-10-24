@@ -1,5 +1,6 @@
 package com.example.readalong.ui.player
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -74,6 +75,10 @@ fun MiniPlayer(book: Book, state: PlaybackState, onOpen: () -> Unit, onToggle: (
             onDragCancel = { onDragEnd?.invoke(0f) },
         ) { change, amount -> change.consume(); tracker.addPosition(change.uptimeMillis, change.position); onDrag(amount) }
     }), shape = RoundedCornerShape(18.dp), color = if (colored) background else basicBackground, contentColor = if (colored) foreground else basicForeground, shadowElevation = 8.dp) {
+        Box {
+        // Grab handle: says "pull me up" without words.
+        if (onDrag != null) Box(Modifier.align(Alignment.TopCenter).padding(top = 4.dp).size(28.dp, 3.dp)
+            .background((if (colored) foreground else basicForeground).copy(alpha = .35f), RoundedCornerShape(2.dp)))
         Row(Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             BookCover(book, Modifier.size(52.dp), showTitle = false)
             Column(Modifier.weight(1f)) {
@@ -81,6 +86,7 @@ fun MiniPlayer(book: Book, state: PlaybackState, onOpen: () -> Unit, onToggle: (
                 Text(state.chapterTitle, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall, color = if (colored) foreground.copy(alpha = .7f) else basicForeground.copy(alpha = .7f))
             }
             IconButton(onClick = onToggle) { com.example.readalong.ui.components.PlayPauseIcon(state.isPlaying, Modifier.size(28.dp), if (state.isPlaying) "Pause mini player" else "Play mini player") }
+        }
         }
     }
     }

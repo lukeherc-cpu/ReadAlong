@@ -35,7 +35,18 @@ object PreparationRetry {
         return failure is SpeechPreparationException || causes.any { it is IOException || it is android.os.RemoteException }
     }
 
+    /** One plain sentence for people; class names and messages go to [technical] (diagnostics) only. */
     fun explanation(failure: Throwable): String {
+        (failure as? SpeechPreparationException)?.let { return it.explanation }
+        val causes = generateSequence(failure) { it.cause }.take(12).toList()
+        return when {
+            causes.any { it is SecurityException || it is FileNotFoundException } -> "Can't open this book's audio. Its folder may have moved; choose it again in Library folders."
+            causes.any { it is android.system.ErrnoException && it.errno == android.system.OsConstants.ENOSPC } -> "Your phone is out of space. Free some space, then try again."
+            causes.any { it is OutOfMemoryError } -> "Not enough free memory. Close some other apps and try again."
+            else -> "Something went wrong with this part of the audio."
+        }
+    }
+    fun technical(failure: Throwable): String {
         val cause = generateSequence(failure) { it.cause }.take(12).last()
         val stage = (failure as? SpeechPreparationException)?.explanation ?: "Processing failed."
         return "$stage (${cause.javaClass.simpleName}: ${cause.message.orEmpty().take(180)})"
@@ -46,7 +57,7 @@ object PreparationRetry {
     suspend fun decide(database: ReadAlongDatabase, bookId: String, workId: String, failure: Throwable): Decision = database.withTransaction {
         val job = database.processingDao().find(bookId) ?: return@withTransaction Decision.NotRetryable
         if (job.workId != workId) return@withTransaction Decision.NotRetryable
-        database.bookDao().putMetadata(LibraryMetadataEntity("preparation_failure:$bookId", explanation(failure) + "\n" +
+        database.bookDao().putMetadata(LibraryMetadataEntity("preparation_failure:$bookId", technical(failure) + "\n" +
             generateSequence(failure) { it.cause }.take(12).joinToString("\n") { cause ->
                 cause.javaClass.simpleName + ": " + cause.stackTrace.filter { it.className.startsWith("com.example.readalong") }.take(8).joinToString(" ")
             }))
@@ -59,7 +70,7 @@ object PreparationRetry {
         val delayMs = DELAYS_MS[count]
         database.bookDao().putMetadata(LibraryMetadataEntity(key, "$prefix${count + 1}"))
         database.processingDao().put(job.copy(state = "QUEUED",
-            message = "Temporary problem. Retrying automatically in ${delayMs / 1000} s (attempt ${count + 1} of $MAX_RETRIES). Completed text is saved.",
+            message = "Hit a snag. Trying again in ${delayMs / 1000} s (attempt ${count + 1} of $MAX_RETRIES). Progress is saved.",
             updatedAt = System.currentTimeMillis()))
         Decision.Retry(count + 1, delayMs)
     }

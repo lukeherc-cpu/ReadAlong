@@ -76,7 +76,7 @@ class SpeechModelStore(private val context: Context, private val data: androidx.
         return data.data.first()[installedKey] == true && modelFile.length() == SpeechModels.whistle.size
     }
     suspend fun <T> withModel(modelId: String = ID, block: suspend (File) -> T): T = readers.withPermit {
-        if (!available(modelId)) throw ModelUnavailableException("Install Cactus Whistle, then rebuild books using an older engine.")
+        if (!available(modelId)) throw ModelUnavailableException("Download the offline speech model in Settings, then redo this ReadAlong.")
         block(modelFile)
     }
     suspend fun report(state: String, bytes: Long, message: String?, modelId: String? = null) = data.edit { p ->
@@ -86,23 +86,23 @@ class SpeechModelStore(private val context: Context, private val data: androidx.
     }
     suspend fun install(input: InputStream, modelId: String = ID) = installation.withLock { withContext(Dispatchers.IO) {
         val spec = SpeechModels.require(modelId)
-        check(directory.usableSpace > spec.size + 32L * 1024 * 1024) { "Not enough free storage to install Whistle." }
+        check(directory.usableSpace > spec.size + 32L * 1024 * 1024) { "Not enough free space for the speech model (17 MB). Free some space and try again." }
         val temporary = File(directory, "model-${java.util.UUID.randomUUID()}.part")
         val pcm = File(context.cacheDir, "${temporary.name}-probe.pcm")
         try {
             val digest = MessageDigest.getInstance("SHA-256"); var count = 0L; var reported = 0L
-            report("INSTALLING", 0, "Installing Cactus Whistle…", ID)
+            report("INSTALLING", 0, "Installing the speech model…", ID)
             temporary.outputStream().buffered().use { output ->
                 val buffer = ByteArray(65536)
                 while (true) {
                     ensureActive(); val n = input.read(buffer); if (n < 0) break
-                    count += n; check(count <= spec.size) { "This isn't the supported Cactus Whistle model." }
+                    count += n; check(count <= spec.size) { "That file isn't the speech model ReadAlong uses." }
                     digest.update(buffer, 0, n); output.write(buffer, 0, n)
-                    if (count - reported >= 1024 * 1024) { report("INSTALLING", count, "Installing Cactus Whistle…", ID); reported = count }
+                    if (count - reported >= 1024 * 1024) { report("INSTALLING", count, "Installing the speech model…", ID); reported = count }
                 }
             }
-            check(count == spec.size && digest.digest().joinToString("") { "%02x".format(it) } == spec.sha256) { "Whistle verification failed. Retry the download." }
-            report("INSTALLING", count, "Checking Whistle on this device…", ID)
+            check(count == spec.size && digest.digest().joinToString("") { "%02x".format(it) } == spec.sha256) { "The download was damaged. Please try again." }
+            report("INSTALLING", count, "Checking the speech model on this phone…", ID)
             pcm.writeBytes(ByteArray(16000 * 4))
             RecognitionConnection(context, ModelValidationService::class.java).transcribe(temporary, pcm)
             ensureActive()
@@ -111,16 +111,16 @@ class SpeechModelStore(private val context: Context, private val data: androidx.
                 try {
                     repeat(3) { readers.acquire(); acquired++ }
                     withContext(NonCancellable) {
-                check(temporary.renameTo(modelFile)) { "Couldn't save Whistle. Check free storage." }
+                check(temporary.renameTo(modelFile)) { "Couldn't save the speech model. Check free space and try again." }
                 data.edit { p -> p[installedKey] = true; p[selectionKey] = ID; p[stateKey] = "READY"; p[bytesKey] = spec.size
-                    p[messageKey] = "Cactus Whistle is installed. Recognition runs offline." }
+                    p[messageKey] = "Speech model installed. ReadAlong works offline." }
                     }
                 } finally { repeat(acquired) { readers.release() } }
             }
         } finally { temporary.delete(); pcm.delete() }
     } }
     suspend fun import(uri: Uri, modelId: String = ID) = withContext(Dispatchers.IO) {
-        context.contentResolver.openInputStream(uri).use { input -> install(requireNotNull(input) { "Couldn't open Whistle model." }, modelId) }
+        context.contentResolver.openInputStream(uri).use { input -> install(requireNotNull(input) { "Couldn't open that file." }, modelId) }
     }
     suspend fun cleanAbandonedImports() {
         recoverIfNeeded()
@@ -135,7 +135,7 @@ class SpeechModelStore(private val context: Context, private val data: androidx.
         try {
             repeat(3) { readers.acquire(); acquired++ }
             withContext(Dispatchers.IO) {
-        check(!modelFile.exists() || modelFile.delete()) { "Couldn't remove Whistle." }
+        check(!modelFile.exists() || modelFile.delete()) { "Couldn't remove the speech model. Please try again." }
         data.edit { p -> p[installedKey] = false; p[stateKey] = "MISSING"; p[bytesKey] = 0; p.remove(messageKey) }
             }
         } finally { repeat(acquired) { readers.release() } }

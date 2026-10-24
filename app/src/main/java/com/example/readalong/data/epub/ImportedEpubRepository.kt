@@ -73,7 +73,7 @@ class ImportedEpubRepository(private val context: Context, private val database:
                             encodeStyles(block.styles), block.centered, "[]", -1, -1, 0f)
                     }) }
                     dao.put(ImportedEpubEntity(bookId, id, Uri.fromFile(file).toString(), parsed.title, "QUEUED",
-                        "EPUB added. Matching it to the available transcript in the background.", "EPUB", -1, 0, 0, 0, 0, System.currentTimeMillis()))
+                        "EPUB added. Matching it to the audio…", "EPUB", -1, 0, 0, 0, 0, System.currentTimeMillis()))
                     dao.prune(bookId, id)
                 }
                 published = true
@@ -346,7 +346,7 @@ class ImportedEpubRepository(private val context: Context, private val database:
                 else -> "UNUSABLE"
             }
             val message = when (state) {
-                "WAITING_TRANSCRIPT" -> "EPUB ready to read. Audio sync will update as Whistle prepares the whole book."
+                "WAITING_TRANSCRIPT" -> "EPUB ready to read. It links to the audio as your ReadAlong is made."
                 "UNUSABLE" -> "No reliable matches yet. Check that this is the same book and edition. Generated text remains available."
                 else -> "${(result.coverage * 100).toInt()}% of available transcript words matched · ${result.matchedSegments}/${result.totalSegments} passages. Short unmatched gaps between timed passages use estimated timing."
             }

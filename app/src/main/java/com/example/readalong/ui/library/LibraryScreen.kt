@@ -39,6 +39,7 @@ fun LibraryScreen(
     miniPlayer: @Composable () -> Unit = {},
     importControls: @Composable () -> Unit = {},
     importStatus: @Composable () -> Unit = {},
+    emptyActions: @Composable () -> Unit = {},
 ) {
     var query by rememberSaveable { mutableStateOf("") }
     var searchVisible by rememberSaveable { mutableStateOf(false) }
@@ -49,6 +50,7 @@ fun LibraryScreen(
     val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as? com.example.readalong.ReadAlongApplication
     val scope = rememberCoroutineScope()
     val width = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp
+    fun hideTip() { if (!settings.longPressTipHidden) scope.launch { app?.appPreferences?.update { it.copy(longPressTipHidden = true) } } }
     Scaffold(bottomBar = miniPlayer) { insets ->
         LazyVerticalGrid(
             columns = if (settings.listLibrary) GridCells.Fixed(1) else if (width >= 600) GridCells.Adaptive(180.dp) else GridCells.Fixed(2),
@@ -86,7 +88,20 @@ fun LibraryScreen(
                         LibraryMessage(
                             title = stringResource(if (state.books.isEmpty()) R.string.no_audiobooks else R.string.no_search_results),
                             message = stringResource(if (state.books.isEmpty()) R.string.empty_library_message else R.string.no_search_results_message),
+                            actions = if (state.books.isEmpty() && query.isBlank()) emptyActions else null,
                         )
+                    }
+                }
+                // One-time hint for the long-press menu; it also goes away the first time a book is long-pressed.
+                if (groups.isNotEmpty() && !settings.longPressTipHidden && !searchVisible) item(key = "long-press-tip", span = { GridItemSpan(maxLineSpan) }) {
+                    Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.secondaryContainer) {
+                        Row(Modifier.fillMaxWidth().padding(start = 16.dp, top = 4.dp, bottom = 4.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text("Tip: press and hold a book to change its title, cover or status.", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer)
+                            IconButton(onClick = { scope.launch { app?.appPreferences?.update { it.copy(longPressTipHidden = true) } } }) {
+                                com.example.readalong.ui.components.CloseGlyph(MaterialTheme.colorScheme.onSecondaryContainer, "Dismiss tip")
+                            }
+                        }
                     }
                 }
                 groups.forEach { group ->
@@ -102,7 +117,7 @@ fun LibraryScreen(
                                 modifier = Modifier.semantics { heading() },
                             )
                             if (group == groups.first()) Box {
-                                IconButton(onClick = { sortMenu = true }, modifier = Modifier.testTag("library_sort")) { Icon(painterResource(R.drawable.ic_chapters), "Sort library", tint = MaterialTheme.colorScheme.primary) }
+                                IconButton(onClick = { sortMenu = true }, modifier = Modifier.testTag("library_sort")) { Icon(painterResource(R.drawable.ic_sort), "Sort and view", tint = MaterialTheme.colorScheme.primary) }
                                 DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
                                     DropdownMenuItem(text = { Text(if (settings.listLibrary) "Cover mode" else "List mode") }, onClick = { scope.launch { app?.appPreferences?.update { it.copy(listLibrary = !settings.listLibrary) } }; sortMenu = false })
                                     LibrarySort.entries.forEach { choice -> DropdownMenuItem(text = { Text(stringResource(if (choice == LibrarySort.RECENT) R.string.sort_recent else R.string.sort_title)) }, onClick = { sortName = choice.name; sortMenu = false }) }
@@ -110,7 +125,7 @@ fun LibraryScreen(
                             } else Text(group.books.size.toString(), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelLarge)
                         }
                     }
-                    items(group.books, key = { "book:${it.id}" }) { book -> Box(Modifier.animateItem(fadeInSpec = tween(180), placementSpec = tween(260, easing = com.example.readalong.ui.reading.ReaderMotionEasing), fadeOutSpec = tween(120))) { if (settings.listLibrary) BookListRow(book, selected = book.id == selectedBookId, onLongClick = { onLongBook(book) }) { onBook(book.id) } else BookTile(book, selected = book.id == selectedBookId, onLongClick = { onLongBook(book) }) { onBook(book.id) } } }
+                    items(group.books, key = { "book:${it.id}" }) { book -> Box(Modifier.animateItem(fadeInSpec = tween(180), placementSpec = tween(260, easing = com.example.readalong.ui.reading.ReaderMotionEasing), fadeOutSpec = tween(120))) { if (settings.listLibrary) BookListRow(book, selected = book.id == selectedBookId, onLongClick = { hideTip(); onLongBook(book) }) { onBook(book.id) } else BookTile(book, selected = book.id == selectedBookId, onLongClick = { hideTip(); onLongBook(book) }) { onBook(book.id) } } }
                 }
             } else {
                 item(key = "status", span = { GridItemSpan(maxLineSpan) }) {
@@ -131,11 +146,12 @@ fun LibraryScreen(
 }
 
 @Composable
-private fun LibraryMessage(title: String, message: String) {
-    Column(Modifier.fillMaxWidth().padding(vertical = 48.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+private fun LibraryMessage(title: String, message: String, actions: (@Composable () -> Unit)? = null) {
+    Column(Modifier.fillMaxWidth().padding(vertical = if (actions != null) 24.dp else 48.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Icon(painterResource(R.drawable.ic_book), null, Modifier.size(48.dp), tint = MaterialTheme.colorScheme.primary)
         Text(title, style = MaterialTheme.typography.titleLarge)
-        Text(message, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+        Text(message, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyLarge)
+        actions?.invoke()
     }
 }
 
