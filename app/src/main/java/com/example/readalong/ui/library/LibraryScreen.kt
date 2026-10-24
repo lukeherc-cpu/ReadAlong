@@ -1,6 +1,7 @@
 package com.example.readalong.ui.library
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.lazy.grid.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -70,21 +71,16 @@ fun LibraryScreen(
             }
             if (state is LibraryUiState.Ready) {
                 if (searchVisible) item(key = "search", span = { GridItemSpan(maxLineSpan) }) {
-                    OutlinedTextField(
-                        value = query,
-                        onValueChange = { query = it },
-                        label = { Text(stringResource(R.string.search_books)) },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        leadingIcon = { Icon(painterResource(R.drawable.ic_search), null, Modifier.size(24.dp)) },
-                        trailingIcon = if (query.isNotEmpty()) {
-                            { TextButton(onClick = { query = "" }) { Text(stringResource(R.string.clear_search)) } }
-                        } else null,
-                        shape = RoundedCornerShape(16.dp),
-                    )
+                    // Same search look as the reader: accent outline, grows in, count of matching books below.
+                    com.example.readalong.ui.components.ReadAlongSearchField(query, { query = it },
+                        onClose = { searchVisible = false; query = "" }, accent = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.fillMaxWidth(), placeholder = stringResource(R.string.search_books), testTag = "library_search")
                 }
                 item(key = "import-status", span = { GridItemSpan(maxLineSpan) }) { importStatus() }
                 val groups = libraryGroups(state.books, query, sort)
+                if (searchVisible && query.isNotBlank() && groups.isNotEmpty()) item(key = "search-count", span = { GridItemSpan(maxLineSpan) }) {
+                    com.example.readalong.ui.components.SearchCountLabel(groups.sumOf { it.books.size })
+                }
                 if (groups.isEmpty()) {
                     item(key = "empty", span = { GridItemSpan(maxLineSpan) }) {
                         LibraryMessage(
@@ -114,7 +110,7 @@ fun LibraryScreen(
                             } else Text(group.books.size.toString(), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelLarge)
                         }
                     }
-                    items(group.books, key = { "book:${it.id}" }) { book -> if (settings.listLibrary) BookListRow(book, selected = book.id == selectedBookId, onLongClick = { onLongBook(book) }) { onBook(book.id) } else BookTile(book, selected = book.id == selectedBookId, onLongClick = { onLongBook(book) }) { onBook(book.id) } }
+                    items(group.books, key = { "book:${it.id}" }) { book -> Box(Modifier.animateItem(fadeInSpec = tween(180), placementSpec = tween(260, easing = com.example.readalong.ui.reading.ReaderMotionEasing), fadeOutSpec = tween(120))) { if (settings.listLibrary) BookListRow(book, selected = book.id == selectedBookId, onLongClick = { onLongBook(book) }) { onBook(book.id) } else BookTile(book, selected = book.id == selectedBookId, onLongClick = { onLongBook(book) }) { onBook(book.id) } } }
                 }
             } else {
                 item(key = "status", span = { GridItemSpan(maxLineSpan) }) {
