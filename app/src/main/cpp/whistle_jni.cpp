@@ -1,4 +1,6 @@
 #include <jni.h>
+#include <sched.h>
+#include <android/log.h>
 #include <needle.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -19,6 +21,12 @@ void *weights = MAP_FAILED;
 size_t weightSize = 0;
 std::string loadedPath;
 long long loadMs = 0;
+// CPUs this thread could use when Whistle built its thread pool. Android changes them when ReadAlong
+// leaves or returns to the screen; the pool keeps workers pinned to the old fast cores, which crowds
+// them onto too few cores in the background. Rebuilding the engine in-process re-sizes and re-pins it.
+cpu_set_t loadedCpus;
+bool haveLoadedCpus = false;
+bool currentCpus(cpu_set_t *out) { CPU_ZERO(out); return sched_getaffinity(0, sizeof(cpu_set_t), out) == 0; }
 std::string utf8(JNIEnv *env, jstring input) {
     const char *value = env->GetStringUTFChars(input, nullptr);
     if (!value) throw std::runtime_error("Couldn't read recognition path.");
@@ -29,7 +37,11 @@ long long elapsed(std::chrono::steady_clock::time_point start) {
 }
 void load(const std::string &path) {
     loadMs = 0;
-    if (path == loadedPath) return;
+    cpu_set_t cpus;
+    const bool haveCpus = currentCpus(&cpus);
+    const bool cpusChanged = haveLoadedCpus && haveCpus && !CPU_EQUAL(&cpus, &loadedCpus);
+    if (path == loadedPath && !cpusChanged) return;
+    if (cpusChanged) __android_log_print(ANDROID_LOG_INFO, "ReadAlong", "CPU set changed (%d -> %d cores); rebuilding Whistle's thread pool.", CPU_COUNT(&loadedCpus), CPU_COUNT(&cpus));
     auto start = std::chrono::steady_clock::now();
     int fd = open(path.c_str(), O_RDONLY | O_CLOEXEC);
     if (fd < 0) throw std::runtime_error("Couldn't open Whistle model.");
@@ -45,6 +57,7 @@ void load(const std::string &path) {
     }
     if (weights != MAP_FAILED) munmap(weights, weightSize);
     weights = next; weightSize = info.st_size; loadedPath = path; loadMs = elapsed(start);
+    if (haveCpus) { loadedCpus = cpus; haveLoadedCpus = true; }
 }
 }
 
