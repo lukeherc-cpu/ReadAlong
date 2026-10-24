@@ -8,6 +8,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.layout.onSizeChanged
@@ -89,7 +91,8 @@ internal fun FittedSentenceLine(sentence: String, character: Int, onPhrase: (Str
 
 /** Preview and reader share paragraph formatting, so expanding preserves the sentence context. */
 @Composable
-fun FollowCard(state: PlaybackState, model: ReadingViewModel, onExpand: () -> Unit, color: Color = MaterialTheme.colorScheme.secondaryContainer, onCover: (() -> Unit)? = null, visible: Boolean = true, modifier: Modifier = Modifier, square: Boolean = true, showExpand: Boolean = true) {
+fun FollowCard(state: PlaybackState, model: ReadingViewModel, onExpand: () -> Unit, color: Color = MaterialTheme.colorScheme.secondaryContainer, onCover: (() -> Unit)? = null, visible: Boolean = true, modifier: Modifier = Modifier, square: Boolean = true, showExpand: Boolean = true,
+    colorOf: (() -> Color)? = null) {
     val frame = LocalReaderFrame.current
     val insets = LocalReaderInsets.current
     val ink = if (color.luminance() > .35f) Color(0xFF182A3B) else Color.White
@@ -110,6 +113,7 @@ fun FollowCard(state: PlaybackState, model: ReadingViewModel, onExpand: () -> Un
     val activeIndex = displayed.indexOf(currentPassage(passages, state.positionMs))
     val activeKey = displayed.getOrNull(activeIndex)?.id
     val list = androidx.compose.foundation.lazy.rememberLazyListState()
+    val follow = rememberSmoothFollow(list)
     var viewport by remember { mutableIntStateOf(0) }
     val layouts = remember { mutableStateMapOf<String, androidx.compose.ui.text.TextLayoutResult>() }
     val active = displayed.getOrNull(activeIndex)
@@ -132,7 +136,10 @@ fun FollowCard(state: PlaybackState, model: ReadingViewModel, onExpand: () -> Un
         val lineTop = if (line != null) layout!!.getLineTop(line) else 0f
         if (positionedKey != activeKey) {
             val offset = lineTop.toInt() - viewport / 5
-            if (positionedKey != null && visible) list.animateScrollToItem(activeIndex, offset)
+            val row = list.layoutInfo.visibleItemsInfo.firstOrNull { it.index == activeIndex }
+            // The next paragraph is usually already on screen: glide to it on the same spring.
+            if (positionedKey != null && visible && row != null) follow.scrollBy(row.offset + lineTop - viewport / 5)
+            else if (positionedKey != null && visible) list.animateScrollToItem(activeIndex, offset)
             else list.scrollToItem(activeIndex, offset)
             positionedKey = activeKey
         } else if (line != null) {
@@ -141,13 +148,16 @@ fun FollowCard(state: PlaybackState, model: ReadingViewModel, onExpand: () -> Un
                 val top = row.offset + lineTop
                 val bottom = row.offset + layout!!.getLineBottom(line)
                 if (top < 0 || bottom > viewport * .75f) {
-                    if (visible) list.animateScrollBy(top - viewport / 5, tween(550))
+                    if (visible) follow.scrollBy(top - viewport / 5)
                     else list.scrollToItem(activeIndex, lineTop.toInt() - viewport / 5)
                 }
             }
         }
     }
-    Card(onClick = onCover ?: onExpand, modifier = modifier.fillMaxWidth().then(if (square) Modifier.aspectRatio(1f) else Modifier.fillMaxHeight()).testTag("follow_card"), shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = color)) {
+    val cardShape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp)
+    // During expand/minimize the card's color animates; draw it (draw phase) instead of recomposing for it.
+    val surface = if (colorOf != null) Modifier.clip(cardShape).drawBehind { drawRect(colorOf().takeIf { it != Color.Unspecified } ?: color) } else Modifier
+    Card(onClick = onCover ?: onExpand, modifier = modifier.fillMaxWidth().then(if (square) Modifier.aspectRatio(1f) else Modifier.fillMaxHeight()).then(surface).testTag("follow_card"), shape = cardShape, colors = CardDefaults.cardColors(containerColor = if (colorOf != null) Color.Transparent else color)) {
         val density = androidx.compose.ui.platform.LocalDensity.current
         val retainedSize = frame?.layer?.size
         val fixed = if (frame?.frozen == true && retainedSize != null && retainedSize.width > 0)
@@ -161,8 +171,9 @@ fun FollowCard(state: PlaybackState, model: ReadingViewModel, onExpand: () -> Un
                     val paragraph = displayed[index]
                     val cues = remember(paragraph, sources) { sentenceCues(paragraph, sources) }
                     val sentence = cues.getOrNull(activeSentenceIndex(cues, state.positionMs))
+                    val focus = sentence?.let { it.start to it.end }
                     val text = paragraphText(paragraph, family, preferences.useEpubFonts, epubFonts,
-                        sentence?.let { it.start to it.end }, ink)
+                        focus, ink, fade = rememberSentenceFade(focus), base = ink.copy(alpha = .52f))
                     DisposableEffect(paragraph.id) { onDispose { layouts.remove(paragraph.id); rowTops.remove(paragraph.id) } }
                     Text(text, modifier = Modifier.fillMaxWidth().padding(start = if (paragraph.formatting?.kind in listOf("QUOTE", "LIST")) 16.dp else 0.dp)
                         .onGloballyPositioned { rowTops[paragraph.id] = it.positionInRoot().y },

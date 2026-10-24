@@ -18,10 +18,13 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.example.readalong.R
 
+/** The knob and the audio controls below move on one clock, so switching modes reads as one gesture. */
+internal const val ModeSwitchMillis = 260
+
 @Composable
 internal fun ReaderModeSwitch(bookMode: Boolean, select: (Boolean) -> Unit) {
     val shape = RoundedCornerShape(28.dp)
-    val x by animateDpAsState(if (bookMode) 0.dp else 52.dp, tween(200), label = "Reading mode selection")
+    val x by animateDpAsState(if (bookMode) 0.dp else 52.dp, tween(ModeSwitchMillis, easing = ReaderMotionEasing), label = "Reading mode selection")
     Box(Modifier.width(104.dp).height(44.dp).background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = .7f), shape)
         .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = .2f), shape).selectableGroup().clickable { select(!bookMode) }) {
         Box(Modifier.offset(x = x).size(52.dp, 44.dp).background(MaterialTheme.colorScheme.onSurface.copy(alpha = .12f), shape))
