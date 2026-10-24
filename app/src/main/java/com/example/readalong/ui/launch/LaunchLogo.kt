@@ -17,7 +17,7 @@ fun LaunchLogo(ready: Boolean = true, animate: Boolean = false, onFinished: () -
     val finished by rememberUpdatedState(onFinished)
     LaunchedEffect(ready, animate) {
         if (!ready) return@LaunchedEffect
-        if (animate && android.animation.ValueAnimator.areAnimatorsEnabled()) turn.animateTo(1f, tween(1100, easing = FastOutSlowInEasing))
+        if (animate && android.animation.ValueAnimator.areAnimatorsEnabled()) turn.animateTo(1f, tween(1000, easing = PageTurnEasing))
         finished()
     }
     if (!ready || animate) Box(Modifier.fillMaxSize().testTag("launch_logo").background(androidx.compose.ui.graphics.Color(LaunchPalettes.closest(com.example.readalong.ui.theme.LocalAppSettings.current.basicColor).background(com.example.readalong.ui.theme.LocalAppSettings.current.libraryLight))), contentAlignment = Alignment.Center) {

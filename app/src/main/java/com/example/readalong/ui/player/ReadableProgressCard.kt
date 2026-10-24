@@ -49,10 +49,12 @@ fun ReadableProgressCard(book: Book, job: ProcessingJobEntity?, estimate: String
             Row(Modifier.fillMaxWidth().height(68.dp).padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    val shownPercent by com.example.readalong.ui.components.animatedPercent(progress?.bookPercent ?: 0)
+                    val bar = com.example.readalong.ui.components.animatedFraction((progress?.bookPercent ?: 0) / 100f)
                     Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 13.sp, lineHeight = 16.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
-                    Text(if (waitingForCharging) "Waiting for charging" else if (ready) "Full book · 100% complete" else if (created) "$chapter · ${progress?.bookPercent ?: 0}%" else "Read along with your audiobook",
+                    Text(if (waitingForCharging) "Waiting for charging" else if (ready) "Full book · 100% complete" else if (created) "$chapter · $shownPercent%" else "Read along with your audiobook",
                         maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 11.sp, lineHeight = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    if (created) LinearProgressIndicator(progress = { (progress?.bookPercent ?: 0) / 100f }, modifier = Modifier.fillMaxWidth().height(2.dp))
+                    if (created) LinearProgressIndicator(progress = { bar.value }, modifier = Modifier.fillMaxWidth().height(2.dp))
                 }
                 IconButton(modifier = Modifier.size(40.dp), onClick = {
                     if (active) reading.cancelPreparation() else if (ready) { reading.hidePreparation(true); more = false } else if (!created && !book.isDemo && sourceEpub == null) sourceChoice = true else if (!created && sourceEpub != null) reading.createWithSource(true, null) {} else reading.prepareReadable()

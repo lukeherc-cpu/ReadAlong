@@ -31,6 +31,7 @@ import com.example.readalong.R
 import com.example.readalong.domain.model.Book
 import com.example.readalong.playback.*
 import com.example.readalong.ui.components.BookCover
+import com.example.readalong.ui.components.navSharedCover
 
 @Composable
 fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, onCollapse: () -> Unit, onFinished: (Boolean) -> Unit, reading: com.example.readalong.ui.reading.ReadingViewModel, onSpeechModel: () -> Unit, onFollow: () -> Unit) {
@@ -101,12 +102,13 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                             // Keep the preview composed, measured and following even while the art faces forward.
                             Box(Modifier.fillMaxSize().graphicsLayer { rotationY = 180f; alpha = if (flip > 90f) 1f else 0f }
                                 .then(if (flip <= 90f) Modifier.clearAndSetSemantics { } else Modifier)) {
-                                com.example.readalong.ui.reading.FollowCard(state, reading, onFollow, com.example.readalong.ui.reading.LocalReaderSurfaceColor.current.takeIf { it != Color.Unspecified } ?: palette.preview,
-                                    onCover = { showText = false }, visible = flip > 90f, modifier = if (showText) com.example.readalong.ui.reading.LocalReaderSurface.current else Modifier)
+                                com.example.readalong.ui.reading.FollowCard(state, reading, onFollow, palette.preview,
+                                    onCover = { showText = false }, visible = flip > 90f, modifier = if (showText) com.example.readalong.ui.reading.LocalReaderSurface.current else Modifier,
+                                    colorOf = com.example.readalong.ui.reading.LocalReaderSurfaceColor.current)
                             }
                             if (flip <= 90f) Box(Modifier.fillMaxSize().testTag("flip_cover")
                                 .clickable(role = Role.Button, onClickLabel = "Show reading preview") { showText = true }) {
-                                BookCover(book, Modifier.fillMaxSize(), large = true)
+                                BookCover(book, Modifier.fillMaxSize().navSharedCover(com.example.readalong.ui.components.LocalPlayerCoverKey.current), large = true)
                             }
                         }
                     }

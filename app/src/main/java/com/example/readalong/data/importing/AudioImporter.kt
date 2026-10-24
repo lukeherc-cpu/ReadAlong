@@ -81,22 +81,19 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
             media.putFolder(saved.copy(error = "Scan incomplete. Rescan to continue."))
             val root = requireNotNull(DocumentFile.fromTreeUri(context, uri))
             check(root.exists() && root.canRead()) { "Folder access was lost. Add this folder again to restore access." }
-            val groups = if (saved.mode == FolderMode.ONE_BOOK.name) listOf(root to collect(root)) else {
-                val children = root.listFiles()
-                listOf(root to Collected(children.filter { it.isFile && supported(it.name.orEmpty()) }.map { Source(it.uri, it.name!!) }, children.filter { it.isFile && it.name.orEmpty().endsWith(".epub", true) }, children.filter { it.isFile && it.name.orEmpty().endsWith(".readalong", true) })) +
-                    children.filter { it.isDirectory }.map { it to collect(it) }
-            }
+            val groups = if (saved.mode == FolderMode.ONE_BOOK.name) listOf(Group("folder:${root.uri}", root.name, collect(root))) else libraryGroups(root)
             val ids = mutableListOf<String>()
             val added = mutableListOf<String>()
             var failures = 0
             var transcriptFailures = 0
-            groups.filter { it.second.audio.isNotEmpty() }.forEach { (folder, found) ->
+            groups.filter { it.found.audio.isNotEmpty() }.forEach { group ->
+                val found = group.found
                 coroutineContext.ensureActive()
                 try {
-                    val (id, isNew) = importGroup(found.audio, "folder:${folder.uri}", uri.toString(), folder.name, explicit) ?: return@forEach
+                    val (id, isNew) = importGroup(found.audio, group.key, uri.toString(), group.name, explicit) ?: return@forEach
                     ids += id; if (isNew) added += id
                     val epubs = found.epubs
-                    val selected = if (epubs.size == 1) epubs.single() else epubs.singleOrNull { it.name?.substringBeforeLast('.')?.equals(folder.name, true) == true }
+                    val selected = if (epubs.size == 1) epubs.single() else epubs.singleOrNull { it.name?.substringBeforeLast('.')?.equals(group.name, true) == true }
                     if (selected != null) {
                         books.putMetadata(LibraryMetadataEntity("folder_epub:$id", selected.uri.toString()))
                         // A bad EPUB never rejects playable audio. Keep it discoverable for a retry.
@@ -268,6 +265,53 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
     }
 
     private data class Collected(val audio: List<Source>, val epubs: List<DocumentFile>, val transcripts: List<DocumentFile> = emptyList())
+    /** One audiobook found in a library folder: [key] keeps its identity stable across rescans. */
+    private data class Group(val key: String, val name: String?, val found: Collected)
+
+    /**
+     * Library folders: each subfolder with audio is a book (its own subfolders, e.g. CD1/CD2, belong
+     * to it). A subfolder without audio of its own is a shelf (e.g. an author) and is searched for
+     * books. Loose files in the root are one book, except several single-file audiobooks (.m4b),
+     * which are one book each. This covers the layouts audiobook download tools write: flat files,
+     * Author/Book and Author/Series/Book.
+     */
+    private fun libraryGroups(root: DocumentFile): List<Group> {
+        val groups = mutableListOf<Group>()
+        val children = root.listFiles()
+        val loose = children.filter { it.isFile && supported(it.name.orEmpty()) }
+        val epubs = children.filter { it.isFile && it.name.orEmpty().endsWith(".epub", true) }
+        val transcripts = children.filter { it.isFile && it.name.orEmpty().endsWith(".readalong", true) }
+        groups += singleFileBooks(loose, epubs, transcripts) ?: listOf(Group("folder:${root.uri}", root.name, Collected(loose.map { Source(it.uri, it.name!!) }, epubs, transcripts)))
+        val shelves = ArrayDeque(children.filter { it.isDirectory }.map { it to 1 })
+        while (shelves.isNotEmpty()) {
+            val (directory, depth) = shelves.removeFirst()
+            val inside = directory.listFiles()
+            val audio = inside.filter { it.isFile && supported(it.name.orEmpty()) }
+            val subfolders = inside.filter { it.isDirectory }
+            val discs = subfolders.isNotEmpty() && subfolders.all { DISC.matches(it.name.orEmpty()) }
+            when {
+                audio.isNotEmpty() || discs || depth >= 4 || subfolders.isEmpty() -> {
+                    val shelfBooks = if (subfolders.isEmpty()) singleFileBooks(audio, inside.filter { it.isFile && it.name.orEmpty().endsWith(".epub", true) },
+                        inside.filter { it.isFile && it.name.orEmpty().endsWith(".readalong", true) }) else null
+                    groups += shelfBooks ?: listOf(Group("folder:${directory.uri}", directory.name, collect(directory)))
+                }
+                else -> subfolders.forEach { shelves.add(it to depth + 1) }
+            }
+        }
+        return groups
+    }
+
+    /** Several .m4b files side by side are separate books; returns null for any other mix. */
+    private fun singleFileBooks(audio: List<DocumentFile>, epubs: List<DocumentFile>, transcripts: List<DocumentFile>): List<Group>? {
+        if (audio.size < 2 || !audio.all { it.name.orEmpty().endsWith(".m4b", true) }) return null
+        // "Part 1.m4b", "Part 2.m4b" are one book split into parts.
+        if (audio.any { PART.containsMatchIn(it.name.orEmpty()) }) return null
+        return audio.map { file ->
+            val name = file.name.orEmpty().substringBeforeLast('.')
+            val same = { other: DocumentFile -> other.name.orEmpty().substringBeforeLast('.').equals(name, true) }
+            Group("file:${file.uri}", name, Collected(listOf(Source(file.uri, file.name!!)), epubs.filter(same), transcripts.filter(same)))
+        }
+    }
     private fun collect(root: DocumentFile): Collected {
         val result = mutableListOf<Source>()
         val epubs = mutableListOf<DocumentFile>()
@@ -295,6 +339,10 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
         if (it.moveToFirst()) it.getString(0) else null
     } ?: uri.lastPathSegment ?: "Audiobook"
 
+    private companion object {
+        val DISC = Regex("(?i)^(cd|disc|disk|part)\\s*[-_ ]?\\d+.*")
+        val PART = Regex("(?i)\\b(part|pt|disc|disk|cd)\\s*[-_.]?\\s*\\d+")
+    }
     private fun supported(name: String) = name.substringAfterLast('.', "").lowercase() in setOf("mp3", "m4a", "m4b", "aac", "ogg", "opus", "flac", "wav", "mp4")
     private fun stableId(value: String) = MessageDigest.getInstance("SHA-256").digest(value.toByteArray()).joinToString("") { "%02x".format(it) }
 }
