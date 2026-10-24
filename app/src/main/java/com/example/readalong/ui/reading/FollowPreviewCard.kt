@@ -154,7 +154,7 @@ fun FollowCard(state: PlaybackState, model: ReadingViewModel, onExpand: () -> Un
             }
         }
     }
-    val cardShape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp)
+    val cardShape = androidx.compose.foundation.shape.RoundedCornerShape(com.example.readalong.ui.theme.Corners.large)
     // During expand/minimize the card's color animates; draw it (draw phase) instead of recomposing for it.
     val surface = if (colorOf != null) Modifier.clip(cardShape).drawBehind { drawRect(colorOf().takeIf { it != Color.Unspecified } ?: color) } else Modifier
     Card(onClick = onCover ?: onExpand, modifier = modifier.fillMaxWidth().then(if (square) Modifier.aspectRatio(1f) else Modifier.fillMaxHeight()).then(surface).testTag("follow_card"), shape = cardShape, colors = CardDefaults.cardColors(containerColor = if (colorOf != null) Color.Transparent else color)) {
@@ -173,11 +173,11 @@ fun FollowCard(state: PlaybackState, model: ReadingViewModel, onExpand: () -> Un
                     val sentence = cues.getOrNull(activeSentenceIndex(cues, state.positionMs))
                     val focus = sentence?.let { it.start to it.end }
                     val text = paragraphText(paragraph, family, preferences.useEpubFonts, epubFonts,
-                        focus, ink, fade = rememberSentenceFade(focus), base = ink.copy(alpha = .52f))
+                        focus, ink, fade = rememberSentenceFade(focus), base = ink.copy(alpha = .72f))
                     DisposableEffect(paragraph.id) { onDispose { layouts.remove(paragraph.id); rowTops.remove(paragraph.id) } }
                     Text(text, modifier = Modifier.fillMaxWidth().padding(start = if (paragraph.formatting?.kind in listOf("QUOTE", "LIST")) 16.dp else 0.dp)
                         .onGloballyPositioned { rowTops[paragraph.id] = it.positionInRoot().y },
-                        color = ink.copy(alpha = .52f), fontFamily = readingFont(family),
+                        color = ink.copy(alpha = .72f), fontFamily = readingFont(family),
                         fontSize = (preferences.fontSize * if (paragraph.formatting?.kind?.startsWith("H") == true) 1.25f else 1f).sp,
                         fontWeight = if (paragraph.formatting?.kind?.startsWith("H") == true) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Normal,
                         textAlign = if (paragraph.formatting?.centered == true || paragraph.formatting?.kind == "BREAK") androidx.compose.ui.text.style.TextAlign.Center else androidx.compose.ui.text.style.TextAlign.Start,

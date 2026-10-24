@@ -33,18 +33,13 @@ import androidx.compose.ui.input.pointer.pointerInput
 @Composable
 fun MiniPlayer(book: Book, state: PlaybackState, onOpen: () -> Unit, onToggle: () -> Unit, readerTheme: String = "DARK", onDismiss: (() -> Unit)? = null,
     onDrag: ((Float) -> Unit)? = null, onDragEnd: ((Float) -> Unit)? = null) {
-    val palette = com.example.readalong.ui.components.rememberCoverPalette(book)
     val settings = com.example.readalong.ui.theme.LocalAppSettings.current
+    val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
     val colored = settings.coloredMiniPlayer
-    val basic = com.example.readalong.ui.theme.basicPalette(settings.basicColor)
-    val basicBackground = if (settings.libraryLight) basic.accent else basic.background
-    val basicForeground = if (settings.libraryLight) basic.background else androidx.compose.ui.graphics.Color.White
-    val background = when (readerTheme) {
-        "LIGHT" -> androidx.compose.ui.graphics.Color(0xFFFAF9F5)
-        "SEPIA" -> androidx.compose.ui.graphics.Color(0xFFF0E6D2)
-        else -> palette.background
-    }
-    val foreground = if (readerTheme == "DARK") androidx.compose.ui.graphics.Color.White else androidx.compose.ui.graphics.Color(0xFF242820)
+    // One source for the colours, shared with the open/close transform.
+    val (background, foreground) = miniPlayerColors(book, readerTheme)
+    val basicBackground = background
+    val basicForeground = foreground
     key(book.id) {
     // Springs up when a book starts playing here; already in place when returning from the player,
     // where the container transform carries it instead.
@@ -74,7 +69,7 @@ fun MiniPlayer(book: Book, state: PlaybackState, onOpen: () -> Unit, onToggle: (
             onDragEnd = { onDragEnd?.invoke(tracker.calculateVelocity().y) },
             onDragCancel = { onDragEnd?.invoke(0f) },
         ) { change, amount -> change.consume(); tracker.addPosition(change.uptimeMillis, change.position); onDrag(amount) }
-    }), shape = RoundedCornerShape(18.dp), color = if (colored) background else basicBackground, contentColor = if (colored) foreground else basicForeground, shadowElevation = 8.dp) {
+    }), shape = RoundedCornerShape(com.example.readalong.ui.theme.Corners.large), color = if (colored) background else basicBackground, contentColor = if (colored) foreground else basicForeground, shadowElevation = 8.dp) {
         Box {
         // Grab handle: says "pull me up" without words.
         if (onDrag != null) Box(Modifier.align(Alignment.TopCenter).padding(top = 4.dp).size(28.dp, 3.dp)
@@ -85,7 +80,7 @@ fun MiniPlayer(book: Book, state: PlaybackState, onOpen: () -> Unit, onToggle: (
                 Text(book.title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleSmall)
                 Text(state.chapterTitle, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall, color = if (colored) foreground.copy(alpha = .7f) else basicForeground.copy(alpha = .7f))
             }
-            IconButton(onClick = onToggle) { com.example.readalong.ui.components.PlayPauseIcon(state.isPlaying, Modifier.size(28.dp), if (state.isPlaying) "Pause mini player" else "Play mini player") }
+            IconButton(onClick = { haptics.performHapticFeedback(if (state.isPlaying) androidx.compose.ui.hapticfeedback.HapticFeedbackType.ToggleOff else androidx.compose.ui.hapticfeedback.HapticFeedbackType.ToggleOn); onToggle() }) { com.example.readalong.ui.components.PlayPauseIcon(state.isPlaying, Modifier.size(28.dp), if (state.isPlaying) "Pause mini player" else "Play mini player") }
         }
         }
     }

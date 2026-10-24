@@ -36,7 +36,6 @@ data class AppPreferences(
     val readAlongExplained: Boolean = false,
     val longPressTipHidden: Boolean = false,
     val coverTipHidden: Boolean = false,
-    val folderExampleHidden: Boolean = false,
 )
 
 class AppPreferencesStore(private val context: Context) {
@@ -67,7 +66,6 @@ class AppPreferencesStore(private val context: Context) {
         p[booleanPreferencesKey("readalong_explained")] ?: false,
         p[booleanPreferencesKey("long_press_tip_hidden")] ?: false,
         p[booleanPreferencesKey("cover_tip_hidden")] ?: false,
-        p[booleanPreferencesKey("folder_example_hidden")] ?: false,
     )
     val preferences = store.data.catch { if (it is IOException) emit(emptyPreferences()) else throw it }.map(::decode)
     suspend fun update(change: (AppPreferences) -> AppPreferences) {
@@ -99,7 +97,6 @@ class AppPreferencesStore(private val context: Context) {
         p[booleanPreferencesKey("readalong_explained")] = value.readAlongExplained
         p[booleanPreferencesKey("long_press_tip_hidden")] = value.longPressTipHidden
         p[booleanPreferencesKey("cover_tip_hidden")] = value.coverTipHidden
-        p[booleanPreferencesKey("folder_example_hidden")] = value.folderExampleHidden
         }
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.example.readalong.ui.launch.LaunchAppearance.apply(context, decode(saved)) }
     }

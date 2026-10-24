@@ -68,9 +68,11 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
     val plainBackground = if (preferences.theme == "DARK") Color.Black else Color.White
     val plainInk = if (preferences.theme == "DARK") Color.White else Color.Black
     val colors = if (readingOnly) {
-        if (preferences.theme == "DARK") darkColorScheme(background = plainBackground, surface = plainBackground, onSurface = plainInk, onBackground = plainInk, primary = Color.White, onPrimary = Color.Black, secondaryContainer = Color(0xFF333333), onSecondaryContainer = Color.White)
-        else lightColorScheme(background = plainBackground, surface = plainBackground, onSurface = plainInk, onBackground = plainInk, primary = Color.Black, onPrimary = Color.White, secondaryContainer = Color(0xFFE5E5E5), onSecondaryContainer = Color.Black)
-    } else if (preferences.theme == "DARK") darkColorScheme(background = palette.background, surface = palette.background, onSurface = Color.White, onBackground = Color.White, primary = palette.accent, onPrimary = palette.background, secondaryContainer = palette.preview, onSecondaryContainer = Color.White) else lightColorScheme(
+        // Read only is deliberately monochrome; a grey palette fills every other role (no Material purple).
+        val grey = com.example.readalong.ui.components.CoverPalette(Color(0xFF111111), Color(0xFF4A4A4A), Color(0xFFE5E5E5))
+        if (preferences.theme == "DARK") com.example.readalong.ui.theme.readAlongScheme(false, grey).copy(background = plainBackground, surface = plainBackground, onSurface = plainInk, onBackground = plainInk, primary = Color.White, onPrimary = Color.Black, secondaryContainer = Color(0xFF333333), onSecondaryContainer = Color.White)
+        else com.example.readalong.ui.theme.readAlongScheme(true, grey, plainBackground).copy(onSurface = plainInk, onBackground = plainInk, primary = Color.Black, onPrimary = Color.White, secondaryContainer = Color(0xFFE5E5E5), onSecondaryContainer = Color.Black)
+    } else if (preferences.theme == "DARK") com.example.readalong.ui.theme.playerScheme(palette, palette.background).copy(onSurface = Color.White, onBackground = Color.White, secondaryContainer = palette.preview, onSecondaryContainer = Color.White) else com.example.readalong.ui.theme.readAlongScheme(true, palette).copy(
         primary = palette.preview, onPrimary = Color.White,
         background = if (preferences.theme == "SEPIA") Color(0xFFF0E6D2) else Color(0xFFFAF9F5),
         surface = if (preferences.theme == "SEPIA") Color(0xFFF0E6D2) else Color(0xFFFAF9F5),

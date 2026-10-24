@@ -128,6 +128,7 @@ fun ReadAlongApp(libraryViewModel: LibraryViewModel, app: com.example.readalong.
             }
             val sheetTravel = (com.example.readalong.ui.player.PlayerSheetHandoff.miniBounds?.top ?: with(androidx.compose.ui.platform.LocalDensity.current) { 600.dp.toPx() }).coerceAtLeast(1f)
             var opening by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+            val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
             fun openPlayer(book: com.example.readalong.domain.model.Book) {
                 if (opening) return
                 opening = true; sheetBook = book; transformBook = book
@@ -156,15 +157,17 @@ fun ReadAlongApp(libraryViewModel: LibraryViewModel, app: com.example.readalong.
                 importStatus = { com.example.readalong.ui.importing.ImportStatus(importModel) },
                 emptyActions = {
                     androidx.compose.foundation.layout.Column(verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp)) {
-                        if (!appSettings.folderExampleHidden) com.example.readalong.ui.importing.FolderExample(
-                            onDismiss = { setupScope.launch { app.appPreferences.update { it.copy(folderExampleHidden = true) } } })
                         com.example.readalong.ui.importing.AudiobookSourceButtons(importModel)
                     }
                 },
                 miniPlayer = {
                     activeBook?.let { book -> MiniPlayer(book, playbackState, { openPlayer(book) }, playback::toggle, readerTheme = readerSettings.theme,
                         onDismiss = { setupScope.launch { playback.releaseBook(book.id) } },
-                        onDrag = { dy -> if (!opening) { sheetBook = book; setupScope.launch { sheet.snapTo((sheet.value - dy / sheetTravel).coerceIn(0f, 1f)) } } },
+                        onDrag = { dy -> if (!opening) { sheetBook = book; setupScope.launch {
+                            val before = sheet.value
+                            sheet.snapTo((sheet.value - dy / sheetTravel).coerceIn(0f, 1f))
+                            if ((before < .3f) != (sheet.value < .3f)) haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.GestureThresholdActivate)
+                        } } },
                         onDragEnd = { velocity ->
                             if (opening) Unit
                             else if (sheet.value > .3f || velocity < -900f) openPlayer(book)

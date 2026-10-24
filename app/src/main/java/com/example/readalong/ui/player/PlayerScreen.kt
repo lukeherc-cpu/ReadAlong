@@ -35,6 +35,7 @@ import com.example.readalong.playback.*
 import com.example.readalong.ui.components.BookCover
 import com.example.readalong.ui.components.navSharedCover
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, onCollapse: () -> Unit, onFinished: (Boolean) -> Unit, reading: com.example.readalong.ui.reading.ReadingViewModel, onSpeechModel: () -> Unit, onFollow: () -> Unit, onFolders: () -> Unit = {}) {
     LaunchedEffect(book.id) { reading.warmPreview() }
@@ -67,7 +68,7 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
     val chapterDuration = state.chapterDurationMs
     val chapterPosition = state.chapterPositionMs
     val palette = com.example.readalong.ui.components.rememberCoverPalette(book)
-    val colors = darkColorScheme(primary = palette.accent, onPrimary = Color(0xFF142332), background = Color(0xFF101418), secondaryContainer = palette.preview)
+    val colors = com.example.readalong.ui.theme.playerScheme(palette).copy(secondaryContainer = palette.preview)
     val screenHeight = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
     MaterialTheme(colorScheme = colors) {
     Box(Modifier.fillMaxSize().background(palette.background)) {
@@ -98,7 +99,7 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                 val wide = maxWidth >= 640.dp
                 val artwork: @Composable () -> Unit = {
                     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        if (book.mediaState == "MISSING") Surface(shape = RoundedCornerShape(16.dp), color = colors.errorContainer) {
+                        if (book.mediaState == "MISSING") Surface(shape = RoundedCornerShape(com.example.readalong.ui.theme.Corners.medium), color = colors.errorContainer) {
                             Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Text("Can't find this book's audio. Its folder may have moved or been renamed.", color = colors.onErrorContainer, style = MaterialTheme.typography.bodyMedium)
                                 TextButton(onClick = onFolders, contentPadding = PaddingValues(0.dp)) { Text("Choose folder again", color = colors.onErrorContainer) }
@@ -133,31 +134,47 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                 }
                 val controls: @Composable ColumnScope.() -> Unit = {
                 com.example.readalong.ui.components.MarqueeTitle(book.title, Modifier.fillMaxWidth(), MaterialTheme.typography.headlineMedium)
-                Text(state.chapterTitle, style = MaterialTheme.typography.titleMedium, color = colors.onSurfaceVariant)
+                // Chapter, then how much of the whole book is left; the slider row keeps only the chapter's times.
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(state.chapterTitle, style = MaterialTheme.typography.titleMedium, color = colors.onSurfaceVariant)
+                    if (state.durationMs > 0) Text("${bookTimeLeft(state.durationMs - state.positionMs)} left in book", style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant.copy(alpha = .8f))
+                }
+                val sliderColors = SliderDefaults.colors(thumbColor = colors.primary, activeTrackColor = colors.primary, inactiveTrackColor = colors.onSurface.copy(alpha = .18f))
                 Slider(
                     value = if (dragging) draggedPosition else chapterPosition.toFloat().coerceAtMost(chapterDuration.toFloat()),
                     onValueChange = { dragging = true; draggedPosition = it },
                     onValueChangeFinished = { playback.seek(start + draggedPosition.toLong()); dragging = false },
                     valueRange = 0f..chapterDuration.toFloat(),
                     modifier = Modifier.semantics { contentDescription = "Seek within chapter" },
+                    // A plain round thumb on one continuous rounded track (no split thumb, gap or end dot).
+                    thumb = { Box(Modifier.size(18.dp).background(colors.primary, CircleShape)) },
+                    track = { sliderState -> SliderDefaults.Track(sliderState = sliderState, modifier = Modifier.height(5.dp), colors = sliderColors,
+                        drawStopIndicator = null, thumbTrackGapSize = 0.dp, trackInsideCornerSize = 0.dp) },
                 )
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(clockTime(chapterPosition), style = MaterialTheme.typography.bodySmall)
-                    Text(if (state.durationMs > 0) "${clockTime(state.durationMs - state.positionMs)} left in book" else "Length unknown", style = MaterialTheme.typography.bodySmall, color = colors.onSurface)
-                    Text(clockTime(chapterDuration), style = MaterialTheme.typography.bodySmall)
+                    Text(clockTime(chapterPosition), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+                    Text(clockTime(chapterDuration), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
                 }
                 state.error?.let { Text(it, color = colors.error, style = MaterialTheme.typography.bodySmall) }
 
                 Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
                     PlayerAction("Rewind ${appSettings.playerBack} seconds", R.drawable.ic_rewind, "${appSettings.playerBack}", { playback.skip(-appSettings.playerBack * 1000L) })
-                    FilledIconButton(onClick = playback::toggle, modifier = Modifier.size(76.dp), shape = CircleShape) {
+                    val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
+                    FilledIconButton(onClick = { haptics.performHapticFeedback(if (state.isPlaying) androidx.compose.ui.hapticfeedback.HapticFeedbackType.ToggleOff else androidx.compose.ui.hapticfeedback.HapticFeedbackType.ToggleOn); playback.toggle() }, modifier = Modifier.size(76.dp), shape = CircleShape) {
                         com.example.readalong.ui.components.PlayPauseIcon(state.isPlaying, Modifier.size(36.dp))
                     }
                     PlayerAction("Forward ${appSettings.playerForward} seconds", R.drawable.ic_forward, "${appSettings.playerForward}", { playback.skip(appSettings.playerForward * 1000L) })
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onClick = { panel = "speed" }) { Text("${state.speed}×") }
-                    PlayerAction("Sleep timer", R.drawable.ic_sleep, if (state.sleepEndsAt != null || state.sleepAtChapterEnd) "On" else "Sleep", { panel = "sleep" })
+                    PlayerAction("Playback speed", R.drawable.ic_speed, "${state.speed}×", { panel = "speed" })
+                    // Running timer: the moon fills in and the label counts down.
+                    val sleepLeft by produceState<Long?>(null, state.sleepEndsAt) {
+                        while (true) { value = state.sleepEndsAt?.let { it - System.currentTimeMillis() }; kotlinx.coroutines.delay(15_000) }
+                    }
+                    val sleeping = state.sleepEndsAt != null || state.sleepAtChapterEnd
+                    PlayerAction("Sleep timer", if (sleeping) R.drawable.ic_sleep_filled else R.drawable.ic_sleep,
+                        when { state.sleepAtChapterEnd -> "End of chapter"; sleepLeft != null -> "${((sleepLeft!! + 59_999) / 60_000).coerceAtLeast(1)} min left"; else -> "Sleep" },
+                        { panel = "sleep" })
                     PlayerAction("Bookmarks", R.drawable.ic_bookmark, "Bookmark", { panel = "bookmarks" })
                     PlayerAction("Chapters", R.drawable.ic_chapters, "Chapters", { panel = "chapters" })
                 }
@@ -229,7 +246,14 @@ private fun PlayerAction(description: String, icon: Int, label: String, onClick:
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Icon(painterResource(icon), description, Modifier.size(26.dp))
-        Text(label, style = MaterialTheme.typography.labelSmall)
+        Spacer(Modifier.height(4.dp))
+        Text(label, style = MaterialTheme.typography.labelSmall, maxLines = 1)
     }
 }
 
+
+/** "12 h 7 min" / "45 min": easier to take in than 12:07:07 for the whole book. */
+private fun bookTimeLeft(ms: Long): String {
+    val minutes = (ms.coerceAtLeast(0) + 59_999) / 60_000
+    return if (minutes < 60) "$minutes min" else "${minutes / 60} h ${minutes % 60} min"
+}

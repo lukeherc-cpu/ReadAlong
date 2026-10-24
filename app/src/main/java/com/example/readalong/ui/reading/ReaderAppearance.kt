@@ -76,7 +76,8 @@ private val importedFontCache = java.util.concurrent.ConcurrentHashMap<String, F
 internal fun readingFont(name: String): FontFamily {
     val context = androidx.compose.ui.platform.LocalContext.current
     val bundled = ReaderFonts.bundled.firstOrNull { it.first == name }
-    if (bundled != null) return remember(name) { FontFamily(androidx.compose.ui.text.font.Font(bundled.third, weight = if (name == "JAKARTA") androidx.compose.ui.text.font.FontWeight.ExtraBold else androidx.compose.ui.text.font.FontWeight.Normal)) }
+    if (name == "JAKARTA") return remember { jakarta }
+    if (bundled != null) return remember(name) { FontFamily(androidx.compose.ui.text.font.Font(bundled.third, weight = androidx.compose.ui.text.font.FontWeight.Normal)) }
     val imported by produceState<FontFamily?>(importedFontCache[name], name) {
         value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             ReaderFonts.file(context, name)?.takeIf { it.exists() }?.let { file ->
@@ -101,3 +102,12 @@ internal fun FontChoice(label: String, value: String, choices: List<Pair<String,
         }
     }
 }
+
+/** The app's own sans in three real weights (regular, semi-bold, extra-bold) rather than one synthesized one. */
+private val jakarta = FontFamily(
+    androidx.compose.ui.text.font.Font(com.example.readalong.R.font.jakarta_regular, androidx.compose.ui.text.font.FontWeight.Normal),
+    androidx.compose.ui.text.font.Font(com.example.readalong.R.font.jakarta_semibold, androidx.compose.ui.text.font.FontWeight.Medium),
+    androidx.compose.ui.text.font.Font(com.example.readalong.R.font.jakarta_semibold, androidx.compose.ui.text.font.FontWeight.SemiBold),
+    androidx.compose.ui.text.font.Font(com.example.readalong.R.font.jakarta_extrabold, androidx.compose.ui.text.font.FontWeight.Bold),
+    androidx.compose.ui.text.font.Font(com.example.readalong.R.font.jakarta_extrabold, androidx.compose.ui.text.font.FontWeight.ExtraBold),
+)

@@ -56,7 +56,7 @@ fun ReadAlongSearchField(query: String, onQuery: (String) -> Unit, onClose: () -
     val focus = remember { FocusRequester() }
     LaunchedEffect(autoFocus) { if (autoFocus) runCatching { focus.requestFocus() } }
     val content = MaterialTheme.colorScheme.onSurface
-    val shape = RoundedCornerShape(14.dp)
+    val shape = RoundedCornerShape(com.example.readalong.ui.theme.Corners.medium)
     Row(modifier.graphicsLayer { scaleX = .85f + .15f * appear.value; alpha = appear.value }
         .heightIn(min = 56.dp).clip(shape).background(MaterialTheme.colorScheme.surface).border(2.dp, accent, shape).padding(start = 16.dp),
         verticalAlignment = Alignment.CenterVertically) {
@@ -100,7 +100,7 @@ fun SearchResultCard(text: AnnotatedString, meta: String, index: Int, fontFamily
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val press by animateFloatAsState(if (pressed) .97f else 1f, tween(120), label = "Result press")
-    val shape = RoundedCornerShape(16.dp)
+    val shape = RoundedCornerShape(com.example.readalong.ui.theme.Corners.medium)
     Column(modifier.fillMaxWidth().graphicsLayer {
             alpha = appear.value; translationY = (1f - appear.value) * 20.dp.toPx(); scaleX = press; scaleY = press
         }.clip(shape).background(MaterialTheme.colorScheme.onSurface.copy(alpha = .06f))

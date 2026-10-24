@@ -155,7 +155,7 @@ class FoundationNavigationTest {
         val original = kotlinx.coroutines.runBlocking { app.appPreferences.preferences.first() }
         waitForLibrary()
         compose.onNodeWithContentDescription("Settings").performClick()
-        compose.onNodeWithContentDescription("Light library").performClick()
+        compose.onNodeWithContentDescription("Light theme").performClick()
         compose.onNodeWithText("Restart ReadAlong?").assertIsDisplayed()
         assertEquals(original.libraryLight, kotlinx.coroutines.runBlocking { app.appPreferences.preferences.first().libraryLight })
         compose.onNodeWithText("Cancel").performClick()
@@ -173,10 +173,10 @@ class FoundationNavigationTest {
         try {
             waitForLibrary()
             compose.onNodeWithContentDescription("Settings").performClick()
-            compose.onNodeWithContentDescription("Light library").performClick()
+            compose.onNodeWithContentDescription("Light theme").performClick()
             compose.onNodeWithText("Restart ReadAlong?").assertIsDisplayed()
             compose.onNodeWithText("Restart").performClick()
-            compose.onNodeWithContentDescription("Match mini-player to book colors").performClick()
+            compose.onNodeWithContentDescription("Match mini player to book colors").performClick()
             compose.onNodeWithContentDescription("Follow along").performScrollTo().performClick()
             compose.onNodeWithContentDescription("Open Read Along in full screen").performScrollTo().performClick()
             compose.onNodeWithText("Reading fonts and appearance").performScrollTo().performClick()
@@ -184,8 +184,8 @@ class FoundationNavigationTest {
             compose.onNodeWithText("Sans serif").performClick()
             compose.onNodeWithText("Apply").performClick()
             compose.activityRule.scenario.recreate()
-            compose.onNodeWithContentDescription("Light library").performScrollTo().assertIsOff()
-            compose.onNodeWithContentDescription("Match mini-player to book colors").assertIsOff()
+            compose.onNodeWithContentDescription("Light theme").performScrollTo().assertIsOff()
+            compose.onNodeWithContentDescription("Match mini player to book colors").assertIsOff()
             compose.onNodeWithContentDescription("Open Read Along in full screen").performScrollTo().assertIsOn()
             kotlinx.coroutines.runBlocking {
                 org.junit.Assert.assertEquals("SANS", app.readerPreferences.preferences.first().previewFont)
