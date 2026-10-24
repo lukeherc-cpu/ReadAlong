@@ -21,7 +21,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
@@ -71,7 +74,7 @@ private fun ColumnScope.WelcomeSources(model: ImportViewModel, onAdded: () -> Un
     val message by model.message.collectAsStateWithLifecycle()
     Spacer(Modifier.height(8.dp))
     Text("Where are your audiobooks?", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.semantics { heading() })
-    Text("Pick the folder that holds your audiobooks. ReadAlong looks for new books there each time you come back.", style = MaterialTheme.typography.bodyLarge)
+    Text("Choose where your audiobooks are. ReadAlong looks for new books there each time you come back.", style = MaterialTheme.typography.bodyLarge)
     FolderExample()
     AudiobookSourceButtons(model, onAdded)
     if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
@@ -79,54 +82,116 @@ private fun ColumnScope.WelcomeSources(model: ImportViewModel, onAdded: () -> Un
     TextButton(onClick = onSkip, enabled = !busy, modifier = Modifier.align(Alignment.CenterHorizontally)) { Text("Skip for now") }
 }
 
-/** Folder, files and Audible: shared by the welcome screen and the empty library. */
+/**
+ * The three kinds of source, each with its own shade of the accent, used by both the example and the
+ * buttons so they read as a key: library folder (strongest), audiobook folder, audio file (lightest).
+ */
+@Composable
+internal fun sourceShades(): List<Pair<androidx.compose.ui.graphics.Color, androidx.compose.ui.graphics.Color>> {
+    val colors = MaterialTheme.colorScheme
+    return listOf(0f, .3f, .55f).map { mix ->
+        val shade = androidx.compose.ui.graphics.lerp(colors.primary, colors.background, mix)
+        // Whichever of white or near-black text has more contrast on this shade.
+        val l = shade.luminance()
+        shade to (if ((l + .05f) / .066f > 1.05f / (l + .05f)) androidx.compose.ui.graphics.Color(0xFF1B2229) else androidx.compose.ui.graphics.Color.White)
+    }
+}
+
+/** Library folder, audiobook folder, files and Audible: shared by the welcome screen and the empty library. */
 @Composable
 fun AudiobookSourceButtons(model: ImportViewModel, onAdded: () -> Unit = {}) {
     val busy by model.busy.collectAsStateWithLifecycle()
     var audible by rememberSaveable { mutableStateOf(false) }
-    val folder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+    val shades = sourceShades()
+    val library = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         uri?.let { model.folder(it, FolderMode.LIBRARY, onAdded) }
     }
-    val files = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
-        if (uris.isNotEmpty()) { model.files(uris); onAdded() }
+    val book = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        uri?.let { model.folder(it, FolderMode.ONE_BOOK, onAdded) }
+    }
+    val file = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) { model.files(listOf(uri)); onAdded() }
     }
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Button(onClick = { folder.launch(null) }, enabled = !busy, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp).testTag("choose_folder")) {
-            Icon(painterResource(R.drawable.ic_folder), null, Modifier.size(20.dp)); Spacer(Modifier.width(10.dp)); Text("Choose audiobook folder")
-        }
-        OutlinedButton(onClick = { files.launch(arrayOf("audio/*", "application/octet-stream", "video/mp4")) }, enabled = !busy, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
-            Text("Add audio files")
-        }
+        SourceButton(shades[0], R.drawable.ic_bookshelf, "Choose library folder", "A folder with all your audiobook folders", !busy, Modifier.testTag("choose_folder")) { library.launch(null) }
+        SourceButton(shades[1], R.drawable.ic_folder, "Choose audiobook folder", "A folder with one audiobook's files", !busy) { book.launch(null) }
+        SourceButton(shades[2], R.drawable.ic_play, "Add audio file", "One file that holds a whole audiobook", !busy) { file.launch(arrayOf("audio/*", "application/octet-stream", "video/mp4")) }
         OutlinedButton(onClick = { audible = true }, enabled = !busy, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
             Text("Import from Audible")
         }
     }
-    if (audible) AudibleImportDialog(onChooseFolder = { audible = false; folder.launch(null) }, onDismiss = { audible = false })
+    if (audible) AudibleImportDialog(onChooseFolder = { audible = false; library.launch(null) }, onDismiss = { audible = false })
 }
 
-/** A tiny picture of a folder layout that works. */
 @Composable
-fun FolderExample(modifier: Modifier = Modifier) {
-    Surface(modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("For example", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            FolderLine(0.dp, true, "Audiobooks")
-            FolderLine(20.dp, true, "Dune")
-            FolderLine(40.dp, false, "Part 1.mp3")
-            FolderLine(40.dp, false, "Part 2.mp3")
-            FolderLine(20.dp, false, "Project Hail Mary.m4b")
-            Text("A folder for each book, or single audio files: both work.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp))
+private fun SourceButton(shade: Pair<androidx.compose.ui.graphics.Color, androidx.compose.ui.graphics.Color>, icon: Int, title: String, subtitle: String?, enabled: Boolean,
+    modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Button(onClick = onClick, enabled = enabled, modifier = modifier.fillMaxWidth().heightIn(min = 56.dp),
+        colors = ButtonDefaults.buttonColors(containerColor = shade.first, contentColor = shade.second),
+        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp)) {
+        Icon(painterResource(icon), null, Modifier.size(20.dp)); Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleSmall)
+            subtitle?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = shade.second.copy(alpha = .8f)) }
         }
     }
 }
 
+/**
+ * A small picture of a folder layout, drawn like a file manager's tree (down arrows on folders,
+ * connector lines); each kind wears the same shade as its button. [onDismiss] adds a close button.
+ */
 @Composable
-private fun FolderLine(indent: Dp, folder: Boolean, name: String) {
-    Row(Modifier.padding(start = indent), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Icon(painterResource(if (folder) R.drawable.ic_folder else R.drawable.ic_play), null, Modifier.size(18.dp),
-            tint = if (folder) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(name, style = MaterialTheme.typography.bodyLarge, fontWeight = if (folder) FontWeight.SemiBold else FontWeight.Normal)
+fun FolderExample(modifier: Modifier = Modifier, onDismiss: (() -> Unit)? = null) {
+    val shades = sourceShades()
+    Surface(modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
+        Box {
+            Column(Modifier.padding(16.dp)) {
+                Text("For example", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 8.dp))
+                TreeLine(0, shades[0], "Audiobooks", folder = true, open = true)
+                TreeLine(1, shades[1], "Dune", folder = true, open = true, last = false)
+                TreeLine(2, shades[2], "Part 1.mp3", continuing = listOf(true), last = false)
+                TreeLine(2, shades[2], "Part 2.mp3", continuing = listOf(true), last = true)
+                TreeLine(1, shades[1], "Project Hail Mary", folder = true, open = true, last = true)
+                TreeLine(2, shades[2], "Project Hail Mary.m4b", continuing = listOf(false), last = true)
+            }
+            if (onDismiss != null) IconButton(onClick = onDismiss, modifier = Modifier.align(Alignment.TopEnd)) {
+                com.example.readalong.ui.components.CloseGlyph(MaterialTheme.colorScheme.onSurfaceVariant, "Hide example")
+            }
+        }
+    }
+}
+
+private val TreeStep = 24.dp
+private val ArrowSize = 16.dp
+
+/**
+ * One row of the tree. [continuing] says, for each ancestor level between the root and this row's
+ * parent, whether that ancestor's line carries on below; [last] ends this row's own branch.
+ */
+@Composable
+private fun TreeLine(depth: Int, shade: Pair<androidx.compose.ui.graphics.Color, androidx.compose.ui.graphics.Color>, name: String,
+    folder: Boolean = false, open: Boolean = false, continuing: List<Boolean> = emptyList(), last: Boolean = true) {
+    val line = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .38f)
+    Row(Modifier.fillMaxWidth().height(38.dp).drawBehind {
+        val stroke = 1.5.dp.toPx(); val step = TreeStep.toPx(); val mid = size.height / 2
+        fun guide(level: Int) = (level - 1) * step + ArrowSize.toPx() / 2   // under the parent's arrow
+        // Ancestors whose branches continue past this row.
+        continuing.forEachIndexed { i, more -> if (more) drawLine(line, Offset(guide(i + 1), 0f), Offset(guide(i + 1), size.height), stroke) }
+        if (depth > 0) {
+            val x = guide(depth)
+            drawLine(line, Offset(x, 0f), Offset(x, if (last) mid else size.height), stroke)
+            drawLine(line, Offset(x, mid), Offset(depth * step - 3.dp.toPx(), mid), stroke)
+        }
+        // An open folder's own line runs down to its children.
+        if (folder && open) { val x = depth * step + ArrowSize.toPx() / 2; drawLine(line, Offset(x, mid + 9.dp.toPx()), Offset(x, size.height), stroke) }
+    }, verticalAlignment = Alignment.CenterVertically) {
+        Spacer(Modifier.width(TreeStep * depth))
+        if (folder) Icon(painterResource(R.drawable.ic_down), null, Modifier.size(ArrowSize), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        else Spacer(Modifier.width(4.dp))
+        Spacer(Modifier.width(6.dp))
+        Text(name, Modifier.clip(RoundedCornerShape(10.dp)).background(shade.first).padding(horizontal = 12.dp, vertical = 4.dp),
+            style = MaterialTheme.typography.bodyLarge, color = shade.second, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
     }
 }
 

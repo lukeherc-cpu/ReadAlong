@@ -19,7 +19,9 @@ import com.example.readalong.R
  */
 @Composable
 fun ReadAlongSourceDialog(busy: Boolean, message: String?, hasEpub: Boolean = false,
-    onDismiss: () -> Unit, onStart: (Boolean, Uri?) -> Unit, bookTitle: String? = null, durationMs: Long? = null) {
+    onDismiss: () -> Unit, onStart: (Boolean, Uri?) -> Unit, bookTitle: String? = null, durationMs: Long? = null,
+    book: com.example.readalong.domain.model.Book? = null) {
+    MaterialTheme(colorScheme = com.example.readalong.ui.components.rememberBookColorScheme(book)) {
     var align by rememberSaveable { mutableStateOf(hasEpub) }
     val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as? com.example.readalong.ReadAlongApplication
     val settings = com.example.readalong.ui.theme.LocalAppSettings.current
@@ -59,4 +61,5 @@ fun ReadAlongSourceDialog(busy: Boolean, message: String?, hasEpub: Boolean = fa
         if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
         message?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
     }
+}
 }

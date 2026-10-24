@@ -76,7 +76,7 @@ class FoundationNavigationTest {
         compose.onNodeWithContentDescription("Audiobook folders").assertIsDisplayed()
         compose.onNodeWithContentDescription("Add audiobook").performClick()
         compose.onNodeWithText("Audiobook folder").assertIsDisplayed()
-        compose.onNodeWithText("Audio files").assertIsDisplayed()
+        compose.onNodeWithText("Audio file").assertIsDisplayed()
         compose.onNodeWithText("Cancel").performClick()
         compose.onNodeWithTag("library_grid").performScrollToNode(hasTestTag("book:demo-night-orchard"))
         compose.onNodeWithTag("book:demo-night-orchard").performTouchInput { longClick() }
