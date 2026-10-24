@@ -38,13 +38,42 @@ object TranscriptionPlan {
         }.toString()
         return java.security.MessageDigest.getInstance("SHA-256").digest(identity.toByteArray()).joinToString("") { "%02x".format(it) }
     }
-    fun encode(inputs: List<TranscriptionInput>): String = org.json.JSONArray().apply { inputs.forEach { input ->
-        put(org.json.JSONObject().put("book", input.bookId).put("chapter", input.chapterId).put("uri", input.audioUri)
-            .put("start", input.startMs).put("end", input.endMs).put("demo", input.isDemo).put("fileStart", input.fileStartMs))
-    } }.toString()
-    fun decode(json: String): List<TranscriptionInput> = org.json.JSONArray(json).let { array ->
-        (0 until array.length()).map { i -> val v = array.getJSONObject(i)
-            TranscriptionInput(v.getString("book"), v.getString("chapter"), if (v.has("uri")) v.getString("uri") else null,
-                v.getLong("start"), v.getLong("end"), v.getBoolean("demo"), v.getLong("fileStart")) }
+    /**
+     * Compact v2 plan. The v1 form repeated the book ID and full content URI in every 30-second
+     * unit (about 2.5 MB for a 55-hour book), and the row is rewritten on every status update
+     * and reread by every observer. v2 stores each string once and the units as a flat number
+     * array (about a tenth of the size). [decode] still reads v1 so saved checkpoints resume.
+     */
+    fun encode(inputs: List<TranscriptionInput>): String {
+        val books = LinkedHashMap<String, Int>(); val chapters = LinkedHashMap<String, Int>(); val uris = LinkedHashMap<String, Int>()
+        val units = org.json.JSONArray()
+        inputs.forEach { input ->
+            units.put(books.getOrPut(input.bookId) { books.size })
+            units.put(chapters.getOrPut(input.chapterId) { chapters.size })
+            units.put(input.audioUri?.let { uris.getOrPut(it) { uris.size } } ?: -1)
+            units.put(input.startMs); units.put(input.endMs); units.put(if (input.isDemo) 1 else 0); units.put(input.fileStartMs)
+        }
+        return org.json.JSONObject().put("v", 2).put("books", org.json.JSONArray(books.keys.toList()))
+            .put("chapters", org.json.JSONArray(chapters.keys.toList())).put("uris", org.json.JSONArray(uris.keys.toList()))
+            .put("units", units).toString()
+    }
+    fun decode(json: String): List<TranscriptionInput> {
+        if (json.trimStart().startsWith("{")) {
+            val root = org.json.JSONObject(json)
+            require(root.optInt("v") == 2) { "Unsupported transcription plan." }
+            fun strings(name: String) = root.getJSONArray(name).let { a -> List(a.length()) { a.getString(it) } }
+            val books = strings("books"); val chapters = strings("chapters"); val uris = strings("uris")
+            val units = root.getJSONArray("units")
+            require(units.length() % 7 == 0) { "Damaged transcription plan." }
+            return List(units.length() / 7) { i -> val o = i * 7
+                TranscriptionInput(books[units.getInt(o)], chapters[units.getInt(o + 1)], units.getInt(o + 2).let { if (it < 0) null else uris[it] },
+                    units.getLong(o + 3), units.getLong(o + 4), units.getInt(o + 5) == 1, units.getLong(o + 6))
+            }
+        }
+        return org.json.JSONArray(json).let { array ->
+            (0 until array.length()).map { i -> val v = array.getJSONObject(i)
+                TranscriptionInput(v.getString("book"), v.getString("chapter"), if (v.has("uri") && !v.isNull("uri")) v.getString("uri") else null,
+                    v.getLong("start"), v.getLong("end"), v.getBoolean("demo"), v.getLong("fileStart")) }
+        }
     }
 }

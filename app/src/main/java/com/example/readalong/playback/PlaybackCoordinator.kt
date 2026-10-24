@@ -14,7 +14,7 @@ import kotlinx.coroutines.sync.withLock
 /** A single UI facade. Fictional silent samples never feed the real audio service. */
 class PlaybackCoordinator(context: Context, repository: BookRepository, private val database: ReadAlongDatabase,
     private val store: PlaybackStore) : PlaybackControls {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate + com.example.readalong.data.diagnostics.BackgroundFailures.handler("Playback"))
     private val demo = DemoPlaybackController(repository)
     private val connection = PlaybackConnection(context)
     private val selectedDemo = MutableStateFlow(false)

@@ -24,16 +24,21 @@ class ReadAlongApplication : Application() {
     val processing by lazy { com.example.readalong.data.processing.ProcessingRepository(this, database, speechModel) }
     @Volatile var appearanceSettings = com.example.readalong.data.preferences.AppPreferences()
         private set
-    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO + com.example.readalong.data.diagnostics.BackgroundFailures.handler("Application"))
     override fun onCreate() {
         super.onCreate()
         val processName = if (android.os.Build.VERSION.SDK_INT >= 28) getProcessName()
             else java.io.File("/proc/self/cmdline").readText().substringBefore('\u0000')
         com.example.readalong.data.diagnostics.CrashDiagnostics.install(this)
+        com.example.readalong.data.diagnostics.BackgroundFailures.install(this)
         if (processName != packageName) return
         applicationScope.launch { appPreferences.preferences.collect {
             appearanceSettings = it
-            com.example.readalong.ui.launch.LaunchAppearance.apply(this@ReadAlongApplication, it)
+            // A launcher-icon switch failure must not end this collector or the process:
+            // appearance updates for the rest of the session depend on it.
+            try { com.example.readalong.ui.launch.LaunchAppearance.apply(this@ReadAlongApplication, it) }
+            catch (cancelled: CancellationException) { throw cancelled }
+            catch (failure: Exception) { android.util.Log.w("ReadAlong", "Launcher appearance not applied: ${failure.javaClass.simpleName}") }
         } }
         val powerReceiver = object : android.content.BroadcastReceiver() {
             override fun onReceive(context: android.content.Context, intent: android.content.Intent) {
@@ -52,9 +57,14 @@ class ReadAlongApplication : Application() {
             }, androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED)
 
         applicationScope.launch {
-            try { com.example.readalong.data.transcription.TranscriptionNotifications.observe(this@ReadAlongApplication) }
-            catch (cancelled: CancellationException) { throw cancelled }
-            catch (_: Exception) { android.util.Log.w("ReadAlong", "Transcription notifications will resume on next app launch.") }
+            // Keep progress cards alive for the whole process: one transient database or
+            // notification error must not stop updates until the next app launch.
+            while (isActive) {
+                try { com.example.readalong.data.transcription.TranscriptionNotifications.observe(this@ReadAlongApplication) }
+                catch (cancelled: CancellationException) { throw cancelled }
+                catch (failure: Exception) { android.util.Log.w("ReadAlong", "Transcription notifications restarting after ${failure.javaClass.simpleName}.") }
+                delay(5_000)
+            }
         }
         applicationScope.launch {
             try { com.example.readalong.data.transcription.AutomaticModelDownload.ensure(this@ReadAlongApplication, speechModel) }
