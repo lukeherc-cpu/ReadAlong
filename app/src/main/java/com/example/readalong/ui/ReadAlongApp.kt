@@ -156,8 +156,9 @@ fun ReadAlongApp(libraryViewModel: LibraryViewModel, app: com.example.readalong.
                 importStatus = { com.example.readalong.ui.importing.ImportStatus(importModel) },
                 emptyActions = {
                     androidx.compose.foundation.layout.Column(verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp)) {
+                        if (!appSettings.folderExampleHidden) com.example.readalong.ui.importing.FolderExample(
+                            onDismiss = { setupScope.launch { app.appPreferences.update { it.copy(folderExampleHidden = true) } } })
                         com.example.readalong.ui.importing.AudiobookSourceButtons(importModel)
-                        com.example.readalong.ui.importing.FolderExample()
                     }
                 },
                 miniPlayer = {

@@ -11,6 +11,9 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.background
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.example.readalong.R
@@ -43,55 +46,45 @@ fun ReadableProgressCard(book: Book, job: ProcessingJobEntity?, estimate: String
         value = job?.let { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { it.chapterTitle(app.database) } }.orEmpty()
     }
     val created = job != null && job.state != "WAITING_SELECTION"
+    val epubPicker = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { it?.let(reading::addEpub) }
     val title = if (ready) "ReadAlong ready" else if (job?.state == "WAITING_QUEUE") "Waiting in queue" else if (active) "Making ReadAlong" else if (!created) "Make a ReadAlong" else "ReadAlong paused"
-    if (!hidden || more) Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .7f)) {
-        Column(Modifier.fillMaxWidth()) {
-            // Match the home mini-player: 52 dp contents plus 8 dp padding on each side.
-            Row(Modifier.fillMaxWidth().height(68.dp).padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    val shownPercent by com.example.readalong.ui.components.animatedPercent(progress?.bookPercent ?: 0)
-                    val bar = com.example.readalong.ui.components.animatedFraction((progress?.bookPercent ?: 0) / 100f)
-                    Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 14.sp, lineHeight = 17.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
-                    // The whole-book percentage everywhere (here and in the queue); the chapter is secondary.
-                    Text(if (waitingForCharging) "Waiting for charging · $shownPercent% of book" else if (ready) "Whole book · 100%" else if (created) "$shownPercent% of book" + (if (chapter.isNotBlank()) " · $chapter" else "") else "Read the words as you listen",
-                        maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 12.sp, lineHeight = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    if (created) LinearProgressIndicator(progress = { bar.value }, modifier = Modifier.fillMaxWidth().height(2.dp))
-                }
-                IconButton(modifier = Modifier.size(40.dp), onClick = {
-                    if (active) reading.cancelPreparation() else if (ready) { reading.hidePreparation(true); more = false } else if (!created && !book.isDemo) sourceChoice = true else reading.prepareReadable()
-                }) {
-                    Icon(painterResource(if (active) R.drawable.ic_pause else if (ready) R.drawable.ic_down else R.drawable.ic_play),
-                        if (active) "Pause ReadAlong" else if (ready) "Hide ReadAlong card" else if (created) "Resume ReadAlong" else "Make a ReadAlong", Modifier.size(22.dp))
-                }
-                IconButton(onClick = { reading.hidePreparation(true); more = false }, modifier = Modifier.size(32.dp)) {
-                    Icon(painterResource(R.drawable.ic_hide), "Hide ReadAlong card", Modifier.size(20.dp))
-                }
-                if (created) IconButton(onClick = { redo = true }, modifier = Modifier.size(36.dp)) { Icon(painterResource(R.drawable.ic_redo), "Redo ReadAlong", Modifier.size(21.dp)) }
-                if (created) IconButton(onClick = { trash = true }, modifier = Modifier.size(36.dp)) { Icon(painterResource(R.drawable.ic_trash), "Remove ReadAlong", Modifier.size(21.dp)) }
+    val shownPercent by com.example.readalong.ui.components.animatedPercent(progress?.bookPercent ?: 0)
+    val bar = com.example.readalong.ui.components.animatedFraction((progress?.bookPercent ?: 0) / 100f)
+    val subtitle = if (waitingForCharging) "Waiting for charging · $shownPercent% of book" else if (ready) "Whole book · 100%"
+        else if (created) "$shownPercent% of book" + (if (chapter.isNotBlank()) " · $chapter" else "") else "Read as you listen"
+    androidx.compose.animation.AnimatedVisibility(!hidden, enter = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn(),
+        exit = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut()) {
+        ReadAlongBar(title, subtitle, if (created) ({ bar.value }) else null,
+            onClick = { if (!created && !book.isDemo) sourceChoice = true else more = !more },
+            addEpub = if (sourceEpub == null && !book.isDemo) ({ epubPicker.launch(arrayOf("application/epub+zip", "application/octet-stream")) }) else null,
+            addingEpub = sourceBusy)
+    }
+    MoreToggle(more) { more = !more }
+    androidx.compose.animation.AnimatedVisibility(more, enter = androidx.compose.animation.expandVertically(androidx.compose.animation.core.tween(220), expandFrom = Alignment.Top) + androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(220)),
+        exit = androidx.compose.animation.shrinkVertically(androidx.compose.animation.core.tween(180), shrinkTowards = Alignment.Top) + androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(140))) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (active && !waitingForCharging) Text(estimate, style = MaterialTheme.typography.bodyMedium, textAlign = androidx.compose.ui.text.style.TextAlign.End)
+            if (job?.state in listOf("FAILED", "WAITING_MODEL")) Text(job?.message.orEmpty(), style = MaterialTheme.typography.bodyMedium, textAlign = androidx.compose.ui.text.style.TextAlign.End)
+            @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.End), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (waitingForCharging) MoreAction("Use battery for 30 min", reading::allowBatteryForThirtyMinutes)
+                if (job?.state == "WAITING_MODEL") MoreAction("Get the speech model", onModel)
+                if (!created && !book.isDemo) MoreAction("Make a ReadAlong") { sourceChoice = true }
+                if (active) MoreAction("Pause", reading::cancelPreparation)
+                else if (created && !ready) MoreAction("Resume", reading::prepareReadable)
+                if (created) MoreAction("Redo") { redo = true }
+                if (created) MoreAction("Remove", destructive = true) { trash = true }
+                MoreAction(if (hidden) "Show card" else "Hide card") { reading.hidePreparation(!hidden) }
             }
-
+            com.example.readalong.ui.reading.EpubEditionControls(reading, position, compact = true)
+            TextButton(onClick = { execution?.let { scope.launch { clipboard.setClipEntry(androidx.compose.ui.platform.ClipEntry(android.content.ClipData.newPlainText("ReadAlong diagnostics", it.diagnostics))) } } },
+                enabled = execution != null) { Text("Copy diagnostics for support", style = MaterialTheme.typography.labelLarge) }
         }
     }
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-        TextButton(onClick = { more = !more }) {
-            Text("More", style = MaterialTheme.typography.labelMedium)
-            Icon(painterResource(R.drawable.ic_down), null, Modifier.size(16.dp))
-        }
-    }
-    if (more && hidden) TextButton(onClick = { reading.hidePreparation(false) }) { Text("Show ReadAlong card on player") }
-    if (more) Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-                if (waitingForCharging) TextButton(onClick = reading::allowBatteryForThirtyMinutes) { Text("Use battery for 30 min", style = MaterialTheme.typography.labelMedium) }
-                if (active && !waitingForCharging) Text(estimate, style = MaterialTheme.typography.bodyMedium)
-                if (job?.state in listOf("FAILED", "WAITING_MODEL")) Text(job?.message.orEmpty(), style = MaterialTheme.typography.bodyMedium)
-                if (job?.state == "WAITING_MODEL") TextButton(onClick = onModel) { Text("Get the offline speech model") }
-                TextButton(onClick = { execution?.let { scope.launch { clipboard.setClipEntry(androidx.compose.ui.platform.ClipEntry(android.content.ClipData.newPlainText("ReadAlong diagnostics", it.diagnostics))) } } }, enabled = execution != null) { Text("Copy diagnostics for support") }
-                com.example.readalong.ui.reading.EpubEditionControls(reading, position, compact = true)
-            }
     if (sourceChoice) com.example.readalong.ui.importing.ReadAlongSourceDialog(sourceBusy, sourceError,
         hasEpub = sourceEpub != null, onDismiss = { sourceChoice = false }, onStart = { align, uri ->
             reading.createWithSource(align, uri) { sourceChoice = false }
-        }, durationMs = book.durationMs)
+        }, durationMs = book.durationMs, book = book)
     if (redo) AlertDialog(onDismissRequest = { redo = false }, title = { Text("Redo this ReadAlong?") },
         text = { Text("ReadAlong will make this book's text again from the start. Your audio, EPUB and listening position are kept.") },
         confirmButton = { TextButton(onClick = { redo = false; reading.rebuildTranscription() }) { Text("Redo") } },
@@ -100,4 +93,54 @@ fun ReadableProgressCard(book: Book, job: ProcessingJobEntity?, estimate: String
         text = { Text("Are you sure? This deletes all the text made for this book and takes it off the queue. Your audio, EPUB and listening position are kept, and you can make a new ReadAlong any time.") },
         confirmButton = { TextButton(onClick = { trash = false; reading.removeReadAlong() }) { Text("Remove", color = MaterialTheme.colorScheme.error) } },
         dismissButton = { TextButton(onClick = { trash = false }) { Text("Cancel") } })
+}
+
+/** The ReadAlong bar: status and whole-book progress, with an "add matching ebook" side when there's no EPUB yet. */
+@Composable
+internal fun ReadAlongBar(title: String, subtitle: String, progress: (() -> Float)?, onClick: () -> Unit, addEpub: (() -> Unit)?, addingEpub: Boolean = false) {
+    val ink = MaterialTheme.colorScheme.onSurface
+    Surface(shape = RoundedCornerShape(22.dp), color = Color.White.copy(alpha = .09f), contentColor = ink,
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .08f))) {
+        Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f).clickable(onClickLabel = title, onClick = onClick).padding(start = 18.dp, end = 14.dp, top = 14.dp, bottom = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleSmall.copy(fontSize = 15.sp))
+                Text(subtitle, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp), color = ink.copy(alpha = .68f))
+                if (progress != null) LinearProgressIndicator(progress = progress, modifier = Modifier.padding(top = 6.dp).fillMaxWidth().height(3.dp),
+                    color = MaterialTheme.colorScheme.primary, trackColor = ink.copy(alpha = .14f), strokeCap = androidx.compose.ui.graphics.StrokeCap.Round, gapSize = 0.dp, drawStopIndicator = {})
+            }
+            if (addEpub != null) {
+                Box(Modifier.padding(vertical = 14.dp).width(1.dp).fillMaxHeight().background(ink.copy(alpha = .16f)))
+                Row(Modifier.fillMaxHeight().clickable(enabled = !addingEpub, onClickLabel = "Add matching ebook (EPUB)", onClick = addEpub).padding(horizontal = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    if (addingEpub) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = ink)
+                    else Icon(painterResource(R.drawable.ic_book_add), null, Modifier.size(24.dp))
+                    Text("Add matching\nebook (EPUB)", style = MaterialTheme.typography.labelMedium.copy(fontSize = 13.sp, lineHeight = 16.sp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+internal fun MoreToggle(open: Boolean, toggle: () -> Unit) {
+    val turn by androidx.compose.animation.core.animateFloatAsState(if (open) 180f else 0f, androidx.compose.animation.core.tween(200), label = "More chevron")
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+        TextButton(onClick = toggle) {
+            Text(if (open) "Less" else "More", style = MaterialTheme.typography.labelLarge)
+            Spacer(Modifier.width(4.dp))
+            Icon(painterResource(R.drawable.ic_down), null, Modifier.size(16.dp).graphicsLayer { rotationZ = turn })
+        }
+    }
+}
+
+@Composable
+internal fun MoreAction(label: String, onClick: () -> Unit) = MoreAction(label, false, onClick)
+@Composable
+internal fun MoreAction(label: String, destructive: Boolean, onClick: () -> Unit) {
+    Surface(onClick = onClick, shape = RoundedCornerShape(50), color = Color.White.copy(alpha = .09f),
+        contentColor = if (destructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .10f))) {
+        Text(label, Modifier.padding(horizontal = 14.dp, vertical = 9.dp), style = MaterialTheme.typography.labelLarge)
+    }
 }

@@ -26,8 +26,9 @@ fun ImportControls(model: ImportViewModel, onFolders: () -> Unit, onBook: (Strin
     val priority by model.priority.collectAsStateWithLifecycle()
     val epubUploaded by model.epubUploaded.collectAsStateWithLifecycle()
     val folder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { it?.let { uri -> model.folder(uri, FolderMode.ONE_BOOK) } }
+    val library = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { it?.let { uri -> model.folder(uri, FolderMode.LIBRARY) } }
     val epub = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let(model::addEpub) }
-    val files = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { if (it.isNotEmpty()) model.files(it) }
+    val files = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let { uri -> model.files(listOf(uri)) } }
     IconButton(onClick = { choosing = true }, enabled = !busy) {
         Icon(androidx.compose.ui.res.painterResource(com.example.readalong.R.drawable.ic_add), "Add audiobook")
     }
@@ -35,8 +36,9 @@ fun ImportControls(model: ImportViewModel, onFolders: () -> Unit, onBook: (Strin
     if (choosing) com.example.readalong.ui.components.IllustratedDialog("Add audiobook", { choosing = false }, actions = {
         TextButton(onClick = { choosing = false }) { Text("Cancel") }
     }) {
-        IllustratedOption("Audiobook folder", "A folder with one book's audio files.", com.example.readalong.R.drawable.art_folder, true) { choosing = false; folder.launch(null) }
-        IllustratedOption("Audio files", "One audio file, or the parts of one book.", com.example.readalong.R.drawable.art_audio_file, false) {
+        IllustratedOption("Library folder", "A folder with all your audiobook folders.", com.example.readalong.R.drawable.art_folder, true) { choosing = false; library.launch(null) }
+        IllustratedOption("Audiobook folder", "A folder with one audiobook's files.", com.example.readalong.R.drawable.art_folder, false) { choosing = false; folder.launch(null) }
+        IllustratedOption("Audio file", "One file that holds a whole audiobook.", com.example.readalong.R.drawable.art_audio_file, false) {
             choosing = false; files.launch(arrayOf("audio/*", "application/octet-stream", "video/mp4"))
         }
     }
@@ -115,8 +117,10 @@ fun ImportPriorityPrompt(model: ImportViewModel) {
     }
     pending.firstOrNull()?.takeIf { adding == null }?.let { book ->
         key(book.id) {
+            val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as? com.example.readalong.ReadAlongApplication
+            val full by remember(book.id) { app?.bookRepository?.observeBook(book.id) ?: kotlinx.coroutines.flow.flowOf(null) }.collectAsStateWithLifecycle(null)
             ReadAlongSourceDialog(busy, message, hasEpub = book.folderEpub, onDismiss = { if (!busy) model.skipPriority() },
-                onStart = model::startPriority, bookTitle = book.title, durationMs = book.durationMs)
+                onStart = model::startPriority, bookTitle = book.title, durationMs = book.durationMs, book = full)
         }
     }
 }

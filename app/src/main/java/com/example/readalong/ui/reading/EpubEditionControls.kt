@@ -16,9 +16,10 @@ fun EpubEditionControls(model: ReadingViewModel, position: Long, compact: Boolea
     val busy by model.importBusy.collectAsStateWithLifecycle()
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let(model::addEpub) }
     var confirmRemoval by remember { mutableStateOf(false) }
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    // Compact (the player's More panel): right-aligned, and only once an EPUB exists; the bar itself offers adding one.
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp), horizontalAlignment = if (compact) androidx.compose.ui.Alignment.End else androidx.compose.ui.Alignment.Start) {
         if (!compact) Text("Ebook (EPUB)", style = MaterialTheme.typography.titleSmall)
-        TextButton(enabled = !busy, onClick = { picker.launch(arrayOf("application/epub+zip", "application/octet-stream")) }) {
+        if (!compact || edition != null) TextButton(enabled = !busy, onClick = { picker.launch(arrayOf("application/epub+zip", "application/octet-stream")) }) {
             Text(if (busy) "Adding EPUB…" else if (edition == null) "Add my EPUB" else "Replace my EPUB")
         }
         if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())

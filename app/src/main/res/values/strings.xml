@@ -4,7 +4,7 @@
     <string name="your_library">Your library</string>
     <string name="library_subtitle">Listen and read, together.</string>
     <string name="no_audiobooks">No audiobooks yet</string>
-    <string name="empty_library_message">Choose the folder where your audiobooks are, add audio files, or import from Audible.</string>
+    <string name="empty_library_message">Pick where your audiobooks are, or import them from Audible.</string>
     <string name="library_error">Your library couldn’t be loaded.</string>
     <string name="try_again">Try again</string>
     <string name="back_to_library">Back to library</string>
