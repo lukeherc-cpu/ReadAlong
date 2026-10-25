@@ -57,9 +57,9 @@ fun SettingsScreen(app: ReadAlongApplication, onBack: () -> Unit, onModel: () ->
         SectionLabel("When opening a book")
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             OpeningChoice("Cover art", "Cover art", R.drawable.ic_image, preferences.openingView == "COVER", Modifier.weight(1f)) { save { it.copy(openingView = "COVER") } }
-            OpeningChoice("ReadAlong text", "ReadAlong text", R.drawable.ic_highlighted_book, preferences.openingView in setOf("PREVIEW", "FULLSCREEN"), Modifier.weight(1f)) { save { it.copy(openingView = "PREVIEW") } }
+            OpeningChoice("ReadAlong text", "ReadAlong text", R.drawable.ic_readalong, preferences.openingView in setOf("PREVIEW", "FULLSCREEN"), Modifier.weight(1f)) { save { it.copy(openingView = "PREVIEW") } }
         }
-        OpeningChoice("Read only (no audio)", "Read only (no audio)", R.drawable.ic_book, preferences.openingView == "READ_ONLY", Modifier.fillMaxWidth()) { save { it.copy(openingView = "READ_ONLY") } }
+        OpeningChoice("Read only (no audio)", "Read only (no audio)", R.drawable.ic_read_only, preferences.openingView == "READ_ONLY", Modifier.fillMaxWidth()) { save { it.copy(openingView = "READ_ONLY") } }
         if (preferences.openingView in setOf("PREVIEW", "FULLSCREEN")) SettingsGroup {
             PreferenceSwitch("Open the text in full screen", preferences.openingView == "FULLSCREEN", icon = R.drawable.ic_fullscreen) { value -> save { it.copy(openingView = if (value) "FULLSCREEN" else "PREVIEW") } }
         }
@@ -154,7 +154,7 @@ fun SettingsScreen(app: ReadAlongApplication, onBack: () -> Unit, onModel: () ->
 }
 @Composable private fun OpeningChoice(label: String, description: String, icon: Int, selected: Boolean, modifier: Modifier, choose: () -> Unit) {
     Surface(onClick = choose, modifier = modifier.semantics { contentDescription = description }, shape = RoundedCornerShape(com.example.readalong.ui.theme.Corners.large), color = if (selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = .5f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .4f), border = androidx.compose.foundation.BorderStroke(1.dp, if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant)) {
-        Column(Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) { Icon(painterResource(icon), null, Modifier.size(32.dp)); Text(label, style = MaterialTheme.typography.bodyMedium) }
+        Column(Modifier.padding(horizontal = 20.dp, vertical = 14.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) { Box(Modifier.size(56.dp), contentAlignment = Alignment.Center) { Icon(painterResource(icon), null, Modifier.size(if (icon == R.drawable.ic_image) 32.dp else 56.dp)) }; Text(label, style = MaterialTheme.typography.bodyMedium) }
     }
 }
 @Composable private fun SecondsField(label: String, value: String, change: (String) -> Unit) {

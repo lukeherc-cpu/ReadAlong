@@ -1,0 +1,5 @@
+<!-- The book from the ReadAlong logo, without the headphones: reading on your own. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#FFFFFFFF" android:pathData="M22.8,35.2 Q20.2,35.2 20.2,39.1 L20.2,74.2 Q20.2,78.1 24.1,78.1 C35.8,75.5 44.9,78.1 51.4,84.6 Q54,87.2 56.6,84.6 C63.1,78.1 72.2,75.5 83.9,78.1 Q87.8,78.1 87.8,74.2 L87.8,39.1 Q87.8,35.2 85.2,35.2 Q82.6,35.2 82.6,39.1 L82.6,71.6 C69.6,70.3 60.5,75.5 54,80.7 C47.5,75.5 38.4,70.3 25.4,71.6 L25.4,39.1 Q25.4,35.2 22.8,35.2 Z"/>
+    <path android:fillColor="#FFFFFFFF" android:pathData="M29.3,27.4 C39.7,26.1 47.5,30 52.7,36.5 L52.7,76.8 C44.9,70.3 37.1,67.7 29.3,69 Z M78.7,27.4 C68.3,26.1 60.5,30 55.3,36.5 L55.3,76.8 C63.1,70.3 70.9,67.7 78.7,69 Z"/>
+</vector>

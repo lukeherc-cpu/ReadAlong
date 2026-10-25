@@ -25,11 +25,11 @@ object TranscriptionEstimate {
         val device = database.bookDao().metadata(DEVICE_KEY)?.toDoubleOrNull()
         database.bookDao().putMetadata(LibraryMetadataEntity(DEVICE_KEY, (if (device == null) rate else device * .9 + rate * .1).toString()))
     }
-    /** "About 6 hours for this book." before a ReadAlong starts, from this phone's measured speed. */
+    /** "About 6 hours" before a ReadAlong starts, from this phone's measured speed. */
     suspend fun beforeStart(database: ReadAlongDatabase, durationMs: Long?): String? {
         val audio = durationMs?.takeIf { it > 0 } ?: return null
         val rate = database.bookDao().metadata(DEVICE_KEY)?.toDoubleOrNull()?.takeIf { it > 0 } ?: DEFAULT_RATE
-        return "About ${duration((audio * rate).toLong())} for this book."
+        return "About ${duration((audio * rate).toLong())}"
     }
     internal fun duration(ms: Long): String {
         val minutes = ceil(ms.coerceAtLeast(0) / 60000.0).toLong().coerceAtLeast(1)

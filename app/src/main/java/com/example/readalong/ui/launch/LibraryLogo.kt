@@ -83,9 +83,7 @@ internal fun PageTurnLogo(progress: Float, modifier: Modifier, safeInset: Boolea
                 moveTo(start.x, start.y); cubic(59f, 44f, 65f, 41f, 73f, 42f)
                 lineTo(corner.x, corner.y); cubic(67f, 73f, 61f, 75f, 55f, 80f); close()
             }
-            // A soft shadow falls on the page underneath while the sheet is lifted.
-            if (sin > .02f) drawRect(Brush.horizontalGradient(listOf(ink.copy(alpha = .16f * sin), Color.Transparent),
-                startX = 55f * u + inset, endX = (55f + 16f * sin) * u + inset), topLeft = Offset(55f * u + inset, 42f * u + inset), size = androidx.compose.ui.geometry.Size(18f * u, 38f * u))
+            // Only the turning sheet is drawn: the page underneath stays exactly as it is in the mark.
             val paper = Color(0xFFF7FAFD)
             val face = if (cos >= 0f) lerp(paper, Color(0xFFDDE4EC), .45f * sin) else lerp(paper, Color(0xFFE6ECF2), .35f * sin)
             drawPath(sheet, face)
