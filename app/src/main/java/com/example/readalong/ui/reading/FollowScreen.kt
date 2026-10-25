@@ -561,9 +561,21 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
         }
         }
         if (reveal < 1f) {
-            if (frame?.recorded == true) FrozenReaderFrame(frame, Modifier.fillMaxSize().graphicsLayer { alpha = 1f - reveal })
-            else FollowCard(state, model, { chromeVisible = true }, surfaceColor, visible = true, modifier = Modifier.fillMaxSize(), square = false, showExpand = false,
-                colorOf = if (animatedSurface) surfaceColorOf else null)
+            // Until the page is ready, a live copy of the preview stands in: same column width and the
+            // same line position as the card, so as the bounds grow its text simply continues below
+            // (no blank area), and the page then crossfades in over it line for line.
+            val previewWidth = frame?.previewWidthPx?.takeIf { it > 0 }?.let { with(androidx.compose.ui.platform.LocalDensity.current) { it.toDp() } }
+            var landed by remember { mutableStateOf(false) }
+            Box(Modifier.fillMaxSize().graphicsLayer { alpha = 1f - reveal }, contentAlignment = androidx.compose.ui.Alignment.TopCenter) {
+                // For the frame or two before the stand-in has scrolled to the line, show the card's last frame.
+                if (!landed && frame?.recorded == true) FrozenReaderFrame(frame, Modifier.fillMaxSize())
+                androidx.compose.runtime.CompositionLocalProvider(LocalReaderFrame provides null) {
+                    FollowCard(state, model, { chromeVisible = true }, surfaceColor, visible = true,
+                        modifier = (if (previewWidth != null) Modifier.width(previewWidth).fillMaxHeight() else Modifier.fillMaxSize()).graphicsLayer { alpha = if (landed) 1f else 0f },
+                        square = false, showExpand = false,
+                        colorOf = if (animatedSurface) surfaceColorOf else null, landOn = frame?.previewAnchor, onLanded = { landed = true })
+                }
+            }
         }
         }
         if (panel == "bookmarks") com.example.readalong.ui.player.BookmarksDialog(model, if (readingOnly) audio else state.positionMs, playback::seek, { panel = null })

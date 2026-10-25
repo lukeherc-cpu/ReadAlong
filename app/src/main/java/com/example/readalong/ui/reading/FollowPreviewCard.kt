@@ -94,7 +94,7 @@ internal fun FittedSentenceLine(sentence: String, character: Int, onPhrase: (Str
 /** Preview and reader share paragraph formatting, so expanding preserves the sentence context. */
 @Composable
 fun FollowCard(state: PlaybackState, model: ReadingViewModel, onExpand: () -> Unit, color: Color = MaterialTheme.colorScheme.secondaryContainer, onCover: (() -> Unit)? = null, visible: Boolean = true, modifier: Modifier = Modifier, square: Boolean = true, showExpand: Boolean = true,
-    colorOf: (() -> Color)? = null) {
+    colorOf: (() -> Color)? = null, landOn: ReaderVisualAnchor? = null, onLanded: () -> Unit = {}) {
     val frame = LocalReaderFrame.current
     val insets = LocalReaderInsets.current
     val ink = if (color.luminance() > .35f) Color(0xFF182A3B) else Color.White
@@ -144,7 +144,8 @@ fun FollowCard(state: PlaybackState, model: ReadingViewModel, onExpand: () -> Un
             // Back from the full page: land the spoken line where it was on the page, so the page's
             // last frame and this card line up.
             val insetTop = with(cardDensity) { insets.top.toPx() }
-            val pageY = frame?.readerAnchor?.takeIf { positionedKey == null && it.paragraphId == activeKey }?.y?.minus(insetTop)
+            // ([landOn]: a stand-in card that must start exactly where another card left the line.)
+            val pageY = (landOn ?: frame?.readerAnchor)?.takeIf { positionedKey == null && it.paragraphId == activeKey }?.y?.minus(insetTop)
                 ?.takeIf { it in 0f..viewport * .8f }
             val offset = lineTop.toInt() - (pageY?.toInt() ?: (viewport / 5))
             val row = list.layoutInfo.visibleItemsInfo.firstOrNull { it.index == activeIndex }
@@ -153,6 +154,7 @@ fun FollowCard(state: PlaybackState, model: ReadingViewModel, onExpand: () -> Un
             else if (positionedKey != null && visible) list.animateScrollToItem(activeIndex, offset)
             else list.scrollToItem(activeIndex, offset)
             positionedKey = activeKey
+            onLanded()
         } else if (line != null) {
             val row = list.layoutInfo.visibleItemsInfo.firstOrNull { it.index == activeIndex }
             if (row != null) {
