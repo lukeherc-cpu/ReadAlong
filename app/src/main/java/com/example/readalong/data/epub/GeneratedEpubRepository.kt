@@ -20,13 +20,18 @@ import kotlin.coroutines.coroutineContext
 class GeneratedEpubRepository(private val context: Context, private val database: ReadAlongDatabase) {
     private val lock = Mutex()
     private fun liveKey(bookId: String) = "live_reading_revision:$bookId"
-    suspend fun refreshReading(bookId: String) = lock.withLock { withContext(Dispatchers.IO) {
-        val version = database.readingDao().findVersion(bookId) ?: return@withContext
-        if (database.readingDao().count(bookId) == 0) return@withContext
-        if (version.activeEditionId != null && version.generatedFormat == 1 &&
-            database.bookDao().metadata(liveKey(bookId)) == "${version.activeEditionId}:${version.transcriptRevision}") return@withContext
-        generateLocked(bookId)
-    } }
+    suspend fun refreshReading(bookId: String) = withContext(Dispatchers.IO) {
+        // Usually the reading text is already current. Check that without the lock: while a ReadAlong
+        // is being made, the lock is held for each new chunk, and opening the reader must not wait on it.
+        if (readingCurrent(bookId)) return@withContext
+        lock.withLock { if (!readingCurrent(bookId)) generateLocked(bookId) }
+    }
+    private suspend fun readingCurrent(bookId: String): Boolean {
+        val version = database.readingDao().findVersion(bookId) ?: return true
+        if (database.readingDao().count(bookId) == 0) return true
+        return version.activeEditionId != null && version.generatedFormat == 1 &&
+            database.bookDao().metadata(liveKey(bookId)) == "${version.activeEditionId}:${version.transcriptRevision}"
+    }
 
     /** Update only paragraphs touching a newly committed chunk. ZIP exports remain periodic. */
     suspend fun publishReadingRange(input: com.example.readalong.domain.transcription.TranscriptionInput) = lock.withLock { withContext(Dispatchers.IO) {

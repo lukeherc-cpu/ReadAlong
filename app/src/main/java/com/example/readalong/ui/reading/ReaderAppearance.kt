@@ -46,11 +46,18 @@ internal fun ReaderAppearance(value: ReaderPreferences, onDismiss: () -> Unit, b
     }
     val choices = listOf("SERIF" to "Serif", "SANS" to "Sans serif", "MONO" to "Monospace") + ReaderFonts.bundled.map { it.first to it.second } + fontImports
     AlertDialog(onDismissRequest = onDismiss, title = { Text("Reading appearance") }, text = {
-        Column(Modifier.heightIn(max = 440.dp).verticalScroll(rememberScrollState())) {
+        // Everything fits without scrolling on a phone; it scrolls only on very small screens.
+        Column(Modifier.verticalScroll(rememberScrollState())) {
+            // Background first: "Cover" is the book's own color; "Dark" is Read only's black.
+            @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+            androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                (if (bookMode) listOf("LIGHT" to "Light", "DARK" to "Dark") else listOf("DARK" to "Cover", "BLACK" to "Dark", "LIGHT" to "Light", "SEPIA" to "Sepia")).forEach { (theme, label) ->
+                    FilterChip(selected = draft.theme == theme, onClick = { draft = draft.copy(theme = theme) }, label = { Text(label) })
+                }
+            }
             FontChoice("Reader font", draft.fontFamily, listOf("EPUB" to "EPUB / serif") + choices) { draft = draft.copy(fontFamily = it) }
             FontChoice("Preview font", draft.previewFont, listOf("MATCH" to "Match reader") + choices) { draft = draft.copy(previewFont = it) }
-            TextButton(enabled = !importing, onClick = { importFont.launch(arrayOf("*/*")) }) { Text(if (importing) "Importing font…" else "Import font…") }
-            Text("Accepted file types: TTF, OTF, TTC.", style = MaterialTheme.typography.bodySmall)
+            TextButton(enabled = !importing, onClick = { importFont.launch(arrayOf("*/*")) }) { Text(if (importing) "Importing font…" else "Import font (TTF, OTF, TTC)…") }
             importError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                 Text("Use EPUB fonts", Modifier.weight(1f))
@@ -62,9 +69,6 @@ internal fun ReaderAppearance(value: ReaderPreferences, onDismiss: () -> Unit, b
             Slider(draft.lineSpacing, { draft = draft.copy(lineSpacing = it) }, valueRange = 1.2f..2.2f)
             Text("Margins · ${draft.margin.toInt()}")
             Slider(draft.margin, { draft = draft.copy(margin = it) }, valueRange = 12f..40f)
-            Row { (if (bookMode) listOf("LIGHT", "DARK") else listOf("DARK", "LIGHT", "SEPIA")).forEach { theme ->
-                FilterChip(selected = draft.theme == theme, onClick = { draft = draft.copy(theme = theme) }, label = { Text(theme.lowercase().replaceFirstChar { it.uppercase() }) })
-            } }
         }
     }, confirmButton = { TextButton(enabled = !importing, onClick = { onSave(draft) }) { Text("Apply") } }, dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } })
 }

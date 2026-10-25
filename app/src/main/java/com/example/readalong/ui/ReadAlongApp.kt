@@ -247,7 +247,7 @@ fun ReadAlongApp(libraryViewModel: LibraryViewModel, app: com.example.readalong.
                 val shared = this
                 val bookReading by reading.readOnly.collectAsStateWithLifecycle()
                 val plainPreferences by reading.bookPreferences.collectAsStateWithLifecycle()
-                val readerBackground = if (bookReading) { if (plainPreferences.theme == "DARK") androidx.compose.ui.graphics.Color.Black else androidx.compose.ui.graphics.Color.White } else when (readerSettings.theme) { "LIGHT" -> androidx.compose.ui.graphics.Color(0xFFFAF9F5); "SEPIA" -> androidx.compose.ui.graphics.Color(0xFFF0E6D2); else -> readerPalette.background }
+                val readerBackground = if (bookReading) { if (plainPreferences.theme == "DARK") androidx.compose.ui.graphics.Color.Black else androidx.compose.ui.graphics.Color.White } else when (readerSettings.theme) { "LIGHT" -> androidx.compose.ui.graphics.Color(0xFFFAF9F5); "SEPIA" -> androidx.compose.ui.graphics.Color(0xFFF0E6D2); "BLACK" -> androidx.compose.ui.graphics.Color.Black; else -> readerPalette.background }
                 // Color and corners share the bounds' duration and curve, and are only read at draw time:
                 // reading them here recomposed the entire player or reader on every transition frame.
                 val transformColor = animateColorAsState(if (mode == "follow") readerBackground else readerPalette.preview,

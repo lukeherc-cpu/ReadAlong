@@ -53,10 +53,10 @@ fun miniPlayerColors(book: Book, readerTheme: String): Pair<Color, Color> {
     if (!settings.coloredMiniPlayer) return (if (settings.libraryLight) basic.accent else basic.background) to (if (settings.libraryLight) basic.background else Color.White)
     // Tinted from the book; on the light library a light tint instead of a heavy dark bar.
     val background = when (readerTheme) {
-        "LIGHT" -> Color(0xFFFAF9F5); "SEPIA" -> Color(0xFFF0E6D2)
+        "LIGHT" -> Color(0xFFFAF9F5); "SEPIA" -> Color(0xFFF0E6D2); "BLACK" -> Color.Black
         else -> if (settings.libraryLight) lerp(palette.accent, Color.White, .2f) else palette.background
     }
-    return background to (if (readerTheme != "DARK") Color(0xFF242820) else if (settings.libraryLight) palette.background else Color.White)
+    return background to (if (readerTheme == "LIGHT" || readerTheme == "SEPIA") Color(0xFF242820) else if (readerTheme == "BLACK") Color.White else if (settings.libraryLight) palette.background else Color.White)
 }
 
 /** Records where the mini player is, for the transform to start from. */
