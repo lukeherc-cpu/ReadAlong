@@ -32,6 +32,7 @@ import com.example.readalong.ui.theme.ReadAlongTheme
 fun LibraryScreen(
     state: LibraryUiState,
     scanningFolder: String? = null,
+    readingFolder: Boolean = false,
     selectedBookId: String? = null,
     transcribing: Boolean = false,
     onQueue: () -> Unit = {},
@@ -68,7 +69,7 @@ fun LibraryScreen(
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onAbout) { Icon(painterResource(R.drawable.ic_settings), "Settings") }
                     IconButton(onClick = onFolders) { Icon(painterResource(R.drawable.ic_bookshelf), "Audiobook folders") }
-                    Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { com.example.readalong.ui.launch.LibraryLogo(scanningFolder, transcribing, settings.animateTranscriptionLogo, onQueue) }
+                    Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { com.example.readalong.ui.launch.LibraryLogo(scanningFolder, transcribing, settings.animateTranscriptionLogo, readingFolder = readingFolder, onClick = onQueue) }
                     IconButton(onClick = { searchVisible = !searchVisible; if (!searchVisible) query = "" }) { Icon(painterResource(R.drawable.ic_search), "Search library") }
                     importControls()
                 }
@@ -86,7 +87,12 @@ fun LibraryScreen(
                 if (searchVisible && query.isNotBlank() && groups.isNotEmpty()) item(key = "search-count", span = { GridItemSpan(maxLineSpan) }) {
                     com.example.readalong.ui.components.SearchCountLabel(groups.sumOf { it.books.size })
                 }
-                if (groups.isEmpty()) {
+                // A newly chosen library folder is being read: placeholders until (and while) its books arrive.
+                val loadingFolder = readingFolder && query.isBlank()
+                if (groups.isEmpty() && loadingFolder) {
+                    item(key = "skeleton-heading", span = { GridItemSpan(maxLineSpan) }) { SkeletonHeading() }
+                    items(6, key = { "skeleton:$it" }) { LibrarySkeletonTile(settings.listLibrary) }
+                } else if (groups.isEmpty()) {
                     item(key = "empty", span = { GridItemSpan(maxLineSpan) }) {
                         LibraryMessage(
                             title = stringResource(if (state.books.isEmpty()) R.string.no_audiobooks else R.string.no_search_results),
@@ -130,9 +136,11 @@ fun LibraryScreen(
                     }
                     items(group.books, key = { "book:${it.id}" }) { book -> Box(Modifier.animateItem(fadeInSpec = tween(180), placementSpec = tween(260, easing = com.example.readalong.ui.reading.ReaderMotionEasing), fadeOutSpec = tween(120))) { if (settings.listLibrary) BookListRow(book, selected = book.id == selectedBookId, onLongClick = { hideTip(); onLongBook(book) }) { onBook(book.id) } else BookTile(book, selected = book.id == selectedBookId, onLongClick = { hideTip(); onLongBook(book) }) { onBook(book.id) } } }
                 }
+                if (groups.isNotEmpty() && loadingFolder) items(2, key = { "skeleton-more:$it" }) { LibrarySkeletonTile(settings.listLibrary) }
             } else if (state == LibraryUiState.Loading) {
                 // Placeholder tiles while the library loads, shaped like the real ones.
-                items(4, key = { "skeleton:$it" }) { LibrarySkeletonTile() }
+                item(key = "skeleton-heading", span = { GridItemSpan(maxLineSpan) }) { SkeletonHeading() }
+                items(6, key = { "skeleton:$it" }) { LibrarySkeletonTile(settings.listLibrary) }
             } else {
                 item(key = "status", span = { GridItemSpan(maxLineSpan) }) {
                     Column(Modifier.fillMaxWidth().padding(vertical = 48.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -163,14 +171,36 @@ private fun LibraryPreview() {
     ReadAlongTheme { LibraryScreen(state = LibraryUiState.Ready(emptyList()), onRetry = {}, onAbout = {}, onBook = {}) }
 }
 
+/** A soft highlight that sweeps across a placeholder, left to right. */
 @Composable
-private fun LibrarySkeletonTile() {
-    val pulse = androidx.compose.animation.core.rememberInfiniteTransition(label = "Skeleton")
-    val alpha by pulse.animateFloat(.45f, .85f, androidx.compose.animation.core.infiniteRepeatable(tween(800), androidx.compose.animation.core.RepeatMode.Reverse), label = "Skeleton alpha")
-    val shade = MaterialTheme.colorScheme.surfaceVariant
-    Column(Modifier.graphicsLayer { this.alpha = alpha }, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Box(Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(com.example.readalong.ui.theme.Corners.medium)).background(shade))
-        Box(Modifier.fillMaxWidth(.8f).height(14.dp).clip(RoundedCornerShape(7.dp)).background(shade))
-        Box(Modifier.fillMaxWidth(.5f).height(12.dp).clip(RoundedCornerShape(6.dp)).background(shade))
+private fun shimmer(): androidx.compose.ui.graphics.Brush {
+    val base = MaterialTheme.colorScheme.surfaceVariant
+    val light = androidx.compose.ui.graphics.lerp(base, MaterialTheme.colorScheme.surface, .65f)
+    val sweep = androidx.compose.animation.core.rememberInfiniteTransition(label = "Shimmer")
+    val x by sweep.animateFloat(-1f, 2f, androidx.compose.animation.core.infiniteRepeatable(tween(1300, easing = androidx.compose.animation.core.LinearEasing)), label = "Shimmer sweep")
+    val width = with(androidx.compose.ui.platform.LocalDensity.current) { androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp.toPx() }
+    return androidx.compose.ui.graphics.Brush.linearGradient(listOf(base, light, base),
+        start = androidx.compose.ui.geometry.Offset(width * x - width * .35f, 0f), end = androidx.compose.ui.geometry.Offset(width * x + width * .35f, width * .2f))
+}
+
+@Composable
+private fun SkeletonHeading() {
+    val brush = shimmer()
+    Box(Modifier.padding(top = 4.dp).fillMaxWidth(.42f).height(22.dp).clip(RoundedCornerShape(11.dp)).background(brush))
+}
+
+@Composable
+private fun LibrarySkeletonTile(list: Boolean = false) {
+    val brush = shimmer()
+    if (list) Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(64.dp).clip(RoundedCornerShape(com.example.readalong.ui.theme.Corners.small)).background(brush))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(Modifier.fillMaxWidth(.7f).height(14.dp).clip(RoundedCornerShape(7.dp)).background(brush))
+            Box(Modifier.fillMaxWidth(.45f).height(12.dp).clip(RoundedCornerShape(6.dp)).background(brush))
+        }
+    } else Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Box(Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(com.example.readalong.ui.theme.Corners.medium)).background(brush))
+        Box(Modifier.fillMaxWidth(.82f).height(14.dp).clip(RoundedCornerShape(7.dp)).background(brush))
+        Box(Modifier.fillMaxWidth(.52f).height(12.dp).clip(RoundedCornerShape(6.dp)).background(brush))
     }
 }

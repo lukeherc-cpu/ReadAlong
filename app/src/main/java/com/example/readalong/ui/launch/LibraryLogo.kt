@@ -20,23 +20,33 @@ import androidx.compose.ui.unit.sp
 import com.example.readalong.R
 
 @Composable
-fun LibraryLogo(scanningFolder: String?, transcribing: Boolean = false, animate: Boolean = true, onClick: () -> Unit = {}) {
-    val moving = (scanningFolder != null || transcribing) && animate && ValueAnimator.areAnimatorsEnabled()
+fun LibraryLogo(scanningFolder: String?, transcribing: Boolean = false, animate: Boolean = true, readingFolder: Boolean = false, onClick: () -> Unit = {}) {
+    val moving = (scanningFolder != null || transcribing || readingFolder) && animate && ValueAnimator.areAnimatorsEnabled()
     val page = if (moving) {
         val transition = rememberInfiniteTransition(label = "Transcribing pages")
         val phase by transition.animateFloat(0f, 1f, infiniteRepeatable(tween(1100, easing = PageTurnEasing)), label = "Page turn")
         phase
     } else 0f
+    // "Syncing" is only a brief note (3 s) at the start of a sync; "Reading folder" stays for as long
+    // as a newly chosen library folder is being read.
+    var syncNote by remember { mutableStateOf(false) }
+    LaunchedEffect(scanningFolder != null) {
+        syncNote = scanningFolder != null
+        if (syncNote) { kotlinx.coroutines.delay(3_000); syncNote = false }
+    }
+    val label = if (readingFolder) "Reading folder" else if (transcribing) "Transcribing" else if (syncNote) "Syncing" else null
     Column(Modifier.widthIn(min = 64.dp).clickable(onClickLabel = "Open the queue", onClick = onClick).semantics(mergeDescendants = true) {
         contentDescription = "ReadAlong queue"
-        stateDescription = if (transcribing) "Transcribing" else scanningFolder?.let { "Syncing $it" } ?: "Library up to date"
+        stateDescription = if (readingFolder) "Reading folder" else if (transcribing) "Transcribing" else scanningFolder?.let { "Syncing $it" } ?: "Library up to date"
     }, horizontalAlignment = Alignment.CenterHorizontally) {
         PageTurnLogo(page, Modifier.size(52.dp))
-        // The label's line is always reserved, so the toolbar doesn't jump when work starts or stops.
-        Box(Modifier.height(14.dp), contentAlignment = Alignment.Center) {
-            // The page turns for either job; say which one.
-            val label = if (transcribing) "Transcribing" else if (scanningFolder != null) "Syncing" else null
-            if (label != null) Text(label, fontSize = 12.sp, lineHeight = 14.sp, color = MaterialTheme.colorScheme.primary)
+        // The label's line is always reserved (sized in sp, so large fonts aren't clipped), so the
+        // toolbar doesn't jump when work starts or stops.
+        val lineHeight = with(androidx.compose.ui.platform.LocalDensity.current) { 18.sp.toDp() }
+        Box(Modifier.heightIn(min = lineHeight), contentAlignment = Alignment.Center) {
+            if (label != null) Text(label, fontSize = 12.sp, lineHeight = 16.sp, maxLines = 1, softWrap = false,
+                color = MaterialTheme.colorScheme.primary,
+                style = androidx.compose.ui.text.TextStyle(platformStyle = androidx.compose.ui.text.PlatformTextStyle(includeFontPadding = true)))
         }
     }
 }

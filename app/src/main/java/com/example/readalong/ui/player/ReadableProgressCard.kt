@@ -16,6 +16,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.background
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import com.example.readalong.R
 import com.example.readalong.domain.model.Book
 import com.example.readalong.data.local.ProcessingJobEntity
@@ -35,8 +37,6 @@ fun ReadableProgressCard(book: Book, job: ProcessingJobEntity?, estimate: String
     var trash by remember { mutableStateOf(false) }
     var redo by remember { mutableStateOf(false) }
     val hidden by reading.preparationHidden.collectAsStateWithLifecycle()
-    val scope = rememberCoroutineScope()
-    val clipboard = androidx.compose.ui.platform.LocalClipboard.current
     val active = job?.state in listOf("QUEUED", "PROCESSING", "PARTIAL_READY", "GENERATING_EPUB")
     val ready = job?.state == "READY"
     val waitingForCharging = active && job?.message?.startsWith("Waiting for charging") == true
@@ -52,14 +52,27 @@ fun ReadableProgressCard(book: Book, job: ProcessingJobEntity?, estimate: String
     val bar = com.example.readalong.ui.components.animatedFraction((progress?.bookPercent ?: 0) / 100f)
     val subtitle = if (waitingForCharging) "Waiting for charging · $shownPercent% of book" else if (ready) "Whole book · 100%"
         else if (created) "$shownPercent% of book" + (if (chapter.isNotBlank()) " · $chapter" else "") else "Read as you listen"
+    // The bar is open by default; its ^ folds it away into a small "ReadAlong ˅" pill (remembered per book).
     androidx.compose.animation.AnimatedVisibility(!hidden, enter = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn(),
         exit = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut()) {
         ReadAlongBar(title, subtitle, if (created) ({ bar.value }) else null,
             onClick = { if (!created && !book.isDemo) sourceChoice = true else more = !more },
             addEpub = if (sourceEpub == null && !book.isDemo) ({ epubPicker.launch(arrayOf("application/epub+zip", "application/octet-stream")) }) else null,
-            addingEpub = sourceBusy)
+            addingEpub = sourceBusy, onCollapse = { reading.hidePreparation(true) })
     }
-    MoreToggle(more) { more = !more }
+    // Folded: a small "ReadAlong ˅" pill on the left of the More row brings the bar back.
+    Box(Modifier.fillMaxWidth()) {
+        androidx.compose.animation.AnimatedVisibility(hidden, Modifier.align(Alignment.CenterStart), enter = androidx.compose.animation.fadeIn(), exit = androidx.compose.animation.fadeOut()) {
+            Surface(onClick = { reading.hidePreparation(false) }, shape = RoundedCornerShape(50), color = Color.White.copy(alpha = .09f),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .10f)), modifier = Modifier.semantics { contentDescription = "Show the ReadAlong bar" }) {
+                Row(Modifier.padding(start = 14.dp, end = 10.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("ReadAlong", style = MaterialTheme.typography.labelLarge)
+                    Icon(painterResource(R.drawable.ic_down), null, Modifier.size(16.dp))
+                }
+            }
+        }
+        MoreToggle(more) { more = !more }
+    }
     androidx.compose.animation.AnimatedVisibility(more, enter = androidx.compose.animation.expandVertically(androidx.compose.animation.core.tween(220), expandFrom = Alignment.Top) + androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(220)),
         exit = androidx.compose.animation.shrinkVertically(androidx.compose.animation.core.tween(180), shrinkTowards = Alignment.Top) + androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(140))) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -69,16 +82,12 @@ fun ReadableProgressCard(book: Book, job: ProcessingJobEntity?, estimate: String
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.End), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (waitingForCharging) MoreAction("Use battery for 30 min", reading::allowBatteryForThirtyMinutes)
                 if (job?.state == "WAITING_MODEL") MoreAction("Get the speech model", onModel)
-                if (!created && !book.isDemo) MoreAction("Make a ReadAlong") { sourceChoice = true }
                 if (active) MoreAction("Pause", reading::cancelPreparation)
                 else if (created && !ready) MoreAction("Resume", reading::prepareReadable)
                 if (created) MoreAction("Redo") { redo = true }
                 if (created) MoreAction("Remove", destructive = true) { trash = true }
-                MoreAction(if (hidden) "Show card" else "Hide card") { reading.hidePreparation(!hidden) }
             }
             com.example.readalong.ui.reading.EpubEditionControls(reading, position, compact = true)
-            TextButton(onClick = { execution?.let { scope.launch { clipboard.setClipEntry(androidx.compose.ui.platform.ClipEntry(android.content.ClipData.newPlainText("ReadAlong diagnostics", it.diagnostics))) } } },
-                enabled = execution != null) { Text("Copy diagnostics for support", style = MaterialTheme.typography.labelLarge) }
         }
     }
     if (sourceChoice) com.example.readalong.ui.importing.ReadAlongSourceDialog(sourceBusy, sourceError,
@@ -97,12 +106,13 @@ fun ReadableProgressCard(book: Book, job: ProcessingJobEntity?, estimate: String
 
 /** The ReadAlong bar: status and whole-book progress, with an "add matching ebook" side when there's no EPUB yet. */
 @Composable
-internal fun ReadAlongBar(title: String, subtitle: String, progress: (() -> Float)?, onClick: () -> Unit, addEpub: (() -> Unit)?, addingEpub: Boolean = false) {
+internal fun ReadAlongBar(title: String, subtitle: String, progress: (() -> Float)?, onClick: () -> Unit, addEpub: (() -> Unit)?, addingEpub: Boolean = false,
+    onCollapse: (() -> Unit)? = null) {
     val ink = MaterialTheme.colorScheme.onSurface
     Surface(shape = RoundedCornerShape(com.example.readalong.ui.theme.Corners.large), color = Color.White.copy(alpha = .09f), contentColor = ink,
         border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .08f))) {
         Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f).clickable(onClickLabel = title, onClick = onClick).padding(start = 18.dp, end = 14.dp, top = 14.dp, bottom = 14.dp),
+            Column(Modifier.weight(1f).clickable(onClickLabel = title, onClick = onClick).padding(start = 16.dp, end = 10.dp, top = 14.dp, bottom = 14.dp),
                 verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleSmall.copy(fontSize = 15.sp))
                 Text(subtitle, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp), color = ink.copy(alpha = .68f))
@@ -111,11 +121,16 @@ internal fun ReadAlongBar(title: String, subtitle: String, progress: (() -> Floa
             }
             if (addEpub != null) {
                 Box(Modifier.padding(vertical = 14.dp).width(1.dp).fillMaxHeight().background(ink.copy(alpha = .16f)))
-                Row(Modifier.fillMaxHeight().clickable(enabled = !addingEpub, onClickLabel = "Add matching ebook (EPUB)", onClick = addEpub).padding(horizontal = 14.dp),
+                Row(Modifier.fillMaxHeight().clickable(enabled = !addingEpub, onClickLabel = "Add matching ebook (EPUB)", onClick = addEpub).padding(horizontal = 10.dp),
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     if (addingEpub) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = ink)
-                    else Icon(painterResource(R.drawable.ic_book_add), null, Modifier.size(24.dp))
-                    Text("Add matching\nebook (EPUB)", style = MaterialTheme.typography.labelMedium.copy(fontSize = 13.sp, lineHeight = 16.sp))
+                    Text("Add matching\nebook (EPUB)", style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp, lineHeight = 15.sp))
+                }
+            }
+            if (onCollapse != null) {
+                Box(Modifier.padding(vertical = 14.dp).width(1.dp).fillMaxHeight().background(ink.copy(alpha = .16f)))
+                Box(Modifier.fillMaxHeight().width(36.dp).clickable(onClickLabel = "Hide the ReadAlong bar", onClick = onCollapse), contentAlignment = Alignment.Center) {
+                    Icon(painterResource(R.drawable.ic_down), null, Modifier.size(18.dp).graphicsLayer { rotationZ = 180f })
                 }
             }
         }

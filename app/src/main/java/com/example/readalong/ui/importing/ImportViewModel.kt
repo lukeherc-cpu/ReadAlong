@@ -54,8 +54,12 @@ class ImportViewModel(private val importer: AudioImporter, private val epubs: co
         mutableEpubUploaded.value = false
         result.message
     }
+    private val mutableReadingFolder = MutableStateFlow(false)
+    /** True while a newly chosen library folder is read for the first time (the library shows placeholders). */
+    val readingFolder = mutableReadingFolder.asStateFlow()
     fun folder(uri: Uri, mode: FolderMode, onAdded: () -> Unit = {}) = action {
-        val result = importer.addFolder(uri, mode)
+        if (mode == FolderMode.LIBRARY) mutableReadingFolder.value = true
+        val result = try { importer.addFolder(uri, mode) } finally { mutableReadingFolder.value = false }
         if (mode == FolderMode.ONE_BOOK) offerPriority(result.newBookIds)
 
         onAdded()
@@ -67,6 +71,7 @@ class ImportViewModel(private val importer: AudioImporter, private val epubs: co
         mutableEpubUploaded.value = true
         "EPUB added. Your ReadAlong will use its text."
     }
+    suspend fun bookCount(folder: FolderEntity) = importer.bookCount(folder.uri)
     fun rescan(folder: FolderEntity) = action { val result = importer.scan(Uri.parse(folder.uri)); result.message }
     fun remove(folder: FolderEntity) = action { importer.removeFolder(folder); "Folder removed from your library." }
     private val mutableScanningFolder = MutableStateFlow<String?>(null)

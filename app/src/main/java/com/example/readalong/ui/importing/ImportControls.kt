@@ -75,7 +75,9 @@ fun FoldersScreen(model: ImportViewModel, onBack: () -> Unit) {
                     Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(folder.name, style = MaterialTheme.typography.titleLarge)
                         Text(if (folder.mode == FolderMode.ONE_BOOK.name) "One audiobook" else "Each folder inside is one book", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        folder.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                        // "Scan incomplete" only matters when the folder gave no books at all.
+                        val books by produceState<Int?>(null, folder.error, folder.lastScanAt, busy) { value = model.bookCount(folder) }
+                        folder.error?.takeIf { it != com.example.readalong.data.importing.SCAN_INCOMPLETE || books == 0 }?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                         Row {
                             TextButton(onClick = { model.rescan(folder) }, enabled = !busy) { Text("Check for new books") }
                             TextButton(onClick = { removing = folder }, enabled = !busy) { Text("Remove folder") }

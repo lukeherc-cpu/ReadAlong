@@ -105,6 +105,6 @@ class AppPreferencesStore(private val context: Context) {
         p[booleanPreferencesKey("folder_example_hidden")] = value.folderExampleHidden
         p[booleanPreferencesKey("cover_progress_bar")] = value.coverProgressBar
         }
-        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.example.readalong.ui.launch.LaunchAppearance.apply(context, decode(saved)) }
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.example.readalong.ui.launch.LaunchAppearance.request(context, decode(saved)) }
     }
 }

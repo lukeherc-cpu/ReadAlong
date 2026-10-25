@@ -101,6 +101,7 @@ fun ReadAlongApp(libraryViewModel: LibraryViewModel, app: com.example.readalong.
             androidx.lifecycle.compose.LifecycleEventEffect(androidx.lifecycle.Lifecycle.Event.ON_RESUME) { importModel.refreshLibrary() }
             val state by libraryViewModel.state.collectAsStateWithLifecycle()
             val scanningFolder by importModel.scanningFolder.collectAsStateWithLifecycle()
+            val readingFolder by importModel.readingFolder.collectAsStateWithLifecycle()
             val playbackState by playback.state.collectAsStateWithLifecycle()
             val activeBookFlow = androidx.compose.runtime.remember(playbackState.bookId) {
                 playbackState.bookId?.let(bookRepository::observeBook) ?: kotlinx.coroutines.flow.flowOf(null)
@@ -143,6 +144,7 @@ fun ReadAlongApp(libraryViewModel: LibraryViewModel, app: com.example.readalong.
             LibraryScreen(
                 state = state,
                 scanningFolder = scanningFolder,
+                readingFolder = readingFolder,
                 transcribing = jobs.any { it.state in setOf("QUEUED", "PROCESSING", "PARTIAL_READY", "GENERATING_EPUB") },
                 onQueue = { open("queue") },
                 selectedBookId = playbackState.bookId,

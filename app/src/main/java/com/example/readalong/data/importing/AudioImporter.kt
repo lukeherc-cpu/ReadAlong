@@ -25,6 +25,9 @@ import kotlin.coroutines.coroutineContext
 enum class FolderMode { ONE_BOOK, LIBRARY }
 data class ImportResult(val bookIds: List<String>, val message: String, val newBookIds: List<String> = emptyList())
 
+/** Saved on a folder while it is scanned; it stays only if the scan was cut short. */
+const val SCAN_INCOMPLETE = "Scan incomplete. Rescan to continue."
+
 class AudioImporter(private val context: Context, private val database: ReadAlongDatabase, private val onEpubFound: suspend (String, Uri) -> Unit = { _, _ -> }, private val onImported: suspend (String) -> Unit = {}, private val onTranscriptFound: suspend (String, Uri) -> Unit = { _, _ -> }) {
     private val resolver = context.contentResolver
     private val media = database.mediaDao()
@@ -63,7 +66,7 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
     suspend fun addFolder(uri: Uri, mode: FolderMode, persistAccess: Boolean = true): ImportResult = withContext(Dispatchers.IO) {
         if (persistAccess) persist(uri)
         val root = requireNotNull(DocumentFile.fromTreeUri(context, uri)) { "Couldn't open this folder." }
-        media.putFolder(FolderEntity(uri.toString(), root.name ?: "Audiobooks", mode.name, null, "Scan incomplete. Rescan to continue."))
+        media.putFolder(FolderEntity(uri.toString(), root.name ?: "Audiobooks", mode.name, null, SCAN_INCOMPLETE))
         folderLock.withLock { scanLocked(uri, explicit = mode == FolderMode.ONE_BOOK) }
     }
 
@@ -78,10 +81,12 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
 
     suspend fun scan(uri: Uri): ImportResult = folderLock.withLock { scanLocked(uri) }
 
+    suspend fun bookCount(folderUri: String): Int = withContext(Dispatchers.IO) { media.folderBooks(folderUri).size }
+
     private suspend fun scanLocked(uri: Uri, explicit: Boolean = false): ImportResult = withContext(Dispatchers.IO) {
         val saved = requireNotNull(media.folder(uri.toString())) { "Folder is no longer saved." }
         try {
-            media.putFolder(saved.copy(error = "Scan incomplete. Rescan to continue."))
+            media.putFolder(saved.copy(error = SCAN_INCOMPLETE))
             val root = requireNotNull(DocumentFile.fromTreeUri(context, uri))
             check(root.exists() && root.canRead()) { "Folder access was lost. Add this folder again to restore access." }
             val groups = if (saved.mode == FolderMode.ONE_BOOK.name) listOf(Group("folder:${root.uri}", root.name, collect(root))) else libraryGroups(root)

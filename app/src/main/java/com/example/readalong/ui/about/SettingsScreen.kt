@@ -90,16 +90,13 @@ fun SettingsScreen(app: ReadAlongApplication, onBack: () -> Unit, onModel: () ->
     if (appFont) com.example.readalong.ui.reading.AppFontDialog(preferences.appFont, { appFont = false }) { font -> save { it.copy(appFont = font) }; appFont = false }
     if (appearance) com.example.readalong.ui.reading.ReaderAppearance(reader, { appearance = false }) { value -> scope.launch { app.readerPreferences.save(value) }; appearance = false }
     if (colorPicker) BasicColorPicker(preferences.basicColor, { colorPicker = false }) { color -> pendingColor = color; colorPicker = false }
-    if (pendingTheme != null || pendingColor != null) AlertDialog(
-        onDismissRequest = { pendingTheme = null; pendingColor = null },
-        title = { Text("Restart ReadAlong?") },
-        text = { Text("ReadAlong restarts to update its icon and colors. Nothing is lost. If it closes, just open it again.") },
-        confirmButton = { TextButton(onClick = {
-            val light = pendingTheme; val color = pendingColor
-            pendingTheme = null; pendingColor = null
-            save { it.copy(libraryLight = light ?: it.libraryLight, basicColor = color ?: it.basicColor) }
-        }) { Text("Restart") } },
-        dismissButton = { TextButton(onClick = { pendingTheme = null; pendingColor = null }) { Text("Cancel") } })
+    // Theme and color apply at once; the app icon and launch screen follow when you leave ReadAlong.
+    LaunchedEffect(pendingTheme, pendingColor) {
+        val light = pendingTheme; val color = pendingColor
+        if (light == null && color == null) return@LaunchedEffect
+        pendingTheme = null; pendingColor = null
+        save { it.copy(libraryLight = light ?: it.libraryLight, basicColor = color ?: it.basicColor) }
+    }
     if (backgroundPicker) AlertDialog(onDismissRequest = { backgroundPicker = false }, title = { Text("Player background") }, text = {
         Column { listOf(true to "Blurred cover art", false to "Solid color").forEach { (blur, label) ->
             Row(Modifier.fillMaxWidth().clickable { save { it.copy(blurredPlayer = blur) }; backgroundPicker = false }.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {

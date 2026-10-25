@@ -28,6 +28,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.readalong.data.processing.progress
 import com.example.readalong.R
 import com.example.readalong.domain.model.Book
@@ -148,9 +149,10 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                         drawStopIndicator = null, thumbTrackGapSize = 0.dp, trackInsideCornerSize = 0.dp) },
                 )
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(clockTime(chapterPosition), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
-                    Text(if (state.durationMs > 0) "${clockTime(state.durationMs - state.positionMs)} left in book" else "Length unknown", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
-                    Text(clockTime(chapterDuration), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+                    Text(clockTime(chapterPosition), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant, modifier = Modifier.alignByBaseline())
+                    Text(if (state.durationMs > 0) "${clockTime(state.durationMs - state.positionMs)} left in book" else "Length unknown", style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, lineHeight = 16.sp,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Normal, fontFamily = timeLeftFont()), color = colors.onSurfaceVariant, modifier = Modifier.alignByBaseline())
+                    Text(clockTime(chapterDuration), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant, modifier = Modifier.alignByBaseline())
                 }
                 state.error?.let { Text(it, color = colors.error, style = MaterialTheme.typography.bodySmall) }
 
@@ -247,3 +249,9 @@ private fun PlayerAction(description: String, icon: Int, label: String, onClick:
         Text(label, style = MaterialTheme.typography.labelSmall, maxLines = 1)
     }
 }
+
+/** "xx left in book" is set lighter than the rest: Plus Jakarta's regular weight when that's the app font. */
+@Composable
+private fun timeLeftFont(): androidx.compose.ui.text.font.FontFamily? =
+    if (com.example.readalong.ui.theme.LocalAppSettings.current.appFont == "JAKARTA") JakartaRegular else MaterialTheme.typography.bodySmall.fontFamily
+private val JakartaRegular = androidx.compose.ui.text.font.FontFamily(androidx.compose.ui.text.font.Font(com.example.readalong.R.font.jakarta_regular, androidx.compose.ui.text.font.FontWeight.Normal))
