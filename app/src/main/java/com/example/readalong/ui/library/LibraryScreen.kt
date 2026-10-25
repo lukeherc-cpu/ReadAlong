@@ -64,16 +64,14 @@ fun LibraryScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             item(key = "toolbar", span = { GridItemSpan(maxLineSpan) }) {
-                // Title and logo on the left (they open the queue); actions grouped on the right.
-                Row(Modifier.fillMaxWidth().heightIn(min = 64.dp), verticalAlignment = Alignment.CenterVertically) {
-                    com.example.readalong.ui.launch.LibraryHeader(scanningFolder, transcribing, settings.animateTranscriptionLogo, onQueue)
-                    Spacer(Modifier.weight(1f))
-                    CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onSurface) {
-                        IconButton(onClick = { searchVisible = !searchVisible; if (!searchVisible) query = "" }) { Icon(painterResource(R.drawable.ic_search), "Search library") }
-                        IconButton(onClick = onFolders) { Icon(painterResource(R.drawable.ic_bookshelf), "Audiobook folders") }
-                        IconButton(onClick = onAbout) { Icon(painterResource(R.drawable.ic_settings), "Settings") }
-                        importControls()
-                    }
+                CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.primary) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onAbout) { Icon(painterResource(R.drawable.ic_settings), "Settings") }
+                    IconButton(onClick = onFolders) { Icon(painterResource(R.drawable.ic_bookshelf), "Audiobook folders") }
+                    Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { com.example.readalong.ui.launch.LibraryLogo(scanningFolder, transcribing, settings.animateTranscriptionLogo, onQueue) }
+                    IconButton(onClick = { searchVisible = !searchVisible; if (!searchVisible) query = "" }) { Icon(painterResource(R.drawable.ic_search), "Search library") }
+                    importControls()
+                }
                 }
             }
             if (state is LibraryUiState.Ready) {

@@ -31,14 +31,15 @@ fun ReadAlongSourceDialog(busy: Boolean, message: String?, hasEpub: Boolean = fa
     val estimate by produceState<String?>(null, durationMs) {
         value = app?.let { com.example.readalong.data.processing.TranscriptionEstimate.beforeStart(it.database, durationMs) }
     }
+    var started by remember { mutableStateOf(false) }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) onStart(true, uri)
+        if (uri != null) { started = true; onStart(true, uri) }
     }
     com.example.readalong.ui.components.IllustratedDialog("Make a ReadAlong", { if (!busy) onDismiss() }, actions = {
         TextButton(enabled = !busy, onClick = onDismiss) { Text("Later") }
         Button(enabled = !busy, modifier = Modifier.testTag("make_readalong"), onClick = {
             if (align && !hasEpub) picker.launch(arrayOf("application/epub+zip", "application/octet-stream"))
-            else onStart(align, null)
+            else { started = true; onStart(align, null) }
         }) { Text(if (align && !hasEpub) "Choose EPUB" else "Make ReadAlong", maxLines = 1, softWrap = false) }
     }) {
         bookTitle?.let { Text(it, style = MaterialTheme.typography.titleMedium) }
@@ -58,8 +59,9 @@ fun ReadAlongSourceDialog(busy: Boolean, message: String?, hasEpub: Boolean = fa
             }
         }
         estimate?.let { Text("$it ReadAlong can run overnight while charging.", style = MaterialTheme.typography.bodyMedium) }
-        if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-        message?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+        // Only this sheet's own progress: folder scanning ("2 audiobooks scanned") stays out of it.
+        if (started && busy) LinearProgressIndicator(Modifier.fillMaxWidth())
+        if (started) message?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
     }
 }
 }

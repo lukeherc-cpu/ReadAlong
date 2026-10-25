@@ -140,10 +140,10 @@ private fun SourceButton(shade: Pair<androidx.compose.ui.graphics.Color, android
 
 /**
  * A small picture of a folder layout, drawn like a file manager's tree (down arrows on folders,
- * connector lines); each kind wears the same shade as its button.
+ * connector lines); each kind wears the same shade as its button. [onDismiss] adds a close button.
  */
 @Composable
-fun FolderExample(modifier: Modifier = Modifier) {
+fun FolderExample(modifier: Modifier = Modifier, onDismiss: (() -> Unit)? = null) {
     val shades = sourceShades()
     Surface(modifier.fillMaxWidth(), shape = RoundedCornerShape(com.example.readalong.ui.theme.Corners.large), color = MaterialTheme.colorScheme.surfaceVariant) {
         Box {
@@ -155,6 +155,9 @@ fun FolderExample(modifier: Modifier = Modifier) {
                 TreeLine(2, shades[2], "Part 2.mp3", continuing = listOf(true), last = true)
                 TreeLine(1, shades[1], "Project Hail Mary", folder = true, open = true, last = true)
                 TreeLine(2, shades[2], "Project Hail Mary.m4b", continuing = listOf(false), last = true)
+            }
+            if (onDismiss != null) IconButton(onClick = onDismiss, modifier = Modifier.align(Alignment.TopEnd)) {
+                com.example.readalong.ui.components.CloseGlyph(MaterialTheme.colorScheme.onSurfaceVariant, "Hide example")
             }
         }
     }

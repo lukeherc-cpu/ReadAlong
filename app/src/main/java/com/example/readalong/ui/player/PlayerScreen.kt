@@ -134,11 +134,7 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                 }
                 val controls: @Composable ColumnScope.() -> Unit = {
                 com.example.readalong.ui.components.MarqueeTitle(book.title, Modifier.fillMaxWidth(), MaterialTheme.typography.headlineMedium)
-                // Chapter, then how much of the whole book is left; the slider row keeps only the chapter's times.
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(state.chapterTitle, style = MaterialTheme.typography.titleMedium, color = colors.onSurfaceVariant)
-                    if (state.durationMs > 0) Text("${bookTimeLeft(state.durationMs - state.positionMs)} left in book", style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant.copy(alpha = .8f))
-                }
+                Text(state.chapterTitle, style = MaterialTheme.typography.titleMedium, color = colors.onSurfaceVariant)
                 val sliderColors = SliderDefaults.colors(thumbColor = colors.primary, activeTrackColor = colors.primary, inactiveTrackColor = colors.onSurface.copy(alpha = .18f))
                 Slider(
                     value = if (dragging) draggedPosition else chapterPosition.toFloat().coerceAtMost(chapterDuration.toFloat()),
@@ -153,6 +149,7 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                 )
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(clockTime(chapterPosition), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+                    Text(if (state.durationMs > 0) "${clockTime(state.durationMs - state.positionMs)} left in book" else "Length unknown", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
                     Text(clockTime(chapterDuration), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
                 }
                 state.error?.let { Text(it, color = colors.error, style = MaterialTheme.typography.bodySmall) }
@@ -249,11 +246,4 @@ private fun PlayerAction(description: String, icon: Int, label: String, onClick:
         Spacer(Modifier.height(4.dp))
         Text(label, style = MaterialTheme.typography.labelSmall, maxLines = 1)
     }
-}
-
-
-/** "12 h 7 min" / "45 min": easier to take in than 12:07:07 for the whole book. */
-private fun bookTimeLeft(ms: Long): String {
-    val minutes = (ms.coerceAtLeast(0) + 59_999) / 60_000
-    return if (minutes < 60) "$minutes min" else "${minutes / 60} h ${minutes % 60} min"
 }

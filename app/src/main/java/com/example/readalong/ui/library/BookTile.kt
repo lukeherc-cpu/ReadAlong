@@ -45,8 +45,31 @@ fun BookTile(book: Book, selected: Boolean = false, onLongClick: () -> Unit = {}
     ) {
         Box {
             BookCover(book, Modifier.fillMaxWidth().navSharedCover(com.example.readalong.ui.components.coverKey(book.id)))
-            // A thin progress line along the bottom of the cover instead of a heavy badge.
-            if (book.progressPercent in 1..99) {
+            // The percentage badge by default; a thin progress line when "Progress bar on covers" is on.
+            val bar = com.example.readalong.ui.theme.LocalAppSettings.current.coverProgressBar
+            if (showMetadata && !bar) Surface(
+                modifier = Modifier.align(Alignment.BottomStart).padding(10.dp),
+                shape = RoundedCornerShape(com.example.readalong.ui.theme.Corners.small),
+                color = Color(0xE6121617),
+                contentColor = Color.White,
+            ) {
+                Row(
+                    Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    val ring = com.example.readalong.ui.components.animatedFraction(book.progressPercent / 100f, "Listening progress")
+                    CircularProgressIndicator(
+                        progress = { ring.value },
+                        modifier = Modifier.size(14.dp).clearAndSetSemantics { },
+                        color = Color.White,
+                        trackColor = Color.White.copy(alpha = .3f),
+                        strokeWidth = 2.dp,
+                    )
+                    Text(stringResource(R.string.progress_percent, book.progressPercent), style = MaterialTheme.typography.labelMedium)
+                }
+            }
+            if (bar && book.progressPercent in 1..99) {
                 val ring = com.example.readalong.ui.components.animatedFraction(book.progressPercent / 100f, "Listening progress")
                 Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp).height(4.dp)
                     .clip(RoundedCornerShape(2.dp)).background(Color.Black.copy(alpha = .35f)).clearAndSetSemantics { }) {
@@ -58,7 +81,7 @@ fun BookTile(book: Book, selected: Boolean = false, onLongClick: () -> Unit = {}
         Spacer(Modifier.height(10.dp))
         Text(book.title, color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleSmall)
         Text(
-            (book.author ?: stringResource(R.string.unknown_author)) + when { book.isFinished -> " · Finished"; book.progressPercent > 0 -> " · ${book.progressPercent}%"; else -> "" },
+            (book.author ?: stringResource(R.string.unknown_author)) + if (com.example.readalong.ui.theme.LocalAppSettings.current.coverProgressBar) when { book.isFinished -> " · Finished"; book.progressPercent > 0 -> " · ${book.progressPercent}%"; else -> "" } else "",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
