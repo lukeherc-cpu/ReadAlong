@@ -370,7 +370,8 @@ class ReadingViewModel(val bookId: String, val database: ReadAlongDatabase, priv
     }
     suspend fun indexAt(position: Long, generated: Boolean = mutableStart.value?.generated == true, imported: Boolean = mutableStart.value?.imported == true): Int {
         val dao = database.readingDao()
-        return if (imported) database.importedEpubDao().let { it.indexAt(bookId, position) ?: it.indexBefore(bookId, position) ?: 0 }
+        // Before the first passage matched to the audio (title pages, contents, credits), open at that first matched passage.
+        return if (imported) database.importedEpubDao().let { it.indexAt(bookId, position) ?: it.indexBefore(bookId, position) ?: it.indexAfter(bookId, 0) ?: 0 }
         else if (generated) dao.generatedCountBefore(bookId, position)
         else dao.countBefore(bookId, dao.at(bookId, position)?.startMs ?: position)
     }
