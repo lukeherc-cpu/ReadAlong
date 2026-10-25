@@ -10,6 +10,7 @@ import com.example.readalong.ReadAlongApplication
 import com.example.readalong.data.transcription.*
 import com.example.readalong.domain.transcription.ProcessingState
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.first
 
 /** One foreground service owns one checkpointed book at a time. */
 class AudiobookTranscriptionService : Service() {
@@ -106,6 +107,8 @@ class AudiobookTranscriptionService : Service() {
     }
     private suspend fun prepareBook(book: String, workId: String) {
         val resources = TranscriptionResources(app)
+        // "Aggressive transcription" skips the warm / battery saver / low memory slow-down; a hot phone still waits.
+        suspend fun conserve() = !app.appPreferences.preferences.first().aggressiveTranscription && resources.conserve()
         var complete = false
         var stop = false
         // Each pass owns one recognition binding. A failure ends the pass, which releases the
@@ -134,16 +137,20 @@ class AudiobookTranscriptionService : Service() {
                                 ProcessingRunner(app.database, app.generatedEpub).run(book, workId, engine, com.example.readalong.domain.transcription.TranscriptionBatch.MAX_UNITS) {
                                     try { app.importedEpub.requestAlignment(book) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { }
                                     val now = android.os.SystemClock.elapsedRealtime()
-                                    val keepGoing = budget.continueAfter(now - previousTime, now - began, resources.conserve())
+                                    val keepGoing = budget.continueAfter(now - previousTime, now - began, conserve())
                                     previousTime = now
                                     keepGoing && !ChargingPolicy.shouldWait(app) && app.processing.isTurn(book, workId)
                                 }
                             }
                             app.importedEpub.requestAlignment(book)
                             if (!complete) {
-                                status(book, workId, "QUEUED", "Progress saved. Continuing…")
-                                if (resources.conserve()) delay(if (resources.warm()) 30_000 else 1_000)
-                                else yield()
+                                if (conserve() && resources.warm()) {
+                                    status(book, workId, "QUEUED", "Phone is warm, pausing 30 sec to cool down")
+                                    delay(30_000)
+                                } else {
+                                    status(book, workId, "QUEUED", "Progress saved. Continuing…")
+                                    if (conserve()) delay(1_000) else yield()
+                                }
                             }
                         } catch (error: Exception) {
                             if (error is CancellationException && error !is TimeoutCancellationException) throw error
