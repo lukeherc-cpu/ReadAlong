@@ -158,10 +158,10 @@ fun ReadAlongApp(libraryViewModel: LibraryViewModel, app: com.example.readalong.
                     onBook = { navController.navigate("book/${Uri.encode(it)}") { launchSingleTop = true } }) },
                 importStatus = { com.example.readalong.ui.importing.ImportStatus(importModel) },
                 emptyActions = {
-                    androidx.compose.foundation.layout.Column(verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp)) {
-                        if (!appSettings.folderExampleHidden) com.example.readalong.ui.importing.FolderExample(
-                            onDismiss = { setupScope.launch { app.appPreferences.update { it.copy(folderExampleHidden = true) } } })
-                        com.example.readalong.ui.importing.AudiobookSourceButtons(importModel)
+                    // The same choices as the welcome page, then the folder example folded under Help.
+                    androidx.compose.foundation.layout.Column(verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
+                        com.example.readalong.ui.importing.AudiobookSourceButtons(importModel, large = true)
+                        com.example.readalong.ui.importing.FolderHelp()
                     }
                 },
                 miniPlayer = {

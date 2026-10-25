@@ -31,6 +31,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -214,6 +215,26 @@ fun FolderExample(modifier: Modifier = Modifier, onDismiss: (() -> Unit)? = null
             if (onDismiss != null) IconButton(onClick = onDismiss, modifier = Modifier.align(Alignment.TopEnd)) {
                 com.example.readalong.ui.components.CloseGlyph(MaterialTheme.colorScheme.onSurfaceVariant, "Hide example")
             }
+        }
+    }
+}
+
+/** "Help" with a chevron (down while folded); tapping it shows the [FolderExample]. Folded by default. */
+@Composable
+fun FolderHelp(modifier: Modifier = Modifier) {
+    var open by rememberSaveable { mutableStateOf(false) }
+    val turn by animateFloatAsState(if (open) 180f else 0f, tween(220), label = "Help chevron")
+    Column(modifier.fillMaxWidth()) {
+        TextButton(onClick = { open = !open }, modifier = Modifier.align(Alignment.CenterHorizontally).testTag("folder_help")
+            .semantics { stateDescription = if (open) "Expanded" else "Collapsed" }) {
+            Text("Help")
+            Spacer(Modifier.width(6.dp))
+            Icon(painterResource(R.drawable.ic_down), null, Modifier.size(18.dp).graphicsLayer { rotationZ = turn })
+        }
+        androidx.compose.animation.AnimatedVisibility(open,
+            enter = androidx.compose.animation.expandVertically(tween(220), expandFrom = Alignment.Top) + fadeIn(tween(220)),
+            exit = androidx.compose.animation.shrinkVertically(tween(180), shrinkTowards = Alignment.Top) + fadeOut(tween(140))) {
+            FolderExample(Modifier.padding(top = 4.dp))
         }
     }
 }

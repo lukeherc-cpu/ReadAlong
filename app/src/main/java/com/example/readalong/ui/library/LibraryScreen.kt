@@ -158,7 +158,8 @@ fun LibraryScreen(
 @Composable
 private fun LibraryMessage(title: String, message: String, actions: (@Composable () -> Unit)? = null) {
     Column(Modifier.fillMaxWidth().padding(vertical = if (actions != null) 24.dp else 48.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        com.example.readalong.ui.components.ReadAlongArtwork(if (actions != null) R.drawable.art_folder else R.drawable.art_book, Modifier.size(120.dp))
+        // The empty library leads with its words and buttons; only "no results" keeps a picture.
+        if (actions == null) com.example.readalong.ui.components.ReadAlongArtwork(R.drawable.art_book, Modifier.size(120.dp))
         Text(title, style = MaterialTheme.typography.titleLarge)
         Text(message, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyLarge)
         actions?.invoke()
