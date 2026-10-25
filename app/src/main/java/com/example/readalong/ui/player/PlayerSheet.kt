@@ -98,6 +98,10 @@ fun PlayerTransform(book: Book, readerTheme: String, progress: () -> Float, modi
             // Same measurements as PlayerScreen (top bar 56 dp, 24 dp margins, 12 dp gaps, left-aligned
             // title and chapter), so nothing moves when the real player takes over.
             val playerColors = com.example.readalong.ui.theme.playerScheme(palette)
+            // The player's grab handle, in the same place.
+            Box(Modifier.fillMaxWidth().statusBarsPadding().height(56.dp), contentAlignment = Alignment.Center) {
+                Box(Modifier.size(width = 36.dp, height = 4.dp).background(playerColors.onSurface.copy(alpha = .45f), RoundedCornerShape(2.dp)))
+            }
             Column(Modifier.fillMaxSize().statusBarsPadding().padding(top = 56.dp).padding(horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
                     Box(Modifier.widthIn(max = (screenHeight * 0.40f).coerceIn(260.dp, 380.dp)).fillMaxWidth().aspectRatio(1f)) {
