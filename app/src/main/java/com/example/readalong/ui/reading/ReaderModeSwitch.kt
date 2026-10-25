@@ -31,7 +31,7 @@ internal fun ReaderModeSwitch(bookMode: Boolean, select: (Boolean) -> Unit) {
         Row {
             listOf(true, false).forEach { book ->
                 Box(Modifier.size(52.dp, 44.dp).selectable(selected = bookMode == book, role = Role.Tab, onClick = { select(!bookMode) }), contentAlignment = Alignment.Center) {
-                    Icon(painterResource(if (book) R.drawable.ic_book else R.drawable.ic_readalong), if (book) "Read only" else "ReadAlong",
+                    Icon(painterResource(if (book) R.drawable.ic_read_only else R.drawable.ic_readalong), if (book) "Read only" else "ReadAlong",
                         Modifier.size(26.dp), tint = MaterialTheme.colorScheme.onSurface.copy(alpha = if (bookMode == book) 1f else .5f))
                 }
             }

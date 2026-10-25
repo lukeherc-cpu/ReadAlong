@@ -34,7 +34,7 @@ fun FirstVisitGuide(app: ReadAlongApplication, page: GuidePage, eligible: Boolea
         var closed by rememberSaveable { mutableStateOf(false) }
         androidx.lifecycle.compose.LifecycleEventEffect(androidx.lifecycle.Lifecycle.Event.ON_RESUME) { closed = false }
         val scope = rememberCoroutineScope()
-        if (eligible && !hidden && !closed) FirstVisitGuideDialog(page) { dontShow ->
+        if (OnboardingSheets.turn("guide:${page.name}", eligible && !hidden && !closed && !OnboardingSheets.guidesPaused)) FirstVisitGuideDialog(page) { dontShow ->
             if (!dontShow) closed = true
             else scope.launch { app.appPreferences.update {
                 when (page) {
@@ -73,7 +73,7 @@ internal fun FirstVisitGuideDialog(page: GuidePage, finish: (Boolean) -> Unit) {
                 GuideRow("Reading mode", "Switch between listening along and reading on your own.") {
                     Surface(shape = RoundedCornerShape(com.example.readalong.ui.theme.Corners.medium), color = MaterialTheme.colorScheme.secondaryContainer) {
                         Row(Modifier.padding(4.dp)) {
-                            Icon(painterResource(R.drawable.ic_book), null, Modifier.size(22.dp))
+                            Icon(painterResource(R.drawable.ic_read_only), null, Modifier.size(22.dp))
                             Icon(painterResource(R.drawable.ic_readalong), null, Modifier.size(22.dp))
                         }
                     }

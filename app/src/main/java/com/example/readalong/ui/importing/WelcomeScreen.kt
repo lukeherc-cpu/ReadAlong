@@ -25,6 +25,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.layout.layoutId
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
@@ -48,11 +49,13 @@ fun WelcomeScreen(model: ImportViewModel, onDone: () -> Unit) {
     BackHandler(enabled = step == 1) { step = 0 }
     Surface(Modifier.fillMaxSize().testTag("welcome"), color = MaterialTheme.colorScheme.background) {
         AnimatedContent(step, transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(160)) }, label = "Welcome step") { shown ->
-            // The sources step is laid out to fit a phone screen without scrolling (scrolling stays as a
-            // fallback for very small screens and large font sizes).
-            Column(Modifier.fillMaxSize().systemBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = if (shown == 0) 28.dp else 16.dp),
-                verticalArrangement = Arrangement.spacedBy(if (shown == 0) 20.dp else 12.dp)) {
-                if (shown == 0) WelcomeIntro { step = 1 } else WelcomeSources(model, onDone, onSkip = onDone)
+            if (shown == 0) Column(Modifier.fillMaxSize().systemBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 28.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp)) { WelcomeIntro { step = 1 } }
+            // The sources step fills the screen without scrolling: the buttons share the spare height.
+            // If the text doesn't fit (small screens, large fonts), the page scrolls instead.
+            else BoxWithConstraints(Modifier.fillMaxSize().systemBarsPadding()) {
+                val viewport = maxHeight
+                Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) { WelcomeSources(model, onDone, onSkip = onDone, viewport) }
             }
         }
     }
@@ -71,16 +74,60 @@ private fun ColumnScope.WelcomeIntro(onNext: () -> Unit) {
 }
 
 @Composable
-private fun ColumnScope.WelcomeSources(model: ImportViewModel, onAdded: () -> Unit, onSkip: () -> Unit) {
+private fun WelcomeSources(model: ImportViewModel, onAdded: () -> Unit, onSkip: () -> Unit, viewport: Dp) {
     val busy by model.busy.collectAsStateWithLifecycle()
     val message by model.message.collectAsStateWithLifecycle()
-    Text("Where are your audiobooks?", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.semantics { heading() })
-    Text("ReadAlong checks there for new books each time you come back.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    FolderExample()
-    AudiobookSourceButtons(model, onAdded)
-    if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-    message?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
-    TextButton(onClick = onSkip, enabled = !busy, modifier = Modifier.align(Alignment.CenterHorizontally)) { Text("Skip for now") }
+    FillingColumn(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp), viewport - 32.dp, 12.dp) {
+        Text("Where are your audiobooks?", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.semantics { heading() })
+        Text("ReadAlong checks there for new books each time you come back.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        AudiobookSourceButtons(model, onAdded, large = true, stacked = true)
+        FolderExample(compact = true)
+        if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
+        message?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+        Box(Modifier.fillMaxWidth().layoutId(BottomOfPage), contentAlignment = Alignment.Center) {
+            TextButton(onClick = onSkip, enabled = !busy) { Text("Skip for now") }
+        }
+    }
+}
+
+/** A child of [FillingColumn] that grows into spare height, by [weight], up to [max]. */
+private data class Grow(val weight: Float, val min: Dp, val max: Dp)
+private const val BottomOfPage = "bottom"
+
+/**
+ * A column that fills [viewport]: children marked [Grow] start at the height their content needs and
+ * share the spare height (up to their maximum); anything left goes above the [BottomOfPage] child.
+ * When the content needs more than the viewport, it is simply taller (the caller scrolls).
+ */
+@Composable
+private fun FillingColumn(modifier: Modifier, viewport: Dp, gap: Dp, content: @Composable () -> Unit) {
+    androidx.compose.ui.layout.Layout(content, modifier) { measurables, constraints ->
+        val width = constraints.maxWidth
+        val gapPx = gap.roundToPx()
+        val grows = measurables.map { it.layoutId as? Grow }
+        val loose = androidx.compose.ui.unit.Constraints(maxWidth = width)
+        val fixed = measurables.mapIndexed { i, m -> if (grows[i] == null) m.measure(loose) else null }
+        val natural = measurables.mapIndexed { i, m ->
+            grows[i]?.let { g -> m.maxIntrinsicHeight(width).coerceAtLeast(g.min.roundToPx()) } ?: fixed[i]!!.height
+        }
+        val used = natural.sum() + gapPx * (measurables.size - 1).coerceAtLeast(0)
+        val spare = (viewport.roundToPx() - used).coerceAtLeast(0)
+        val totalWeight = grows.sumOf { (it?.weight ?: 0f).toDouble() }.toFloat()
+        val heights = natural.mapIndexed { i, h ->
+            val g = grows[i] ?: return@mapIndexed h
+            (h + (spare * g.weight / totalWeight).toInt()).coerceAtMost(g.max.roundToPx().coerceAtLeast(h))
+        }
+        val placeables = measurables.mapIndexed { i, m -> fixed[i] ?: m.measure(androidx.compose.ui.unit.Constraints.fixed(width, heights[i])) }
+        val content = heights.sum() + gapPx * (measurables.size - 1).coerceAtLeast(0)
+        val height = maxOf(content, viewport.roundToPx(), constraints.minHeight)
+        layout(width, height) {
+            var y = 0
+            placeables.forEachIndexed { i, p ->
+                if (measurables[i].layoutId == BottomOfPage) y = maxOf(y, height - p.height)
+                p.place(0, y); y += p.height + gapPx
+            }
+        }
+    }
 }
 
 /**
@@ -100,7 +147,7 @@ internal fun sourceShades(): List<Pair<androidx.compose.ui.graphics.Color, andro
 
 /** Library folder, audiobook folder, files and Audible: shared by the welcome screen and the empty library. */
 @Composable
-fun AudiobookSourceButtons(model: ImportViewModel, onAdded: () -> Unit = {}) {
+fun AudiobookSourceButtons(model: ImportViewModel, onAdded: () -> Unit = {}, large: Boolean = false, stacked: Boolean = false, modifier: Modifier = Modifier) {
     val busy by model.busy.collectAsStateWithLifecycle()
     var audible by rememberSaveable { mutableStateOf(false) }
     val shades = sourceShades()
@@ -113,27 +160,32 @@ fun AudiobookSourceButtons(model: ImportViewModel, onAdded: () -> Unit = {}) {
     val file = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) { model.files(listOf(uri)); onAdded() }
     }
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        SourceButton(shades[0], R.drawable.ic_bookshelf, "Choose library folder", "A folder with all your audiobook folders", !busy, Modifier.testTag("choose_folder")) { library.launch(null) }
-        SourceButton(shades[1], R.drawable.ic_folder, "Choose audiobook folder", "A folder with one audiobook's files", !busy) { book.launch(null) }
-        SourceButton(shades[2], R.drawable.ic_play, "Add audio file", "One file that holds a whole audiobook", !busy) { file.launch(arrayOf("audio/*", "application/octet-stream", "video/mp4")) }
-        OutlinedButton(onClick = { audible = true }, enabled = !busy, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
-            Text("Import from Audible")
+    // Stacked: the buttons are placed straight into the welcome page's FillingColumn, which grows them.
+    val grow = if (stacked) Modifier.layoutId(Grow(1f, 72.dp, 124.dp)) else Modifier
+    val buttons = @Composable {
+        SourceButton(shades[0], R.drawable.ic_bookshelf, "Choose library folder", "A folder with all your audiobook folders", !busy, grow.testTag("choose_folder"), large) { library.launch(null) }
+        SourceButton(shades[1], R.drawable.ic_folder, "Choose audiobook folder", "A folder with one audiobook's files", !busy, grow, large) { book.launch(null) }
+        SourceButton(shades[2], R.drawable.ic_play, "Add audio file", "One file that holds a whole audiobook", !busy, grow, large) { file.launch(arrayOf("audio/*", "application/octet-stream", "video/mp4")) }
+        OutlinedButton(onClick = { audible = true }, enabled = !busy, modifier = (if (stacked) Modifier.layoutId(Grow(.5f, 56.dp, 84.dp)) else Modifier).fillMaxWidth().heightIn(min = if (large) 56.dp else 48.dp)) {
+            Text("Import from Audible", style = if (large) MaterialTheme.typography.titleMedium else LocalTextStyle.current)
         }
     }
+    if (stacked) buttons()
+    else Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(if (large) 10.dp else 8.dp)) { buttons() }
     if (audible) AudibleImportDialog(onChooseFolder = { audible = false; library.launch(null) }, onDismiss = { audible = false })
 }
 
 @Composable
 private fun SourceButton(shade: Pair<androidx.compose.ui.graphics.Color, androidx.compose.ui.graphics.Color>, icon: Int, title: String, subtitle: String?, enabled: Boolean,
-    modifier: Modifier = Modifier, onClick: () -> Unit) {
+    modifier: Modifier = Modifier, large: Boolean = false, onClick: () -> Unit) {
     Button(onClick = onClick, enabled = enabled, modifier = modifier.fillMaxWidth().heightIn(min = 52.dp),
+        shape = if (large) RoundedCornerShape(com.example.readalong.ui.theme.Corners.large) else ButtonDefaults.shape,
         colors = ButtonDefaults.buttonColors(containerColor = shade.first, contentColor = shade.second),
-        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp)) {
-        Icon(painterResource(icon), null, Modifier.size(20.dp)); Spacer(Modifier.width(14.dp))
-        Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.titleSmall)
-            subtitle?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = shade.second.copy(alpha = .8f)) }
+        contentPadding = PaddingValues(horizontal = if (large) 22.dp else 20.dp, vertical = 8.dp)) {
+        Icon(painterResource(icon), null, Modifier.size(if (large) 28.dp else 20.dp)); Spacer(Modifier.width(if (large) 18.dp else 14.dp))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(if (large) 2.dp else 0.dp)) {
+            Text(title, style = if (large) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleSmall)
+            subtitle?.let { Text(it, style = if (large) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.bodySmall, color = shade.second.copy(alpha = .8f)) }
         }
     }
 }
@@ -143,18 +195,20 @@ private fun SourceButton(shade: Pair<androidx.compose.ui.graphics.Color, android
  * connector lines); each kind wears the same shade as its button. [onDismiss] adds a close button.
  */
 @Composable
-fun FolderExample(modifier: Modifier = Modifier, onDismiss: (() -> Unit)? = null) {
+fun FolderExample(modifier: Modifier = Modifier, onDismiss: (() -> Unit)? = null, compact: Boolean = false) {
     val shades = sourceShades()
     Surface(modifier.fillMaxWidth(), shape = RoundedCornerShape(com.example.readalong.ui.theme.Corners.large), color = MaterialTheme.colorScheme.surfaceVariant) {
         Box {
-            Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-                Text("For example", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 4.dp))
+            Column(Modifier.padding(horizontal = 16.dp, vertical = if (compact) 10.dp else 12.dp)) {
+                Text("For example", style = if (compact) MaterialTheme.typography.labelMedium else MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = if (compact) 2.dp else 4.dp))
+                CompositionLocalProvider(LocalTreeCompact provides compact) {
                 TreeLine(0, shades[0], "Audiobooks", folder = true, open = true)
                 TreeLine(1, shades[1], "Dune", folder = true, open = true, last = false)
                 TreeLine(2, shades[2], "Part 1.mp3", continuing = listOf(true), last = false)
                 TreeLine(2, shades[2], "Part 2.mp3", continuing = listOf(true), last = true)
                 TreeLine(1, shades[1], "Project Hail Mary", folder = true, open = true, last = true)
                 TreeLine(2, shades[2], "Project Hail Mary.m4b", continuing = listOf(false), last = true)
+                }
             }
             if (onDismiss != null) IconButton(onClick = onDismiss, modifier = Modifier.align(Alignment.TopEnd)) {
                 com.example.readalong.ui.components.CloseGlyph(MaterialTheme.colorScheme.onSurfaceVariant, "Hide example")
@@ -164,6 +218,7 @@ fun FolderExample(modifier: Modifier = Modifier, onDismiss: (() -> Unit)? = null
 }
 
 private val TreeStep = 24.dp
+private val LocalTreeCompact = staticCompositionLocalOf { false }
 private val ArrowSize = 16.dp
 
 /**
@@ -174,7 +229,8 @@ private val ArrowSize = 16.dp
 private fun TreeLine(depth: Int, shade: Pair<androidx.compose.ui.graphics.Color, androidx.compose.ui.graphics.Color>, name: String,
     folder: Boolean = false, open: Boolean = false, continuing: List<Boolean> = emptyList(), last: Boolean = true) {
     val line = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .38f)
-    Row(Modifier.fillMaxWidth().height(32.dp).drawBehind {
+    val compact = LocalTreeCompact.current
+    Row(Modifier.fillMaxWidth().height(if (compact) 24.dp else 32.dp).drawBehind {
         val stroke = 1.5.dp.toPx(); val step = TreeStep.toPx(); val mid = size.height / 2
         fun guide(level: Int) = (level - 1) * step + ArrowSize.toPx() / 2   // under the parent's arrow
         // Ancestors whose branches continue past this row.
@@ -185,14 +241,14 @@ private fun TreeLine(depth: Int, shade: Pair<androidx.compose.ui.graphics.Color,
             drawLine(line, Offset(x, mid), Offset(depth * step - 3.dp.toPx(), mid), stroke)
         }
         // An open folder's own line runs down to its children.
-        if (folder && open) { val x = depth * step + ArrowSize.toPx() / 2; drawLine(line, Offset(x, mid + 8.dp.toPx()), Offset(x, size.height), stroke) }
+        if (folder && open) { val x = depth * step + ArrowSize.toPx() / 2; drawLine(line, Offset(x, mid + (if (compact) 6.dp else 8.dp).toPx()), Offset(x, size.height), stroke) }
     }, verticalAlignment = Alignment.CenterVertically) {
         Spacer(Modifier.width(TreeStep * depth))
-        if (folder) Icon(painterResource(R.drawable.ic_down), null, Modifier.size(ArrowSize), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (folder) Icon(painterResource(R.drawable.ic_down), null, Modifier.size(if (compact) 14.dp else ArrowSize), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         else Spacer(Modifier.width(4.dp))
         Spacer(Modifier.width(6.dp))
-        Text(name, Modifier.clip(RoundedCornerShape(com.example.readalong.ui.theme.Corners.small)).background(shade.first).padding(horizontal = 10.dp, vertical = 2.dp),
-            style = MaterialTheme.typography.bodyMedium, color = shade.second, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        Text(name, Modifier.clip(RoundedCornerShape(com.example.readalong.ui.theme.Corners.small)).background(shade.first).padding(horizontal = if (compact) 8.dp else 10.dp, vertical = if (compact) 1.dp else 2.dp),
+            style = if (compact) MaterialTheme.typography.bodySmall else MaterialTheme.typography.bodyMedium, color = shade.second, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
     }
 }
 

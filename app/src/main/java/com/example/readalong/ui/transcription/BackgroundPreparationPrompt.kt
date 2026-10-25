@@ -57,7 +57,10 @@ fun BackgroundPreparationPrompt(app: ReadAlongApplication, force: Boolean = fals
         }
     }
     val askBackground = force || (dismissed == false && !exempt)
-    if (force || (dismissed != null && (working || showNow) && (firstTime || askBackground))) {
+    val wanted = dismissed != null && (working || showNow) && (firstTime || askBackground)
+    val myTurn = com.example.readalong.ui.components.OnboardingSheets.turn("background", !force && wanted)
+    if (myTurn) SideEffect { com.example.readalong.ui.components.OnboardingSheets.pauseGuides() }
+    if (force || myTurn) {
         com.example.readalong.ui.components.IllustratedDialog(if (firstTime) "Before your first ReadAlong" else "Keep working in the background", { finish(); onClose() },
             artwork = { if (firstTime) com.example.readalong.ui.components.ReadAlongArtwork(com.example.readalong.R.drawable.art_battery) else com.example.readalong.ui.components.BackgroundWaveform() },
             centered = !firstTime, actions = {

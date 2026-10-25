@@ -4,7 +4,6 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -15,7 +14,7 @@ import com.example.readalong.R
 
 /**
  * The one "Make a ReadAlong" step: from the audio, or matched to the person's EPUB, with a time
- * estimate. The first time, it also says what a ReadAlong is.
+ * estimate. Kept short; the first time, one line also says what a ReadAlong is.
  */
 @Composable
 fun ReadAlongSourceDialog(busy: Boolean, message: String?, hasEpub: Boolean = false,
@@ -42,23 +41,15 @@ fun ReadAlongSourceDialog(busy: Boolean, message: String?, hasEpub: Boolean = fa
             else { started = true; onStart(align, null) }
         }) { Text(if (align && !hasEpub) "Choose EPUB" else "Make ReadAlong", maxLines = 1, softWrap = false) }
     }) {
-        bookTitle?.let { Text(it, style = MaterialTheme.typography.titleMedium) }
-        if (explain) Surface(shape = RoundedCornerShape(com.example.readalong.ui.theme.Corners.large), color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = .55f)) {
-            Text("A ReadAlong is your audiobook's text on screen, highlighted sentence by sentence as you listen. It's made on your phone, and nothing is uploaded.",
-                Modifier.padding(14.dp), style = MaterialTheme.typography.bodyMedium)
+        bookTitle?.let { Text(it, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.offset(y = (-8).dp)) }
+        if (explain) Text("Your book's text on screen, highlighted as you listen.", style = MaterialTheme.typography.bodyLarge)
+        Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ReadingChoice("From the audio", "Any audiobook", R.drawable.art_book, !align,
+                Modifier.weight(1f).fillMaxHeight().testTag("reading_source_transcript")) { align = false }
+            ReadingChoice("From my EPUB", "Exact text", R.drawable.art_epub, align,
+                Modifier.weight(1f).fillMaxHeight().testTag("reading_source_epub")) { align = true }
         }
-        BoxWithConstraints(Modifier.fillMaxWidth()) {
-            val optionWidth = with(androidx.compose.ui.platform.LocalDensity.current) {
-                ((maxWidth.toPx() - 8.dp.toPx()) / 2).toInt().toDp()
-            }
-            Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ReadingChoice("From the audio", "Works for any audiobook. A few words may be misheard.", R.drawable.art_book, !align,
-                    Modifier.width(optionWidth).fillMaxHeight().testTag("reading_source_transcript")) { align = false }
-                ReadingChoice("Match my ebook (EPUB)", if (hasEpub) "Uses the EPUB you added for the book's exact text." else "Uses the exact text of an ebook you own. You'll pick the .epub file next.",
-                    R.drawable.art_epub, align, Modifier.width(optionWidth).fillMaxHeight().testTag("reading_source_epub")) { align = true }
-            }
-        }
-        estimate?.let { Text("$it ReadAlong can run overnight while charging.", style = MaterialTheme.typography.bodyMedium) }
+        estimate?.let { Text("$it · can run overnight while charging", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         // Only this sheet's own progress: folder scanning ("2 audiobooks scanned") stays out of it.
         if (started && busy) LinearProgressIndicator(Modifier.fillMaxWidth())
         if (started) message?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
