@@ -10,7 +10,7 @@ import java.io.File
 
 object ReaderFonts {
     val bundled = listOf(
-        Triple("JAKARTA", "Plus Jakarta Sans", R.font.jakarta_extrabold),
+        Triple("JAKARTA", "Plus Jakarta Sans ExtraBold", R.font.jakarta_extrabold),
         Triple("LITERATA", "Literata", R.font.literata), Triple("LORA", "Lora", R.font.lora),
         Triple("MERRIWEATHER", "Merriweather", R.font.merriweather), Triple("BASKERVILLE", "Libre Baskerville", R.font.librebaskerville),
         Triple("GARAMOND", "EB Garamond", R.font.ebgaramond), Triple("SOURCE_SERIF", "Source Serif 4", R.font.sourceserif4),

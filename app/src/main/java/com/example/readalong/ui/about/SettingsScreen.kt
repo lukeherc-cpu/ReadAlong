@@ -50,6 +50,7 @@ fun SettingsScreen(app: ReadAlongApplication, onBack: () -> Unit, onModel: () ->
             PreferenceSwitch("Use accent color instead of cover colors", preferences.alwaysBasicColor, icon = R.drawable.ic_image) { value -> save { it.copy(alwaysBasicColor = value) } }
             SettingsRow("Player background", R.drawable.ic_fullscreen, onClick = { backgroundPicker = true }) { Text(if (preferences.blurredPlayer) "Blurred cover art" else "Solid color", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant); Chevron() }
             PreferenceSwitch("Show title and author", preferences.showTitleAndAuthor, icon = R.drawable.ic_book) { value -> save { it.copy(showTitleAndAuthor = value) } }
+            PreferenceSwitch("Progress bar on covers", preferences.coverProgressBar, icon = R.drawable.ic_image) { value -> save { it.copy(coverProgressBar = value) } }
             SettingsRow("App font", R.drawable.ic_font, onClick = { appFont = true })
             SettingsRow("Reading fonts and appearance", R.drawable.ic_highlighted_book, onClick = { appearance = true })
         }
@@ -64,9 +65,9 @@ fun SettingsScreen(app: ReadAlongApplication, onBack: () -> Unit, onModel: () ->
         }
         SectionLabel("Playback")
         SettingsGroup { SettingsRow("Rewind and forward times", R.drawable.ic_rewind, onClick = { skipDialog = true }) }
-        SectionLabel("ReadAlong")
+        SectionLabel("Transcription (ReadAlong)")
         SettingsGroup {
-            PreferenceSwitch("Only make ReadAlongs while charging", preferences.chargingOnly, icon = R.drawable.ic_battery) { value -> scope.launch { app.appPreferences.update { it.copy(chargingOnly = value) }; app.processing.chargingPreferenceChanged() } }
+            PreferenceSwitch("Only transcribe audiobooks while charging", preferences.chargingOnly, icon = R.drawable.ic_battery) { value -> scope.launch { app.appPreferences.update { it.copy(chargingOnly = value) }; app.processing.chargingPreferenceChanged() } }
             Text("Progress is saved. A ReadAlong pauses when you unplug and continues when you charge.", Modifier.padding(start = 58.dp, end = 18.dp).padding(bottom = 14.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             SettingsRow("Background work and battery", R.drawable.ic_redo, onClick = { battery = true })
         }

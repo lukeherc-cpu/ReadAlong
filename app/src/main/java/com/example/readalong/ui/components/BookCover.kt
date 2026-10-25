@@ -61,9 +61,9 @@ fun BookCover(book: Book, modifier: Modifier = Modifier, large: Boolean = false,
                     Spacer(Modifier.height(if (large) 14.dp else 9.dp))
                     Text(book.title, color = ink, fontFamily = FontFamily.Serif, fontWeight = FontWeight.SemiBold, fontSize = size.sp, lineHeight = (size * 1.12f).sp,
                         maxLines = 4, overflow = TextOverflow.Ellipsis)
-                    Spacer(Modifier.weight(1f))
-                    book.author?.let { Text(it, color = ink.copy(alpha = .75f), fontSize = if (large) 15.sp else 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        letterSpacing = .4.sp) }
+                    // The author sits under the title, leaving the bottom corner free for the progress badge.
+                    book.author?.let { Text(it, Modifier.padding(top = if (large) 10.dp else 6.dp), color = ink.copy(alpha = .75f), fontSize = if (large) 15.sp else 12.sp,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis, letterSpacing = .4.sp) }
                 }
             }
         } else AsyncImage(model = localCover, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
