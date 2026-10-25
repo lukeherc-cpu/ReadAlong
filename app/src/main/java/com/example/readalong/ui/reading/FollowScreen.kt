@@ -178,6 +178,9 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
         val layouts = remember { mutableStateMapOf<Int, TextLayoutResult>() }
         val paragraphTops = remember { mutableStateMapOf<Int, Float>() }
         var surfaceTop by remember { mutableFloatStateOf(0f) }
+        // Paragraph tops are measured against the page itself (not the screen), so they stay right while
+        // the page's bounds are animating.
+        val surfaceCoordinates = remember { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }
         // The live page is shown as soon as it is positioned at the preview's line, even while the
         // card is still growing: the text is then already there and simply revealed by the bounds.
         val reveal by androidx.compose.animation.core.animateFloatAsState(if (contentReady) 1f else 0f, tween(120), label = "Reader text handoff")
@@ -193,7 +196,7 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
             val anchor = frame?.previewAnchor
             if (following && anchor != null && items.peek(target.index)?.id == anchor.paragraphId) {
                 val line = layout.getLineForOffset(anchor.character.coerceIn(0, layout.layoutInput.text.length))
-                val delta = top - surfaceTop + layout.getLineTop(line) - anchor.y
+                val delta = top + layout.getLineTop(line) - anchor.y
                 if (kotlin.math.abs(delta) > 1f) list.scrollBy(delta)
             }
             // Do not reveal a paragraph until the initial anchor has been laid out at its destination.
@@ -378,7 +381,7 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
         val animatedSurface = transforming && !readingOnly
         Box(LocalReaderSurface.current.fillMaxSize().drawBehind {
             drawRect((if (animatedSurface) surfaceColorOf().takeIf { it != Color.Unspecified } else null) ?: surfaceColor)
-        }.onGloballyPositioned { surfaceTop = it.positionInRoot().y }) {
+        }.onGloballyPositioned { surfaceTop = it.positionInRoot().y; surfaceCoordinates[0] = it }) {
         if (start != null) {
         val density = androidx.compose.ui.platform.LocalDensity.current
         val fullWidth = with(density) { view.width.toDp() }
@@ -467,12 +470,14 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
                                 shownFocus, spokenInk, Color.Transparent, fade, restInk)
                             DisposableEffect(index) { onDispose { layouts.remove(index); paragraphTops.remove(index) } }
                             Text(styled, modifier = Modifier.fillMaxWidth().testTag("reader_paragraph").onGloballyPositioned { coordinates ->
-                                paragraphTops[index] = coordinates.positionInRoot().y
+                                val page = surfaceCoordinates[0]?.takeIf { it.isAttached && coordinates.isAttached }
+                                val pageTop = page?.localPositionOf(coordinates, androidx.compose.ui.geometry.Offset.Zero)?.y ?: (coordinates.positionInRoot().y - surfaceTop)
+                                paragraphTops[index] = pageTop
                                 val focusStart = shownFocus?.first
                                 val layout = layouts[index]
                                 if (focusStart != null && layout != null && frame != null && !frame.frozen) {
                                     val line = layout.getLineForOffset(focusStart.coerceIn(0, layout.layoutInput.text.length))
-                                    frame.readerAnchor = ReaderVisualAnchor(paragraph.id, focusStart, coordinates.positionInRoot().y - surfaceTop + layout.getLineTop(line))
+                                    frame.readerAnchor = ReaderVisualAnchor(paragraph.id, focusStart, pageTop + layout.getLineTop(line))
                                 }
                             }.padding(start = if (paragraph.formatting?.kind in listOf("QUOTE", "LIST")) 16.dp else 0.dp).semantics {
                                 selected = !readingOnly && (active != null || activeSingle)

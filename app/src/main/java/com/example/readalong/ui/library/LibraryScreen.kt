@@ -171,17 +171,8 @@ private fun LibraryPreview() {
     ReadAlongTheme { LibraryScreen(state = LibraryUiState.Ready(emptyList()), onRetry = {}, onAbout = {}, onBook = {}) }
 }
 
-/** A soft highlight that sweeps across a placeholder, left to right. */
 @Composable
-private fun shimmer(): androidx.compose.ui.graphics.Brush {
-    val base = MaterialTheme.colorScheme.surfaceVariant
-    val light = androidx.compose.ui.graphics.lerp(base, MaterialTheme.colorScheme.surface, .65f)
-    val sweep = androidx.compose.animation.core.rememberInfiniteTransition(label = "Shimmer")
-    val x by sweep.animateFloat(-1f, 2f, androidx.compose.animation.core.infiniteRepeatable(tween(1300, easing = androidx.compose.animation.core.LinearEasing)), label = "Shimmer sweep")
-    val width = with(androidx.compose.ui.platform.LocalDensity.current) { androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp.toPx() }
-    return androidx.compose.ui.graphics.Brush.linearGradient(listOf(base, light, base),
-        start = androidx.compose.ui.geometry.Offset(width * x - width * .35f, 0f), end = androidx.compose.ui.geometry.Offset(width * x + width * .35f, width * .2f))
-}
+private fun shimmer() = com.example.readalong.ui.components.shimmerBrush()
 
 @Composable
 private fun SkeletonHeading() {

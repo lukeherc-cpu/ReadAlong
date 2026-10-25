@@ -9,6 +9,8 @@ import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -46,7 +48,7 @@ class QueueViewModel(private val app: ReadAlongApplication) : ViewModel() {
     internal val books = repository.queue.mapLatest { rows -> rows.map { item ->
         val job = app.database.processingDao().find(item.bookId)
         QueueBook(item, app.bookRepository.observeBook(item.bookId).first(), job, job?.chapterTitle(app.database).orEmpty())
-    } }.flowOn(Dispatchers.IO).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    } }.flowOn(Dispatchers.IO).stateIn<List<QueueBook>?>(viewModelScope, SharingStarted.WhileSubscribed(5000), null) // null: still loading
     private val mutableError = MutableStateFlow<String?>(null)
     val error = mutableError.asStateFlow()
     fun next(id: String) = action { repository.playQueued(id) }
@@ -65,10 +67,10 @@ class QueueViewModel(private val app: ReadAlongApplication) : ViewModel() {
         repository.move(id, direction)
         if (direction == -1 && before.indexOf(id) == 1) startIfPromoted(before.first(), id)
     }
-    private fun queuedIds() = books.value.filter { it.item.state !in setOf("WAITING_SELECTION", "READY") }.map { it.item.bookId }
+    private fun queuedIds() = books.value.orEmpty().filter { it.item.state !in setOf("WAITING_SELECTION", "READY") }.map { it.item.bookId }
     private suspend fun startIfPromoted(oldFirst: String?, newFirst: String?) {
         if (newFirst == null || newFirst == oldFirst) return
-        val state = books.value.firstOrNull { it.item.bookId == newFirst }?.item?.state
+        val state = books.value?.firstOrNull { it.item.bookId == newFirst }?.item?.state
         if (state !in activeStates) repository.playQueued(newFirst)
     }
     fun dismissError() { mutableError.value = null }
@@ -86,7 +88,9 @@ class QueueViewModel(private val app: ReadAlongApplication) : ViewModel() {
 
 @Composable
 fun QueueScreen(model: QueueViewModel, onBack: () -> Unit) {
-    val books by model.books.collectAsStateWithLifecycle()
+    val loaded by model.books.collectAsStateWithLifecycle()
+    val loading = loaded == null
+    val books = loaded.orEmpty()
     val error by model.error.collectAsStateWithLifecycle()
     val queued = books.filter { it.item.state !in setOf("WAITING_SELECTION", "READY") }
     val available = books.filter { it.item.state == "WAITING_SELECTION" }
@@ -128,9 +132,11 @@ fun QueueScreen(model: QueueViewModel, onBack: () -> Unit) {
                     Text("Queue", style = MaterialTheme.typography.headlineLarge, modifier = Modifier.weight(1f))
                     IconButton(onClick = { adding = true }) { Icon(painterResource(R.drawable.ic_add), "Add book to queue") }
                 }
-                Text(if (queued.any { it.item.state in activeStates }) "Transcribing" else "Nothing in progress", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (!loading) Text(if (queued.any { it.item.state in activeStates }) "Transcribing" else "Nothing in progress", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            if (ordered.isEmpty()) item(key = "empty") { Text("Tap + to add a book, then tap play on it to start its ReadAlong.", style = MaterialTheme.typography.bodyMedium) }
+            // Placeholder cards, shaped like the real ones, until the queue has loaded.
+            if (loading) items(3, key = { "skeleton:$it" }) { QueueSkeletonCard() }
+            else if (ordered.isEmpty()) item(key = "empty") { Text("Tap + to add a book, then tap play on it to start its ReadAlong.", style = MaterialTheme.typography.bodyMedium) }
             items(ordered, key = { it.item.bookId }) { entry ->
                 val id = entry.item.bookId
                 val held = drag.key == id
@@ -266,8 +272,27 @@ private class QueueDrag {
     }
 }
 
+/** A queue card's shape in shimmering placeholders: title, status line, progress bar, buttons and Details. */
 @Composable
-private fun QueueCard(entry: QueueBook, modifier: Modifier = Modifier, onPlay: (() -> Unit)? = null, onTrash: () -> Unit, handle: (@Composable () -> Unit)? = null) {
+private fun QueueSkeletonCard() {
+    val brush = com.example.readalong.ui.components.shimmerBrush()
+    Surface(shape = RoundedCornerShape(com.example.readalong.ui.theme.Corners.large), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .7f)) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Box(Modifier.fillMaxWidth(.6f).height(22.dp).clip(RoundedCornerShape(11.dp)).background(brush))
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Box(Modifier.fillMaxWidth(.75f).height(14.dp).clip(RoundedCornerShape(7.dp)).background(brush))
+                    Box(Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)).background(brush))
+                }
+                repeat(2) { Box(Modifier.size(28.dp).clip(androidx.compose.foundation.shape.CircleShape).background(brush)) }
+            }
+            Box(Modifier.width(64.dp).height(12.dp).clip(RoundedCornerShape(6.dp)).background(brush))
+        }
+    }
+}
+
+@Composable
+private fun QueueCard(entry: QueueBook,modifier: Modifier = Modifier, onPlay: (() -> Unit)? = null, onTrash: () -> Unit, handle: (@Composable () -> Unit)? = null) {
     var details by rememberSaveable(entry.item.bookId) { mutableStateOf(false) }
     val progress = entry.job?.progress()
     val palette = entry.book?.let { com.example.readalong.ui.components.rememberCoverPalette(it) }
