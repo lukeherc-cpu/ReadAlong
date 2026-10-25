@@ -69,6 +69,9 @@ fun SettingsScreen(app: ReadAlongApplication, onBack: () -> Unit, onModel: () ->
         SettingsGroup {
             PreferenceSwitch("Only transcribe audiobooks while charging", preferences.chargingOnly, icon = R.drawable.ic_battery) { value -> scope.launch { app.appPreferences.update { it.copy(chargingOnly = value) }; app.processing.chargingPreferenceChanged() } }
             Text("Progress is saved. A ReadAlong pauses when you unplug and continues when you charge.", Modifier.padding(start = 58.dp, end = 18.dp).padding(bottom = 14.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            PreferenceSwitch("Aggressive transcription", preferences.aggressiveTranscription, icon = R.drawable.ic_speed) { value -> save { it.copy(aggressiveTranscription = value) } }
+            Text("Transcribes as fast as it can, even when the phone is warm or battery saver is on. Uses more battery and heat; it still pauses if the phone gets hot.",
+                Modifier.padding(start = 58.dp, end = 18.dp).padding(bottom = 14.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             SettingsRow("Background work and battery", R.drawable.ic_redo, onClick = { battery = true })
         }
         SectionLabel("Other")

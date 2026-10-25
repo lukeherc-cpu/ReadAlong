@@ -39,6 +39,8 @@ data class AppPreferences(
     val folderExampleHidden: Boolean = false,
     /** Show listening progress on covers as a thin bar instead of the percentage badge. */
     val coverProgressBar: Boolean = false,
+    /** Transcribe as fast as possible: no slow-down when the phone is warm, in battery saver or low on memory (still stops when hot). */
+    val aggressiveTranscription: Boolean = false,
 )
 
 class AppPreferencesStore(private val context: Context) {
@@ -71,6 +73,7 @@ class AppPreferencesStore(private val context: Context) {
         p[booleanPreferencesKey("cover_tip_hidden")] ?: false,
         p[booleanPreferencesKey("folder_example_hidden")] ?: false,
         p[booleanPreferencesKey("cover_progress_bar")] ?: false,
+        p[booleanPreferencesKey("aggressive_transcription")] ?: false,
     )
     val preferences = store.data.catch { if (it is IOException) emit(emptyPreferences()) else throw it }.map(::decode)
     suspend fun update(change: (AppPreferences) -> AppPreferences) {
@@ -104,6 +107,7 @@ class AppPreferencesStore(private val context: Context) {
         p[booleanPreferencesKey("cover_tip_hidden")] = value.coverTipHidden
         p[booleanPreferencesKey("folder_example_hidden")] = value.folderExampleHidden
         p[booleanPreferencesKey("cover_progress_bar")] = value.coverProgressBar
+        p[booleanPreferencesKey("aggressive_transcription")] = value.aggressiveTranscription
         }
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.example.readalong.ui.launch.LaunchAppearance.request(context, decode(saved)) }
     }
