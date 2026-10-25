@@ -46,7 +46,7 @@ fun LibraryLogo(scanningFolder: String?, transcribing: Boolean = false, animate:
         Box(Modifier.heightIn(min = lineHeight), contentAlignment = Alignment.Center) {
             if (label != null) Text(label, fontSize = 12.sp, lineHeight = 16.sp, maxLines = 1, softWrap = false,
                 color = MaterialTheme.colorScheme.primary,
-                style = androidx.compose.ui.text.TextStyle(platformStyle = androidx.compose.ui.text.PlatformTextStyle(includeFontPadding = true)))
+                style = androidx.compose.material3.LocalTextStyle.current.copy(platformStyle = androidx.compose.ui.text.PlatformTextStyle(includeFontPadding = true)))
         }
     }
 }

@@ -149,6 +149,7 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
         var searchQuery by rememberSaveable(book.id) { mutableStateOf("") }
         var following by rememberSaveable(book.id) { mutableStateOf(true) }
         var userScrolled by remember { mutableStateOf(false) }
+        var untranscribedChapter by remember { mutableStateOf<ReadingChapter?>(null) }
         var panel by remember { mutableStateOf<String?>(null) }
         val currentAudioPosition by rememberUpdatedState(state.positionMs)
         val immersive by rememberUpdatedState(fullScreen)
@@ -166,9 +167,14 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
         val layouts = remember { mutableStateMapOf<Int, TextLayoutResult>() }
         val paragraphTops = remember { mutableStateMapOf<Int, Float>() }
         var surfaceTop by remember { mutableFloatStateOf(0f) }
-        val reveal by androidx.compose.animation.core.animateFloatAsState(if (contentReady && !transforming) 1f else 0f, tween(120), label = "Reader text handoff")
-        LaunchedEffect(transforming, start?.generation, layouts[start?.index], paragraphTops[start?.index]) {
-            if (transforming || contentReady || items.loadState.refresh !is LoadState.NotLoading) return@LaunchedEffect
+        // The live page is shown as soon as it is positioned at the preview's line, even while the
+        // card is still growing: the text is then already there and simply revealed by the bounds.
+        val reveal by androidx.compose.animation.core.animateFloatAsState(if (contentReady) 1f else 0f, tween(120), label = "Reader text handoff")
+        // Controls fade in with the expansion instead of appearing at its end.
+        val chromeIn = remember(book.id) { androidx.compose.animation.core.Animatable(if (frame?.frozen == true) 0f else 1f) }
+        LaunchedEffect(book.id) { chromeIn.animateTo(1f, tween(ReaderMotionMillis, delayMillis = ReaderMotionMillis / 3, easing = ReaderMotionEasing)) }
+        LaunchedEffect(start?.generation, layouts[start?.index], paragraphTops[start?.index]) {
+            if (contentReady || items.loadState.refresh !is LoadState.NotLoading) return@LaunchedEffect
             val target = start ?: return@LaunchedEffect
             if (items.itemCount == 0) { contentReady = true; return@LaunchedEffect }
             val layout = layouts[target.index] ?: return@LaunchedEffect
@@ -370,7 +376,7 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
         // at the handoff; the user's margins apply inside the same centered reading column.
         val columnWidth = frame?.previewWidthPx?.takeIf { it > 0 }?.let { with(density) { it.toDp() } } ?: fullWidth
         val columnInset = ((fullWidth - columnWidth) / 2).coerceAtLeast(0.dp)
-        Scaffold(modifier = Modifier.wrapContentSize(androidx.compose.ui.Alignment.TopStart, unbounded = true)
+        Scaffold(modifier = Modifier.wrapContentSize(androidx.compose.ui.Alignment.TopCenter, unbounded = true)
             .requiredSize(fullWidth, fullHeight).pointerInput(book.id) {
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
@@ -386,11 +392,11 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
                     }
                 }
             }.graphicsLayer { alpha = reveal }
-            .retainReaderFrame(frame.takeIf { reveal == 1f }), containerColor = Color.Transparent, snackbarHost = { SnackbarHost(snackbar) }, bottomBar = {
+            .retainReaderFrame(frame.takeIf { reveal == 1f && it?.frozen != true }), containerColor = Color.Transparent, snackbarHost = { SnackbarHost(snackbar) }, bottomBar = {
             AnimatedVisibility(visible = !readingOnly && (!fullScreen || chromeVisible),
                 enter = fadeIn(tween(ModeSwitchMillis - 60)) + slideInVertically(tween(ModeSwitchMillis, easing = ReaderMotionEasing)) { it },
                 exit = fadeOut(tween(ModeSwitchMillis - 60)) + slideOutVertically(tween(ModeSwitchMillis, easing = ReaderMotionEasing)) { it }) {
-            Surface(color = colors.surface, contentColor = colors.onSurface, tonalElevation = 3.dp) {
+            Surface(color = colors.surface, contentColor = colors.onSurface, tonalElevation = 3.dp, modifier = Modifier.graphicsLayer { alpha = chromeIn.value }) {
                 Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 8.dp, vertical = 12.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                         IconButton(onClick = { moveSentence(-1) }, modifier = Modifier.size(52.dp)) { Icon(painterResource(R.drawable.ic_previous_sentence), "Previous sentence", Modifier.size(28.dp)) }
                         TextButton(onClick = { skipFive(-1) }, contentPadding = PaddingValues(4.dp)) {
@@ -451,7 +457,15 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
                                 if (preferences.theme == "DARK") Color.Transparent else palette.background,
                                 fade, if (preferences.theme == "DARK") Color.White.copy(alpha = .52f) else Color(0xFF64716C))
                             DisposableEffect(index) { onDispose { layouts.remove(index); paragraphTops.remove(index) } }
-                            Text(styled, modifier = Modifier.fillMaxWidth().testTag("reader_paragraph").onGloballyPositioned { paragraphTops[index] = it.positionInRoot().y }.padding(start = if (paragraph.formatting?.kind in listOf("QUOTE", "LIST")) 16.dp else 0.dp).semantics {
+                            Text(styled, modifier = Modifier.fillMaxWidth().testTag("reader_paragraph").onGloballyPositioned { coordinates ->
+                                paragraphTops[index] = coordinates.positionInRoot().y
+                                val focusStart = shownFocus?.first
+                                val layout = layouts[index]
+                                if (focusStart != null && layout != null && frame != null && !frame.frozen) {
+                                    val line = layout.getLineForOffset(focusStart.coerceIn(0, layout.layoutInput.text.length))
+                                    frame.readerAnchor = ReaderVisualAnchor(paragraph.id, focusStart, coordinates.positionInRoot().y - surfaceTop + layout.getLineTop(line))
+                                }
+                            }.padding(start = if (paragraph.formatting?.kind in listOf("QUOTE", "LIST")) 16.dp else 0.dp).semantics {
                                 selected = !readingOnly && (active != null || activeSingle)
                                 onLongClick(if (paragraph.imported) "Set sync point" else "Correct this passage") {
                                     if (readingOnly) { chromeVisible = true } else if (paragraph.imported) { playback.pause(); following = false; model.editSync(paragraph, currentAudioPosition) }
@@ -505,7 +519,7 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
                         }
                     }
                 }
-            AnimatedVisibility(visible = !fullScreen || chromeVisible, modifier = Modifier.align(androidx.compose.ui.Alignment.TopCenter),
+            AnimatedVisibility(visible = !fullScreen || chromeVisible, modifier = Modifier.align(androidx.compose.ui.Alignment.TopCenter).graphicsLayer { alpha = chromeIn.value },
                 enter = fadeIn(tween(180)) + slideInVertically(tween(220)) { -it },
                 exit = fadeOut(tween(180)) + slideOutVertically(tween(220)) { -it }) {
 
@@ -558,6 +572,15 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
                 dismissButton = { TextButton(onClick = model::dismissCorrection) { Text("Cancel") } })
         }
         if (panel == "appearance") ReaderAppearance(preferences, { panel = null }, bookMode = readingOnly) { if (readingOnly) model.bookSettings(it) else model.settings(it); panel = null }
+        untranscribedChapter?.let { chapter ->
+            AlertDialog(onDismissRequest = { untranscribedChapter = null }, title = { Text("No text yet") },
+                text = { Text("${chapter.title} hasn't been transcribed yet. Listen to it without the text?") },
+                confirmButton = { TextButton(onClick = {
+                    untranscribedChapter = null; following = true; userScrolled = false
+                    playback.seek(chapter.startMs); playback.play()
+                }) { Text("Listen only") } },
+                dismissButton = { TextButton(onClick = { untranscribedChapter = null }) { Text("Cancel") } })
+        }
         if (panel == "contents") AlertDialog(onDismissRequest = { panel = null }, title = { Text("Contents") }, text = {
             LazyColumn { items(chapters, key = { it.id }) { chapter -> TextButton(enabled = if (readingOnly) chapter.readable else chapter.readerIndex != null || chapter.startMs >= 0, onClick = {
                 if (chapter.readerIndex != null) {
@@ -565,7 +588,16 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
                     if (!readingOnly && chapter.startMs >= 0) playback.seek(chapter.startMs)
                     following = false; userScrolled = false
                 } else if (readingOnly) { model.openReader(chapter.startMs); userScrolled = false }
-                else { playback.seek(chapter.startMs); following = true }; panel = null
+                else if (chapter.status != "Ready" && !chapter.status.startsWith("Partly") && chapter.status != "Available") untranscribedChapter = chapter
+                else {
+                    // Show the chapter's text, its first sentence lit, before the narration carries on.
+                    val wasPlaying = state.isPlaying
+                    scope.launch {
+                        playback.pause(); playback.seek(chapter.startMs)
+                        following = true; userScrolled = false
+                        if (model.openReaderAt(chapter.startMs) && wasPlaying) { kotlinx.coroutines.delay(400); playback.play() }
+                    }
+                }; panel = null
             }) { Column(Modifier.fillMaxWidth()) {
                 Text(chapter.title)
                 if (!readingOnly) Text(chapter.status, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

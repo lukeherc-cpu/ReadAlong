@@ -26,7 +26,7 @@ import com.example.readalong.domain.reading.sentenceCues
 import com.example.readalong.domain.reading.activeSentenceIndex
 import com.example.readalong.playback.PlaybackState
 
-internal const val NotStartedMessage = "Text isn't available at this position yet. You can begin transcribing the text by pressing the Make a ReadAlong button at the bottom of the player. You can check on the progress of the transcript by tapping the book on the home page.\n\nYou can keep listening."
+internal const val NotStartedMessage = "Text isn't available at this position yet. You can begin transcribing the text by pressing the Make a ReadAlong button at the bottom of the player. You can check on the progress of the transcript by tapping the book logo on the home page.\n\nYou can keep listening."
 
 internal fun displayedPassages(passages: List<TranscriptSegment>): List<TranscriptSegment> = when {
     passages.any { it.imported } -> passages.filter { it.imported }
@@ -136,11 +136,17 @@ fun FollowCard(state: PlaybackState, model: ReadingViewModel, onExpand: () -> Un
             frame?.previewAnchor = ReaderVisualAnchor(activeKey, character, y - cardTop + layout.getLineTop(layout.getLineForOffset(character.coerceIn(0, layout.layoutInput.text.length))))
         }
     }
+    val cardDensity = androidx.compose.ui.platform.LocalDensity.current
     LaunchedEffect(activeKey, line, viewport, visible) {
         if (frame?.frozen == true || activeIndex < 0 || viewport == 0) return@LaunchedEffect
         val lineTop = if (line != null) layout!!.getLineTop(line) else 0f
         if (positionedKey != activeKey) {
-            val offset = lineTop.toInt() - viewport / 5
+            // Back from the full page: land the spoken line where it was on the page, so the page's
+            // last frame and this card line up.
+            val insetTop = with(cardDensity) { insets.top.toPx() }
+            val pageY = frame?.readerAnchor?.takeIf { positionedKey == null && it.paragraphId == activeKey }?.y?.minus(insetTop)
+                ?.takeIf { it in 0f..viewport * .8f }
+            val offset = lineTop.toInt() - (pageY?.toInt() ?: (viewport / 5))
             val row = list.layoutInfo.visibleItemsInfo.firstOrNull { it.index == activeIndex }
             // The next paragraph is usually already on screen: glide to it on the same spring.
             if (positionedKey != null && visible && row != null) follow.scrollBy(row.offset + lineTop - viewport / 5)
@@ -159,6 +165,13 @@ fun FollowCard(state: PlaybackState, model: ReadingViewModel, onExpand: () -> Un
             }
         }
     }
+    // After the card shrinks back from the full page, the page's last frame fades out over the live card.
+    val handoff = remember { androidx.compose.animation.core.Animatable(0f) }
+    var wasFrozen by remember { mutableStateOf(false) }
+    LaunchedEffect(frame?.frozen) {
+        if (frame?.frozen == true) wasFrozen = true
+        else if (wasFrozen) { wasFrozen = false; handoff.snapTo(1f); handoff.animateTo(0f, androidx.compose.animation.core.tween(240)) }
+    }
     val cardShape = androidx.compose.foundation.shape.RoundedCornerShape(com.example.readalong.ui.theme.Corners.large)
     // During expand/minimize the card's color animates; draw it (draw phase) instead of recomposing for it.
     val surface = if (colorOf != null) Modifier.clip(cardShape).drawBehind { drawRect(colorOf().takeIf { it != Color.Unspecified } ?: color) } else Modifier
@@ -166,8 +179,8 @@ fun FollowCard(state: PlaybackState, model: ReadingViewModel, onExpand: () -> Un
         val density = androidx.compose.ui.platform.LocalDensity.current
         val retainedSize = frame?.layer?.size
         val fixed = if (frame?.frozen == true && retainedSize != null && retainedSize.width > 0)
-            with(density) { Modifier.wrapContentSize(Alignment.TopStart, unbounded = true).requiredSize(retainedSize.width.toDp(), retainedSize.height.toDp()) } else Modifier
-        Box(Modifier.fillMaxSize().then(fixed).onSizeChanged { if (square && frame?.frozen != true) frame?.previewWidthPx = it.width }.onGloballyPositioned { cardTop = it.positionInRoot().y }.retainReaderFrame(frame, LocalReaderDrawFrame.current)) {
+            with(density) { Modifier.wrapContentSize(Alignment.TopCenter, unbounded = true).requiredSize(retainedSize.width.toDp(), retainedSize.height.toDp()) } else Modifier
+        Box(Modifier.fillMaxSize().then(fixed).onSizeChanged { if (square && frame?.frozen != true) frame?.previewWidthPx = it.width }.onGloballyPositioned { cardTop = it.positionInRoot().y }.retainReaderFrame(frame, LocalReaderDrawFrame.current) { handoff.value }) {
             androidx.compose.foundation.lazy.LazyColumn(state = list, userScrollEnabled = false,
                 modifier = Modifier.fillMaxSize().padding(top = insets.top, bottom = insets.bottom).onSizeChanged { viewport = it.height }.testTag("follow_preview"),
                 contentPadding = PaddingValues(horizontal = preferences.margin.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {

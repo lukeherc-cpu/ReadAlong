@@ -282,6 +282,10 @@ class ReadingViewModel(val bookId: String, val database: ReadAlongDatabase, priv
         action { try { loadReader(positionMs, false, true) } finally { preloading = false } }
     }
     fun openReader(positionMs: Long, resume: Boolean = false, generated: Boolean = true) = action { loadReader(positionMs, resume, generated) }
+    /** Opens the text at [positionMs] and returns once it's loaded (false if it couldn't be). */
+    suspend fun openReaderAt(positionMs: Long): Boolean = try { mutableError.value = null; loadReader(positionMs, false, true); true }
+        catch (cancelled: CancellationException) { throw cancelled }
+        catch (failure: Exception) { mutableError.value = failure.message ?: "Couldn't open this chapter. Please try again."; false }
     private suspend fun loadReader(positionMs: Long, resume: Boolean, generated: Boolean, retainPager: Boolean = false) {
         val bookMode = mutableReadOnly.value
         val request = ++openRequest

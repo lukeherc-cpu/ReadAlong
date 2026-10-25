@@ -29,23 +29,25 @@ fun ImportControls(model: ImportViewModel, onFolders: () -> Unit, onBook: (Strin
     val priority by model.priority.collectAsStateWithLifecycle()
     val epubUploaded by model.epubUploaded.collectAsStateWithLifecycle()
     val folder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { it?.let { uri -> model.folder(uri, FolderMode.ONE_BOOK) } }
-    val library = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { it?.let { uri -> model.folder(uri, FolderMode.LIBRARY) } }
     val epub = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let(model::addEpub) }
     val files = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let { uri -> model.files(listOf(uri)) } }
     IconButton(onClick = { choosing = true }, enabled = !busy) {
-        Icon(androidx.compose.ui.res.painterResource(com.example.readalong.R.drawable.ic_add), "Add audiobook")
+        Icon(androidx.compose.ui.res.painterResource(com.example.readalong.R.drawable.ic_add), "Add a new audiobook")
     }
 
-    if (choosing) com.example.readalong.ui.components.IllustratedDialog("Add audiobook", { choosing = false }, actions = {
+    if (choosing) com.example.readalong.ui.components.IllustratedDialog("Add a new audiobook", { choosing = false }, actions = {
         TextButton(onClick = { choosing = false }) { Text("Cancel") }
     }) {
-        IllustratedOption("Library folder", "A folder with all your audiobook folders.", com.example.readalong.R.drawable.art_folder, true) { choosing = false; library.launch(null) }
-        IllustratedOption("Audiobook folder", "A folder with one audiobook's files.", com.example.readalong.R.drawable.art_folder, false) { choosing = false; folder.launch(null) }
+        IllustratedOption("Audiobook folder", "A folder with one audiobook's files.", com.example.readalong.R.drawable.art_folder, true) { choosing = false; folder.launch(null) }
         IllustratedOption("Audio file", "One file that holds a whole audiobook.", com.example.readalong.R.drawable.art_audio_file, false) {
             choosing = false; files.launch(arrayOf("audio/*", "application/octet-stream", "video/mp4"))
         }
+        // Library folders live on their own page (the shelf icon on the home page), not here.
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Icon(androidx.compose.ui.res.painterResource(com.example.readalong.R.drawable.ic_bookshelf), null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("To add a new library folder, tap the library icon at the top of the home page.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
-
 }
 
 @Composable
