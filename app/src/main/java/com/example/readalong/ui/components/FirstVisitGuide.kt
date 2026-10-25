@@ -57,7 +57,7 @@ internal fun FirstVisitGuideDialog(page: GuidePage, finish: (Boolean) -> Unit) {
             GuidePage.HOME -> {
                 GuideItem(R.drawable.ic_add, "Add audiobooks", "Choose an audiobook folder or audio files.")
                 GuideItem(R.drawable.ic_search, "Search", "Find books by title or author.")
-                GuideRow("Queue", "Tap the logo to see the ReadAlongs being made.") {
+                GuideRow("Queue", "Tap the logo to see the ReadAlongs (time-matched book transcripts) being made.") {
                     com.example.readalong.ui.launch.PageTurnLogo(0f, Modifier.size(36.dp))
                 }
                 GuideItem(R.drawable.ic_bookshelf, "Library folders", "Add or remove the folders your books come from.")

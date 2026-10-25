@@ -26,6 +26,8 @@ import com.example.readalong.domain.reading.sentenceCues
 import com.example.readalong.domain.reading.activeSentenceIndex
 import com.example.readalong.playback.PlaybackState
 
+internal const val NotStartedMessage = "Text isn't available at this position yet. You can begin transcribing the text by pressing the Make a ReadAlong button at the bottom of the player. You can check on the progress of the transcript by tapping the book on the home page.\n\nYou can keep listening."
+
 internal fun displayedPassages(passages: List<TranscriptSegment>): List<TranscriptSegment> = when {
     passages.any { it.imported } -> passages.filter { it.imported }
     passages.any { it.anchors.isNotEmpty() } -> passages.filter { it.anchors.isNotEmpty() }
@@ -103,6 +105,9 @@ fun FollowCard(state: PlaybackState, model: ReadingViewModel, onExpand: () -> Un
         importedEdition?.editionId?.let { value = model.epubFonts(it) }
     }
     val passages by model.passages.collectAsStateWithLifecycle()
+    val job by model.processingJob.collectAsStateWithLifecycle()
+    // No ReadAlong has been started for this book yet: say how to make one.
+    val notStarted = job == null || job?.state == "WAITING_SELECTION"
     LaunchedEffect(state.positionMs / 12_000) { model.follow(state.positionMs) }
     val shown = remember(passages) { displayedPassages(passages) }
     val sources = remember(passages) { passages.filter { !it.imported && it.anchors.isEmpty() }.associateBy { it.id } }
@@ -166,7 +171,7 @@ fun FollowCard(state: PlaybackState, model: ReadingViewModel, onExpand: () -> Un
             androidx.compose.foundation.lazy.LazyColumn(state = list, userScrollEnabled = false,
                 modifier = Modifier.fillMaxSize().padding(top = insets.top, bottom = insets.bottom).onSizeChanged { viewport = it.height }.testTag("follow_preview"),
                 contentPadding = PaddingValues(horizontal = preferences.margin.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-                if (displayed.isEmpty()) item { Text("Text isn't available at this position yet. You can keep listening.", color = ink.copy(alpha = .7f)) }
+                if (displayed.isEmpty() && !notStarted) item { Text("Text isn't available at this position yet. You can keep listening.", color = ink.copy(alpha = .7f)) }
                 items(displayed.size, key = { displayed[it].id }) { index ->
                     val paragraph = displayed[index]
                     val cues = remember(paragraph, sources) { sentenceCues(paragraph, sources) }
@@ -185,6 +190,11 @@ fun FollowCard(state: PlaybackState, model: ReadingViewModel, onExpand: () -> Un
                         onTextLayout = { layouts[paragraph.id] = it })
                 }
             }
+            // The longer how-to always fits the card: it shrinks its text to the space between the buttons.
+            if (displayed.isEmpty() && notStarted) androidx.compose.foundation.text.BasicText(NotStartedMessage,
+                Modifier.fillMaxSize().padding(top = maxOf(insets.top, 56.dp), bottom = insets.bottom + 16.dp, start = maxOf(preferences.margin.dp, 16.dp), end = maxOf(preferences.margin.dp, 16.dp)),
+                style = MaterialTheme.typography.bodyLarge.copy(color = ink.copy(alpha = .78f), lineHeight = androidx.compose.ui.unit.TextUnit(1.35f, androidx.compose.ui.unit.TextUnitType.Em)),
+                autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 9.sp, maxFontSize = 17.sp, stepSize = .5.sp))
             if (onCover != null) TextButton(onClick = onCover, modifier = Modifier.align(Alignment.TopStart).padding(8.dp)) {
                 Text("Cover", color = ink)
             }

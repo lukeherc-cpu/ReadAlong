@@ -32,11 +32,27 @@ class ReadAlongApplication : Application() {
         com.example.readalong.data.diagnostics.CrashDiagnostics.install(this)
         com.example.readalong.data.diagnostics.BackgroundFailures.install(this)
         if (processName != packageName) return
+        // The launcher icon and launch colors switch once no ReadAlong screen is showing (see LaunchAppearance).
+        registerActivityLifecycleCallbacks(object : android.app.Application.ActivityLifecycleCallbacks {
+            override fun onActivityStarted(activity: android.app.Activity) = com.example.readalong.ui.launch.LaunchAppearance.activityStarted()
+            override fun onActivityStopped(activity: android.app.Activity) {
+                if (com.example.readalong.ui.launch.LaunchAppearance.activityStopped()) applicationScope.launch {
+                    try { com.example.readalong.ui.launch.LaunchAppearance.flush(this@ReadAlongApplication) }
+                    catch (cancelled: CancellationException) { throw cancelled }
+                    catch (failure: Exception) { android.util.Log.w("ReadAlong", "Launcher appearance not applied: ${failure.javaClass.simpleName}") }
+                }
+            }
+            override fun onActivityCreated(activity: android.app.Activity, state: android.os.Bundle?) {}
+            override fun onActivityResumed(activity: android.app.Activity) {}
+            override fun onActivityPaused(activity: android.app.Activity) {}
+            override fun onActivitySaveInstanceState(activity: android.app.Activity, state: android.os.Bundle) {}
+            override fun onActivityDestroyed(activity: android.app.Activity) {}
+        })
         applicationScope.launch { appPreferences.preferences.collect {
             appearanceSettings = it
             // A launcher-icon switch failure must not end this collector or the process:
             // appearance updates for the rest of the session depend on it.
-            try { com.example.readalong.ui.launch.LaunchAppearance.apply(this@ReadAlongApplication, it) }
+            try { com.example.readalong.ui.launch.LaunchAppearance.request(this@ReadAlongApplication, it) }
             catch (cancelled: CancellationException) { throw cancelled }
             catch (failure: Exception) { android.util.Log.w("ReadAlong", "Launcher appearance not applied: ${failure.javaClass.simpleName}") }
         } }
