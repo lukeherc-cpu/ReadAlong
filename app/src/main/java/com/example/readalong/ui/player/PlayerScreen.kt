@@ -80,10 +80,14 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
         if (state.isLoading) { kotlinx.coroutines.delay(600); value = true }
     }
     if (appSettings.blurredPlayer && !appSettings.alwaysBasicColor) com.example.readalong.ui.components.BlurredCover(book.coverUri, Modifier.fillMaxSize())
+    // With the ReadAlong bar hidden, the player is one fixed page: no scrolling, back at the top.
+    val barHidden by reading.preparationHidden.collectAsStateWithLifecycle(false)
+    val pageScroll = rememberScrollState()
+    LaunchedEffect(barHidden) { if (barHidden) pageScroll.animateScrollTo(0) }
     Scaffold(containerColor = Color.Transparent, contentColor = colors.onSurface) { insets ->
         Column(
             Modifier.fillMaxSize()
-                .padding(insets).verticalScroll(rememberScrollState()),
+                .padding(insets).verticalScroll(pageScroll, enabled = !barHidden),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             // A grab handle, like the pop-up sheets: tap it or pull down to close the player.
