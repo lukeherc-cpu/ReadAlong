@@ -286,7 +286,8 @@ fun ReadAlongApp(libraryViewModel: LibraryViewModel, app: com.example.readalong.
                 } else {
                     PlayerScreen(book, displayState, playback, { closeFromMini(); navController.popBackStack() }, model::setFinished, reading,
                         { navController.navigate("speech-model") }, { reading.preloadReader(displayState.positionMs); setReaderMode("follow") },
-                        onFolders = { navController.navigate("folders") { launchSingleTop = true } })
+                        onFolders = { navController.navigate("folders") { launchSingleTop = true } },
+                        onQueue = { navController.navigate("queue") { launchSingleTop = true } })
                 }
                 }
                 }

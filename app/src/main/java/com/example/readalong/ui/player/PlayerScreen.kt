@@ -6,6 +6,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -38,7 +40,7 @@ import com.example.readalong.ui.components.navSharedCover
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, onCollapse: () -> Unit, onFinished: (Boolean) -> Unit, reading: com.example.readalong.ui.reading.ReadingViewModel, onSpeechModel: () -> Unit, onFollow: () -> Unit, onFolders: () -> Unit = {}) {
+fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, onCollapse: () -> Unit, onFinished: (Boolean) -> Unit, reading: com.example.readalong.ui.reading.ReadingViewModel, onSpeechModel: () -> Unit, onFollow: () -> Unit, onFolders: () -> Unit = {}, onQueue: () -> Unit = {}) {
     LaunchedEffect(book.id) { reading.warmPreview() }
     val appSettings = com.example.readalong.ui.theme.LocalAppSettings.current
     var showText by rememberSaveable(book.id) { mutableStateOf(appSettings.openingView != "COVER") }
@@ -84,10 +86,22 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                 .padding(insets).verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onCollapse) { Icon(painterResource(R.drawable.ic_down), "Collapse player") }
-                Spacer(Modifier.weight(1f))
-                Box {
+            // A grab handle, like the pop-up sheets: tap it or pull down to close the player.
+            Box(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
+                val pull = remember { floatArrayOf(0f) }
+                val threshold = with(androidx.compose.ui.platform.LocalDensity.current) { 56.dp.toPx() }
+                Box(Modifier.align(Alignment.Center).size(width = 120.dp, height = 48.dp)
+                    .pointerInput(Unit) {
+                        detectVerticalDragGestures(onDragStart = { pull[0] = 0f }, onDragEnd = { if (pull[0] > threshold) onCollapse() }) { change, amount ->
+                            change.consume(); pull[0] += amount
+                            if (pull[0] > threshold) { pull[0] = Float.NEGATIVE_INFINITY; onCollapse() }
+                        }
+                    }
+                    .clickable(onClickLabel = "Close player", onClick = onCollapse)
+                    .semantics { contentDescription = "Close player" }, contentAlignment = Alignment.Center) {
+                    Box(Modifier.size(width = 36.dp, height = 4.dp).background(colors.onSurface.copy(alpha = .45f), RoundedCornerShape(2.dp)))
+                }
+                Box(Modifier.align(Alignment.CenterEnd)) {
                     IconButton(onClick = { menu = true }) { Icon(painterResource(R.drawable.ic_more), "More options") }
                     DropdownMenu(menu, { menu = false }) {
                         DropdownMenuItem(text = { Text(if (book.isFinished) "Mark as not finished" else "Mark as finished") }, onClick = { onFinished(!book.isFinished); menu = false })
@@ -176,8 +190,7 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                     PlayerAction("Bookmarks", R.drawable.ic_bookmark, "Bookmark", { panel = "bookmarks" })
                     PlayerAction("Chapters", R.drawable.ic_chapters, "Chapters", { panel = "chapters" })
                 }
-                com.example.readalong.ui.reading.EpubSyncProgress(reading)
-                ReadableProgressCard(book, job, timeRemaining, reading, state.positionMs, execution, onSpeechModel)
+                ReadableProgressCard(book, job, timeRemaining, reading, state.positionMs, execution, onSpeechModel, onQueue)
                 readingError?.let { Text(it, color = colors.error, style = MaterialTheme.typography.bodySmall) }
                 Spacer(Modifier.height(12.dp))
                 }
