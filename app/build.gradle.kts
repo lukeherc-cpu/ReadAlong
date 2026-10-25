@@ -15,8 +15,8 @@ android {
         applicationId = "com.example.readalong"
         minSdk = 26
         targetSdk = 37
-        versionCode = 53
-        versionName = "0.39.9-preview"
+        versionCode = 54
+        versionName = "0.39.10-preview"
 
         ndk { abiFilters += providers.gradleProperty("readalongAbi").orNull?.let { listOf(it) } ?: listOf("arm64-v8a") }
         externalNativeBuild { cmake { arguments += "-DANDROID_STL=c++_shared" } }
@@ -107,6 +107,7 @@ tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
     providers.gradleProperty("privateEpub").orNull?.let { systemProperty("privateEpub", it) }
     systemProperty("epubVerificationDir", "$projectDir/build/verification")
 }
+
 
 
 
