@@ -24,7 +24,7 @@ class ReaderPreferencesStore(context: Context, private val store: androidx.datas
             (it[font]?.takeIf { n -> n.isFinite() } ?: 20f).coerceIn(16f, 32f),
             (it[spacing]?.takeIf { n -> n.isFinite() } ?: 1.6f).coerceIn(1.2f, 2.2f),
             (it[margin]?.takeIf { n -> n.isFinite() } ?: 24f).coerceIn(12f, 40f),
-            it[theme]?.takeIf { t -> t in setOf("DARK", "LIGHT", "SEPIA") } ?: defaultTheme, it[epubFonts] ?: true,
+            it[theme]?.takeIf { t -> t in setOf("DARK", "BLACK", "LIGHT", "SEPIA") } ?: defaultTheme, it[epubFonts] ?: true,
             it[family]?.takeIf { name -> ReaderFonts.valid(name) && name != "MATCH" } ?: "EPUB",
             it[preview]?.takeIf { name -> ReaderFonts.valid(name) } ?: "MATCH") }
     companion object { fun forBooks(context: Context) = ReaderPreferencesStore(context, context.applicationContext.bookReaderDataStore, "LIGHT") }
@@ -35,6 +35,6 @@ class ReaderPreferencesStore(context: Context, private val store: androidx.datas
         it[font] = value.fontSize.coerceIn(16f, 32f)
         it[spacing] = value.lineSpacing.coerceIn(1.2f, 2.2f)
         it[margin] = value.margin.coerceIn(12f, 40f)
-        it[theme] = value.theme.takeIf { name -> name in listOf("DARK", "LIGHT", "SEPIA") } ?: "DARK"
+        it[theme] = value.theme.takeIf { name -> name in listOf("DARK", "BLACK", "LIGHT", "SEPIA") } ?: "DARK"
     }
 }

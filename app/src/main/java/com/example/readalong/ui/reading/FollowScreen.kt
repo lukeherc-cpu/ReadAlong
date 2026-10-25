@@ -72,13 +72,24 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
         val grey = com.example.readalong.ui.components.CoverPalette(Color(0xFF111111), Color(0xFF4A4A4A), Color(0xFFE5E5E5))
         if (preferences.theme == "DARK") com.example.readalong.ui.theme.readAlongScheme(false, grey).copy(background = plainBackground, surface = plainBackground, onSurface = plainInk, onBackground = plainInk, primary = Color.White, onPrimary = Color.Black, secondaryContainer = Color(0xFF333333), onSecondaryContainer = Color.White)
         else com.example.readalong.ui.theme.readAlongScheme(true, grey, plainBackground).copy(onSurface = plainInk, onBackground = plainInk, primary = Color.Black, onPrimary = Color.White, secondaryContainer = Color(0xFFE5E5E5), onSecondaryContainer = Color.Black)
-    } else if (preferences.theme == "DARK") com.example.readalong.ui.theme.playerScheme(palette, palette.background).copy(onSurface = Color.White, onBackground = Color.White, secondaryContainer = palette.preview, onSecondaryContainer = Color.White) else com.example.readalong.ui.theme.readAlongScheme(true, palette).copy(
+    } else if (preferences.theme == "DARK") com.example.readalong.ui.theme.playerScheme(palette, palette.background).copy(onSurface = Color.White, onBackground = Color.White, secondaryContainer = palette.preview, onSecondaryContainer = Color.White)
+    // "Dark": the same black as Read only's dark page, with the cover's accent for controls.
+    else if (preferences.theme == "BLACK") com.example.readalong.ui.theme.playerScheme(palette, Color.Black).copy(background = Color.Black, surface = Color.Black, onSurface = Color.White, onBackground = Color.White, secondaryContainer = Color(0xFF333333), onSecondaryContainer = Color.White)
+    else com.example.readalong.ui.theme.readAlongScheme(true, palette).copy(
         primary = palette.preview, onPrimary = Color.White,
         background = if (preferences.theme == "SEPIA") Color(0xFFF0E6D2) else Color(0xFFFAF9F5),
         surface = if (preferences.theme == "SEPIA") Color(0xFFF0E6D2) else Color(0xFFFAF9F5),
         onSurface = Color(0xFF242820), onBackground = Color(0xFF242820))
     // Search accent: the cover's bright accent on dark pages, its deeper tone on light and sepia pages.
-    val searchAccent = if (preferences.theme == "DARK") palette.accent else palette.preview
+    val darkPage = preferences.theme == "DARK" || preferences.theme == "BLACK"
+    val searchAccent = if (darkPage) palette.accent else palette.preview
+    // The spoken sentence turns the page's strong ink (no highlight box): white on Cover and Dark,
+    // near-black on Light, dark brown on Sepia; the rest of the text stays muted.
+    val (spokenInk, restInk) = when (preferences.theme) {
+        "LIGHT" -> Color(0xFF14181B) to Color(0xFF7D8682)
+        "SEPIA" -> Color(0xFF3A2611) to Color(0xFF9C8B72)
+        else -> Color.White to Color.White.copy(alpha = .52f)
+    }
     MaterialTheme(colorScheme = colors) {
         val readerFont = readingFont(preferences.fontFamily)
         val items = model.readerPages.collectAsLazyPagingItems()
@@ -453,9 +464,7 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
                             val shownFocus = focus.takeIf { !readingOnly && (active != null || activeSingle) }
                             val fade = rememberSentenceFade(shownFocus)
                             val styled = paragraphText(paragraph, preferences.fontFamily, preferences.useEpubFonts, epubFonts,
-                                shownFocus, Color.White,
-                                if (preferences.theme == "DARK") Color.Transparent else palette.background,
-                                fade, if (preferences.theme == "DARK") Color.White.copy(alpha = .52f) else Color(0xFF64716C))
+                                shownFocus, spokenInk, Color.Transparent, fade, restInk)
                             DisposableEffect(index) { onDispose { layouts.remove(index); paragraphTops.remove(index) } }
                             Text(styled, modifier = Modifier.fillMaxWidth().testTag("reader_paragraph").onGloballyPositioned { coordinates ->
                                 paragraphTops[index] = coordinates.positionInRoot().y
@@ -484,7 +493,7 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
                                     sentencePressed(paragraph, layouts[index]?.getOffsetForPosition(point) ?: 0)
                                 }
                             }, onTextLayout = { layouts[index] = it }, fontFamily = readerFont,
-                                color = if (readingOnly) MaterialTheme.colorScheme.onBackground else if (preferences.theme == "DARK") Color.White.copy(alpha = .52f) else Color(0xFF64716C),
+                                color = if (readingOnly) MaterialTheme.colorScheme.onBackground else restInk,
                                 fontSize = (preferences.fontSize * if (paragraph.formatting?.kind?.startsWith("H") == true) 1.25f else 1f).sp,
                                 fontWeight = if (paragraph.formatting?.kind?.startsWith("H") == true) FontWeight.Bold else FontWeight.Normal,
                                 textAlign = if (paragraph.formatting?.centered == true || paragraph.formatting?.kind == "BREAK") TextAlign.Center else TextAlign.Start,
@@ -590,12 +599,11 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
                 } else if (readingOnly) { model.openReader(chapter.startMs); userScrolled = false }
                 else if (chapter.status != "Ready" && !chapter.status.startsWith("Partly") && chapter.status != "Available") untranscribedChapter = chapter
                 else {
-                    // Show the chapter's text, its first sentence lit, before the narration carries on.
-                    val wasPlaying = state.isPlaying
+                    // Go to the chapter with its first sentence lit; the narration waits for Play.
                     scope.launch {
                         playback.pause(); playback.seek(chapter.startMs)
                         following = true; userScrolled = false
-                        if (model.openReaderAt(chapter.startMs) && wasPlaying) { kotlinx.coroutines.delay(400); playback.play() }
+                        model.openReaderAt(chapter.startMs)
                     }
                 }; panel = null
             }) { Column(Modifier.fillMaxWidth()) {
