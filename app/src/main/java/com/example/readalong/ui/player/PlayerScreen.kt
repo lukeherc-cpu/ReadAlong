@@ -6,11 +6,15 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -26,6 +30,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.readalong.data.processing.progress
 import com.example.readalong.R
 import com.example.readalong.domain.model.Book
@@ -33,8 +38,9 @@ import com.example.readalong.playback.*
 import com.example.readalong.ui.components.BookCover
 import com.example.readalong.ui.components.navSharedCover
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, onCollapse: () -> Unit, onFinished: (Boolean) -> Unit, reading: com.example.readalong.ui.reading.ReadingViewModel, onSpeechModel: () -> Unit, onFollow: () -> Unit) {
+fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, onCollapse: () -> Unit, onFinished: (Boolean) -> Unit, reading: com.example.readalong.ui.reading.ReadingViewModel, onSpeechModel: () -> Unit, onFollow: () -> Unit, onFolders: () -> Unit = {}, onQueue: () -> Unit = {}) {
     LaunchedEffect(book.id) { reading.warmPreview() }
     val appSettings = com.example.readalong.ui.theme.LocalAppSettings.current
     var showText by rememberSaveable(book.id) { mutableStateOf(appSettings.openingView != "COVER") }
@@ -50,11 +56,14 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
     val timingRepair by reading.needsAudioTimingRepair.collectAsStateWithLifecycle()
     var timingRepairDismissed by rememberSaveable(book.id) { mutableStateOf(false) }
     if (timingRepair && !timingRepairDismissed) AlertDialog(onDismissRequest = { timingRepairDismissed = true },
-        title = { Text("Update saved audio timing") },
-        text = { Text("This MP3's seek table shifted the old transcription timestamps. Rebuild this book once to apply accurate audio timing. Your listening position and original EPUB are kept. Future interruptions resume from saved progress.") },
-        confirmButton = { TextButton(onClick = { timingRepairDismissed = true; reading.rebuildTranscription() }) { Text("Rebuild audio timing") } },
+        title = { Text("Text timing is a little off") },
+        text = { Text("The highlighting in this book's ReadAlong can drift from the audio. Fixing it makes the ReadAlong again; your listening position and EPUB are kept.") },
+        confirmButton = { TextButton(onClick = { timingRepairDismissed = true; reading.rebuildTranscription() }) { Text("Fix timing") } },
         dismissButton = { TextButton(onClick = { timingRepairDismissed = true }) { Text("Later") } })
     val execution by reading.execution.collectAsStateWithLifecycle()
+    val tipScope = rememberCoroutineScope()
+    val tipApp = androidx.compose.ui.platform.LocalContext.current.applicationContext as? com.example.readalong.ReadAlongApplication
+    fun hideCoverTip() { if (!appSettings.coverTipHidden) tipScope.launch { tipApp?.appPreferences?.update { it.copy(coverTipHidden = true) } } }
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
     val context = androidx.compose.ui.platform.LocalContext.current
     val readingError by reading.error.collectAsStateWithLifecycle()
@@ -62,7 +71,7 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
     val chapterDuration = state.chapterDurationMs
     val chapterPosition = state.chapterPositionMs
     val palette = com.example.readalong.ui.components.rememberCoverPalette(book)
-    val colors = darkColorScheme(primary = palette.accent, onPrimary = Color(0xFF142332), background = Color(0xFF101418), secondaryContainer = palette.preview)
+    val colors = com.example.readalong.ui.theme.playerScheme(palette).copy(secondaryContainer = palette.preview)
     val screenHeight = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
     MaterialTheme(colorScheme = colors) {
     Box(Modifier.fillMaxSize().background(palette.background)) {
@@ -71,20 +80,36 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
         if (state.isLoading) { kotlinx.coroutines.delay(600); value = true }
     }
     if (appSettings.blurredPlayer && !appSettings.alwaysBasicColor) com.example.readalong.ui.components.BlurredCover(book.coverUri, Modifier.fillMaxSize())
+    // With the ReadAlong bar hidden, the player is one fixed page: no scrolling, back at the top.
+    val barHidden by reading.preparationHidden.collectAsStateWithLifecycle(false)
+    val pageScroll = rememberScrollState()
+    LaunchedEffect(barHidden) { if (barHidden) pageScroll.animateScrollTo(0) }
     Scaffold(containerColor = Color.Transparent, contentColor = colors.onSurface) { insets ->
         Column(
             Modifier.fillMaxSize()
-                .padding(insets).verticalScroll(rememberScrollState()),
+                .padding(insets).verticalScroll(pageScroll, enabled = !barHidden),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onCollapse) { Icon(painterResource(R.drawable.ic_down), "Collapse player") }
-                Spacer(Modifier.weight(1f))
-                Box {
+            // A grab handle, like the pop-up sheets: tap it or pull down to close the player.
+            Box(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
+                val pull = remember { floatArrayOf(0f) }
+                val threshold = with(androidx.compose.ui.platform.LocalDensity.current) { 56.dp.toPx() }
+                Box(Modifier.align(Alignment.Center).size(width = 120.dp, height = 48.dp)
+                    .pointerInput(Unit) {
+                        detectVerticalDragGestures(onDragStart = { pull[0] = 0f }, onDragEnd = { if (pull[0] > threshold) onCollapse() }) { change, amount ->
+                            change.consume(); pull[0] += amount
+                            if (pull[0] > threshold) { pull[0] = Float.NEGATIVE_INFINITY; onCollapse() }
+                        }
+                    }
+                    .clickable(onClickLabel = "Close player", onClick = onCollapse)
+                    .semantics { contentDescription = "Close player" }, contentAlignment = Alignment.Center) {
+                    Box(Modifier.size(width = 36.dp, height = 4.dp).background(colors.onSurface.copy(alpha = .45f), RoundedCornerShape(2.dp)))
+                }
+                Box(Modifier.align(Alignment.CenterEnd)) {
                     IconButton(onClick = { menu = true }) { Icon(painterResource(R.drawable.ic_more), "More options") }
                     DropdownMenu(menu, { menu = false }) {
-                        DropdownMenuItem(text = { Text(if (book.isFinished) "Mark unfinished" else "Mark finished") }, onClick = { onFinished(!book.isFinished); menu = false })
-                        DropdownMenuItem(text = { Text("Export generated EPUB") }, onClick = { menu = false; export.launch("ReadAlong-${book.id}.epub") })
+                        DropdownMenuItem(text = { Text(if (book.isFinished) "Mark as not finished" else "Mark as finished") }, onClick = { onFinished(!book.isFinished); menu = false })
+                        DropdownMenuItem(text = { Text("Save ReadAlong as EPUB") }, onClick = { menu = false; export.launch("ReadAlong-${book.id}.epub") })
                         DropdownMenuItem(text = { Text("Bookmarks (${bookmarks.size})") }, onClick = { panel = "bookmarks"; menu = false })
                     }
                 }
@@ -93,7 +118,12 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                 val wide = maxWidth >= 640.dp
                 val artwork: @Composable () -> Unit = {
                     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        if (book.mediaState == "MISSING") Text("Media unavailable · restore file access", color = colors.error)
+                        if (book.mediaState == "MISSING") Surface(shape = RoundedCornerShape(com.example.readalong.ui.theme.Corners.medium), color = colors.errorContainer) {
+                            Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text("Can't find this book's audio. Its folder may have moved or been renamed.", color = colors.onErrorContainer, style = MaterialTheme.typography.bodyMedium)
+                                TextButton(onClick = onFolders, contentPadding = PaddingValues(0.dp)) { Text("Choose folder again", color = colors.onErrorContainer) }
+                            }
+                        }
                         Box(Modifier.widthIn(max = if (wide) 360.dp else (screenHeight * 0.40f).coerceIn(260.dp, 380.dp))
                             .fillMaxWidth().aspectRatio(1f).graphicsLayer {
                                 rotationY = flip
@@ -107,8 +137,16 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                                     colorOf = com.example.readalong.ui.reading.LocalReaderSurfaceColor.current)
                             }
                             if (flip <= 90f) Box(Modifier.fillMaxSize().testTag("flip_cover")
-                                .clickable(role = Role.Button, onClickLabel = "Show reading preview") { showText = true }) {
+                                .clickable(role = Role.Button, onClickLabel = "Show the text") { showText = true; hideCoverTip() }) {
                                 BookCover(book, Modifier.fillMaxSize().navSharedCover(com.example.readalong.ui.components.LocalPlayerCoverKey.current), large = true)
+                                // Until it's been used once: the cover is also the way to the text.
+                                if (!appSettings.coverTipHidden && job != null && job?.state != "WAITING_SELECTION") Surface(Modifier.align(Alignment.BottomCenter).padding(12.dp),
+                                    shape = RoundedCornerShape(50), color = Color.Black.copy(alpha = .62f), contentColor = Color.White) {
+                                    Row(Modifier.padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Icon(painterResource(R.drawable.ic_highlighted_book), null, Modifier.size(18.dp))
+                                        Text("Tap the cover for the text", style = MaterialTheme.typography.labelLarge)
+                                    }
+                                }
                             }
                         }
                     }
@@ -116,35 +154,47 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                 val controls: @Composable ColumnScope.() -> Unit = {
                 com.example.readalong.ui.components.MarqueeTitle(book.title, Modifier.fillMaxWidth(), MaterialTheme.typography.headlineMedium)
                 Text(state.chapterTitle, style = MaterialTheme.typography.titleMedium, color = colors.onSurfaceVariant)
+                val sliderColors = SliderDefaults.colors(thumbColor = colors.primary, activeTrackColor = colors.primary, inactiveTrackColor = colors.onSurface.copy(alpha = .18f))
                 Slider(
                     value = if (dragging) draggedPosition else chapterPosition.toFloat().coerceAtMost(chapterDuration.toFloat()),
                     onValueChange = { dragging = true; draggedPosition = it },
                     onValueChangeFinished = { playback.seek(start + draggedPosition.toLong()); dragging = false },
                     valueRange = 0f..chapterDuration.toFloat(),
                     modifier = Modifier.semantics { contentDescription = "Seek within chapter" },
+                    // A plain round thumb on one continuous rounded track (no split thumb, gap or end dot).
+                    thumb = { Box(Modifier.size(18.dp).background(colors.primary, CircleShape)) },
+                    track = { sliderState -> SliderDefaults.Track(sliderState = sliderState, modifier = Modifier.height(5.dp), colors = sliderColors,
+                        drawStopIndicator = null, thumbTrackGapSize = 0.dp, trackInsideCornerSize = 0.dp) },
                 )
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(clockTime(chapterPosition), style = MaterialTheme.typography.bodySmall)
-                    Text(if (state.durationMs > 0) "${clockTime(state.durationMs - state.positionMs)} left" else "Duration unavailable", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
-                    Text(clockTime(chapterDuration), style = MaterialTheme.typography.bodySmall)
+                    Text(clockTime(chapterPosition), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant, modifier = Modifier.alignByBaseline())
+                    Text(if (state.durationMs > 0) "${hoursMinutes(state.durationMs - state.positionMs)} left in book" else "Length unknown", style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, lineHeight = 16.sp), color = colors.onSurfaceVariant, modifier = Modifier.alignByBaseline())
+                    Text(clockTime(chapterDuration), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant, modifier = Modifier.alignByBaseline())
                 }
                 state.error?.let { Text(it, color = colors.error, style = MaterialTheme.typography.bodySmall) }
 
                 Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
                     PlayerAction("Rewind ${appSettings.playerBack} seconds", R.drawable.ic_rewind, "${appSettings.playerBack}", { playback.skip(-appSettings.playerBack * 1000L) })
-                    FilledIconButton(onClick = playback::toggle, modifier = Modifier.size(76.dp), shape = CircleShape) {
+                    val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
+                    FilledIconButton(onClick = { haptics.performHapticFeedback(if (state.isPlaying) androidx.compose.ui.hapticfeedback.HapticFeedbackType.ToggleOff else androidx.compose.ui.hapticfeedback.HapticFeedbackType.ToggleOn); playback.toggle() }, modifier = Modifier.size(76.dp), shape = CircleShape) {
                         com.example.readalong.ui.components.PlayPauseIcon(state.isPlaying, Modifier.size(36.dp))
                     }
                     PlayerAction("Forward ${appSettings.playerForward} seconds", R.drawable.ic_forward, "${appSettings.playerForward}", { playback.skip(appSettings.playerForward * 1000L) })
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onClick = { panel = "speed" }) { Text("${state.speed}×") }
-                    PlayerAction("Sleep timer", R.drawable.ic_sleep, if (state.sleepEndsAt != null || state.sleepAtChapterEnd) "On" else "Sleep", { panel = "sleep" })
+                    PlayerAction("Playback speed", R.drawable.ic_speed, "${state.speed}×", { panel = "speed" })
+                    // Running timer: the moon fills in and the label counts down.
+                    val sleepLeft by produceState<Long?>(null, state.sleepEndsAt) {
+                        while (true) { value = state.sleepEndsAt?.let { it - System.currentTimeMillis() }; kotlinx.coroutines.delay(15_000) }
+                    }
+                    val sleeping = state.sleepEndsAt != null || state.sleepAtChapterEnd
+                    PlayerAction("Sleep timer", if (sleeping) R.drawable.ic_sleep_filled else R.drawable.ic_sleep,
+                        when { state.sleepAtChapterEnd -> "End of chapter"; sleepLeft != null -> "${((sleepLeft!! + 59_999) / 60_000).coerceAtLeast(1)} min left"; else -> "Sleep" },
+                        { panel = "sleep" })
                     PlayerAction("Bookmarks", R.drawable.ic_bookmark, "Bookmark", { panel = "bookmarks" })
                     PlayerAction("Chapters", R.drawable.ic_chapters, "Chapters", { panel = "chapters" })
                 }
-                com.example.readalong.ui.reading.EpubSyncProgress(reading)
-                ReadableProgressCard(book, job, timeRemaining, reading, state.positionMs, execution, onSpeechModel)
+                ReadableProgressCard(book, job, timeRemaining, reading, state.positionMs, execution, onSpeechModel, onQueue)
                 readingError?.let { Text(it, color = colors.error, style = MaterialTheme.typography.bodySmall) }
                 Spacer(Modifier.height(12.dp))
                 }
@@ -164,7 +214,7 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
     if (panel != null && panel != "bookmarks") {
         AlertDialog(
             onDismissRequest = { panel = null },
-            title = { Text(when (panel) { "speed" -> "Playback speed"; "sleep" -> "Sleep timer"; "chapters" -> "Chapters"; "bookmarks" -> "Bookmarks"; else -> "Follow Along" }) },
+            title = { Text(when (panel) { "speed" -> "Playback speed"; "sleep" -> "Sleep timer"; "chapters" -> "Chapters"; "bookmarks" -> "Bookmarks"; else -> "ReadAlong" }) },
             text = {
                 LazyColumn(Modifier.heightIn(max = 360.dp)) {
                     when (panel) {
@@ -176,7 +226,7 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                         }
                         "chapters" -> {
                             if (book.isDemo) items(((state.durationMs + 1_799_999) / 1_800_000).toInt()) { index ->
-                                TextButton(onClick = { playback.chapter(index); panel = null }) { Text("Demo chapter ${index + 1} · ${clockTime(index * 1_800_000L)}") }
+                                TextButton(onClick = { playback.chapter(index); panel = null }) { Text("Chapter ${index + 1} · ${clockTime(index * 1_800_000L)}") }
                             } else items(state.chapters, key = { it.index }) { item ->
                                 TextButton(onClick = { playback.chapter(item.index); panel = null }) {
                                     Column(Modifier.fillMaxWidth()) {
@@ -211,7 +261,18 @@ private fun PlayerAction(description: String, icon: Int, label: String, onClick:
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Icon(painterResource(icon), description, Modifier.size(26.dp))
-        Text(label, style = MaterialTheme.typography.labelSmall)
+        Spacer(Modifier.height(4.dp))
+        Text(label, style = MaterialTheme.typography.labelSmall, maxLines = 1)
     }
 }
 
+/** "13h 47m", "47m" or "<1m": time left in the book without seconds. */
+internal fun hoursMinutes(ms: Long): String {
+    val minutes = (ms.coerceAtLeast(0) / 60_000)
+    val hours = minutes / 60
+    return when {
+        hours > 0 -> "${hours}h ${minutes % 60}m"
+        minutes > 0 -> "${minutes}m"
+        else -> "<1m"
+    }
+}

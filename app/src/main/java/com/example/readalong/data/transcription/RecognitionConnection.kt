@@ -22,7 +22,7 @@ class RecognitionConnection(private val context: Context, private val service: C
             withContext(Dispatchers.Main) {
                 bound = context.bindService(Intent(context, service), lease, Context.BIND_AUTO_CREATE or Context.BIND_IMPORTANT)
             }
-            if (!bound) throw IOException("Couldn't start local recognition.")
+            if (!bound) throw IOException("Couldn't start the speech model.")
             return block(this)
         } finally {
             withContext(NonCancellable + Dispatchers.Main) { if (bound) context.unbindService(lease) }
@@ -42,7 +42,7 @@ class RecognitionConnection(private val context: Context, private val service: C
             // Don't wait on it: fail fast, and the caller retries with a fresh session.
             val watchdog = Runnable {
                 if (remote == null && continuation.isActive) {
-                    continuation.resumeWith(Result.failure(IOException("Speech recognition didn't start in time.")))
+                    continuation.resumeWith(Result.failure(IOException("The speech model didn't start in time. Trying again…")))
                     if (bound.compareAndSet(true, false)) runCatching { context.unbindService(connection) }
                 }
             }
@@ -58,7 +58,7 @@ class RecognitionConnection(private val context: Context, private val service: C
                         message.data.getLongArray("metrics")?.let(onMetrics)
                         val error = message.data.getString("error")
                         val result = message.data.getString("result")
-                        if (error != null || result == null) continuation.resumeWith(Result.failure(IOException(error ?: "Recognition returned no result.")))
+                        if (error != null || result == null) continuation.resumeWith(Result.failure(IOException(error ?: "The speech model returned nothing for this part. Trying again…")))
                         else continuation.resumeWith(Result.success(result))
                     }
                     unbind()
@@ -75,7 +75,7 @@ class RecognitionConnection(private val context: Context, private val service: C
                     }) } catch (_: RemoteException) { failed() }
                 }
                 private fun failed() {
-                    if (continuation.isActive) continuation.resumeWith(Result.failure(IOException("Recognition stopped. Audio and saved text are preserved; retry preparation.")))
+                    if (continuation.isActive) continuation.resumeWith(Result.failure(IOException("The speech model stopped. Progress is saved; try again.")))
                     unbind()
                 }
                 override fun onServiceDisconnected(name: ComponentName) = failed()
@@ -83,7 +83,7 @@ class RecognitionConnection(private val context: Context, private val service: C
                 override fun onNullBinding(name: ComponentName) = failed()
             }
             bound.set(context.bindService(Intent(context, service), connection, Context.BIND_AUTO_CREATE or Context.BIND_IMPORTANT))
-            if (!bound.get()) continuation.resumeWith(Result.failure(IOException("Couldn't start local recognition.")))
+            if (!bound.get()) continuation.resumeWith(Result.failure(IOException("Couldn't start the speech model.")))
             else main.postDelayed(watchdog, CONNECT_TIMEOUT_MS)
             continuation.invokeOnCancellation {
                 Handler(Looper.getMainLooper()).post {

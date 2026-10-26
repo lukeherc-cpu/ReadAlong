@@ -24,6 +24,27 @@ object LaunchAppearance {
     fun intent(context: Context): Intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
         .setComponent(component(context, read(context))).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
 
+    /*
+     * Switching the launcher component replaces the running activity, so a color or theme change is
+     * shown in the app at once but the icon and launch screen switch only while no ReadAlong screen
+     * is open (when the person leaves the app), or right away if none is.
+     */
+    private var pending: AppPreferences? = null
+    private var started = 0
+    @Synchronized fun request(context: Context, value: AppPreferences) {
+        pending = value
+        if (started == 0) flush(context)
+    }
+    @Synchronized fun activityStarted() { started++ }
+    /** True when the last ReadAlong screen has just stopped (call [flush] off the main thread). */
+    @Synchronized fun activityStopped(): Boolean { started = (started - 1).coerceAtLeast(0); return started == 0 && pending != null }
+    @Synchronized fun flush(context: Context) {
+        if (started > 0) return
+        val value = pending ?: return
+        pending = null
+        apply(context, value)
+    }
+
     @Synchronized fun apply(context: Context, value: AppPreferences) {
         val selected = component(context, value)
         if (applied == selected) return

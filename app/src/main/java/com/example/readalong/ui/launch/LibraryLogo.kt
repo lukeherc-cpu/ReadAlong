@@ -20,19 +20,34 @@ import androidx.compose.ui.unit.sp
 import com.example.readalong.R
 
 @Composable
-fun LibraryLogo(scanningFolder: String?, transcribing: Boolean = false, animate: Boolean = true, onClick: () -> Unit = {}) {
-    val moving = (scanningFolder != null || transcribing) && animate && ValueAnimator.areAnimatorsEnabled()
+fun LibraryLogo(scanningFolder: String?, transcribing: Boolean = false, animate: Boolean = true, readingFolder: Boolean = false, onClick: () -> Unit = {}) {
+    val moving = (scanningFolder != null || transcribing || readingFolder) && animate && ValueAnimator.areAnimatorsEnabled()
     val page = if (moving) {
         val transition = rememberInfiniteTransition(label = "Transcribing pages")
         val phase by transition.animateFloat(0f, 1f, infiniteRepeatable(tween(1100, easing = PageTurnEasing)), label = "Page turn")
         phase
     } else 0f
-    Column(Modifier.widthIn(min = 64.dp).clickable(onClickLabel = "Open transcription queue", onClick = onClick).semantics(mergeDescendants = true) {
-        contentDescription = "Transcription queue"
-        stateDescription = if (transcribing) "Transcribing" else scanningFolder?.let { "Scanning $it" } ?: "Library up to date"
+    // "Syncing" is only a brief note (3 s) at the start of a sync; "Reading folder" stays for as long
+    // as a newly chosen library folder is being read.
+    var syncNote by remember { mutableStateOf(false) }
+    LaunchedEffect(scanningFolder != null) {
+        syncNote = scanningFolder != null
+        if (syncNote) { kotlinx.coroutines.delay(3_000); syncNote = false }
+    }
+    val label = if (readingFolder) "Reading folder" else if (transcribing) "Transcribing" else if (syncNote) "Syncing" else null
+    Column(Modifier.widthIn(min = 64.dp).clickable(onClickLabel = "Open the queue", onClick = onClick).semantics(mergeDescendants = true) {
+        contentDescription = "ReadAlong queue"
+        stateDescription = if (readingFolder) "Reading folder" else if (transcribing) "Transcribing" else scanningFolder?.let { "Syncing $it" } ?: "Library up to date"
     }, horizontalAlignment = Alignment.CenterHorizontally) {
         PageTurnLogo(page, Modifier.size(52.dp))
-        if (transcribing) Text("Transcribing", fontSize = 8.sp, lineHeight = 10.sp, color = MaterialTheme.colorScheme.primary)
+        // The label's line is always reserved (sized in sp, so large fonts aren't clipped), so the
+        // toolbar doesn't jump when work starts or stops.
+        val lineHeight = with(androidx.compose.ui.platform.LocalDensity.current) { 18.sp.toDp() }
+        Box(Modifier.heightIn(min = lineHeight), contentAlignment = Alignment.Center) {
+            if (label != null) Text(label, fontSize = 12.sp, lineHeight = 16.sp, maxLines = 1, softWrap = false,
+                color = MaterialTheme.colorScheme.primary,
+                style = androidx.compose.material3.LocalTextStyle.current.copy(platformStyle = androidx.compose.ui.text.PlatformTextStyle(includeFontPadding = true)))
+        }
     }
 }
 
@@ -78,9 +93,7 @@ internal fun PageTurnLogo(progress: Float, modifier: Modifier, safeInset: Boolea
                 moveTo(start.x, start.y); cubic(59f, 44f, 65f, 41f, 73f, 42f)
                 lineTo(corner.x, corner.y); cubic(67f, 73f, 61f, 75f, 55f, 80f); close()
             }
-            // A soft shadow falls on the page underneath while the sheet is lifted.
-            if (sin > .02f) drawRect(Brush.horizontalGradient(listOf(ink.copy(alpha = .16f * sin), Color.Transparent),
-                startX = 55f * u + inset, endX = (55f + 16f * sin) * u + inset), topLeft = Offset(55f * u + inset, 42f * u + inset), size = androidx.compose.ui.geometry.Size(18f * u, 38f * u))
+            // Only the turning sheet is drawn: the page underneath stays exactly as it is in the mark.
             val paper = Color(0xFFF7FAFD)
             val face = if (cos >= 0f) lerp(paper, Color(0xFFDDE4EC), .45f * sin) else lerp(paper, Color(0xFFE6ECF2), .35f * sin)
             drawPath(sheet, face)

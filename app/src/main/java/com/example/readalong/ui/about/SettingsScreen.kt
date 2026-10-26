@@ -44,41 +44,48 @@ fun SettingsScreen(app: ReadAlongApplication, onBack: () -> Unit, onModel: () ->
         if (!preferences.tipJarInOther) TipJarSection(false) { move -> save { it.copy(tipJarInOther = move) } }
         SectionLabel("Appearance")
         SettingsGroup {
-            PreferenceSwitch("Theme", preferences.libraryLight, "Light library", valueLabel = if (preferences.libraryLight) "Light" else "Dark") { value -> pendingTheme = value }
-            PreferenceSwitch("Match mini-player to book colors", preferences.coloredMiniPlayer) { value -> save { it.copy(coloredMiniPlayer = value) } }
-            SettingsRow("Basic color", onClick = { colorPicker = true }) { Box(Modifier.size(24.dp).background(androidx.compose.ui.graphics.Color(preferences.basicColor), RoundedCornerShape(8.dp))) }
-            PreferenceSwitch("Always use basic color", preferences.alwaysBasicColor) { value -> save { it.copy(alwaysBasicColor = value) } }
-            SettingsRow("Player background", onClick = { backgroundPicker = true }) { Text(if (preferences.blurredPlayer) "Blurred cover art" else "Solid color", style = MaterialTheme.typography.bodySmall) }
-            PreferenceCheckbox("Show title and author", preferences.showTitleAndAuthor) { value -> save { it.copy(showTitleAndAuthor = value) } }
-            SettingsRow("App font", onClick = { appFont = true })
-            SettingsRow("Reading fonts and appearance", onClick = { appearance = true })
+            PreferenceSwitch("Light theme", preferences.libraryLight, "Light theme", icon = R.drawable.ic_theme) { value -> pendingTheme = value }
+            PreferenceSwitch("Match mini player to book colors", preferences.coloredMiniPlayer, icon = R.drawable.ic_play) { value -> save { it.copy(coloredMiniPlayer = value) } }
+            SettingsRow("Accent color", R.drawable.ic_palette, onClick = { colorPicker = true }) { Box(Modifier.size(24.dp).background(androidx.compose.ui.graphics.Color(preferences.basicColor), RoundedCornerShape(com.example.readalong.ui.theme.Corners.small))) }
+            PreferenceSwitch("Use accent color instead of cover colors", preferences.alwaysBasicColor, icon = R.drawable.ic_image) { value -> save { it.copy(alwaysBasicColor = value) } }
+            SettingsRow("Player background", R.drawable.ic_fullscreen, onClick = { backgroundPicker = true }) { Text(if (preferences.blurredPlayer) "Blurred cover art" else "Solid color", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant); Chevron() }
+            PreferenceSwitch("Show title and author", preferences.showTitleAndAuthor, icon = R.drawable.ic_book) { value -> save { it.copy(showTitleAndAuthor = value) } }
+            PreferenceSwitch("Progress bar on covers", preferences.coverProgressBar, icon = R.drawable.ic_image) { value -> save { it.copy(coverProgressBar = value) } }
+            SettingsRow("App font", R.drawable.ic_font, onClick = { appFont = true })
+            SettingsRow("Reading fonts and appearance", R.drawable.ic_highlighted_book, onClick = { appearance = true })
         }
         SectionLabel("When opening a book")
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            OpeningChoice("Show cover art", "Cover", R.drawable.ic_image, preferences.openingView == "COVER", Modifier.weight(1f)) { save { it.copy(openingView = "COVER") } }
-            OpeningChoice("Show Read along", "Follow along", R.drawable.ic_highlighted_book, preferences.openingView in setOf("PREVIEW", "FULLSCREEN"), Modifier.weight(1f)) { save { it.copy(openingView = "PREVIEW") } }
+            OpeningChoice("Cover art", "Cover art", R.drawable.ic_image, preferences.openingView == "COVER", Modifier.weight(1f)) { save { it.copy(openingView = "COVER") } }
+            OpeningChoice("ReadAlong text", "ReadAlong text", R.drawable.ic_readalong, preferences.openingView in setOf("PREVIEW", "FULLSCREEN"), Modifier.weight(1f)) { save { it.copy(openingView = "PREVIEW") } }
         }
-        OpeningChoice("Start in read only", "Read only opening", R.drawable.ic_book, preferences.openingView == "READ_ONLY", Modifier.fillMaxWidth()) { save { it.copy(openingView = "READ_ONLY") } }
+        OpeningChoice("Read only (no audio)", "Read only (no audio)", R.drawable.ic_read_only, preferences.openingView == "READ_ONLY", Modifier.fillMaxWidth()) { save { it.copy(openingView = "READ_ONLY") } }
         if (preferences.openingView in setOf("PREVIEW", "FULLSCREEN")) SettingsGroup {
-            PreferenceSwitch("Open Read Along in full screen", preferences.openingView == "FULLSCREEN") { value -> save { it.copy(openingView = if (value) "FULLSCREEN" else "PREVIEW") } }
+            PreferenceSwitch("Open the text in full screen", preferences.openingView == "FULLSCREEN", icon = R.drawable.ic_fullscreen) { value -> save { it.copy(openingView = if (value) "FULLSCREEN" else "PREVIEW") } }
         }
         SectionLabel("Playback")
-        SettingsGroup { SettingsRow("Rewind and forward intervals", onClick = { skipDialog = true }) }
-        SectionLabel("Transcription")
+        SettingsGroup { SettingsRow("Rewind and forward times", R.drawable.ic_rewind, onClick = { skipDialog = true }) }
+        SectionLabel("Transcription (ReadAlong)")
         SettingsGroup {
-            PreferenceSwitch("Animate transcription logo", preferences.animateTranscriptionLogo) { value -> save { it.copy(animateTranscriptionLogo = value) } }
-            PreferenceSwitch("Only transcribe while charging", preferences.chargingOnly) { value -> scope.launch { app.appPreferences.update { it.copy(chargingOnly = value) }; app.processing.chargingPreferenceChanged() } }
-            Text("Completed sections are saved. Transcription waits when unplugged and resumes when charging.", Modifier.padding(horizontal = 18.dp).padding(bottom = 16.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            SettingsRow("Background transcription and battery", onClick = { battery = true })
+            PreferenceSwitch("Only transcribe audiobooks while charging", preferences.chargingOnly, icon = R.drawable.ic_battery) { value -> scope.launch { app.appPreferences.update { it.copy(chargingOnly = value) }; app.processing.chargingPreferenceChanged() } }
+            Text("Progress is saved. A ReadAlong pauses when you unplug and continues when you charge.", Modifier.padding(start = 58.dp, end = 18.dp).padding(bottom = 14.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            PreferenceSwitch("Aggressive transcription", preferences.aggressiveTranscription, icon = R.drawable.ic_speed) { value -> save { it.copy(aggressiveTranscription = value) } }
+            Text("Transcribes as fast as it can, even when the phone is warm or battery saver is on. Uses more battery and heat; it still pauses if the phone gets hot.",
+                Modifier.padding(start = 58.dp, end = 18.dp).padding(bottom = 14.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            SettingsRow("Background work and battery", R.drawable.ic_redo, onClick = { battery = true })
         }
         SectionLabel("Other")
         SettingsGroup {
-                SettingsRow("Offline speech models", onClick = onModel)
-                SettingsRow(if (copied) "Crash details copied" else "Copy crash details", onClick = { scope.launch {
-                    val report = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.example.readalong.data.diagnostics.CrashDiagnostics.read(app) }
-                    clipboard.setClipEntry(androidx.compose.ui.platform.ClipEntry(android.content.ClipData.newPlainText("ReadAlong crash details", report))); copied = true
-                } })
-                SettingsRow("About ReadAlong", onClick = onAbout)
+                SettingsRow("Offline speech models", R.drawable.ic_waveform, onClick = onModel)
+                SettingsRow("About ReadAlong", R.drawable.ic_info, onClick = onAbout)
+        }
+        SectionLabel("Advanced")
+        SettingsGroup {
+            PreferenceSwitch("Animate the queue logo while working", preferences.animateTranscriptionLogo, icon = R.drawable.ic_book) { value -> save { it.copy(animateTranscriptionLogo = value) } }
+            SettingsRow(if (copied) "Crash details copied" else "Copy crash details for support", R.drawable.ic_bug, onClick = { scope.launch {
+                val report = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.example.readalong.data.diagnostics.CrashDiagnostics.read(app) }
+                clipboard.setClipEntry(androidx.compose.ui.platform.ClipEntry(android.content.ClipData.newPlainText("ReadAlong crash details", report))); copied = true
+            } })
         }
         if (preferences.tipJarInOther) TipJarSection(true) { move -> save { it.copy(tipJarInOther = move) } }
         Spacer(Modifier.height(12.dp))
@@ -86,16 +93,13 @@ fun SettingsScreen(app: ReadAlongApplication, onBack: () -> Unit, onModel: () ->
     if (appFont) com.example.readalong.ui.reading.AppFontDialog(preferences.appFont, { appFont = false }) { font -> save { it.copy(appFont = font) }; appFont = false }
     if (appearance) com.example.readalong.ui.reading.ReaderAppearance(reader, { appearance = false }) { value -> scope.launch { app.readerPreferences.save(value) }; appearance = false }
     if (colorPicker) BasicColorPicker(preferences.basicColor, { colorPicker = false }) { color -> pendingColor = color; colorPicker = false }
-    if (pendingTheme != null || pendingColor != null) AlertDialog(
-        onDismissRequest = { pendingTheme = null; pendingColor = null },
-        title = { Text("Restart required") },
-        text = { Text("This change requires restarting ReadAlong to update its app icon and opening screen. Your phone may close the app while applying it. Reopen ReadAlong afterward. Your library and saved transcription progress are kept.") },
-        confirmButton = { TextButton(onClick = {
-            val light = pendingTheme; val color = pendingColor
-            pendingTheme = null; pendingColor = null
-            save { it.copy(libraryLight = light ?: it.libraryLight, basicColor = color ?: it.basicColor) }
-        }) { Text("Apply change") } },
-        dismissButton = { TextButton(onClick = { pendingTheme = null; pendingColor = null }) { Text("Cancel") } })
+    // Theme and color apply at once; the app icon and launch screen follow when you leave ReadAlong.
+    LaunchedEffect(pendingTheme, pendingColor) {
+        val light = pendingTheme; val color = pendingColor
+        if (light == null && color == null) return@LaunchedEffect
+        pendingTheme = null; pendingColor = null
+        save { it.copy(libraryLight = light ?: it.libraryLight, basicColor = color ?: it.basicColor) }
+    }
     if (backgroundPicker) AlertDialog(onDismissRequest = { backgroundPicker = false }, title = { Text("Player background") }, text = {
         Column { listOf(true to "Blurred cover art", false to "Solid color").forEach { (blur, label) ->
             Row(Modifier.fillMaxWidth().clickable { save { it.copy(blurredPlayer = blur) }; backgroundPicker = false }.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -107,11 +111,16 @@ fun SettingsScreen(app: ReadAlongApplication, onBack: () -> Unit, onModel: () ->
         var back by remember { mutableStateOf(preferences.playerBack.toString()) }; var forward by remember { mutableStateOf(preferences.playerForward.toString()) }
         var readerBack by remember { mutableStateOf(preferences.readerBack.toString()) }; var readerForward by remember { mutableStateOf(preferences.readerForward.toString()) }
         val valid = listOf(back, forward, readerBack, readerForward).all { (it.toIntOrNull() ?: 0) in 1..600 }
-        AlertDialog(onDismissRequest = { skipDialog = false }, title = { Text("Skip intervals") }, text = {
+        // One back/forward pair; full-screen reading has its own (5 s by default) behind an expander.
+        var readerTimes by remember { mutableStateOf(preferences.readerBack != 5 || preferences.readerForward != 5) }
+        AlertDialog(onDismissRequest = { skipDialog = false }, title = { Text("Rewind and forward") }, text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Seconds, from 1 to 600. Sentence navigation stays separate.")
-                SecondsField("Player rewind", back) { back = it }; SecondsField("Player forward", forward) { forward = it }
-                SecondsField("Full-screen rewind", readerBack) { readerBack = it }; SecondsField("Full-screen forward", readerForward) { readerForward = it }
+                Text("How far the rewind and forward buttons jump, in seconds (1 to 600).")
+                SecondsField("Rewind", back) { back = it }; SecondsField("Forward", forward) { forward = it }
+                TextButton(onClick = { readerTimes = !readerTimes }, contentPadding = PaddingValues(0.dp)) {
+                    Text(if (readerTimes) "Full-screen reading times" else "Change full-screen reading times")
+                }
+                if (readerTimes) { SecondsField("Full-screen rewind", readerBack) { readerBack = it }; SecondsField("Full-screen forward", readerForward) { readerForward = it } }
             }
         }, confirmButton = { TextButton(enabled = valid, onClick = {
             save { it.copy(playerBack = back.toInt(), playerForward = forward.toInt(), readerBack = readerBack.toInt(), readerForward = readerForward.toInt()) }; skipDialog = false
@@ -120,31 +129,34 @@ fun SettingsScreen(app: ReadAlongApplication, onBack: () -> Unit, onModel: () ->
     if (battery) com.example.readalong.ui.transcription.BackgroundPreparationPrompt(app, force = true, onClose = { battery = false })
 }
 
-@Composable private fun SectionLabel(value: String) { Text(value.uppercase(), Modifier.padding(top = 12.dp, start = 4.dp), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary) }
+// Quiet, sentence-case headings so the rows, not the labels, carry the page.
+@Composable private fun SectionLabel(value: String) { Text(value, Modifier.padding(top = 14.dp, start = 6.dp), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
 @Composable private fun SettingsGroup(content: @Composable ColumnScope.() -> Unit) {
-    Surface(shape = RoundedCornerShape(22.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .5f), border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = .3f))) { Column(Modifier.fillMaxWidth(), content = content) }
+    Surface(shape = RoundedCornerShape(com.example.readalong.ui.theme.Corners.large), color = MaterialTheme.colorScheme.surfaceContainer) { Column(Modifier.fillMaxWidth(), content = content) }
 }
-@Composable private fun SettingsRow(label: String, onClick: () -> Unit, trailing: @Composable () -> Unit = { Text("›", style = MaterialTheme.typography.titleLarge) }) {
-    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(18.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) { Text(label, Modifier.weight(1f)); trailing() }
+@Composable private fun Chevron() = Icon(painterResource(R.drawable.ic_chevron_right), null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+@Composable private fun RowIcon(icon: Int?) {
+    if (icon != null) Icon(painterResource(icon), null, Modifier.size(22.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
 }
-@Composable private fun PreferenceSwitch(label: String, checked: Boolean, description: String = label, valueLabel: String? = null, change: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(label, Modifier.weight(1f)); valueLabel?.let { Text(it, Modifier.padding(end = 8.dp), style = MaterialTheme.typography.bodySmall) }
-        Switch(checked, onCheckedChange = change, modifier = Modifier.semantics { contentDescription = description })
+@Composable private fun SettingsRow(label: String, icon: Int? = null, onClick: () -> Unit, trailing: @Composable () -> Unit = { Chevron() }) {
+    Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable(onClick = onClick).padding(horizontal = 18.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        RowIcon(icon); Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge); trailing()
+    }
+}
+@Composable private fun PreferenceSwitch(label: String, checked: Boolean, description: String = label, icon: Int? = null, change: (Boolean) -> Unit) {
+    // The whole row toggles, with a switch on every on/off setting (no checkboxes).
+    Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).toggleable(value = checked, role = androidx.compose.ui.semantics.Role.Switch, onValueChange = change)
+        .semantics { contentDescription = description }.padding(horizontal = 18.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        RowIcon(icon); Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+        Switch(checked, onCheckedChange = null)
     }
 }
 @Composable private fun OpeningChoice(label: String, description: String, icon: Int, selected: Boolean, modifier: Modifier, choose: () -> Unit) {
-    Surface(onClick = choose, modifier = modifier.semantics { contentDescription = description }, shape = RoundedCornerShape(20.dp), color = if (selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = .5f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .4f), border = androidx.compose.foundation.BorderStroke(1.dp, if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant)) {
-        Column(Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) { Icon(painterResource(icon), null, Modifier.size(32.dp)); Text(label, style = MaterialTheme.typography.bodyMedium) }
+    Surface(onClick = choose, modifier = modifier.semantics { contentDescription = description }, shape = RoundedCornerShape(com.example.readalong.ui.theme.Corners.large), color = if (selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = .5f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .4f), border = androidx.compose.foundation.BorderStroke(1.dp, if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant)) {
+        Column(Modifier.padding(horizontal = 20.dp, vertical = 14.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) { Box(Modifier.size(56.dp), contentAlignment = Alignment.Center) { Icon(painterResource(icon), null, Modifier.size(if (icon == R.drawable.ic_image) 32.dp else 56.dp)) }; Text(label, style = MaterialTheme.typography.bodyMedium) }
     }
 }
 @Composable private fun SecondsField(label: String, value: String, change: (String) -> Unit) {
     OutlinedTextField(value, { change(it.filter(Char::isDigit).take(3)) }, label = { Text(label) }, singleLine = true, keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number))
-}
-
-@Composable private fun PreferenceCheckbox(label: String, checked: Boolean, change: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth().toggleable(value = checked, role = androidx.compose.ui.semantics.Role.Checkbox, onValueChange = change).padding(horizontal = 18.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(label, Modifier.weight(1f))
-        Checkbox(checked, onCheckedChange = null)
-    }
 }

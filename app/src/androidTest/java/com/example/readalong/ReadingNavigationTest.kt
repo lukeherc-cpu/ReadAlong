@@ -42,7 +42,7 @@ class ReadingNavigationTest {
     }
     private fun openFollow() {
         flipToPreview()
-        compose.onNodeWithContentDescription("Full screen Follow Along").performClick()
+        compose.onNodeWithContentDescription("Read in full screen").performClick()
     }
 
     private fun revealControls() {
@@ -76,13 +76,13 @@ class ReadingNavigationTest {
             compose.runOnUiThread { app.playback.listenFrom(0) }
             compose.waitUntil(10_000) { app.playback.state.value.isPlaying }
             flipToPreview()
-            compose.onNodeWithContentDescription("Full screen Follow Along").performClick()
+            compose.onNodeWithContentDescription("Read in full screen").performClick()
             compose.waitUntil(5000) { compose.onAllNodesWithTag("follow_passages").fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithContentDescription("Settings").assertDoesNotExist()
             compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
             compose.waitUntil(5000) { compose.onAllNodesWithContentDescription("Collapse player").fetchSemanticsNodes().isNotEmpty() }
             assertTrue(app.playback.state.value.isPlaying)
-            compose.onNodeWithContentDescription("Full screen Follow Along").performClick()
+            compose.onNodeWithContentDescription("Read in full screen").performClick()
             compose.waitUntil(5000) { compose.onAllNodesWithTag("follow_passages").fetchSemanticsNodes().isNotEmpty() }
             revealControls()
             assertTrue(app.playback.state.value.isPlaying)
@@ -145,7 +145,7 @@ class ReadingNavigationTest {
             previewLayout.getLineTop(previewLayout.getLineForOffset(character)) - before.top
         try {
             compose.mainClock.autoAdvance = false
-            compose.onNodeWithContentDescription("Full screen Follow Along").performClick()
+            compose.onNodeWithContentDescription("Read in full screen").performClick()
             compose.mainClock.advanceTimeBy(150)
             compose.onRoot().captureToImage().asAndroidBitmap().let { bitmap ->
                 java.io.File(app.getExternalFilesDir(null), "verification-reader-transform-mid.png").outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
@@ -174,7 +174,7 @@ class ReadingNavigationTest {
         (0 until previewLayout.lineCount).forEach { assertEquals(previewLayout.getLineEnd(it), expandedLayout.getLineEnd(it)) }
         compose.onRoot().captureToImage().asAndroidBitmap().let { bitmap -> java.io.File(app.getExternalFilesDir(null), "verification-reader-after.png").outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) } }
         compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
-        compose.waitUntil(5000) { compose.onAllNodesWithContentDescription("Full screen Follow Along").fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(5000) { compose.onAllNodesWithContentDescription("Read in full screen").fetchSemanticsNodes().isNotEmpty() }
         compose.waitForIdle()
         val after = compose.onNodeWithTag("follow_card", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
         assertEquals(before.width, after.width, 2f); assertEquals(before.top, after.top, 3f)
@@ -387,7 +387,7 @@ class ReadingNavigationTest {
             } catch (error: androidx.compose.ui.test.ComposeTimeoutException) {
                 throw AssertionError("Preview at ${app.playback.state.value.positionMs}: ${compose.onNodeWithTag("follow_preview", useUnmergedTree = true).fetchSemanticsNode().config}; expected ${target.text.take(30)}", error)
             }
-            compose.onNodeWithContentDescription("Full screen Follow Along").performClick()
+            compose.onNodeWithContentDescription("Read in full screen").performClick()
             compose.onAllNodesWithText("Follow Along", substring = false).assertCountEquals(0)
             compose.onNodeWithContentDescription("Search text").assertIsDisplayed()
             revealControls()

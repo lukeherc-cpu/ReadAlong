@@ -51,8 +51,12 @@ fun miniPlayerColors(book: Book, readerTheme: String): Pair<Color, Color> {
     val settings = com.example.readalong.ui.theme.LocalAppSettings.current
     val basic = com.example.readalong.ui.theme.basicPalette(settings.basicColor)
     if (!settings.coloredMiniPlayer) return (if (settings.libraryLight) basic.accent else basic.background) to (if (settings.libraryLight) basic.background else Color.White)
-    val background = when (readerTheme) { "LIGHT" -> Color(0xFFFAF9F5); "SEPIA" -> Color(0xFFF0E6D2); else -> palette.background }
-    return background to (if (readerTheme == "DARK") Color.White else Color(0xFF242820))
+    // Tinted from the book; on the light library a light tint instead of a heavy dark bar.
+    val background = when (readerTheme) {
+        "LIGHT" -> Color(0xFFFAF9F5); "SEPIA" -> Color(0xFFF0E6D2); "BLACK" -> Color.Black
+        else -> if (settings.libraryLight) lerp(palette.accent, Color.White, .2f) else palette.background
+    }
+    return background to (if (readerTheme == "LIGHT" || readerTheme == "SEPIA") Color(0xFF242820) else if (readerTheme == "BLACK") Color.White else if (settings.libraryLight) palette.background else Color.White)
 }
 
 /** Records where the mini player is, for the transform to start from. */
@@ -93,12 +97,16 @@ fun PlayerTransform(book: Book, readerTheme: String, progress: () -> Float, modi
             if (settings.blurredPlayer && !settings.alwaysBasicColor) com.example.readalong.ui.components.BlurredCover(book.coverUri, Modifier.fillMaxSize())
             // Same measurements as PlayerScreen (top bar 56 dp, 24 dp margins, 12 dp gaps, left-aligned
             // title and chapter), so nothing moves when the real player takes over.
-            val playerColors = androidx.compose.material3.darkColorScheme()
+            val playerColors = com.example.readalong.ui.theme.playerScheme(palette)
+            // The player's grab handle, in the same place.
+            Box(Modifier.fillMaxWidth().statusBarsPadding().height(56.dp), contentAlignment = Alignment.Center) {
+                Box(Modifier.size(width = 36.dp, height = 4.dp).background(playerColors.onSurface.copy(alpha = .45f), RoundedCornerShape(2.dp)))
+            }
             Column(Modifier.fillMaxSize().statusBarsPadding().padding(top = 56.dp).padding(horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
                     Box(Modifier.widthIn(max = (screenHeight * 0.40f).coerceIn(260.dp, 380.dp)).fillMaxWidth().aspectRatio(1f)) {
                         if (settings.openingView == "COVER") BookCover(book, Modifier.fillMaxSize(), large = true)
-                        else Box(Modifier.fillMaxSize().clip(RoundedCornerShape(24.dp)).background(palette.preview))
+                        else Box(Modifier.fillMaxSize().clip(RoundedCornerShape(com.example.readalong.ui.theme.Corners.large)).background(palette.preview))
                     }
                 }
                 Text(book.title, Modifier.fillMaxWidth(), color = playerColors.onSurface, style = MaterialTheme.typography.headlineMedium, maxLines = 1, softWrap = false, overflow = TextOverflow.Clip)

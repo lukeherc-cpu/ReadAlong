@@ -34,7 +34,7 @@ fun FirstVisitGuide(app: ReadAlongApplication, page: GuidePage, eligible: Boolea
         var closed by rememberSaveable { mutableStateOf(false) }
         androidx.lifecycle.compose.LifecycleEventEffect(androidx.lifecycle.Lifecycle.Event.ON_RESUME) { closed = false }
         val scope = rememberCoroutineScope()
-        if (eligible && !hidden && !closed) FirstVisitGuideDialog(page) { dontShow ->
+        if (OnboardingSheets.turn("guide:${page.name}", eligible && !hidden && !closed && !OnboardingSheets.guidesPaused)) FirstVisitGuideDialog(page) { dontShow ->
             if (!dontShow) closed = true
             else scope.launch { app.appPreferences.update {
                 when (page) {
@@ -57,23 +57,23 @@ internal fun FirstVisitGuideDialog(page: GuidePage, finish: (Boolean) -> Unit) {
             GuidePage.HOME -> {
                 GuideItem(R.drawable.ic_add, "Add audiobooks", "Choose an audiobook folder or audio files.")
                 GuideItem(R.drawable.ic_search, "Search", "Find books by title or author.")
-                GuideRow("Queue", "Tap the logo to manage transcriptions.") {
+                GuideRow("Queue", "Tap the logo to see the ReadAlongs (time-matched book transcripts) being made.") {
                     com.example.readalong.ui.launch.PageTurnLogo(0f, Modifier.size(36.dp))
                 }
-                GuideItem(R.drawable.ic_bookshelf, "Library folders", "Add, rescan or remove library folders.")
-                GuideItem(R.drawable.ic_settings, "Settings", "Change appearance, playback and transcription.")
+                GuideItem(R.drawable.ic_bookshelf, "Library folders", "Add or remove the folders your books come from.")
+                GuideItem(R.drawable.ic_settings, "Settings", "Change appearance, playback and ReadAlong options.")
             }
             GuidePage.PLAYER -> {
-                GuideItem(R.drawable.ic_image, "Cover art", "Tap the cover to see ReadAlong text or your matched EPUB.")
-                GuideItem(R.drawable.ic_play, "Create ReadAlong", "Create text from this audiobook to read as you listen.")
+                GuideItem(R.drawable.ic_image, "Cover art", "Tap the cover to see the text.")
+                GuideItem(R.drawable.ic_play, "Make a ReadAlong", "Get this book's text on screen, highlighted as you listen.")
             }
             GuidePage.READER -> {
                 GuideItem(R.drawable.ic_settings, "Settings", "Adjust fonts, spacing and reading appearance.")
                 GuideItem(R.drawable.ic_search, "Search", "Find words in this book.")
-                GuideRow("Reading mode", "Switch between listening with text and reading only.") {
-                    Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.secondaryContainer) {
+                GuideRow("Reading mode", "Switch between listening along and reading on your own.") {
+                    Surface(shape = RoundedCornerShape(com.example.readalong.ui.theme.Corners.medium), color = MaterialTheme.colorScheme.secondaryContainer) {
                         Row(Modifier.padding(4.dp)) {
-                            Icon(painterResource(R.drawable.ic_book), null, Modifier.size(22.dp))
+                            Icon(painterResource(R.drawable.ic_read_only), null, Modifier.size(22.dp))
                             Icon(painterResource(R.drawable.ic_readalong), null, Modifier.size(22.dp))
                         }
                     }
@@ -84,7 +84,7 @@ internal fun FirstVisitGuideDialog(page: GuidePage, finish: (Boolean) -> Unit) {
         }
         Row(Modifier.fillMaxWidth().testTag("guide_dont_show").toggleable(dontShow, role = Role.Checkbox, onValueChange = { dontShow = it }), verticalAlignment = Alignment.CenterVertically) {
             Checkbox(dontShow, onCheckedChange = null)
-            Text("Do not show this again", style = MaterialTheme.typography.bodySmall)
+            Text("Don't show this again", style = MaterialTheme.typography.bodyMedium)
         }
     }
 }
@@ -97,7 +97,7 @@ internal fun FirstVisitGuideDialog(page: GuidePage, finish: (Boolean) -> Unit) {
         Box(Modifier.width(52.dp), contentAlignment = Alignment.Center) { icon() }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(title, style = MaterialTheme.typography.titleSmall)
-            Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

@@ -49,11 +49,12 @@ class ReadingViewModel(val bookId: String, val database: ReadAlongDatabase, priv
     }.flowOn(Dispatchers.IO).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
     val preparationProgress = processingJob.map { it?.progress() }.flowOn(Dispatchers.IO).distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
-    val execution = processing.execution(bookId).catch { mutableError.value = "Preparation status is temporarily unavailable. Reopen this book to retry." }
+    val execution = processing.execution(bookId).catch { mutableError.value = "ReadAlong progress isn't available right now. Reopen this book to try again." }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
     fun startNow() = action { processing.transcribeNext(bookId) }
     fun restartSection() = action { processing.cancel(bookId); processing.transcribeNext(bookId) }
     fun rebuildTranscription() = action { processing.rebuild(bookId) }
+    fun removeReadAlong() = action { processing.removeTranscript(bookId) }
     suspend fun epubFonts(editionId: String) = imported?.fontFamilies(editionId).orEmpty()
     val importedEdition = (imported?.observe(bookId) ?: flowOf(null)).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
     private val mutableImportBusy = MutableStateFlow(false)
@@ -92,7 +93,7 @@ class ReadingViewModel(val bookId: String, val database: ReadAlongDatabase, priv
     fun prepareReadable() = action { repository.prepareDemo(bookId); processing.transcribeNext(bookId) }
     fun allowBatteryForThirtyMinutes() = action { processing.allowBatteryForThirtyMinutes() }
     fun cancelPreparation() = action { processing.cancel(bookId) }
-    val version = repository.version(bookId).catch { mutableError.value = "Readable text couldn't be loaded. Audio remains available." }
+    val version = repository.version(bookId).catch { mutableError.value = "The text couldn't be loaded. You can keep listening." }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
     val bookmarks = repository.bookmarks(bookId).catch { mutableError.value = "Bookmarks couldn't be loaded." }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -190,17 +191,22 @@ class ReadingViewModel(val bookId: String, val database: ReadAlongDatabase, priv
     val searching = mutableSearching.asStateFlow()
     private val mutableSearchError = MutableStateFlow<String?>(null)
     val searchError = mutableSearchError.asStateFlow()
+    /** Shown above results while the ReadAlong (not an EPUB) is still being made: later text can't match yet. */
+    private val mutableSearchNotice = MutableStateFlow<String?>(null)
+    val searchNotice = mutableSearchNotice.asStateFlow()
     private var searchJob: Job? = null
     fun search(query: String) {
         searchJob?.cancel()
-        mutableSearchResults.value = emptyList(); mutableSearchError.value = null; mutableSearching.value = false
+        mutableSearchResults.value = emptyList(); mutableSearchError.value = null; mutableSearching.value = false; mutableSearchNotice.value = null
         if (query.isBlank()) return
         searchJob = viewModelScope.launch {
             delay(350); mutableSearching.value = true
             try {
+                var searchedEpub = false
                 val results = withContext(Dispatchers.IO) {
                     val imported = database.importedEpubDao().find(bookId)
                     val useImported = imported != null && (mutableStart.value?.imported ?: (mutableReadOnly.value || imported.useForReading()))
+                    searchedEpub = useImported
                     val edition = if (useImported) imported?.editionId else database.readingDao().findVersion(bookId)?.activeEditionId
                     val scan = com.example.readalong.domain.reading.PassageSearch(query.take(500))
                     val hits = mutableListOf<ReadingSearchResult>()
@@ -214,7 +220,7 @@ class ReadingViewModel(val bookId: String, val database: ReadAlongDatabase, priv
                         for (segment in page) {
                             coroutineContext.ensureActive()
                             characters += segment.text.length
-                            require(characters <= 16_000_000) { "Search reached the text processing limit. Try searching a shorter prepared edition." }
+                            require(characters <= 16_000_000) { "This book is too long to search all at once. Try a more specific word." }
                             scan.feed(com.example.readalong.domain.reading.SearchPassage(index++, segment)).forEach { hit ->
                                 if (hits.size < 20) hits += ReadingSearchResult(hit.passage.segment, hit.passage.index, hit.offset, hit.end, hit.preview, !useImported && edition != null, edition)
                             }
@@ -224,7 +230,10 @@ class ReadingViewModel(val bookId: String, val database: ReadAlongDatabase, priv
                     return@withContext hits
                 }
                 mutableSearchResults.value = results
-                if (results.isEmpty()) mutableSearchError.value = "No matches in the available text. Later audio may still be preparing."
+                val job = processingJob.value
+                val partial = !searchedEpub && job != null && job.state != "READY"
+                mutableSearchNotice.value = if (partial) "Only ${job?.progress()?.bookPercent ?: 0}% of this book has text so far, so results may be missing." else null
+                if (results.isEmpty()) mutableSearchError.value = if (partial) "No matches yet." else "No matches in this book."
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (failure: Exception) { mutableSearchError.value = failure.message ?: "Text search failed. Try again." }
             finally { mutableSearching.value = false }
@@ -234,13 +243,13 @@ class ReadingViewModel(val bookId: String, val database: ReadAlongDatabase, priv
         return try {
             val segment = if (result.segment.imported) {
                 val edition = database.importedEpubDao().find(bookId)
-                require(edition?.editionId == result.editionId) { "The reading edition changed. Search again." }
+                require(edition?.editionId == result.editionId) { "The text changed. Search again." }
                 requireNotNull(database.importedEpubDao().block(bookId, result.editionId!!, result.index)).toReadingSegment()
             } else {
-                if (result.generated) require(database.readingDao().findVersion(bookId)?.activeEditionId == result.editionId) { "The reading edition changed. Search again." }
+                if (result.generated) require(database.readingDao().findVersion(bookId)?.activeEditionId == result.editionId) { "The text changed. Search again." }
                 if (result.generated) result.segment else {
                     val current = database.readingDao().alignmentSegments(bookId, 1, result.index).singleOrNull()?.toSegment()
-                    require(current?.id == result.segment.id && current.text == result.segment.text) { "The recognized text changed. Search again." }
+                    require(current?.id == result.segment.id && current.text == result.segment.text) { "The text changed. Search again." }
                     current
                 }
             }
@@ -273,6 +282,10 @@ class ReadingViewModel(val bookId: String, val database: ReadAlongDatabase, priv
         action { try { loadReader(positionMs, false, true) } finally { preloading = false } }
     }
     fun openReader(positionMs: Long, resume: Boolean = false, generated: Boolean = true) = action { loadReader(positionMs, resume, generated) }
+    /** Opens the text at [positionMs] and returns once it's loaded (false if it couldn't be). */
+    suspend fun openReaderAt(positionMs: Long): Boolean = try { mutableError.value = null; loadReader(positionMs, false, true); true }
+        catch (cancelled: CancellationException) { throw cancelled }
+        catch (failure: Exception) { mutableError.value = failure.message ?: "Couldn't open this chapter. Please try again."; false }
     private suspend fun loadReader(positionMs: Long, resume: Boolean, generated: Boolean, retainPager: Boolean = false) {
         val bookMode = mutableReadOnly.value
         val request = ++openRequest
@@ -290,7 +303,7 @@ class ReadingViewModel(val bookId: String, val database: ReadAlongDatabase, priv
             catch (cancelled: CancellationException) { throw cancelled }
             catch (failure: Exception) {
                 if (previous?.activeEditionId == null) throw failure
-                mutableError.value = "Showing the saved edition. New text will update automatically when preparation continues."
+                mutableError.value = "Showing the text made so far. More appears as your ReadAlong continues."
             }
         }
         val useEdition = !useImported && generated && dao.findVersion(bookId)?.activeEditionId != null
@@ -357,7 +370,8 @@ class ReadingViewModel(val bookId: String, val database: ReadAlongDatabase, priv
     }
     suspend fun indexAt(position: Long, generated: Boolean = mutableStart.value?.generated == true, imported: Boolean = mutableStart.value?.imported == true): Int {
         val dao = database.readingDao()
-        return if (imported) database.importedEpubDao().let { it.indexAt(bookId, position) ?: it.indexBefore(bookId, position) ?: 0 }
+        // Before the first passage matched to the audio (title pages, contents, credits), open at that first matched passage.
+        return if (imported) database.importedEpubDao().let { it.indexAt(bookId, position) ?: it.indexBefore(bookId, position) ?: it.indexAfter(bookId, 0) ?: 0 }
         else if (generated) dao.generatedCountBefore(bookId, position)
         else dao.countBefore(bookId, dao.at(bookId, position)?.startMs ?: position)
     }
@@ -412,7 +426,7 @@ class ReadingViewModel(val bookId: String, val database: ReadAlongDatabase, priv
             }
         }
         if (result != null) withContext(Dispatchers.Main.immediate) { visible(located, result!!) }
-        else if (notifyWhenUnavailable) withContext(Dispatchers.Main.immediate) { notice("No earlier sentence has audio timing yet. Keep listening while transcription prepares it.") }
+        else if (notifyWhenUnavailable) withContext(Dispatchers.Main.immediate) { notice("That part isn't linked to the audio yet. Keep listening while your ReadAlong is made.") }
         result
     } } catch (cancelled: CancellationException) { throw cancelled }
     catch (_: Exception) { withContext(Dispatchers.Main.immediate) { notice("This saved passage could not be loaded. Reopen the book to retry; audio and EPUB are kept.") }; null }
@@ -448,7 +462,7 @@ class ReadingViewModel(val bookId: String, val database: ReadAlongDatabase, priv
     private val mutableCorrection = MutableStateFlow<CorrectionDraft?>(null)
     val correction = mutableCorrection.asStateFlow()
     fun editPassage(segmentId: String) = action {
-        val raw = requireNotNull(database.readingDao().segment(segmentId)) { "This saved passage no longer matches the current transcript." }
+        val raw = requireNotNull(database.readingDao().segment(segmentId)) { "This passage changed. Close it and try again." }
         check(raw.bookId == bookId)
         val correction = database.readingDao().correction(bookId, segmentId)?.takeIf { it.originalText == raw.text }
         mutableCorrection.value = CorrectionDraft(segmentId, raw.text, correction?.replacement ?: raw.text, raw.startMs)
@@ -459,7 +473,7 @@ class ReadingViewModel(val bookId: String, val database: ReadAlongDatabase, priv
         require(text.isNotBlank() && text.length <= 8000)
         database.withTransaction {
             val dao = database.readingDao()
-            check(dao.segment(draft.id)?.text == draft.original) { "Recognition changed; reopen the passage before editing." }
+            check(dao.segment(draft.id)?.text == draft.original) { "This passage changed. Close it and try again." }
             if (restore || text == draft.original) dao.deleteCorrection(bookId, draft.id)
             else dao.putCorrection(TranscriptCorrectionEntity(bookId, draft.id, draft.original, text.trim(), System.currentTimeMillis()))
             dao.findVersion(bookId)?.let { dao.putVersion(it.copy(transcriptRevision = it.transcriptRevision + 1)) }

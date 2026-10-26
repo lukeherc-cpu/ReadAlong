@@ -26,6 +26,8 @@ import com.example.readalong.domain.reading.sentenceCues
 import com.example.readalong.domain.reading.activeSentenceIndex
 import com.example.readalong.playback.PlaybackState
 
+internal const val NotStartedMessage = "Text isn't available at this position yet. You can begin transcribing the text by pressing the Make a ReadAlong button at the bottom of the player. You can check on the progress of the transcript by tapping the book logo on the home page.\n\nYou can keep listening."
+
 internal fun displayedPassages(passages: List<TranscriptSegment>): List<TranscriptSegment> = when {
     passages.any { it.imported } -> passages.filter { it.imported }
     passages.any { it.anchors.isNotEmpty() } -> passages.filter { it.anchors.isNotEmpty() }
@@ -92,7 +94,7 @@ internal fun FittedSentenceLine(sentence: String, character: Int, onPhrase: (Str
 /** Preview and reader share paragraph formatting, so expanding preserves the sentence context. */
 @Composable
 fun FollowCard(state: PlaybackState, model: ReadingViewModel, onExpand: () -> Unit, color: Color = MaterialTheme.colorScheme.secondaryContainer, onCover: (() -> Unit)? = null, visible: Boolean = true, modifier: Modifier = Modifier, square: Boolean = true, showExpand: Boolean = true,
-    colorOf: (() -> Color)? = null) {
+    colorOf: (() -> Color)? = null, landOn: ReaderVisualAnchor? = null, onLanded: () -> Unit = {}) {
     val frame = LocalReaderFrame.current
     val insets = LocalReaderInsets.current
     val ink = if (color.luminance() > .35f) Color(0xFF182A3B) else Color.White
@@ -103,6 +105,9 @@ fun FollowCard(state: PlaybackState, model: ReadingViewModel, onExpand: () -> Un
         importedEdition?.editionId?.let { value = model.epubFonts(it) }
     }
     val passages by model.passages.collectAsStateWithLifecycle()
+    val job by model.processingJob.collectAsStateWithLifecycle()
+    // No ReadAlong has been started for this book yet: say how to make one.
+    val notStarted = job == null || job?.state == "WAITING_SELECTION"
     LaunchedEffect(state.positionMs / 12_000) { model.follow(state.positionMs) }
     val shown = remember(passages) { displayedPassages(passages) }
     val sources = remember(passages) { passages.filter { !it.imported && it.anchors.isEmpty() }.associateBy { it.id } }
@@ -131,17 +136,25 @@ fun FollowCard(state: PlaybackState, model: ReadingViewModel, onExpand: () -> Un
             frame?.previewAnchor = ReaderVisualAnchor(activeKey, character, y - cardTop + layout.getLineTop(layout.getLineForOffset(character.coerceIn(0, layout.layoutInput.text.length))))
         }
     }
+    val cardDensity = androidx.compose.ui.platform.LocalDensity.current
     LaunchedEffect(activeKey, line, viewport, visible) {
         if (frame?.frozen == true || activeIndex < 0 || viewport == 0) return@LaunchedEffect
         val lineTop = if (line != null) layout!!.getLineTop(line) else 0f
         if (positionedKey != activeKey) {
-            val offset = lineTop.toInt() - viewport / 5
+            // Back from the full page: land the spoken line where it was on the page, so the page's
+            // last frame and this card line up.
+            val insetTop = with(cardDensity) { insets.top.toPx() }
+            // ([landOn]: a stand-in card that must start exactly where another card left the line.)
+            val pageY = (landOn ?: frame?.readerAnchor)?.takeIf { positionedKey == null && it.paragraphId == activeKey }?.y?.minus(insetTop)
+                ?.takeIf { it in 0f..viewport * .8f }
+            val offset = lineTop.toInt() - (pageY?.toInt() ?: (viewport / 5))
             val row = list.layoutInfo.visibleItemsInfo.firstOrNull { it.index == activeIndex }
             // The next paragraph is usually already on screen: glide to it on the same spring.
             if (positionedKey != null && visible && row != null) follow.scrollBy(row.offset + lineTop - viewport / 5)
             else if (positionedKey != null && visible) list.animateScrollToItem(activeIndex, offset)
             else list.scrollToItem(activeIndex, offset)
             positionedKey = activeKey
+            onLanded()
         } else if (line != null) {
             val row = list.layoutInfo.visibleItemsInfo.firstOrNull { it.index == activeIndex }
             if (row != null) {
@@ -154,30 +167,37 @@ fun FollowCard(state: PlaybackState, model: ReadingViewModel, onExpand: () -> Un
             }
         }
     }
-    val cardShape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp)
+    // After the card shrinks back from the full page, the page's last frame fades out over the live card.
+    val handoff = remember { androidx.compose.animation.core.Animatable(0f) }
+    var wasFrozen by remember { mutableStateOf(false) }
+    LaunchedEffect(frame?.frozen) {
+        if (frame?.frozen == true) wasFrozen = true
+        else if (wasFrozen) { wasFrozen = false; handoff.snapTo(1f); handoff.animateTo(0f, androidx.compose.animation.core.tween(240)) }
+    }
+    val cardShape = androidx.compose.foundation.shape.RoundedCornerShape(com.example.readalong.ui.theme.Corners.large)
     // During expand/minimize the card's color animates; draw it (draw phase) instead of recomposing for it.
     val surface = if (colorOf != null) Modifier.clip(cardShape).drawBehind { drawRect(colorOf().takeIf { it != Color.Unspecified } ?: color) } else Modifier
     Card(onClick = onCover ?: onExpand, modifier = modifier.fillMaxWidth().then(if (square) Modifier.aspectRatio(1f) else Modifier.fillMaxHeight()).then(surface).testTag("follow_card"), shape = cardShape, colors = CardDefaults.cardColors(containerColor = if (colorOf != null) Color.Transparent else color)) {
         val density = androidx.compose.ui.platform.LocalDensity.current
         val retainedSize = frame?.layer?.size
         val fixed = if (frame?.frozen == true && retainedSize != null && retainedSize.width > 0)
-            with(density) { Modifier.wrapContentSize(Alignment.TopStart, unbounded = true).requiredSize(retainedSize.width.toDp(), retainedSize.height.toDp()) } else Modifier
-        Box(Modifier.fillMaxSize().then(fixed).onSizeChanged { if (square && frame?.frozen != true) frame?.previewWidthPx = it.width }.onGloballyPositioned { cardTop = it.positionInRoot().y }.retainReaderFrame(frame, LocalReaderDrawFrame.current)) {
+            with(density) { Modifier.wrapContentSize(Alignment.TopCenter, unbounded = true).requiredSize(retainedSize.width.toDp(), retainedSize.height.toDp()) } else Modifier
+        Box(Modifier.fillMaxSize().then(fixed).onSizeChanged { if (square && frame?.frozen != true) frame?.previewWidthPx = it.width }.onGloballyPositioned { cardTop = it.positionInRoot().y }.retainReaderFrame(frame, LocalReaderDrawFrame.current) { handoff.value }) {
             androidx.compose.foundation.lazy.LazyColumn(state = list, userScrollEnabled = false,
                 modifier = Modifier.fillMaxSize().padding(top = insets.top, bottom = insets.bottom).onSizeChanged { viewport = it.height }.testTag("follow_preview"),
                 contentPadding = PaddingValues(horizontal = preferences.margin.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-                if (displayed.isEmpty()) item { Text("Text isn't available at this position yet. You can keep listening.", color = ink.copy(alpha = .7f)) }
+                if (displayed.isEmpty() && !notStarted) item { Text("Text isn't available at this position yet. You can keep listening.", color = ink.copy(alpha = .7f)) }
                 items(displayed.size, key = { displayed[it].id }) { index ->
                     val paragraph = displayed[index]
                     val cues = remember(paragraph, sources) { sentenceCues(paragraph, sources) }
                     val sentence = cues.getOrNull(activeSentenceIndex(cues, state.positionMs))
                     val focus = sentence?.let { it.start to it.end }
                     val text = paragraphText(paragraph, family, preferences.useEpubFonts, epubFonts,
-                        focus, ink, fade = rememberSentenceFade(focus), base = ink.copy(alpha = .52f))
+                        focus, ink, fade = rememberSentenceFade(focus), base = ink.copy(alpha = .72f))
                     DisposableEffect(paragraph.id) { onDispose { layouts.remove(paragraph.id); rowTops.remove(paragraph.id) } }
                     Text(text, modifier = Modifier.fillMaxWidth().padding(start = if (paragraph.formatting?.kind in listOf("QUOTE", "LIST")) 16.dp else 0.dp)
                         .onGloballyPositioned { rowTops[paragraph.id] = it.positionInRoot().y },
-                        color = ink.copy(alpha = .52f), fontFamily = readingFont(family),
+                        color = ink.copy(alpha = .72f), fontFamily = readingFont(family),
                         fontSize = (preferences.fontSize * if (paragraph.formatting?.kind?.startsWith("H") == true) 1.25f else 1f).sp,
                         fontWeight = if (paragraph.formatting?.kind?.startsWith("H") == true) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Normal,
                         textAlign = if (paragraph.formatting?.centered == true || paragraph.formatting?.kind == "BREAK") androidx.compose.ui.text.style.TextAlign.Center else androidx.compose.ui.text.style.TextAlign.Start,
@@ -185,11 +205,16 @@ fun FollowCard(state: PlaybackState, model: ReadingViewModel, onExpand: () -> Un
                         onTextLayout = { layouts[paragraph.id] = it })
                 }
             }
+            // The longer how-to always fits the card: it shrinks its text to the space between the buttons.
+            if (displayed.isEmpty() && notStarted) androidx.compose.foundation.text.BasicText(NotStartedMessage,
+                Modifier.fillMaxSize().padding(top = maxOf(insets.top, 56.dp), bottom = insets.bottom + 16.dp, start = maxOf(preferences.margin.dp, 16.dp), end = maxOf(preferences.margin.dp, 16.dp)),
+                style = MaterialTheme.typography.bodyLarge.copy(color = ink.copy(alpha = .78f), lineHeight = androidx.compose.ui.unit.TextUnit(1.35f, androidx.compose.ui.unit.TextUnitType.Em)),
+                autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 9.sp, maxFontSize = 17.sp, stepSize = .5.sp))
             if (onCover != null) TextButton(onClick = onCover, modifier = Modifier.align(Alignment.TopStart).padding(8.dp)) {
                 Text("Cover", color = ink)
             }
             if (showExpand) IconButton(onClick = onExpand, modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)) {
-                Icon(painterResource(R.drawable.ic_fullscreen), "Full screen Follow Along", tint = ink)
+                Icon(painterResource(R.drawable.ic_fullscreen), "Read in full screen", tint = ink)
             }
         }
     }

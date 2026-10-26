@@ -9,6 +9,8 @@ import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -46,7 +48,7 @@ class QueueViewModel(private val app: ReadAlongApplication) : ViewModel() {
     internal val books = repository.queue.mapLatest { rows -> rows.map { item ->
         val job = app.database.processingDao().find(item.bookId)
         QueueBook(item, app.bookRepository.observeBook(item.bookId).first(), job, job?.chapterTitle(app.database).orEmpty())
-    } }.flowOn(Dispatchers.IO).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    } }.flowOn(Dispatchers.IO).stateIn<List<QueueBook>?>(viewModelScope, SharingStarted.WhileSubscribed(5000), null) // null: still loading
     private val mutableError = MutableStateFlow<String?>(null)
     val error = mutableError.asStateFlow()
     fun next(id: String) = action { repository.playQueued(id) }
@@ -65,10 +67,10 @@ class QueueViewModel(private val app: ReadAlongApplication) : ViewModel() {
         repository.move(id, direction)
         if (direction == -1 && before.indexOf(id) == 1) startIfPromoted(before.first(), id)
     }
-    private fun queuedIds() = books.value.filter { it.item.state !in setOf("WAITING_SELECTION", "READY") }.map { it.item.bookId }
+    private fun queuedIds() = books.value.orEmpty().filter { it.item.state !in setOf("WAITING_SELECTION", "READY") }.map { it.item.bookId }
     private suspend fun startIfPromoted(oldFirst: String?, newFirst: String?) {
         if (newFirst == null || newFirst == oldFirst) return
-        val state = books.value.firstOrNull { it.item.bookId == newFirst }?.item?.state
+        val state = books.value?.firstOrNull { it.item.bookId == newFirst }?.item?.state
         if (state !in activeStates) repository.playQueued(newFirst)
     }
     fun dismissError() { mutableError.value = null }
@@ -86,7 +88,9 @@ class QueueViewModel(private val app: ReadAlongApplication) : ViewModel() {
 
 @Composable
 fun QueueScreen(model: QueueViewModel, onBack: () -> Unit) {
-    val books by model.books.collectAsStateWithLifecycle()
+    val loaded by model.books.collectAsStateWithLifecycle()
+    val loading = loaded == null
+    val books = loaded.orEmpty()
     val error by model.error.collectAsStateWithLifecycle()
     val queued = books.filter { it.item.state !in setOf("WAITING_SELECTION", "READY") }
     val available = books.filter { it.item.state == "WAITING_SELECTION" }
@@ -97,6 +101,7 @@ fun QueueScreen(model: QueueViewModel, onBack: () -> Unit) {
     val currentQueued by rememberUpdatedState(queued)
     val list = rememberLazyListState()
     val scope = rememberCoroutineScope()
+    val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
     LaunchedEffect(queued.map { it.item.bookId }) {
         if (drag.key == null || order.toSet() != queued.map { it.item.bookId }.toSet()) {
             order = queued.map { it.item.bookId }; drag.reset()
@@ -127,9 +132,11 @@ fun QueueScreen(model: QueueViewModel, onBack: () -> Unit) {
                     Text("Queue", style = MaterialTheme.typography.headlineLarge, modifier = Modifier.weight(1f))
                     IconButton(onClick = { adding = true }) { Icon(painterResource(R.drawable.ic_add), "Add book to queue") }
                 }
-                Text("${queued.count { it.item.state in activeStates }} of 1 transcribing", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (!loading) Text(if (queued.any { it.item.state in activeStates }) "Transcribing" else "Nothing in progress", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            if (ordered.isEmpty()) item(key = "empty") { Text("Press + to add a book. Play starts transcription.", style = MaterialTheme.typography.bodyMedium) }
+            // Placeholder cards, shaped like the real ones, until the queue has loaded.
+            if (loading) items(3, key = { "skeleton:$it" }) { QueueSkeletonCard() }
+            else if (ordered.isEmpty()) item(key = "empty") { Text("Tap + to add a book, then tap play on it to start its ReadAlong.", style = MaterialTheme.typography.bodyMedium) }
             items(ordered, key = { it.item.bookId }) { entry ->
                 val id = entry.item.bookId
                 val held = drag.key == id
@@ -137,7 +144,7 @@ fun QueueScreen(model: QueueViewModel, onBack: () -> Unit) {
                 QueueCard(entry, (if (held) Modifier else Modifier.animateItem(placementSpec = tween(220, easing = QueueEasing))).zIndex(if (held) 1f else 0f).graphicsLayer {
                         if (held) translationY = drag.offset.value
                         scaleX = 1f + .025f * lift; scaleY = scaleX
-                        shadowElevation = 10.dp.toPx() * lift; shape = RoundedCornerShape(28.dp); clip = false
+                        shadowElevation = 10.dp.toPx() * lift; shape = RoundedCornerShape(com.example.readalong.ui.theme.Corners.large); clip = false
                     },
                     onPlay = { if (entry.item.state in activeStates) model.pause(id) else model.next(id) }, onTrash = { model.remove(id) },
                     handle = {
@@ -147,8 +154,9 @@ fun QueueScreen(model: QueueViewModel, onBack: () -> Unit) {
                             customActions = listOf(CustomAccessibilityAction("Move up") { model.move(id, -1); true }, CustomAccessibilityAction("Move down") { model.move(id, 1); true })
                         }.pointerInput(id) {
                             detectVerticalDragGestures(
-                                onDragStart = { scope.launch { drag.start(id) } },
+                                onDragStart = { haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.GestureThresholdActivate); scope.launch { drag.start(id) } },
                                 onDragEnd = {
+                                    haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.GestureEnd)
                                     scope.launch {
                                         drag.drop()
                                         val ids = order
@@ -162,8 +170,8 @@ fun QueueScreen(model: QueueViewModel, onBack: () -> Unit) {
                             }
                         }, contentAlignment = Alignment.Center) {
                             Canvas(Modifier.size(20.dp)) {
-                                val radius = 2.5.dp.toPx()
-                                listOf(.25f, .75f).forEach { x -> listOf(.25f, .75f).forEach { y -> drawCircle(color, radius, Offset(size.width*x, size.height*y)) } }
+                                val radius = 2.dp.toPx()
+                                listOf(.3f, .7f).forEach { x -> listOf(.15f, .5f, .85f).forEach { y -> drawCircle(color, radius, Offset(size.width*x, size.height*y)) } }
                             }
                         }
                     })
@@ -178,9 +186,9 @@ fun QueueScreen(model: QueueViewModel, onBack: () -> Unit) {
                     TextButton(enabled = available.isNotEmpty(), onClick = model::addAll) { Text("Add all") }
                 }
             }
-            if (available.isEmpty()) item(key = "nothing-available") { Text("Every book has been added to the queue.", style = MaterialTheme.typography.bodySmall) }
+            if (available.isEmpty()) item(key = "nothing-available") { Text("Every book has been added to the queue.", style = MaterialTheme.typography.bodyMedium) }
             items(available, key = { it.item.bookId }) { entry ->
-                Surface(shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .45f)) {
+                Surface(shape = RoundedCornerShape(com.example.readalong.ui.theme.Corners.large), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .45f)) {
                     Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text(entry.item.title, Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
                         IconButton(onClick = { model.add(entry.item.bookId) }) { Icon(painterResource(R.drawable.ic_add), "Add ${entry.item.title} to queue") }
@@ -264,8 +272,27 @@ private class QueueDrag {
     }
 }
 
+/** A queue card's shape in shimmering placeholders: title, status line, progress bar, buttons and Details. */
 @Composable
-private fun QueueCard(entry: QueueBook, modifier: Modifier = Modifier, onPlay: (() -> Unit)? = null, onTrash: () -> Unit, handle: (@Composable () -> Unit)? = null) {
+private fun QueueSkeletonCard() {
+    val brush = com.example.readalong.ui.components.shimmerBrush()
+    Surface(shape = RoundedCornerShape(com.example.readalong.ui.theme.Corners.large), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .7f)) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Box(Modifier.fillMaxWidth(.6f).height(22.dp).clip(RoundedCornerShape(11.dp)).background(brush))
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Box(Modifier.fillMaxWidth(.75f).height(14.dp).clip(RoundedCornerShape(7.dp)).background(brush))
+                    Box(Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)).background(brush))
+                }
+                repeat(2) { Box(Modifier.size(28.dp).clip(androidx.compose.foundation.shape.CircleShape).background(brush)) }
+            }
+            Box(Modifier.width(64.dp).height(12.dp).clip(RoundedCornerShape(6.dp)).background(brush))
+        }
+    }
+}
+
+@Composable
+private fun QueueCard(entry: QueueBook,modifier: Modifier = Modifier, onPlay: (() -> Unit)? = null, onTrash: () -> Unit, handle: (@Composable () -> Unit)? = null) {
     var details by rememberSaveable(entry.item.bookId) { mutableStateOf(false) }
     val progress = entry.job?.progress()
     val palette = entry.book?.let { com.example.readalong.ui.components.rememberCoverPalette(it) }
@@ -273,19 +300,20 @@ private fun QueueCard(entry: QueueBook, modifier: Modifier = Modifier, onPlay: (
     val bar = com.example.readalong.ui.components.animatedFraction((progress?.bookPercent ?: 0) / 100f)
     val bookPercent by com.example.readalong.ui.components.animatedPercent(progress?.bookPercent ?: 0)
     val chapterPercent by com.example.readalong.ui.components.animatedPercent(progress?.chapterPercent ?: 0)
-    Surface(modifier.testTag("queue:${entry.item.bookId}"), shape = RoundedCornerShape(28.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .7f)) {
+    Surface(modifier.testTag("queue:${entry.item.bookId}"), shape = RoundedCornerShape(com.example.readalong.ui.theme.Corners.large), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .7f)) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp)) {
             Text(entry.item.title, style = MaterialTheme.typography.titleLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(when {
-                        entry.item.state == "READY" -> "Full book · 100%"
-                        entry.item.state == "WAITING_MODEL" -> "Waiting for Whistle"
-                        entry.item.state == "WAITING_QUEUE" -> "Waiting in queue"
-                        entry.item.message?.startsWith("Waiting for charging") == true -> "Waiting for charging"
+                        entry.item.state == "READY" -> "Whole book · 100%"
+                        entry.item.state == "WAITING_MODEL" -> "Needs the offline speech model"
+                        entry.item.state == "WAITING_QUEUE" -> "Waiting in queue · $bookPercent% of book"
+                        entry.item.message?.startsWith("Waiting for charging") == true -> "Waiting for charging · $bookPercent% of book"
                         entry.job?.planJson == null -> "Ready to transcribe"
-                        else -> "${entry.chapter} · $chapterPercent%"
-                    }, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        // Same number as the player's ReadAlong card: the whole book first, the chapter second.
+                        else -> "$bookPercent% of book" + (entry.chapter.takeIf { it.isNotBlank() }?.let { " · $it" } ?: "")
+                    }, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     LinearProgressIndicator(progress = { bar.value }, modifier = Modifier.fillMaxWidth().height(4.dp), color = accent, trackColor = accent.copy(alpha = .2f))
                 }
                 if (onPlay != null) IconButton(onClick = onPlay) { Icon(painterResource(if (entry.item.state in activeStates) R.drawable.ic_pause else R.drawable.ic_play),
@@ -294,11 +322,11 @@ private fun QueueCard(entry: QueueBook, modifier: Modifier = Modifier, onPlay: (
                 handle?.invoke()
             }
             TextButton(onClick = { details = !details }, contentPadding = PaddingValues(0.dp), modifier = Modifier.heightIn(min = 32.dp)) {
-                Text("Details", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Details", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Icon(painterResource(R.drawable.ic_down), if (details) "Hide details" else "Show details", Modifier.size(16.dp).graphicsLayer { rotationZ = if (details) 180f else 0f })
-                Spacer(Modifier.width(8.dp)); Text("Full book $bookPercent%", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (entry.item.state != "READY" && entry.job?.planJson != null) { Spacer(Modifier.width(8.dp)); Text("This chapter $chapterPercent%", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             }
-            if (details) Text(entry.item.message.orEmpty(), style = MaterialTheme.typography.bodySmall)
+            if (details) Text(entry.item.message.orEmpty(), style = MaterialTheme.typography.bodyMedium)
         }
     }
 }

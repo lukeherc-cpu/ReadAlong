@@ -1,6 +1,8 @@
 package com.example.readalong.ui.library
 
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,8 +12,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -43,9 +47,11 @@ fun BookTile(book: Book, selected: Boolean = false, onLongClick: () -> Unit = {}
     ) {
         Box {
             BookCover(book, Modifier.fillMaxWidth().navSharedCover(com.example.readalong.ui.components.coverKey(book.id)))
-            if (showMetadata) Surface(
+            // The percentage badge by default; a thin progress line when "Progress bar on covers" is on.
+            val bar = com.example.readalong.ui.theme.LocalAppSettings.current.coverProgressBar
+            if (showMetadata && !bar) Surface(
                 modifier = Modifier.align(Alignment.BottomStart).padding(10.dp),
-                shape = RoundedCornerShape(8.dp),
+                shape = RoundedCornerShape(com.example.readalong.ui.theme.Corners.small),
                 color = Color(0xE6121617),
                 contentColor = Color.White,
             ) {
@@ -65,12 +71,19 @@ fun BookTile(book: Book, selected: Boolean = false, onLongClick: () -> Unit = {}
                     Text(stringResource(R.string.progress_percent, book.progressPercent), style = MaterialTheme.typography.labelMedium)
                 }
             }
+            if (bar && book.progressPercent in 1..99) {
+                val ring = com.example.readalong.ui.components.animatedFraction(book.progressPercent / 100f, "Listening progress")
+                Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp).height(4.dp)
+                    .clip(RoundedCornerShape(2.dp)).background(Color.Black.copy(alpha = .35f)).clearAndSetSemantics { }) {
+                    Box(Modifier.fillMaxHeight().fillMaxWidth(ring.value).background(Color.White.copy(alpha = .92f)))
+                }
+            }
         }
         if (showMetadata) {
         Spacer(Modifier.height(10.dp))
         Text(book.title, color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleSmall)
         Text(
-            book.author ?: stringResource(R.string.unknown_author),
+            (book.author ?: stringResource(R.string.unknown_author)) + if (com.example.readalong.ui.theme.LocalAppSettings.current.coverProgressBar) when { book.isFinished -> " · Finished"; book.progressPercent > 0 -> " · ${book.progressPercent}%"; else -> "" } else "",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
@@ -94,9 +107,18 @@ fun BookListRow(book: Book, selected: Boolean = false, onLongClick: () -> Unit =
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         BookCover(book, Modifier.size(76.dp), showTitle = false)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text((book.author ?: stringResource(R.string.unknown_author)).uppercase(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+            Text(book.author ?: stringResource(R.string.unknown_author), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
             Text(book.title, color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleMedium)
-            Text(if (book.isFinished) "Finished" else "${book.progressPercent}%", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            // Listening progress: a thin bar with the percentage beside it.
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                LinearProgressIndicator(progress = { if (book.isFinished) 1f else book.progressPercent / 100f },
+                    modifier = Modifier.weight(1f).height(4.dp), color = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = .12f), strokeCap = androidx.compose.ui.graphics.StrokeCap.Round,
+                    gapSize = 0.dp, drawStopIndicator = {})
+                // Fixed width, so every row's bar ends in the same place.
+                Text(if (book.isFinished) "Finished" else "${book.progressPercent}%", Modifier.widthIn(min = 58.dp), style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.Start, maxLines = 1)
+            }
         }
     }
 }
