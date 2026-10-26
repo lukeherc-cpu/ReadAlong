@@ -89,16 +89,20 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
             media.putFolder(saved.copy(error = SCAN_INCOMPLETE))
             val root = requireNotNull(DocumentFile.fromTreeUri(context, uri))
             check(root.exists() && root.canRead()) { "Folder access was lost. Add this folder again to restore access." }
-            val groups = if (saved.mode == FolderMode.ONE_BOOK.name) listOf(Group("folder:${root.uri}", root.name, collect(root))) else libraryGroups(root)
+            val walk = Walk()
+            val groups = if (saved.mode == FolderMode.ONE_BOOK.name) listOf(Group("folder:${root.uri}", root.name, collect(root, walk))) else libraryGroups(root, walk)
             val ids = mutableListOf<String>()
             val added = mutableListOf<String>()
             var failures = 0
             var transcriptFailures = 0
+            var deleted = 0
+            // Each book stands alone: one that can't be read is named in the result, never stops the others.
+            groups.filter { it.found.audio.isEmpty() && it.found.skipped.isNotEmpty() }.forEach { walk.problem(it.name, "no audio ReadAlong can play: ${Walk.counts(it.found.skipped)}") }
             groups.filter { it.found.audio.isNotEmpty() }.forEach { group ->
                 val found = group.found
                 coroutineContext.ensureActive()
                 try {
-                    val (id, isNew) = importGroup(found.audio, group.key, uri.toString(), group.name, explicit) ?: return@forEach
+                    val (id, isNew) = importGroup(found.audio, group.key, uri.toString(), group.name, explicit) ?: run { deleted++; return@forEach }
                     ids += id; if (isNew) added += id
                     val epubs = found.epubs
                     val selected = if (epubs.size == 1) epubs.single() else epubs.singleOrNull { it.name?.substringBeforeLast('.')?.equals(group.name, true) == true }
@@ -126,13 +130,15 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
                     if (found.transcripts.isNotEmpty() && books.metadata("folder_transcript_error:$id") != null) transcriptFailures++
                 }
                 catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
-                catch (_: Exception) { failures++ }
+                catch (failure: Exception) { failures++; walk.problem(group.name, failure.message ?: "couldn't be read") }
             }
             // Missing or unreadable groups retain their metadata, progress, and future reading data.
             media.folderBooks(uri.toString()).filter { it !in ids }.forEach { media.mediaState(it, "MISSING") }
-            val message = "${ids.size} audiobook(s) scanned." + (if (failures > 0) " $failures group(s) couldn't be read; rescan to retry." else "") +
+            val message = (if (ids.isEmpty() && failures == 0 && deleted > 0) "No new audiobooks: the $deleted here were deleted from ReadAlong earlier. Add one again with Choose audiobook folder."
+                else if (ids.isEmpty() && failures == 0) walk.nothingFound(root.name ?: "this folder") else "${ids.size} audiobook(s) scanned.") + walk.problemNote() +
                 (if (transcriptFailures > 0) " $transcriptFailures companion transcript(s) couldn't be imported. Check that the audio files match." else "")
-            media.putFolder(saved.copy(lastScanAt = System.currentTimeMillis(), error = if (failures > 0) message else null))
+            // An empty result stays on the folders screen too: the status line only shows for a few seconds.
+            media.putFolder(saved.copy(lastScanAt = System.currentTimeMillis(), error = if (walk.problems.isNotEmpty() || ids.isEmpty()) message else null))
             ImportResult(ids.distinct(), message, added.distinct())
         } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
         catch (failure: Exception) {
@@ -272,7 +278,7 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
         return id to (old == null)
     }
 
-    private data class Collected(val audio: List<Source>, val epubs: List<DocumentFile>, val transcripts: List<DocumentFile> = emptyList())
+    private data class Collected(val audio: List<Source>, val epubs: List<DocumentFile>, val transcripts: List<DocumentFile> = emptyList(), val skipped: Map<String, Int> = emptyMap())
     /** One audiobook found in a library folder: [key] keeps its identity stable across rescans. */
     private data class Group(val key: String, val name: String?, val found: Collected)
 
@@ -283,9 +289,9 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
      * which are one book each. This covers the layouts audiobook download tools write: flat files,
      * Author/Book and Author/Series/Book.
      */
-    private fun libraryGroups(root: DocumentFile): List<Group> {
+    private fun libraryGroups(root: DocumentFile, walk: Walk): List<Group> {
         val groups = mutableListOf<Group>()
-        val children = root.listFiles()
+        val children = walk.list(root)
         val loose = children.filter { it.isFile && supported(it.name.orEmpty()) }
         val epubs = children.filter { it.isFile && it.name.orEmpty().endsWith(".epub", true) }
         val transcripts = children.filter { it.isFile && it.name.orEmpty().endsWith(".readalong", true) }
@@ -293,18 +299,22 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
         val shelves = ArrayDeque(children.filter { it.isDirectory }.map { it to 1 })
         while (shelves.isNotEmpty()) {
             val (directory, depth) = shelves.removeFirst()
-            val inside = directory.listFiles()
-            val audio = inside.filter { it.isFile && supported(it.name.orEmpty()) }
-            val subfolders = inside.filter { it.isDirectory }
-            val discs = subfolders.isNotEmpty() && subfolders.all { DISC.matches(it.name.orEmpty()) }
-            when {
-                audio.isNotEmpty() || discs || depth >= 4 || subfolders.isEmpty() -> {
-                    val shelfBooks = if (subfolders.isEmpty()) singleFileBooks(audio, inside.filter { it.isFile && it.name.orEmpty().endsWith(".epub", true) },
-                        inside.filter { it.isFile && it.name.orEmpty().endsWith(".readalong", true) }) else null
-                    groups += shelfBooks ?: listOf(Group("folder:${directory.uri}", directory.name, collect(directory)))
+            // A folder that can't be listed (or is too large) is skipped and named; the rest still scan.
+            try {
+                val inside = walk.list(directory)
+                val audio = inside.filter { it.isFile && supported(it.name.orEmpty()) }
+                val subfolders = inside.filter { it.isDirectory }
+                val discs = subfolders.isNotEmpty() && subfolders.all { DISC.matches(it.name.orEmpty()) }
+                when {
+                    audio.isNotEmpty() || discs || depth >= 4 || subfolders.isEmpty() -> {
+                        val shelfBooks = if (subfolders.isEmpty()) singleFileBooks(audio, inside.filter { it.isFile && it.name.orEmpty().endsWith(".epub", true) },
+                            inside.filter { it.isFile && it.name.orEmpty().endsWith(".readalong", true) }) else null
+                        groups += shelfBooks ?: listOf(Group("folder:${directory.uri}", directory.name, collect(directory, walk)))
+                    }
+                    else -> subfolders.forEach { shelves.add(it to depth + 1) }
                 }
-                else -> subfolders.forEach { shelves.add(it to depth + 1) }
-            }
+            } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+            catch (failure: Exception) { walk.problem(runCatching { directory.name }.getOrNull(), failure.message ?: "couldn't be read") }
         }
         return groups
     }
@@ -320,25 +330,27 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
             Group("file:${file.uri}", name, Collected(listOf(Source(file.uri, file.name!!)), epubs.filter(same), transcripts.filter(same)))
         }
     }
-    private fun collect(root: DocumentFile): Collected {
+    private fun collect(root: DocumentFile, walk: Walk): Collected {
         val result = mutableListOf<Source>()
         val epubs = mutableListOf<DocumentFile>()
         val transcripts = mutableListOf<DocumentFile>()
+        val skipped = mutableMapOf<String, Int>()
         val pending = ArrayDeque<Triple<DocumentFile, Int, String>>()
         pending.add(Triple(root, 0, ""))
         while (pending.isNotEmpty()) {
             val (directory, depth, relative) = pending.removeFirst()
             check(depth <= 32 && result.size < 20_000) { "Folder is too large or deeply nested. Add a smaller audiobook folder." }
-            directory.listFiles().forEach { child ->
+            walk.list(directory).forEach { child ->
                 if (child.isDirectory) pending.add(Triple(child, depth + 1, relative + child.name.orEmpty() + "/"))
                 else if (child.isFile) {
                     if (supported(child.name.orEmpty())) result += Source(child.uri, child.name!!, relative + child.name!!)
                     else if (child.name.orEmpty().endsWith(".epub", true)) epubs += child
                     else if (child.name.orEmpty().endsWith(".readalong", true)) transcripts += child
+                    else Walk.skippedType(child.name.orEmpty())?.let { skipped[it] = (skipped[it] ?: 0) + 1 }
                 }
             }
         }
-        return Collected(result, epubs, transcripts)
+        return Collected(result, epubs, transcripts, skipped)
     }
 
     internal fun sourceIdentity(uri: Uri): String = LibraryExclusions.source(uri)
@@ -350,7 +362,56 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
     private companion object {
         val DISC = Regex("(?i)^(cd|disc|disk|part)\\s*[-_ ]?\\d+.*")
         val PART = Regex("(?i)\\b(part|pt|disc|disk|cd)\\s*[-_.]?\\s*\\d+")
+        val AUDIO = setOf("mp3", "m4a", "m4b", "aac", "ogg", "opus", "flac", "wav", "mp4")
+        /** Files a scan uses or expects beside audio; they never count as skipped. */
+        val COMPANION = setOf("epub", "readalong", "jpg", "jpeg", "png", "webp", "gif", "bmp", "txt", "nfo", "cue", "pdf", "json", "xml", "m3u", "m3u8", "nomedia", "ini", "db", "log", "srt", "lrc", "html", "url", "md")
     }
-    private fun supported(name: String) = name.substringAfterLast('.', "").lowercase() in setOf("mp3", "m4a", "m4b", "aac", "ogg", "opus", "flac", "wav", "mp4")
+    private fun supported(name: String) = name.substringAfterLast('.', "").lowercase() in AUDIO
+
+    /**
+     * What a folder scan saw, so the result can say what wasn't added and why: no files reached the
+     * app at all, files of types ReadAlong doesn't play (e.g. Audible's still-encrypted .aax), or
+     * books that couldn't be read. Each directory is counted once, although a book folder is
+     * listed again when it is collected.
+     */
+    private class Walk {
+        private val seen = mutableSetOf<String>()
+        var folders = 0
+            private set
+        var files = 0
+            private set
+        val skipped = mutableMapOf<String, Int>()
+        val problems = mutableListOf<String>()
+        fun list(directory: DocumentFile): Array<DocumentFile> {
+            val children = directory.listFiles()
+            if (seen.add(directory.uri.toString())) {
+                folders++
+                children.forEach { child ->
+                    if (child.isDirectory) return@forEach
+                    files++
+                    skippedType(child.name.orEmpty())?.let { skipped[it] = (skipped[it] ?: 0) + 1 }
+                }
+            }
+            return children
+        }
+        fun problem(name: String?, reason: String) { problems += "${name ?: "A folder"} ($reason)" }
+        fun problemNote() = if (problems.isEmpty()) "" else
+            " Not added: " + problems.take(5).joinToString("; ") + (if (problems.size > 5) "; and ${problems.size - 5} more" else "") + "."
+        fun nothingFound(folder: String) = when {
+            files == 0 -> "No files found in \"$folder\" ($folders folder(s) checked). Android may not be sharing this folder's contents; try choosing it again."
+            skipped.isEmpty() -> "No audio files found in \"$folder\" ($folders folder(s), $files file(s) checked)."
+            else -> "No audiobooks found in \"$folder\". Checked $folders folder(s) and $files file(s); none were audio ReadAlong can play. Found: ${counts(skipped)}." +
+                (if (skipped.keys.any { it == ".aax" || it == ".aaxc" || it == ".aa" }) " Audible files must be converted first; see Import from Audible." else "")
+        }
+        companion object {
+            /** The label a scan reports for a file it doesn't use, or null for audio and expected companions. */
+            fun skippedType(name: String): String? {
+                val type = name.substringAfterLast('.', "").lowercase()
+                if (type in AUDIO || type in COMPANION) return null
+                return if (type.isEmpty() || type.length > 8) "(no extension)" else ".$type"
+            }
+            fun counts(skipped: Map<String, Int>) = skipped.entries.sortedByDescending { it.value }.take(4).joinToString(", ") { "${it.value} ${it.key}" }
+        }
+    }
     private fun stableId(value: String) = MessageDigest.getInstance("SHA-256").digest(value.toByteArray()).joinToString("") { "%02x".format(it) }
 }
