@@ -188,9 +188,10 @@ def test_whisper_cpp_words(monkeypatch):
         {"offsets": {"from": 320, "to": 700}, "text": " quick"},
         {"offsets": {"from": 700, "to": 700}, "text": " "},
         {"offsets": {"from": 700, "to": 1200}, "text": " fox."}]}
-    monkeypatch.setattr(vulkan, "run", lambda *a, **k: result)
+    monkeypatch.setattr(vulkan, "run", lambda *a, **k: ([result], True))
     engine = engines.WhisperCpp.__new__(engines.WhisperCpp)
     engine.vulkan, engine.cli, engine.model, engine.threads = vulkan, Path("cli"), Path("model"), 4
+    engine.warned, engine.log = False, print
     words, language = engine.transcribe(np.zeros(16000, np.float32), 600.0, None)
     assert language == "en" and [w.word for w in words] == [" The", " quick", " fox."]
     assert words[0].start == 600.0 and words[-1].end == 601.2
@@ -209,3 +210,45 @@ def test_vulkan_picks_the_graphics_card():
     assert [r["seconds"] for r in rows] == sorted(r["seconds"] for r in rows)
     assert next(r for r in rows if r["recommended"])["model"].id == "large-v3-turbo"
     assert "RX 6700 XT" in machine.describe()
+
+
+class ParallelEngine(FakeEngine):
+    """Several batches at once that finish out of order, and one that fails like a card out of memory."""
+    streams = 3
+    batch_seconds = 50
+
+    def __init__(self):
+        import threading
+        self.lock, self.calls, self.active, self.most = threading.Lock(), 0, 0, 0
+
+    def transcribe_batch(self, items, language, cancelled=lambda: False):
+        import random
+        import time
+        with self.lock:
+            self.calls += 1
+            call, self.active = self.calls, self.active + 1
+            self.most = max(self.most, self.active)
+        try:
+            time.sleep(random.uniform(0.4, 0.8))
+            if call == 3:
+                raise RuntimeError("out of memory")
+            return [self.transcribe(samples, offset, language) for samples, offset in items]
+        finally:
+            with self.lock:
+                self.active -= 1
+
+
+def test_parallel_batches_pass_phone_checks(tmp_path, monkeypatch):
+    monkeypatch.setattr(audio, "windows", _small_windows(audio.windows))
+    folder = tmp_path / "Chapters"
+    folder.mkdir()
+    for number, seconds in enumerate([20.0, 75.0, 12.5, 140.0, 33.0, 8.0], 1):
+        tone(folder / f"{number:02d}.mp3", seconds)
+    book = find_books(folder)[0]
+    monkeypatch.setattr(hw, "settings_dir", lambda: tmp_path)
+    engine = ParallelEngine()
+    statuses = []
+    out = transcribe_book(book, engine, "small", hw.Hardware("vulkan", "test", 8), report=lambda p: statuses.append(p))
+    check_like_phone(out, book.files, [round(audio.length_seconds(f) * 1000) for f in book.files])
+    assert engine.most > 1, "batches should overlap"
+    assert statuses[-1].fraction == 1.0

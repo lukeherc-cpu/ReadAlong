@@ -66,7 +66,7 @@ jobs:
       - name: Build whisper.cpp with Vulkan
         if: runner.os != 'macOS'
         run: |
-          git clone -q --depth 1 --branch v1.7.6 https://github.com/ggml-org/whisper.cpp ../whisper.cpp
+          git clone -q --depth 1 --branch v1.8.7 https://github.com/ggml-org/whisper.cpp ../whisper.cpp
           cmake -S ../whisper.cpp -B ../whisper.cpp/build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF \
             -DGGML_VULKAN=ON -DGGML_NATIVE=OFF -DGGML_OPENMP=OFF -DWHISPER_BUILD_TESTS=OFF -DWHISPER_BUILD_SERVER=OFF \
             -DCMAKE_POLICY_DEFAULT_CMP0091=NEW -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
@@ -132,13 +132,32 @@ jobs:
         env:
           GGML_VK_VISIBLE_DEVICES: "0"
         run: |
+          # Two files: the first window runs alone to settle the language, the rest go in parallel batches.
+          mkdir -p "smoke/Two Files"
+          cp "smoke/Test Book/speech.wav" "smoke/Two Files/01.wav"
+          cp "smoke/Test Book/speech.wav" "smoke/Two Files/02.wav"
           rm -f "smoke/Test Book/Test Book.readalong"
           app="dist/ReadAlong Desktop/ReadAlong Desktop"
-          "$app" --model tiny --device vulkan --yes "smoke/Test Book" 2>&1 | tee vulkan.log
+          "$app" --model tiny --device vulkan --yes "smoke/Test Book" "smoke/Two Files" 2>&1 | tee vulkan.log
           grep -q "GPU (Vulkan)" vulkan.log
           if grep -q "Couldn't use the GPU" vulkan.log; then exit 1; fi
+          if grep -q "couldn't start on the GPU" vulkan.log; then exit 1; fi
           python tests/check_output.py "smoke/Test Book/Test Book.readalong" "smoke/Test Book" fox | tee check.log
           grep -q "desktop:whisper.cpp:tiny" check.log
+          python tests/check_output.py "smoke/Two Files/Two Files.readalong" "smoke/Two Files" fox
+
+      - name: Decoding speed, 5-beam search (old) against greedy (new), on the CPU
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        run: |
+          text=$(python -c "print(' '.join(['ReadAlong turns audiobooks into text you can read while you listen.'] * 30))")
+          espeak-ng -s 160 -w bench.wav "$text"
+          model=$(python -c "from huggingface_hub import hf_hub_download as d; print(d('ggerganov/whisper.cpp', 'ggml-base.bin'))")
+          for beams in 5 1; do
+            start=$(date +%s.%N)
+            whisper-bin/whisper-cli -m "$model" -f bench.wav -l en -ng -t 4 -bs $beams -ml 1 -sow -oj -of bench > /dev/null 2>&1
+            echo "beam size $beams: $(python -c "print(round($(date +%s.%N) - $start, 1))") s for $(python -c "import wave; w = wave.open('bench.wav'); print(round(w.getnframes() / w.getframerate()))") s of speech"
+          done
 
       - name: GPU detection on a distribution newer than the build (Fedora, like Bazzite)
         if: runner.os == 'Linux'
