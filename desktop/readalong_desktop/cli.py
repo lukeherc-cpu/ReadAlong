@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -30,6 +31,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--force", action="store_true", help="redo books that already have a .readalong file")
     parser.add_argument("--yes", action="store_true", help="use the recommended model without asking")
     parser.add_argument("--version", action="version", version=__version__)
+    parser.add_argument("--gpu-info", action="store_true", help="show the graphics cards found and which one is used")
     parser.add_argument("--check", action="store_true", help=argparse.SUPPRESS)  # Build check: everything bundled imports.
     args = parser.parse_args(argv)
     for stream in (sys.stdout, sys.stderr):
@@ -52,11 +54,16 @@ def main(argv: list[str] | None = None) -> int:
                 print("Missing NVIDIA libraries.")
                 return 1
             from . import vulkan
-            if vulkan.cli_path() is None:
-                print("Missing whisper.cpp (whisper-cli).")
+            if vulkan.cli_path() is None or vulkan.bundled("vkprobe") is None:
+                print("Missing whisper.cpp (whisper-cli) or vkprobe.")
                 return 1
-            print(f"whisper.cpp bundled: {vulkan.cli_path().name}")
+            print(f"whisper.cpp bundled: {vulkan.cli_path().name}, {vulkan.bundled('vkprobe').name}")
         print("Bundle OK")
+        return 0
+    if args.gpu_info:
+        from . import vulkan
+        print("Vulkan devices:", json.dumps(vulkan.probe()) if sys.platform != "darwin" else "not used on Mac")
+        print("Using:", hw.detect(args.device).describe())
         return 0
     if not args.paths and not args.list_models:
         from .gui import run

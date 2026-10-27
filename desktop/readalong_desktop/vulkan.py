@@ -1,6 +1,7 @@
 """Finds Vulkan GPUs (AMD, Intel, NVIDIA) for whisper.cpp, and runs the bundled whisper-cli on them.
 
-The probe runs in a child process (see probe()) so that a misbehaving driver can't take the app down.
+Both run as separate programs with the system's libraries. Inside the bundled app the graphics driver often
+can't load at all: on Linux the bundle's libstdc++ is older than the one a current Mesa was built against.
 """
 from __future__ import annotations
 
@@ -66,17 +67,37 @@ def devices() -> list[dict]:
 
 
 def probe() -> list[dict]:
-    """devices(), asked of a child copy of this app."""
+    """The Vulkan devices, from the bundled vkprobe program, or from a child Python when run from source."""
     if sys.platform == "darwin":
         return []
-    command = [sys.executable, PROBE_FLAG] if getattr(sys, "frozen", False) else \
-        [sys.executable, "-m", "readalong_desktop", PROBE_FLAG]
+    helper = bundled("vkprobe")
+    if helper:
+        command = [str(helper)]
+    elif getattr(sys, "frozen", False):
+        command = [sys.executable, PROBE_FLAG]
+    else:
+        command = [sys.executable, "-m", "readalong_desktop", PROBE_FLAG]
     try:
-        flags = {"creationflags": 0x08000000} if sys.platform == "win32" else {}  # CREATE_NO_WINDOW
-        output = subprocess.run(command, capture_output=True, text=True, timeout=30, **flags).stdout
+        output = subprocess.run(command, capture_output=True, text=True, timeout=30, env=system_env() if helper else None,
+                                **_no_window()).stdout
         return json.loads(output.strip().splitlines()[-1])
     except Exception:
         return []
+
+
+def system_env() -> dict:
+    """This process's environment without the bundle's library folder, for programs that load graphics drivers."""
+    env = os.environ.copy()
+    if getattr(sys, "frozen", False) and sys.platform.startswith("linux"):
+        original = env.pop("LD_LIBRARY_PATH_ORIG", None)
+        env.pop("LD_LIBRARY_PATH", None)
+        if original:
+            env["LD_LIBRARY_PATH"] = original
+    return env
+
+
+def _no_window() -> dict:
+    return {"creationflags": 0x08000000} if sys.platform == "win32" else {}  # CREATE_NO_WINDOW
 
 
 def print_devices() -> int:
@@ -94,8 +115,13 @@ def best(found: list[dict], any_kind: bool = False) -> dict | None:
 
 
 def cli_path() -> Path | None:
-    """The whisper-cli built with Vulkan: bundled in the app's whisper folder, or desktop/whisper-bin when run from source."""
-    name = "whisper-cli.exe" if sys.platform == "win32" else "whisper-cli"
+    """The whisper-cli built with Vulkan."""
+    return bundled("whisper-cli")
+
+
+def bundled(program: str) -> Path | None:
+    """A helper program in the app's whisper folder, or in desktop/whisper-bin when run from source."""
+    name = program + (".exe" if sys.platform == "win32" else "")
     if getattr(sys, "frozen", False):
         candidate = Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent)) / "whisper" / name
     else:
@@ -127,15 +153,7 @@ def run(cli: Path, model: Path, samples: np.ndarray, rate: int, language: str | 
         base = Path(folder) / "window"
         command = [str(cli), "-m", str(model), "-f", str(audio), "-l", language or "auto", "-t", str(threads),
                    "-ml", "1", "-sow", "-oj", "-of", str(base), "-np"]
-        flags = {"creationflags": 0x08000000} if sys.platform == "win32" else {}
-        env = os.environ.copy()
-        if getattr(sys, "frozen", False) and sys.platform.startswith("linux"):
-            # The app's bundled libraries are for Python, not for whisper-cli; give it the system's.
-            original = env.pop("LD_LIBRARY_PATH_ORIG", None)
-            env.pop("LD_LIBRARY_PATH", None)
-            if original:
-                env["LD_LIBRARY_PATH"] = original
-        done = subprocess.run(command, capture_output=True, text=True, errors="replace", env=env, **flags)
+        done = subprocess.run(command, capture_output=True, text=True, errors="replace", env=system_env(), **_no_window())
         result = base.with_suffix(".json")
         if done.returncode != 0 or not result.is_file():
             tail = (done.stderr or done.stdout).strip().splitlines()[-3:]

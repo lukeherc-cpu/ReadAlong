@@ -73,6 +73,10 @@ jobs:
           cmake --build ../whisper.cpp/build --config Release -j 4 --target whisper-cli
           mkdir -p whisper-bin
           find ../whisper.cpp/build -type f \( -name whisper-cli -o -name whisper-cli.exe \) -exec cp {} whisper-bin/ \;
+          # vkprobe lists the GPUs. It runs outside the bundled Python, where drivers newer than the bundle can load.
+          cmake -S vkprobe -B ../vkprobe-build -DCMAKE_BUILD_TYPE=Release
+          cmake --build ../vkprobe-build --config Release
+          find ../vkprobe-build -type f \( -name vkprobe -o -name vkprobe.exe \) -exec cp {} whisper-bin/ \;
           ls -la whisper-bin
           whisper-bin/whisper-cli* -h > /dev/null 2>&1 && echo "whisper-cli starts"
 
@@ -97,7 +101,7 @@ jobs:
           " | tr -d '\r')
                test ${#nvidia[@]} -gt 0
                # whisper-cli goes in as data so PyInstaller doesn't bundle its Vulkan loader over the driver's.
-               whisper=(--add-data "$(ls whisper-bin/whisper-cli*):whisper")
+               whisper=(--add-data "$(ls whisper-bin/whisper-cli*):whisper" --add-data "$(ls whisper-bin/vkprobe*):whisper")
                icon=(); [ "$RUNNER_OS" = "Windows" ] && icon=(--icon icon.ico)
                pyinstaller "${common[@]}" "${icon[@]}" "${nvidia[@]}" "${whisper[@]}" run.py ;;
           esac
@@ -135,6 +139,14 @@ jobs:
           if grep -q "Couldn't use the GPU" vulkan.log; then exit 1; fi
           python tests/check_output.py "smoke/Test Book/Test Book.readalong" "smoke/Test Book" fox | tee check.log
           grep -q "desktop:whisper.cpp:tiny" check.log
+
+      - name: GPU detection on a distribution newer than the build (Fedora, like Bazzite)
+        if: runner.os == 'Linux'
+        run: |
+          docker run --rm -v "$PWD/dist:/app" fedora:42 bash -c '
+            dnf -y -q install mesa-vulkan-drivers vulkan-loader > /dev/null
+            "/app/ReadAlong Desktop/ReadAlong Desktop" --gpu-info --device vulkan' | tee fedora.log
+          grep -q "Using: GPU (Vulkan): llvmpipe" fedora.log
 
       - name: Apple GPU test (runner GPUs are virtual, so this may not run)
         if: runner.os == 'macOS'
