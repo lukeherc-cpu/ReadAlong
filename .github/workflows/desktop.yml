@@ -58,7 +58,8 @@ jobs:
                   --collect-binaries onnxruntime --hidden-import tkinter --name "ReadAlong Desktop")
           case "$RUNNER_OS" in
             macOS) pyinstaller "${common[@]}" --windowed --osx-bundle-identifier com.readalong.desktop \
-                     --collect-all mlx --collect-all mlx_whisper run.py ;;
+                     --collect-all mlx --collect-all mlx_whisper \
+                     --collect-submodules scipy._external --collect-submodules scipy._lib --collect-submodules scipy.signal run.py ;;
             *) pyinstaller "${common[@]}" --collect-binaries nvidia.cublas --collect-binaries nvidia.cudnn \
                  --collect-binaries nvidia.cuda_runtime run.py ;;
           esac
