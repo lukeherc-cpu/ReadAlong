@@ -3,7 +3,7 @@
 Audiobook player for Android that highlights the text as the narrator reads. Works offline, with your own files.
 Turn any DRM-free audiobook into readable text on your phone, or sync it to an EPUB you already own. No account, no uploads.
 
-**[Download ReadAlong 0.35.4 Preview](https://github.com/lukeherc-cpu/ReadAlong/releases/download/v0.35.4-preview/ReadAlong-0.35.4-preview.apk)** · [View the release](https://github.com/lukeherc-cpu/ReadAlong/releases/tag/v0.35.4-preview)
+**[Download the latest release](https://github.com/lukeherc-cpu/ReadAlong/releases/latest)**
 
 ReadAlong works with your own audiobook files. It does not include a book catalogue, sell books, or require an account to listen and read.
 
@@ -23,15 +23,15 @@ ReadAlong works with your own audiobook files. It does not include a book catalo
     <td align="center">Transcription queue</td>
   </tr>
   <tr>
-    <td><img src="docs/screenshots/library-transcribing.jpg" width="200" alt="Library while a book is transcribing"></td>
     <td><img src="docs/screenshots/player-cover-fourth-wing.jpg" width="200" alt="Player colored to match the cover"></td>
     <td><img src="docs/screenshots/player-text-fourth-wing.jpg" width="200" alt="Text preview colored to match the cover"></td>
     <td></td>
+    <td></td>
   </tr>
   <tr>
-    <td align="center">Transcribing in the background</td>
     <td align="center">Colors follow the cover</td>
     <td align="center">Text preview</td>
+    <td></td>
     <td></td>
   </tr>
 </table>
@@ -56,9 +56,9 @@ ReadAlong works with your own audiobook files. It does not include a book catalo
 
 ## Download and install
 
-The current download is **ReadAlong 0.35.4 Preview** for **Android 8.0 or later on an ARM64 device**. It runs on compatible phones and tablets.
+ReadAlong runs on **Android 8.0 or later on an ARM64 device**. It runs on compatible phones and tablets.
 
-1. [Download the APK](https://github.com/lukeherc-cpu/ReadAlong/releases/download/v0.35.4-preview/ReadAlong-0.35.4-preview.apk) on your Android device.
+1. Open the [latest release](https://github.com/lukeherc-cpu/ReadAlong/releases/latest) on your Android device and download the `.apk` file.
 2. Open it and allow installation from your browser or file manager if Android asks.
 3. Open ReadAlong and choose an audiobook folder. You can choose **Later** and add books from the library instead.
 
