@@ -1,11 +1,10 @@
 package com.example.readalong.ui.transcription
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.*
@@ -13,6 +12,7 @@ import androidx.compose.foundation.background
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -20,15 +20,14 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.*
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -107,6 +106,11 @@ fun QueueScreen(model: QueueViewModel, onBack: () -> Unit) {
             order = queued.map { it.item.bookId }; drag.reset()
         }
     }
+    // Only "Up next" rows can be dragged, so the large card for the book being transcribed stays first.
+    // Read at call time: the drag handlers outlive the composition that created them.
+    val currentId by rememberUpdatedState(order.firstOrNull()?.takeIf { id -> queued.firstOrNull { it.item.bookId == id }?.item?.state in activeStates })
+    fun upNextIds() = order.filter { it != currentId }
+    fun setUpNext(ids: List<String>) { order = listOfNotNull(currentId) + ids }
     // Edge auto-scroll runs every frame while a card is held near the top or bottom, so the list
     // keeps moving under a still finger. The scrolled distance is added back to the card so it
     // stays under the finger instead of drifting with the list.
@@ -118,81 +122,93 @@ fun QueueScreen(model: QueueViewModel, onBack: () -> Unit) {
             if (speed != 0f) {
                 val consumed = list.scrollBy(speed)
                 drag.moveBy(consumed)
-                drag.swapIfNeeded(list, order) { order = it }
+                drag.swapIfNeeded(list, upNextIds()) { setUpNext(it) }
             }
         }
     }
     val ordered = order.mapNotNull { id -> queued.firstOrNull { it.item.bookId == id } }
+    // The book being transcribed gets the large card; the rest of the queue sits under "Up next".
+    val current = ordered.firstOrNull()?.takeIf { it.item.state in activeStates }
+    val upNext = if (current == null) ordered else ordered.drop(1)
     Scaffold { insets ->
         LazyColumn(Modifier.fillMaxSize().padding(insets).testTag("transcription_queue"), state = list,
-            contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             item(key = "header") {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onBack) { Icon(painterResource(R.drawable.ic_back), "Back to library") }
-                    Text("Queue", style = MaterialTheme.typography.headlineLarge, modifier = Modifier.weight(1f))
-                    IconButton(onClick = { adding = true }) { Icon(painterResource(R.drawable.ic_add), "Add book to queue") }
+                Column(Modifier.padding(bottom = 16.dp)) {
+                    Row(Modifier.fillMaxWidth().offset(x = (-12).dp), verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = onBack) { Icon(painterResource(R.drawable.ic_back), "Back to library") }
+                        Spacer(Modifier.weight(1f))
+                        IconButton(onClick = { adding = true }, Modifier.offset(x = 24.dp)) { Icon(painterResource(R.drawable.ic_add), "Add book to queue") }
+                    }
+                    Text("Queue", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                 }
-                if (!loading) Text(if (queued.any { it.item.state in activeStates }) "Transcribing" else "Nothing in progress", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            // Placeholder cards, shaped like the real ones, until the queue has loaded.
-            if (loading) items(3, key = { "skeleton:$it" }) { QueueSkeletonCard() }
+            // Placeholders, shaped like the real card and rows, until the queue has loaded.
+            if (loading) {
+                item(key = "skeleton:current") { QueueSkeletonCard() }
+                items(2, key = { "skeleton:$it" }) { QueueSkeletonRow() }
+            }
             else if (ordered.isEmpty()) item(key = "empty") { Text("Tap + to add a book, then tap play on it to start its ReadAlong.", style = MaterialTheme.typography.bodyMedium) }
-            items(ordered, key = { it.item.bookId }) { entry ->
+            if (current != null) item(key = current.item.bookId) {
+                val id = current.item.bookId
+                SwipeToRemove(current.item.title, enabled = drag.key == null, onRemove = { model.remove(id) }, modifier = Modifier.animateItem(placementSpec = tween(220, easing = QueueEasing))) {
+                    TranscribingCard(current, onPause = { model.pause(id) })
+                }
+            }
+            if (upNext.isNotEmpty()) item(key = "up-next-heading") { QueueHeading("Up next", Modifier.padding(top = if (current == null) 0.dp else 20.dp)) }
+            items(upNext, key = { it.item.bookId }) { entry ->
                 val id = entry.item.bookId
                 val held = drag.key == id
                 val lift by animateFloatAsState(if (held && !drag.dropping) 1f else 0f, tween(160, easing = QueueEasing), label = "Queue lift")
-                QueueCard(entry, (if (held) Modifier else Modifier.animateItem(placementSpec = tween(220, easing = QueueEasing))).zIndex(if (held) 1f else 0f).graphicsLayer {
+                SwipeToRemove(entry.item.title, enabled = drag.key == null, onRemove = { model.remove(id) },
+                    modifier = (if (held) Modifier else Modifier.animateItem(placementSpec = tween(220, easing = QueueEasing))).zIndex(if (held) 1f else 0f).graphicsLayer {
                         if (held) translationY = drag.offset.value
                         scaleX = 1f + .025f * lift; scaleY = scaleX
-                        shadowElevation = 10.dp.toPx() * lift; shape = RoundedCornerShape(com.example.readalong.ui.theme.Corners.large); clip = false
-                    },
-                    onPlay = { if (entry.item.state in activeStates) model.pause(id) else model.next(id) }, onTrash = { model.remove(id) },
-                    handle = {
-                        val color = MaterialTheme.colorScheme.onSurfaceVariant
-                        Box(Modifier.size(44.dp).semantics {
-                            contentDescription = "Reorder ${entry.item.title}"
-                            customActions = listOf(CustomAccessibilityAction("Move up") { model.move(id, -1); true }, CustomAccessibilityAction("Move down") { model.move(id, 1); true })
-                        }.pointerInput(id) {
-                            detectVerticalDragGestures(
-                                onDragStart = { haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.GestureThresholdActivate); scope.launch { drag.start(id) } },
-                                onDragEnd = {
-                                    haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.GestureEnd)
-                                    scope.launch {
-                                        drag.drop()
-                                        val ids = order
-                                        if (ids.toSet() == currentQueued.map { it.item.bookId }.toSet()) model.reorder(ids)
-                                    }
-                                },
-                                onDragCancel = { scope.launch { drag.drop(); order = currentQueued.map { it.item.bookId } } },
-                            ) { change, amount ->
-                                change.consume()
-                                scope.launch { drag.moveBy(amount); drag.swapIfNeeded(list, order) { order = it } }
-                            }
-                        }, contentAlignment = Alignment.Center) {
-                            Canvas(Modifier.size(20.dp)) {
-                                val radius = 2.dp.toPx()
-                                listOf(.3f, .7f).forEach { x -> listOf(.15f, .5f, .85f).forEach { y -> drawCircle(color, radius, Offset(size.width*x, size.height*y)) } }
-                            }
+                        shadowElevation = 10.dp.toPx() * lift; shape = RoundedCornerShape(com.example.readalong.ui.theme.Corners.medium); clip = false
+                    }) {
+                    // Hold a row to pick it up, then drag it into place.
+                    QueueRow(entry, Modifier.semantics {
+                        customActions = listOf(CustomAccessibilityAction("Move up") { model.move(id, -1); true }, CustomAccessibilityAction("Move down") { model.move(id, 1); true })
+                    }.pointerInput(id) {
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = { haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress); scope.launch { drag.start(id) } },
+                            onDragEnd = {
+                                haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.GestureEnd)
+                                scope.launch {
+                                    drag.drop()
+                                    val ids = order
+                                    if (ids.toSet() == currentQueued.map { it.item.bookId }.toSet()) model.reorder(ids)
+                                }
+                            },
+                            onDragCancel = { scope.launch { drag.drop(); order = currentQueued.map { it.item.bookId } } },
+                        ) { change, amount ->
+                            change.consume()
+                            scope.launch { drag.moveBy(amount.y); drag.swapIfNeeded(list, upNextIds()) { setUpNext(it) } }
                         }
+                    }, action = {
+                        IconButton(onClick = { model.next(id) }) { Icon(painterResource(R.drawable.ic_play), "Transcribe ${entry.item.title} now", Modifier.size(20.dp)) }
                     })
-            }
-            if (finished.isNotEmpty()) {
-                item(key = "finished-heading") { Text("Transcribed", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 12.dp)) }
-                items(finished, key = { it.item.bookId }) { entry -> QueueCard(entry, onTrash = { model.remove(entry.item.bookId) }) }
-            }
-            item(key = "not-transcribed-heading") {
-                Row(Modifier.fillMaxWidth().padding(top = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Not transcribed", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-                    TextButton(enabled = available.isNotEmpty(), onClick = model::addAll) { Text("Add all") }
                 }
             }
-            if (available.isEmpty()) item(key = "nothing-available") { Text("Every book has been added to the queue.", style = MaterialTheme.typography.bodyMedium) }
-            items(available, key = { it.item.bookId }) { entry ->
-                Surface(shape = RoundedCornerShape(com.example.readalong.ui.theme.Corners.large), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .45f)) {
-                    Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(entry.item.title, Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+            if (finished.isNotEmpty()) {
+                item(key = "finished-heading") { QueueHeading("Transcribed", Modifier.padding(top = 20.dp)) }
+                items(finished, key = { it.item.bookId }) { entry ->
+                    SwipeToRemove(entry.item.title, enabled = true, onRemove = { model.remove(entry.item.bookId) }) { QueueRow(entry) }
+                }
+            }
+            item(key = "not-transcribed-heading") {
+                Row(Modifier.fillMaxWidth().padding(top = 20.dp), verticalAlignment = Alignment.CenterVertically) {
+                    QueueHeading("Not transcribed", Modifier.weight(1f))
+                    TextButton(enabled = available.isNotEmpty(), onClick = model::addAll, modifier = Modifier.offset(x = 12.dp)) { Text("Add all", fontWeight = FontWeight.SemiBold) }
+                }
+            }
+            if (available.isEmpty()) item(key = "nothing-available") { Text("Every book has been added to the queue.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            itemsIndexed(available, key = { _, entry -> entry.item.bookId }) { index, entry ->
+                Column {
+                    if (index > 0) HorizontalDivider(Modifier.padding(start = 62.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = .5f))
+                    QueueRow(entry, action = {
                         IconButton(onClick = { model.add(entry.item.bookId) }) { Icon(painterResource(R.drawable.ic_add), "Add ${entry.item.title} to queue") }
-                    }
+                    })
                 }
             }
         }
@@ -272,27 +288,51 @@ private class QueueDrag {
     }
 }
 
-/** A queue card's shape in shimmering placeholders: title, status line, progress bar, buttons and Details. */
 @Composable
-private fun QueueSkeletonCard() {
-    val brush = com.example.readalong.ui.components.shimmerBrush()
-    Surface(shape = RoundedCornerShape(com.example.readalong.ui.theme.Corners.large), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .7f)) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Box(Modifier.fillMaxWidth(.6f).height(22.dp).clip(RoundedCornerShape(11.dp)).background(brush))
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Box(Modifier.fillMaxWidth(.75f).height(14.dp).clip(RoundedCornerShape(7.dp)).background(brush))
-                    Box(Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)).background(brush))
-                }
-                repeat(2) { Box(Modifier.size(28.dp).clip(androidx.compose.foundation.shape.CircleShape).background(brush)) }
-            }
-            Box(Modifier.width(64.dp).height(12.dp).clip(RoundedCornerShape(6.dp)).background(brush))
-        }
-    }
+private fun QueueHeading(text: String, modifier: Modifier = Modifier) {
+    Text(text, modifier.padding(bottom = 4.dp), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
+/** Swiping a card or row to the left removes the book from the queue, the way the trash button used to. */
 @Composable
-private fun QueueCard(entry: QueueBook,modifier: Modifier = Modifier, onPlay: (() -> Unit)? = null, onTrash: () -> Unit, handle: (@Composable () -> Unit)? = null) {
+private fun SwipeToRemove(title: String, enabled: Boolean, onRemove: () -> Unit, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    val state = rememberSwipeToDismissBoxState(positionalThreshold = { it * .35f })
+    LaunchedEffect(state.currentValue) {
+        if (state.currentValue != SwipeToDismissBoxValue.EndToStart) return@LaunchedEffect
+        onRemove()
+        // Still here a moment later (the removal failed): slide the row back.
+        delay(1500); state.reset()
+    }
+    SwipeToDismissBox(state = state, modifier = modifier.semantics { customActions = listOf(CustomAccessibilityAction("Remove $title from queue") { onRemove(); true }) },
+        enableDismissFromStartToEnd = false, enableDismissFromEndToStart = enabled, backgroundContent = {
+            if (state.dismissDirection == SwipeToDismissBoxValue.EndToStart) Box(Modifier.fillMaxSize().clip(RoundedCornerShape(com.example.readalong.ui.theme.Corners.large))
+                .background(MaterialTheme.colorScheme.errorContainer).padding(horizontal = 24.dp), contentAlignment = Alignment.CenterEnd) {
+                Icon(painterResource(R.drawable.ic_trash), null, tint = MaterialTheme.colorScheme.onErrorContainer)
+            }
+        }) { content() }
+}
+
+/** The square cover, or a plain tile while the book is still loading. */
+@Composable
+private fun QueueCover(entry: QueueBook, size: androidx.compose.ui.unit.Dp) {
+    val book = entry.book
+    if (book != null) com.example.readalong.ui.components.BookCover(book, Modifier.size(size), showTitle = false)
+    else Box(Modifier.size(size).clip(RoundedCornerShape(com.example.readalong.ui.theme.Corners.medium)).background(MaterialTheme.colorScheme.surfaceVariant))
+}
+
+/** What a waiting or finished book is doing, in a few words. */
+private fun QueueBook.status(bookPercent: Int) = when {
+    item.state == "READY" -> "Transcribed"
+    item.state == "WAITING_MODEL" -> "Needs the offline speech model"
+    item.message?.startsWith("Waiting for charging") == true -> "Waiting for charging · $bookPercent% done"
+    item.state == "WAITING_QUEUE" -> "Waiting · $bookPercent% done"
+    job?.planJson == null -> "Ready to transcribe"
+    else -> "Paused · $bookPercent% done"
+}
+
+/** The book being transcribed: cover, title and chapter, then one progress line and the pause button. Tap it for details. */
+@Composable
+private fun TranscribingCard(entry: QueueBook, onPause: () -> Unit) {
     var details by rememberSaveable(entry.item.bookId) { mutableStateOf(false) }
     val progress = entry.job?.progress()
     val palette = entry.book?.let { com.example.readalong.ui.components.rememberCoverPalette(it) }
@@ -300,33 +340,94 @@ private fun QueueCard(entry: QueueBook,modifier: Modifier = Modifier, onPlay: ((
     val bar = com.example.readalong.ui.components.animatedFraction((progress?.bookPercent ?: 0) / 100f)
     val bookPercent by com.example.readalong.ui.components.animatedPercent(progress?.bookPercent ?: 0)
     val chapterPercent by com.example.readalong.ui.components.animatedPercent(progress?.chapterPercent ?: 0)
-    Surface(modifier.testTag("queue:${entry.item.bookId}"), shape = RoundedCornerShape(com.example.readalong.ui.theme.Corners.large), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .7f)) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp)) {
-            Text(entry.item.title, style = MaterialTheme.typography.titleLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(when {
-                        entry.item.state == "READY" -> "Whole book · 100%"
-                        entry.item.state == "WAITING_MODEL" -> "Needs the offline speech model"
-                        entry.item.state == "WAITING_QUEUE" -> "Waiting in queue · $bookPercent% of book"
-                        entry.item.message?.startsWith("Waiting for charging") == true -> "Waiting for charging · $bookPercent% of book"
-                        entry.job?.planJson == null -> "Ready to transcribe"
-                        // Same number as the player's ReadAlong card: the whole book first, the chapter second.
-                        else -> "$bookPercent% of book" + (entry.chapter.takeIf { it.isNotBlank() }?.let { " · $it" } ?: "")
-                    }, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    LinearProgressIndicator(progress = { bar.value }, modifier = Modifier.fillMaxWidth().height(4.dp), color = accent, trackColor = accent.copy(alpha = .2f))
+    val started = entry.job?.planJson != null
+    val label = when {
+        entry.item.message?.startsWith("Waiting for charging") == true -> "Waiting for charging"
+        !started -> "Starting"
+        else -> "Transcribing"
+    }
+    Surface(onClick = { details = !details }, modifier = Modifier.testTag("queue:${entry.item.bookId}").semantics { stateDescription = if (details) "Details shown" else "Details hidden" },
+        shape = RoundedCornerShape(com.example.readalong.ui.theme.Corners.large), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .7f)) {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                QueueCover(entry, 72.dp)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                    Text(entry.item.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    if (entry.chapter.isNotBlank()) Text(entry.chapter, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                if (onPlay != null) IconButton(onClick = onPlay) { Icon(painterResource(if (entry.item.state in activeStates) R.drawable.ic_pause else R.drawable.ic_play),
-                    if (entry.item.state in activeStates) "Pause ${entry.item.title}" else "Transcribe ${entry.item.title}", Modifier.size(28.dp)) }
-                IconButton(onClick = onTrash) { Icon(painterResource(R.drawable.ic_trash), "Remove ${entry.item.title} from queue") }
-                handle?.invoke()
             }
-            TextButton(onClick = { details = !details }, contentPadding = PaddingValues(0.dp), modifier = Modifier.heightIn(min = 32.dp)) {
-                Text("Details", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Icon(painterResource(R.drawable.ic_down), if (details) "Hide details" else "Show details", Modifier.size(16.dp).graphicsLayer { rotationZ = if (details) 180f else 0f })
-                if (entry.item.state != "READY" && entry.job?.planJson != null) { Spacer(Modifier.width(8.dp)); Text("This chapter $chapterPercent%", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // Same numbers as the player's ReadAlong card: the whole book first, the chapter second.
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("$bookPercent%", Modifier.alignByBaseline(), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        Text(if (started) "of book · chapter $chapterPercent%" else "of book", Modifier.alignByBaseline(), style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    LinearProgressIndicator(progress = { bar.value }, modifier = Modifier.fillMaxWidth().height(6.dp), color = accent, trackColor = accent.copy(alpha = .2f), gapSize = 0.dp, drawStopIndicator = {})
+                }
+                FilledIconButton(onClick = onPause, modifier = Modifier.size(46.dp)) { Icon(painterResource(R.drawable.ic_pause), "Pause ${entry.item.title}", Modifier.size(20.dp)) }
             }
-            if (details) Text(entry.item.message.orEmpty(), style = MaterialTheme.typography.bodyMedium)
+            if (details && !entry.item.message.isNullOrBlank()) Text(entry.item.message.orEmpty(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+/** A plain row: square cover, title, one line under it and a single button. Queued books also get a thin progress line. */
+@Composable
+private fun QueueRow(entry: QueueBook, modifier: Modifier = Modifier, action: (@Composable () -> Unit)? = null) {
+    val queued = entry.item.state != "WAITING_SELECTION"
+    val percent = entry.job?.progress()?.bookPercent ?: 0
+    val bar = com.example.readalong.ui.components.animatedFraction(percent / 100f)
+    val subtitle = if (queued) entry.status(percent) else entry.book?.author
+    Row(modifier.fillMaxWidth().testTag("queue:${entry.item.bookId}").heightIn(min = 64.dp).background(MaterialTheme.colorScheme.background, RoundedCornerShape(com.example.readalong.ui.theme.Corners.medium)).padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        QueueCover(entry, 48.dp)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(entry.item.title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (!subtitle.isNullOrBlank()) Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (queued && entry.item.state != "READY" && percent > 0) LinearProgressIndicator(progress = { bar.value }, modifier = Modifier.fillMaxWidth().height(3.dp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant, trackColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .15f), gapSize = 0.dp, drawStopIndicator = {})
+        }
+        if (action != null) Box(Modifier.offset(x = 6.dp)) { action() }
+    }
+}
+
+/** The large card's shape in shimmering placeholders: cover, title lines, progress bar and button. */
+@Composable
+private fun QueueSkeletonCard() {
+    val brush = com.example.readalong.ui.components.shimmerBrush()
+    Surface(shape = RoundedCornerShape(com.example.readalong.ui.theme.Corners.large), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .7f)) {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                Box(Modifier.size(72.dp).clip(RoundedCornerShape(com.example.readalong.ui.theme.Corners.medium)).background(brush))
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Box(Modifier.fillMaxWidth(.4f).height(12.dp).clip(RoundedCornerShape(6.dp)).background(brush))
+                    Box(Modifier.fillMaxWidth(.85f).height(18.dp).clip(RoundedCornerShape(9.dp)).background(brush))
+                    Box(Modifier.fillMaxWidth(.6f).height(14.dp).clip(RoundedCornerShape(7.dp)).background(brush))
+                }
+            }
+            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Box(Modifier.width(120.dp).height(16.dp).clip(RoundedCornerShape(8.dp)).background(brush))
+                    Box(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)).background(brush))
+                }
+                Box(Modifier.size(46.dp).clip(androidx.compose.foundation.shape.CircleShape).background(brush))
+            }
+        }
+    }
+}
+
+/** A row's shape in shimmering placeholders. */
+@Composable
+private fun QueueSkeletonRow() {
+    val brush = com.example.readalong.ui.components.shimmerBrush()
+    Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        Box(Modifier.size(48.dp).clip(RoundedCornerShape(com.example.readalong.ui.theme.Corners.medium)).background(brush))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(Modifier.fillMaxWidth(.7f).height(14.dp).clip(RoundedCornerShape(7.dp)).background(brush))
+            Box(Modifier.fillMaxWidth(.35f).height(12.dp).clip(RoundedCornerShape(6.dp)).background(brush))
         }
     }
 }
