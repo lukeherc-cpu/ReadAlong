@@ -1,5 +1,12 @@
 Transcribe audiobooks on your computer, then let the ReadAlong phone app import the text. A computer is much faster than a phone, and a graphics card faster still.
 
+**New in 0.3.0: faster on AMD and Intel cards**
+- Several transcriptions now run on the graphics card at once (up to 4, as many as its memory holds). One on its own left the card mostly idle.
+- Greedy decoding instead of a 5-beam search: several times less work for nearly the same text. This applies to NVIDIA cards and the CPU too.
+- Short chapter files are grouped, so the model loads once per group instead of once per file.
+- whisper.cpp updated to 1.8.7 (flash attention, faster Vulkan).
+- If whisper.cpp can't start on the graphics card, the app now says so instead of silently using the CPU.
+
 **New in 0.2.1**
 - Fixes graphics cards not being found on Linux distributions newer than Ubuntu 22.04 (Fedora, Bazzite, Arch and others). The drivers couldn't load inside the app; the check now runs outside it.
 - `--gpu-info` shows the graphics cards the app sees and which one it uses.

@@ -110,7 +110,7 @@ MODELS = [
 # M-series chip, 8-thread CPU at int8). Rough; a finished book replaces them with measured speeds.
 SPEED = {
     "cuda": {"tiny": 300, "base": 250, "small": 150, "medium": 70, "large-v3-turbo": 110, "large-v3": 45},
-    "vulkan": {"tiny": 200, "base": 150, "small": 70, "medium": 25, "large-v3-turbo": 40, "large-v3": 14},
+    "vulkan": {"tiny": 400, "base": 320, "small": 180, "medium": 60, "large-v3-turbo": 110, "large-v3": 35},
     "metal": {"tiny": 120, "base": 90, "small": 45, "medium": 18, "large-v3-turbo": 30, "large-v3": 10},
     "cpu": {"tiny": 45, "base": 28, "small": 10, "medium": 3.5, "large-v3-turbo": 3, "large-v3": 1.5},
 }

@@ -11,6 +11,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 import wave
 from pathlib import Path
 
@@ -141,21 +142,40 @@ def model_file(model: str) -> Path:
     return Path(hf_hub_download("ggerganov/whisper.cpp", GGML_FILES[model]))
 
 
-def run(cli: Path, model: Path, samples: np.ndarray, rate: int, language: str | None, threads: int) -> dict:
-    """whisper-cli on one window of 16 kHz mono audio, one segment per word; returns its JSON."""
+def run(cli: Path, model: Path, windows: list[np.ndarray], rate: int, language: str | None, threads: int,
+        cancelled=lambda: False) -> tuple[list[dict], bool]:
+    """One whisper-cli run over several windows of 16 kHz mono audio (the model loads once), one segment per word.
+
+    Returns each window's JSON, and whether whisper.cpp ran on the GPU (it falls back to the CPU on its own).
+    """
     with tempfile.TemporaryDirectory(prefix="readalong-") as folder:
-        audio = Path(folder) / "window.wav"
-        with wave.open(str(audio), "wb") as out:
-            out.setnchannels(1)
-            out.setsampwidth(2)
-            out.setframerate(rate)
-            out.writeframes((np.clip(samples, -1, 1) * 32767).astype("<i2").tobytes())
-        base = Path(folder) / "window"
-        command = [str(cli), "-m", str(model), "-f", str(audio), "-l", language or "auto", "-t", str(threads),
-                   "-ml", "1", "-sow", "-oj", "-of", str(base), "-np"]
-        done = subprocess.run(command, capture_output=True, text=True, errors="replace", env=system_env(), **_no_window())
-        result = base.with_suffix(".json")
-        if done.returncode != 0 or not result.is_file():
-            tail = (done.stderr or done.stdout).strip().splitlines()[-3:]
-            raise RuntimeError(f"whisper.cpp failed ({done.returncode}): {' '.join(tail)}")
-        return json.loads(result.read_text(encoding="utf-8", errors="replace"))
+        inputs = []
+        for number, samples in enumerate(windows):
+            path = Path(folder) / f"window{number}.wav"
+            with wave.open(str(path), "wb") as out:
+                out.setnchannels(1)
+                out.setsampwidth(2)
+                out.setframerate(rate)
+                out.writeframes((np.clip(samples, -1, 1) * 32767).astype("<i2").tobytes())
+            inputs += ["-f", str(path)]
+        # Greedy decoding: whisper-cli's default is a 5-beam search, several times slower for little gain.
+        command = [str(cli), "-m", str(model), *inputs, "-l", language or "auto", "-t", str(threads),
+                   "-bs", "1", "-ml", "1", "-sow", "-oj"]
+        log = Path(folder) / "log.txt"
+        with log.open("w", encoding="utf-8", errors="replace") as sink:
+            process = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=sink, env=system_env(), **_no_window())
+            while process.poll() is None:
+                if cancelled():
+                    process.kill()
+                    process.wait()
+                    raise InterruptedError("Stopped.")
+                time.sleep(0.2)
+        messages = log.read_text(encoding="utf-8", errors="replace")
+        results = []
+        for number in range(len(windows)):
+            result = Path(folder) / f"window{number}.wav.json"
+            if process.returncode != 0 or not result.is_file():
+                tail = " ".join(messages.strip().splitlines()[-3:])
+                raise RuntimeError(f"whisper.cpp failed ({process.returncode}): {tail}")
+            results.append(json.loads(result.read_text(encoding="utf-8", errors="replace")))
+        return results, "using Vulkan" in messages
