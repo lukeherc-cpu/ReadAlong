@@ -67,7 +67,15 @@ jobs:
         if: runner.os != 'macOS'
         run: |
           git clone -q --depth 1 --branch v1.8.7 https://github.com/ggml-org/whisper.cpp ../whisper.cpp
+          # ggml's Vulkan backend wants the SPIR-V headers package, which the SDK install doesn't keep.
+          git clone -q --depth 1 --branch vulkan-sdk-1.4.309.0 https://github.com/KhronosGroup/SPIRV-Headers ../spirv-src
+          spirv="$(cd .. && pwd)/spirv"
+          [ "$RUNNER_OS" = "Windows" ] && spirv=$(cygpath -m "$spirv")
+          cmake -S ../spirv-src -B ../spirv-src/build -DCMAKE_INSTALL_PREFIX="$spirv" -DSPIRV_HEADERS_ENABLE_TESTS=OFF > /dev/null
+          cmake --install ../spirv-src/build > /dev/null
+          export CXXFLAGS="-I$spirv/include"  # Added to the compiler's default flags.
           cmake -S ../whisper.cpp -B ../whisper.cpp/build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF \
+            -DCMAKE_PREFIX_PATH="$spirv" \
             -DGGML_VULKAN=ON -DGGML_NATIVE=OFF -DGGML_OPENMP=OFF -DWHISPER_BUILD_TESTS=OFF -DWHISPER_BUILD_SERVER=OFF \
             -DCMAKE_POLICY_DEFAULT_CMP0091=NEW -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
           cmake --build ../whisper.cpp/build --config Release -j 4 --target whisper-cli
