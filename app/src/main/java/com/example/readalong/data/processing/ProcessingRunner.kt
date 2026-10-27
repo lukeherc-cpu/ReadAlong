@@ -27,10 +27,13 @@ class ProcessingRunner(private val database: ReadAlongDatabase, private val epub
                     job.copy(planJson = TranscriptionPlan.encode(TranscriptionPlan.decode(job.planJson))).also { jobs.put(it) } else job)
                 else job.copy(planJson = TranscriptionPlan.encode(TranscriptionPlan.inputs(database, bookId)),
                     sourceFingerprint = TranscriptionPlan.fingerprint(database, bookId)).also { jobs.put(it) }
+            }.let { job ->
+                // Playing the book can correct a file's length. Move onto the corrected plan, keeping finished work.
+                if (job.sourceFingerprint == TranscriptionPlan.fingerprint(database, bookId)) job
+                else database.withTransaction { (TranscriptionPlan.rebase(database, current(bookId, workId)) ?: throw AudioLayoutChanged()).also { jobs.put(it) } }
             }
             val units = TranscriptionPlan.decode(requireNotNull(initial.planJson))
             check(initial.completedUnits in 0..units.size) { "Saved checkpoint is outside this audio plan." }
-            if (initial.sourceFingerprint != TranscriptionPlan.fingerprint(database, bookId)) throw AudioLayoutChanged()
             // A process may stop after the atomic transcript/checkpoint commit but before
             // publishing its reading edition. Repair that derived view without recognizing
             // any already completed audio again. Normally this is a cheap revision check.
@@ -59,7 +62,7 @@ class ProcessingRunner(private val database: ReadAlongDatabase, private val epub
                 check(segments.all { it.bookId == bookId && it.chapterId == input.chapterId && it.startMs >= input.startMs && it.endMs <= input.endMs })
                 database.withTransaction {
                     val latest = current(bookId, workId)
-                    if (latest.sourceFingerprint != TranscriptionPlan.fingerprint(database, bookId)) throw AudioLayoutChanged()
+                    if (latest.sourceFingerprint != TranscriptionPlan.fingerprint(database, bookId)) throw PlanOutdated()
                     val reading = database.readingDao()
                     val version = reading.findVersion(bookId) ?: ReadableVersionEntity(bookId, "PARTIAL_READY", null, 0, chapterEnds.size, null, 0)
                     if (!book.isDemo) reading.deleteRange(bookId, input.startMs, input.endMs)
@@ -98,6 +101,9 @@ class ProcessingRunner(private val database: ReadAlongDatabase, private val epub
             }
             return true
         } catch (cancelled: CancellationException) { throw cancelled }
+        // The audio layout changed during this chunk; nothing of it was saved. Start again from the checkpoint,
+        // which moves onto the new plan, or fails with AudioLayoutChanged when the files really changed.
+        catch (_: PlanOutdated) { return run(bookId, workId, engine, maxUnits, afterCheckpoint) }
         catch (failure: Exception) {
             android.util.Log.w("ReadAlong", "Readable pipeline failed: ${failure.javaClass.simpleName}")
             database.withTransaction {
@@ -130,3 +136,4 @@ class ProcessingRunner(private val database: ReadAlongDatabase, private val epub
 }
 
 private class AudioLayoutChanged : IllegalStateException()
+private class PlanOutdated : IllegalStateException()

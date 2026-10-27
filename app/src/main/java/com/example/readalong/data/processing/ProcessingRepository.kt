@@ -194,11 +194,15 @@ class ProcessingRepository(private val context: Context, private val database: R
             database.withTransaction {
                 database.bookDao().removeMetadata("paused_notification:$bookId")
                 val fingerprint = TranscriptionPlan.fingerprint(database, bookId)
-                val resumable = !fromBeginning && old?.engineId == engineId && old.planJson != null && old.sourceFingerprint == fingerprint &&
+                val continuable = !fromBeginning && old?.engineId == engineId && old.planJson != null &&
                     (old.state in listOf("CANCELLED", "FAILED", "WAITING_MODEL", "WAITING_SELECTION", "WAITING_QUEUE") || ProcessingState.valueOf(old.state).active)
-                val plan = if (resumable) old!!.planJson!! else TranscriptionPlan.encode(TranscriptionPlan.inputs(database, bookId))
+                // Only file lengths changed (playing the book corrects them): keep the finished work on the new plan.
+                val rebased = if (continuable && !book.isDemo && old!!.sourceFingerprint != null && old.sourceFingerprint != fingerprint)
+                    TranscriptionPlan.rebase(database, old) else null
+                val resumable = continuable && (old!!.sourceFingerprint == fingerprint || rebased != null)
+                val plan = rebased?.planJson ?: if (resumable) old!!.planJson!! else TranscriptionPlan.encode(TranscriptionPlan.inputs(database, bookId))
                 val units = TranscriptionPlan.decode(plan)
-                if (!book.isDemo && old?.sourceFingerprint != null && old.sourceFingerprint != fingerprint) {
+                if (rebased == null && !book.isDemo && old?.sourceFingerprint != null && old.sourceFingerprint != fingerprint) {
                     database.importedEpubDao().invalidateAudioMapping(bookId)
                     database.readingDao().clearTranscript(bookId)
                     database.importedEpubDao().find(bookId)?.let { edition -> database.importedEpubDao().put(edition.copy(state = "WAITING_TRANSCRIPT")) }
@@ -206,7 +210,7 @@ class ProcessingRepository(private val context: Context, private val database: R
                         transcriptRevision = version.transcriptRevision + 1, message = "Audio layout changed. Rebuilding text; the saved edition is retained.")) }
                 }
                 database.processingDao().put(ProcessingJobEntity(bookId, request.id.toString(), engineId, "QUEUED",
-                    if (resumable) old!!.completedUnits.coerceAtMost(units.size) else 0, units.size,
+                    if (resumable) (rebased ?: old!!).completedUnits.coerceAtMost(units.size) else 0, units.size,
                     "Starting your ReadAlong…",
                     System.currentTimeMillis(), plan, fingerprint, queuePosition))
             }
