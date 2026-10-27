@@ -35,9 +35,15 @@ class QueueNavigationTest {
             compose.onNodeWithContentDescription("Resume top 3").assertDoesNotExist()
             compose.onNodeWithContentDescription("Pause top 3").assertDoesNotExist()
             compose.onNodeWithContentDescription("Add book to queue").performClick()
-            val choices = compose.onAllNodesWithText("Queue sample C")
-            choices[choices.fetchSemanticsNodes().lastIndex].performClick()
+            compose.waitUntil(5000) { compose.onAllNodesWithTag("add_to_queue").fetchSemanticsNodes().isNotEmpty() }
+            // Search narrows the sheet's list; adding a book takes it out of the list.
+            compose.onNodeWithContentDescription("Search books").performClick()
+            compose.onNodeWithTag("add_to_queue_search").performTextInput("sample C")
+            compose.onNodeWithContentDescription("Add Queue sample C to queue").performClick()
             compose.waitUntil(5000) { runBlocking { app.database.processingDao().find(ids[2])!!.state == "WAITING_QUEUE" } }
+            compose.waitUntil(5000) { compose.onAllNodesWithContentDescription("Add Queue sample C to queue").fetchSemanticsNodes().isEmpty() }
+            androidx.test.espresso.Espresso.pressBack()
+            compose.waitUntil(5000) { compose.onAllNodesWithTag("add_to_queue").fetchSemanticsNodes().isEmpty() }
             assertEquals(0, runBlocking { app.database.processingDao().find(ids[2])!!.completedUnits })
             compose.onRoot().captureToImage().asAndroidBitmap().let { bitmap -> java.io.File(app.getExternalFilesDir(null), "verification-queue.png").outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) } }
             compose.onNodeWithTag("transcription_queue").performScrollToNode(hasTestTag("queue:${ids[0]}"))
@@ -54,8 +60,9 @@ class QueueNavigationTest {
             }).fetchSemanticsNode().config[SemanticsActions.CustomActions].first { it.label == "Remove Queue sample A from queue" }
             compose.runOnUiThread { remove.action() }
             compose.waitUntil(5000) { runBlocking { app.database.processingDao().find(ids[0])!!.state == "WAITING_SELECTION" } }
-            compose.onNodeWithText("Not transcribed").assertExists()
-            compose.onNodeWithText("Add all").performScrollTo().performClick()
+            compose.onNodeWithText("Not transcribed").assertDoesNotExist()
+            compose.onNodeWithContentDescription("Add book to queue").performClick()
+            compose.onNodeWithText("Add all").performClick()
             compose.waitUntil(5000) { runBlocking { app.database.processingDao().find(ids[0])!!.state == "WAITING_QUEUE" } }
             assertTrue(runBlocking { app.database.processingDao().unfinished().none { it.bookId in ids } })
             compose.onNodeWithContentDescription("Back to library").performClick()

@@ -71,6 +71,7 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
     val chapterDuration = state.chapterDurationMs
     val chapterPosition = state.chapterPositionMs
     val palette = com.example.readalong.ui.components.rememberCoverPalette(book)
+    val readerTheme = reading.preferences.collectAsStateWithLifecycle().value.theme
     val colors = com.example.readalong.ui.theme.playerScheme(palette).copy(secondaryContainer = palette.preview)
     val screenHeight = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
     MaterialTheme(colorScheme = colors) {
@@ -132,7 +133,7 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                             // Keep the preview composed, measured and following even while the art faces forward.
                             Box(Modifier.fillMaxSize().graphicsLayer { rotationY = 180f; alpha = if (flip > 90f) 1f else 0f }
                                 .then(if (flip <= 90f) Modifier.clearAndSetSemantics { } else Modifier)) {
-                                com.example.readalong.ui.reading.FollowCard(state, reading, onFollow, palette.preview,
+                                com.example.readalong.ui.reading.FollowCard(state, reading, onFollow, com.example.readalong.ui.reading.minimizedReadAlongColor(readerTheme, palette.preview),
                                     onCover = { showText = false }, visible = flip > 90f, modifier = if (showText) com.example.readalong.ui.reading.LocalReaderSurface.current else Modifier,
                                     colorOf = com.example.readalong.ui.reading.LocalReaderSurfaceColor.current)
                             }

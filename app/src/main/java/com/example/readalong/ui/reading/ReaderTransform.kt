@@ -24,3 +24,10 @@ class AnimatedCornerShape(private val radius: () -> androidx.compose.ui.unit.Dp)
 @androidx.compose.runtime.Immutable
 data class ReaderInsets(val horizontal: androidx.compose.ui.unit.Dp, val top: androidx.compose.ui.unit.Dp, val bottom: androidx.compose.ui.unit.Dp)
 val LocalReaderInsets = staticCompositionLocalOf { ReaderInsets(androidx.compose.ui.unit.Dp(24f), androidx.compose.ui.unit.Dp(56f), androidx.compose.ui.unit.Dp(24f)) }
+
+/** The minimized ReadAlong (the flipped cover on the player) takes the full-screen ReadAlong's background.
+ * Read only has its own theme and doesn't change it. "Cover" keeps the cover's preview tint. */
+fun minimizedReadAlongColor(readerTheme: String, preview: androidx.compose.ui.graphics.Color) = when (readerTheme) {
+    "LIGHT" -> androidx.compose.ui.graphics.Color(0xFFFAF9F5); "SEPIA" -> SepiaPaper; "BLACK" -> androidx.compose.ui.graphics.Color.Black
+    else -> preview
+}
