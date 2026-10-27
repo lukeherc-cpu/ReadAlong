@@ -69,7 +69,7 @@ jobs:
                   folder = os.path.join(root, package, sub)
                   if os.path.isdir(folder):
                       print('--add-binary'); print(folder + os.pathsep + 'nvidia/' + package + '/' + sub)
-          ")
+          " | tr -d '\r')
                test ${#nvidia[@]} -gt 0
                pyinstaller "${common[@]}" "${nvidia[@]}" run.py ;;
           esac
