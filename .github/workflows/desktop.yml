@@ -60,8 +60,18 @@ jobs:
             macOS) pyinstaller "${common[@]}" --windowed --osx-bundle-identifier com.readalong.desktop \
                      --collect-all mlx --collect-all mlx_whisper \
                      --collect-submodules scipy._external --collect-submodules scipy._lib --collect-submodules scipy.signal run.py ;;
-            *) pyinstaller "${common[@]}" --collect-binaries nvidia.cublas --collect-binaries nvidia.cudnn \
-                 --collect-binaries nvidia.cuda_runtime run.py ;;
+            *) # The nvidia-* wheels are namespace packages PyInstaller won't collect by name; add their library folders.
+               mapfile -t nvidia < <(python -c "
+          import os, nvidia
+          root = list(nvidia.__path__)[0]
+          for package in ('cuda_runtime', 'cublas', 'cudnn'):
+              for sub in ('bin', 'lib'):
+                  folder = os.path.join(root, package, sub)
+                  if os.path.isdir(folder):
+                      print('--add-binary'); print(folder + os.pathsep + 'nvidia/' + package + '/' + sub)
+          ")
+               test ${#nvidia[@]} -gt 0
+               pyinstaller "${common[@]}" "${nvidia[@]}" run.py ;;
           esac
           ls dist
 
