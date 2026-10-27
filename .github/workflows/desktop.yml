@@ -132,7 +132,7 @@ jobs:
           app="dist/ReadAlong Desktop/ReadAlong Desktop"
           "$app" --model tiny --device vulkan --yes "smoke/Test Book" 2>&1 | tee vulkan.log
           grep -q "GPU (Vulkan)" vulkan.log
-          ! grep -q "Couldn't use the GPU" vulkan.log
+          if grep -q "Couldn't use the GPU" vulkan.log; then exit 1; fi
           python tests/check_output.py "smoke/Test Book/Test Book.readalong" "smoke/Test Book" fox | tee check.log
           grep -q "desktop:whisper.cpp:tiny" check.log
 
