@@ -87,16 +87,27 @@ def transcribe_book(book: Book, engine: Engine, model: str, machine: hw.Hardware
     def collect(until: int):
         nonlocal limit
         while len(pending) > until:
-            finished, _ = wait(pending, return_when=FIRST_COMPLETED)
+            finished, _ = wait(list(pending), return_when=FIRST_COMPLETED)
+            failed = []
             for future in finished:
                 batch = pending.pop(future)
                 try:
                     finish(batch, future.result())
                 except InterruptedError:
                     raise
-                except Exception:  # Often the card running out of memory: retry alone, then one at a time.
-                    limit = 1
-                    collect(0)
+                except Exception:
+                    failed.append(batch)
+            if failed:  # Often the card running out of memory: let the others end, retry alone, then one at a time.
+                limit = 1
+                for future in list(pending):
+                    batch = pending.pop(future)
+                    try:
+                        finish(batch, future.result())
+                    except InterruptedError:
+                        raise
+                    except Exception:
+                        failed.append(batch)
+                for batch in failed:
                     finish(batch, run(batch))
 
     try:
