@@ -1,0 +1,9 @@
+faster-whisper==1.2.1
+av>=12
+numpy
+# Apple Silicon GPU
+mlx-whisper==0.4.3; sys_platform == "darwin" and platform_machine == "arm64"
+# NVIDIA GPU libraries for CTranslate2 (CUDA 12, cuDNN 9) on Windows and Linux
+nvidia-cuda-runtime-cu12; sys_platform != "darwin"
+nvidia-cublas-cu12; sys_platform != "darwin"
+nvidia-cudnn-cu12==9.*; sys_platform != "darwin"
