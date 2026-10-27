@@ -6,21 +6,27 @@ import sys
 from pathlib import Path
 
 from . import __version__, hardware as hw
-from .package import find_books
+from .package import OUTPUTS_NAME, find_books, place
 from .runner import measure, transcribe_book
 
 LANGUAGES = ["en", "de", "fr", "es", "it", "nl", "pl", "pt", "ru", "ja", "zh", "ko"]
 
 
 def main(argv: list[str] | None = None) -> int:
+    argv = sys.argv[1:] if argv is None else argv
+    from . import vulkan
+    if argv[:1] == [vulkan.PROBE_FLAG]:  # The GPU probe's child process (vulkan.probe).
+        return vulkan.print_devices()
     parser = argparse.ArgumentParser(prog="readalong-desktop", description=
         "Transcribes audiobooks with Whisper on your computer's GPU and writes a .readalong file beside each book. "
         "Copy it to the phone with the audio (or keep it in your synced library folder) and ReadAlong imports it.")
     parser.add_argument("paths", nargs="*", type=Path, help="an audio file, a book folder or a library folder")
     parser.add_argument("--model", help="model id (see --list-models); asks when left out")
     parser.add_argument("--language", help="for example en; detected from the first minutes when left out")
-    parser.add_argument("--device", choices=["auto", "cuda", "metal", "cpu"], default="auto")
+    parser.add_argument("--device", choices=["auto", "cuda", "vulkan", "metal", "cpu"], default="auto")
     parser.add_argument("--list-models", action="store_true", help="show models sorted by finish time and exit")
+    parser.add_argument("--output-folder", type=Path, metavar="FOLDER",
+                        help=f"save every transcript in FOLDER/{OUTPUTS_NAME} instead of beside each book")
     parser.add_argument("--force", action="store_true", help="redo books that already have a .readalong file")
     parser.add_argument("--yes", action="store_true", help="use the recommended model without asking")
     parser.add_argument("--version", action="version", version=__version__)
@@ -45,6 +51,11 @@ def main(argv: list[str] | None = None) -> int:
             if not {"cublas", "cudnn"} <= set(found):
                 print("Missing NVIDIA libraries.")
                 return 1
+            from . import vulkan
+            if vulkan.cli_path() is None:
+                print("Missing whisper.cpp (whisper-cli).")
+                return 1
+            print(f"whisper.cpp bundled: {vulkan.cli_path().name}")
         print("Bundle OK")
         return 0
     if not args.paths and not args.list_models:
@@ -54,6 +65,9 @@ def main(argv: list[str] | None = None) -> int:
     machine = hw.detect(args.device)
     print(machine.describe())
     books = [book for path in args.paths for book in find_books(path)]
+    if args.output_folder:
+        folder = args.output_folder.expanduser().resolve()
+        place(books, folder if folder.name == OUTPUTS_NAME else folder / OUTPUTS_NAME)
     todo = [b for b in books if args.force or not b.done]
     skipped = len(books) - len(todo)
     if args.paths and not books:

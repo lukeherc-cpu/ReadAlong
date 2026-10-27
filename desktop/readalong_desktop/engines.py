@@ -1,4 +1,5 @@
-"""Whisper on NVIDIA (faster-whisper / CUDA), Apple Silicon (mlx-whisper / Metal) or any CPU (faster-whisper)."""
+"""Whisper on NVIDIA (faster-whisper / CUDA), AMD and Intel (whisper.cpp / Vulkan), Apple Silicon (mlx-whisper / Metal)
+or any CPU (faster-whisper)."""
 from __future__ import annotations
 
 import numpy as np
@@ -71,7 +72,38 @@ class Mlx(Engine):
         return words, result.get("language")
 
 
+class WhisperCpp(Engine):
+    backend = "whisper.cpp"
+    device = "vulkan"
+
+    def __init__(self, model: str, hardware: Hardware, log=print):
+        from . import vulkan
+        self.vulkan = vulkan
+        self.cli = vulkan.cli_path()
+        if self.cli is None:
+            raise RuntimeError("whisper.cpp isn't bundled with this build.")
+        self.model = vulkan.model_file(model)
+        self.threads = min(8, hardware.cores)
+
+    def transcribe(self, samples, offset, language):
+        from .audio import RATE
+        result = self.vulkan.run(self.cli, self.model, samples, RATE, language, self.threads)
+        words = []
+        for segment in result.get("transcription", []):
+            text = segment.get("text", "")
+            times = segment.get("offsets", {})
+            if not text.strip() or text.strip().startswith("[_"):
+                continue
+            words.append(Word(text, offset + times.get("from", 0) / 1000, offset + times.get("to", 0) / 1000, None))
+        return words, result.get("result", {}).get("language")
+
+
 def load(model: str, hardware: Hardware, log=print) -> Engine:
     if hardware.accelerator == "metal":
         return Mlx(model, hardware, log)
+    if hardware.accelerator == "vulkan":
+        try:
+            return WhisperCpp(model, hardware, log)
+        except Exception as failure:
+            log(f"Couldn't use the GPU ({failure}). Using the CPU instead; it's slower.")
     return FasterWhisper(model, hardware, log)

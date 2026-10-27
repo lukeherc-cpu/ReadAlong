@@ -24,7 +24,7 @@ def length_seconds(path: Path) -> float:
     return 0.0
 
 
-def windows(path: Path, seconds: int = 1200) -> Iterator[tuple[float, np.ndarray]]:
+def windows(path: Path, seconds: int = 600) -> Iterator[tuple[float, np.ndarray]]:
     """Yields (start in seconds, samples). The last window may be short; their lengths add up to the file."""
     size = seconds * RATE
     pending: list[np.ndarray] = []
