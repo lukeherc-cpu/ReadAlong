@@ -21,6 +21,7 @@ DISC = re.compile(r"(?i)^(cd|disc|disk|part)\s*[-_ ]?\d+.*")
 PART = re.compile(r"(?i)\b(part|pt|disc|disk|cd)\s*[-_.]?\s*\d+")
 CHUNK_MS = 30_000
 FORMAT = "readalong-transcript"
+OUTPUTS_NAME = "ReadAlong Desktop outputs"
 
 
 def is_audio(path: Path) -> bool:
@@ -35,13 +36,19 @@ def natural_key(name: str):
 class Book:
     name: str
     files: list[Path]
-    output: Path
+    output: Path  # Where the transcript is written: beside the audio unless place() moved it.
     seconds: float = 0.0  # Filled in by measure().
+    beside: Path = field(init=False)
+    shelf: str = ""  # The library folder it was found in, for grouping; empty for a single book.
+
+    def __post_init__(self):
+        self.beside = self.output
 
     @property
     def done(self) -> bool:
-        """An up-to-date transcript already sits beside the audio."""
-        return self.output.exists() and self.output.stat().st_mtime >= max(f.stat().st_mtime for f in self.files)
+        """An up-to-date transcript already exists, beside the audio or in the outputs folder."""
+        newest = max(f.stat().st_mtime for f in self.files)
+        return any(p.exists() and p.stat().st_mtime >= newest for p in {self.beside, self.output})
 
 
 def _children(folder: Path) -> list[Path]:
@@ -102,6 +109,46 @@ def find_books(path: Path) -> list[Book]:
         else:
             shelves += [(p, depth + 1) for p in folders]
     return books
+
+
+def scan(path: Path) -> tuple[str, list[Book]]:
+    """find_books(), plus what was chosen: "file", "book" (one audiobook folder) or "library" (several books)."""
+    path = path.expanduser().resolve()
+    books = find_books(path)
+    if path.is_file():
+        return "file", books
+    if len(books) == 1 and books[0].files[0].is_relative_to(path) and books[0].beside.parent == path:
+        return "book", books
+    for book in books:
+        book.shelf = path.name
+    return "library", books
+
+
+def default_outputs() -> Path:
+    documents = Path.home() / "Documents"
+    return (documents if documents.is_dir() else Path.home()) / OUTPUTS_NAME
+
+
+def place(books: list[Book], outputs: Path | None) -> None:
+    """Beside each book (outputs None), or all together in the outputs folder with unique names."""
+    taken: set[str] = set()
+    for book in books:
+        if outputs is None:
+            book.output = book.beside
+            continue
+        name = _safe(book.name)
+        if name.lower() in taken:
+            folder = book.beside.parent
+            name = _safe(f"{book.name} ({(folder.parent if folder.name == book.name else folder).name})")
+        number = 2
+        while name.lower() in taken:
+            name, number = _safe(f"{book.name} {number}"), number + 1
+        taken.add(name.lower())
+        book.output = outputs / f"{name}.readalong"
+
+
+def _safe(name: str) -> str:
+    return re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", name).strip(" .") or "Book"
 
 
 def sha256(path: Path, progress=None) -> tuple[int, str]:
@@ -173,6 +220,7 @@ def write_package(destination: Path, model_id: str, engine: str, files: list[tup
                     count += 1
         manifest = {"format": FORMAT, "version": 1, "complete": True, "model": model_id, "engine": engine,
                     "chunks": count, "sources": sources}
+        destination.parent.mkdir(parents=True, exist_ok=True)
         partial = destination.with_name(destination.name + ".partial")
         with zipfile.ZipFile(partial, "w", zipfile.ZIP_DEFLATED) as archive:
             archive.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False, indent=1))

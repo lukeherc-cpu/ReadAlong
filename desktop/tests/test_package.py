@@ -10,7 +10,7 @@ import pytest
 
 from readalong_desktop import audio, hardware as hw
 from readalong_desktop.engines import Engine
-from readalong_desktop.package import Word, find_books, sha256
+from readalong_desktop.package import OUTPUTS_NAME, Word, find_books, place, scan, sha256
 from readalong_desktop.runner import transcribe_book
 
 
@@ -109,7 +109,7 @@ def test_package_passes_phone_checks(tmp_path, monkeypatch, names, lengths):
 
 def _small_windows(original):
     # 45 s windows so the tests cross window boundaries in the middle of chunks.
-    return lambda path, seconds=1200: original(path, 45)
+    return lambda path, seconds=600: original(path, 45)
 
 
 def test_library_layouts(tmp_path):
@@ -144,3 +144,68 @@ def test_windows_cover_whole_file(tmp_path):
     total = sum(len(w) for _, w in audio.windows(tmp_path / "a.wav", 30))
     assert abs(total / audio.RATE - 100.5) < 0.05
     assert all(isinstance(w, np.ndarray) and w.dtype == np.float32 for _, w in audio.windows(tmp_path / "a.wav", 30))
+
+
+def test_scan_tells_books_from_libraries(tmp_path):
+    def touch(relative):
+        p = tmp_path / relative
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(b"x")
+    touch("Library/A/01.mp3"); touch("Library/B/CD1/x.mp3"); touch("Library/B/CD2/y.mp3")
+    touch("Solo/01.mp3"); touch("Solo/02.mp3")
+    touch("Discs/CD1/a.mp3"); touch("Discs/CD2/b.mp3")
+    touch("file.m4b")
+    assert scan(tmp_path / "Solo")[0] == "book"
+    assert scan(tmp_path / "Discs")[0] == "book"
+    assert scan(tmp_path / "file.m4b")[0] == "file"
+    kind, books = scan(tmp_path / "Library")
+    assert kind == "library" and sorted(b.name for b in books) == ["A", "B"]
+    assert all(b.shelf == "Library" for b in books)
+
+
+def test_outputs_folder(tmp_path, monkeypatch):
+    for name in ("Shelf/Dune/01.mp3", "Other/Dune/01.mp3", "Shelf/Emma/01.mp3"):
+        (tmp_path / name).parent.mkdir(parents=True, exist_ok=True)
+        tone(tmp_path / name, 3)
+    books = find_books(tmp_path / "Shelf") + find_books(tmp_path / "Other")
+    outputs = tmp_path / OUTPUTS_NAME
+    place(books, outputs)
+    names = sorted(b.output.name for b in books)
+    assert names == ["Dune (Other).readalong", "Dune.readalong", "Emma.readalong"]
+    assert all(b.output.parent == outputs for b in books)
+    monkeypatch.setattr(hw, "settings_dir", lambda: tmp_path)
+    out = transcribe_book(books[0], FakeEngine(), "small", hw.Hardware("cpu", "test", 8))
+    assert out.parent == outputs and out.exists() and books[0].done
+    check_like_phone(out, books[0].files, [round(audio.length_seconds(f) * 1000) for f in books[0].files])
+    place(books, None)
+    assert books[0].output == books[0].beside and not books[0].done  # Saving beside the book now: none there yet.
+
+
+def test_whisper_cpp_words(monkeypatch):
+    from readalong_desktop import engines, vulkan
+    result = {"result": {"language": "en"}, "transcription": [
+        {"offsets": {"from": 0, "to": 320}, "text": " The"},
+        {"offsets": {"from": 320, "to": 700}, "text": " quick"},
+        {"offsets": {"from": 700, "to": 700}, "text": " "},
+        {"offsets": {"from": 700, "to": 1200}, "text": " fox."}]}
+    monkeypatch.setattr(vulkan, "run", lambda *a, **k: result)
+    engine = engines.WhisperCpp.__new__(engines.WhisperCpp)
+    engine.vulkan, engine.cli, engine.model, engine.threads = vulkan, Path("cli"), Path("model"), 4
+    words, language = engine.transcribe(np.zeros(16000, np.float32), 600.0, None)
+    assert language == "en" and [w.word for w in words] == [" The", " quick", " fox."]
+    assert words[0].start == 600.0 and words[-1].end == 601.2
+
+
+def test_vulkan_picks_the_graphics_card():
+    from readalong_desktop import vulkan
+    found = [{"name": "AMD Radeon(TM) Graphics", "type": 1, "vram_gb": 0.5},
+             {"name": "AMD Radeon RX 6700 XT", "type": 2, "vram_gb": 12.0},
+             {"name": "llvmpipe", "type": 4, "vram_gb": 0}]
+    assert vulkan.best(found)["name"] == "AMD Radeon RX 6700 XT"
+    assert vulkan.best([found[0], found[2]]) is None
+    assert vulkan.best([found[2]], any_kind=True)["name"] == "llvmpipe"
+    machine = hw.Hardware("vulkan", "x", 12, "AMD Radeon RX 6700 XT", 12.0)
+    rows = hw.choices(machine, 36_000)
+    assert [r["seconds"] for r in rows] == sorted(r["seconds"] for r in rows)
+    assert next(r for r in rows if r["recommended"])["model"].id == "large-v3-turbo"
+    assert "RX 6700 XT" in machine.describe()

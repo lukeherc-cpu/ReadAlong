@@ -8,7 +8,7 @@ from typing import Callable
 
 from . import audio, hardware as hw
 from .engines import Engine
-from .package import Book, FileResult, sha256, write_package
+from .package import Book, FileResult, default_outputs, place, sha256, write_package
 
 
 @dataclass
@@ -38,9 +38,17 @@ def transcribe_book(book: Book, engine: Engine, model: str, machine: hw.Hardware
     results = []
     for number, path in enumerate(book.files, 1):
         label = f"File {number} of {len(book.files)}" if len(book.files) > 1 else "Transcribing"
-        report(Progress(book.name, done, total, f"{label}: checking the file…"))
-        size, digest = sha256(path)
-        words, samples = [], 0
+        report(Progress(book.name, done, total, f"{label}: reading the file…"))
+        file_size, read = max(1, path.stat().st_size), [0, 0]
+
+        def reading(block: int):
+            read[0] += block
+            percent = read[0] * 100 // file_size
+            if percent >= read[1] + 5:
+                read[1] = percent
+                report(Progress(book.name, done, total, f"{label}: reading the file… {percent}%"))
+        size, digest = sha256(path, reading)
+        words, samples, length = [], 0, audio.length_seconds(path)
         for offset, window in audio.windows(path):
             if cancelled():
                 raise InterruptedError("Stopped.")
@@ -48,15 +56,20 @@ def transcribe_book(book: Book, engine: Engine, model: str, machine: hw.Hardware
             language = language or detected  # Keep the first detected language for the whole book.
             words += found
             samples += len(window)
-            report(Progress(book.name, done + samples / audio.RATE, total, f"{label}…"))
+            report(Progress(book.name, done + samples / audio.RATE, total,
+                            f"{label}: transcribed {hw.duration_text(samples / audio.RATE)} of {hw.duration_text(length)}"))
         duration_ms = samples * 1000 // audio.RATE
         if duration_ms <= 0:
             raise ValueError(f"{path.name} has no audio.")
         results.append((FileResult(path, duration_ms, words), size, digest))
         done += duration_ms / 1000
-    write_package(book.output, f"desktop:{engine.backend}:{model}", f"Whisper {model}", results)
+    try:
+        write_package(book.output, f"desktop:{engine.backend}:{model}", f"Whisper {model}", results)
+    except PermissionError:  # A read-only book folder: save it with the others instead.
+        place([book], default_outputs())
+        write_package(book.output, f"desktop:{engine.backend}:{model}", f"Whisper {model}", results)
     elapsed = time.monotonic() - began
     if elapsed > 30 and done > 0:
         hw.remember_speed(machine, model, done / elapsed)
-    report(Progress(book.name, total, total, f"Done in {hw.duration_text(elapsed)}. Saved {book.output.name}"))
+    report(Progress(book.name, total, total, f"Done in {hw.duration_text(elapsed)}. Saved {book.output}"))
     return book.output

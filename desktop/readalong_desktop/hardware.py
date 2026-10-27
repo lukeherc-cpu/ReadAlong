@@ -11,12 +11,12 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import gpu_libraries
+from . import gpu_libraries, vulkan
 
 
 @dataclass
 class Hardware:
-    accelerator: str  # "cuda", "metal" or "cpu"
+    accelerator: str  # "cuda", "vulkan", "metal" or "cpu"
     cpu: str
     cores: int
     gpu: str | None = None
@@ -26,6 +26,9 @@ class Hardware:
         if self.accelerator == "cuda":
             memory = f", {self.vram_gb:.0f} GB" if self.vram_gb else ""
             return f"NVIDIA GPU: {self.gpu or 'detected'}{memory}"
+        if self.accelerator == "vulkan":
+            memory = f", {self.vram_gb:.0f} GB" if self.vram_gb else ""
+            return f"GPU (Vulkan): {self.gpu or 'detected'}{memory}"
         if self.accelerator == "metal":
             return f"Apple GPU: {self.gpu or self.cpu}"
         return f"CPU: {self.cpu} ({self.cores} threads). No supported GPU found."
@@ -77,6 +80,12 @@ def detect(force: str | None = None) -> Hardware:
                 return Hardware("cuda", cpu, cores, gpu=name, vram_gb=vram)
         except Exception:
             pass
+    if force in (None, "auto", "vulkan") and sys.platform != "darwin" and vulkan.cli_path():
+        # AMD and Intel cards, and NVIDIA ones whose CUDA didn't load. Forcing it also accepts integrated
+        # and software (lavapipe) devices, which the build test uses.
+        card = vulkan.best(vulkan.probe(), any_kind=force == "vulkan")
+        if card:
+            return Hardware("vulkan", cpu, cores, gpu=card["name"], vram_gb=card["vram_gb"] or None)
     return Hardware("cpu", cpu, cores)
 
 
@@ -97,10 +106,11 @@ MODELS = [
     Model("large-v3", "Large v3", "Best", 3.1),
 ]
 
-# Times faster than real time on a typical machine of each kind (mid-range NVIDIA card, base Apple
+# Times faster than real time on a typical machine of each kind (mid-range NVIDIA or AMD card, base Apple
 # M-series chip, 8-thread CPU at int8). Rough; a finished book replaces them with measured speeds.
 SPEED = {
     "cuda": {"tiny": 300, "base": 250, "small": 150, "medium": 70, "large-v3-turbo": 110, "large-v3": 45},
+    "vulkan": {"tiny": 200, "base": 150, "small": 70, "medium": 25, "large-v3-turbo": 40, "large-v3": 14},
     "metal": {"tiny": 120, "base": 90, "small": 45, "medium": 18, "large-v3-turbo": 30, "large-v3": 10},
     "cpu": {"tiny": 45, "base": 28, "small": 10, "medium": 3.5, "large-v3-turbo": 3, "large-v3": 1.5},
 }
@@ -146,6 +156,15 @@ def speed(hardware: Hardware, model: str) -> tuple[float, bool]:
         generation = re.search(r"\bm(\d)", name)
         if generation:
             base *= 1 + 0.15 * (int(generation.group(1)) - 1)
+    elif hardware.accelerator == "vulkan":
+        name = (hardware.gpu or "").lower()
+        series = re.search(r"rx\s*(\d)\d{3}", name)
+        if series:
+            base *= {5: 0.5, 6: 1.0, 7: 1.4, 9: 1.8}.get(int(series.group(1)), 1.0)
+        elif "arc" in name:
+            base *= 0.8
+        elif "nvidia" not in name and "geforce" not in name:
+            base *= 0.4
     elif hardware.accelerator == "cuda":
         name = (hardware.gpu or "").lower()
         series = re.search(r"rtx\s*(\d)0", name)
@@ -162,12 +181,13 @@ def choices(hardware: Hardware, audio_seconds: float) -> list[dict]:
     """Every model this computer can run, fastest finish first, with the recommended one marked."""
     rows = []
     for model in MODELS:
-        if hardware.accelerator == "cuda" and hardware.vram_gb and hardware.vram_gb < 3 and model.id.startswith("large"):
+        if hardware.accelerator in ("cuda", "vulkan") and hardware.vram_gb and hardware.vram_gb < 3 \
+                and model.id.startswith("large"):
             continue
         times, measured = speed(hardware, model.id)
         rows.append({"model": model, "times": times, "measured": measured, "seconds": audio_seconds / times})
     rows.sort(key=lambda row: row["seconds"])
-    recommended = {"cuda": "large-v3-turbo", "metal": "large-v3-turbo"}.get(hardware.accelerator,
+    recommended = {"cuda": "large-v3-turbo", "vulkan": "large-v3-turbo", "metal": "large-v3-turbo"}.get(hardware.accelerator,
                                                                            "medium" if hardware.cores >= 16 else "small")
     for row in rows:
         row["recommended"] = row["model"].id == recommended
