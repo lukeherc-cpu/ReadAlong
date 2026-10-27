@@ -1,5 +1,9 @@
 Transcribe audiobooks on your computer, then let the ReadAlong phone app import the text. A computer is much faster than a phone, and a graphics card faster still.
 
+**New in 0.2.1**
+- Fixes graphics cards not being found on Linux distributions newer than Ubuntu 22.04 (Fedora, Bazzite, Arch and others). The drivers couldn't load inside the app; the check now runs outside it.
+- `--gpu-info` shows the graphics cards the app sees and which one it uses.
+
 **New in 0.2.0**
 - AMD and Intel graphics cards now work on Windows and Linux (through Vulkan), as well as NVIDIA.
 - Library folders are recognised: each book is listed under its library, and a single book folder or file is listed on its own.
