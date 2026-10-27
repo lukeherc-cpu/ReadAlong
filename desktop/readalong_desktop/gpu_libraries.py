@@ -46,3 +46,14 @@ def load() -> None:
                         ctypes.CDLL(str(folder / name), mode=ctypes.RTLD_GLOBAL)
                     except OSError:
                         pass
+
+
+def bundled() -> list[str]:
+    """The NVIDIA library packages present, for the build check."""
+    found = []
+    for root in _roots():
+        for package in ("cuda_runtime", "cublas", "cudnn"):
+            folder = root / package / ("bin" if sys.platform == "win32" else "lib")
+            if folder.is_dir() and any(folder.iterdir()):
+                found.append(package)
+    return sorted(set(found))
