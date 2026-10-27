@@ -108,7 +108,11 @@ class AudiobookTranscriptionService : Service() {
     private suspend fun prepareBook(book: String, workId: String) {
         val resources = TranscriptionResources(app)
         // "Aggressive transcription" skips the warm / battery saver / low memory slow-down; a hot phone still waits.
-        suspend fun conserve() = !app.appPreferences.preferences.first().aggressiveTranscription && resources.conserve()
+        suspend fun aggressive() = app.appPreferences.preferences.first().aggressiveTranscription
+        suspend fun conserve() = !aggressive() && resources.conserve()
+        // A warm phone keeps full batches and cools between them. Cooling after every 30 s chunk
+        // (a few seconds of work, then 30 s idle) made warm-phone transcription several times slower.
+        suspend fun coolDown() = !aggressive() && resources.warm()
         var complete = false
         var stop = false
         // Each pass owns one recognition binding. A failure ends the pass, which releases the
@@ -144,7 +148,7 @@ class AudiobookTranscriptionService : Service() {
                             }
                             app.importedEpub.requestAlignment(book)
                             if (!complete) {
-                                if (conserve() && resources.warm()) {
+                                if (coolDown()) {
                                     status(book, workId, "QUEUED", "Phone is warm, pausing 30 sec to cool down")
                                     delay(30_000)
                                 } else {

@@ -8,7 +8,16 @@ import java.io.IOException
 import java.util.concurrent.atomic.AtomicBoolean
 
 class RecognitionConnection(private val context: Context, private val service: Class<out RecognitionService>? = null) {
-    companion object { const val CONNECT_TIMEOUT_MS = 30_000L }
+    companion object {
+        const val CONNECT_TIMEOUT_MS = 30_000L
+        private val recentMs = ArrayDeque<Long>()
+        /** A chunk that takes far longer than recent ones has stalled (e.g. its worker threads are
+         * starved after Android shrank the CPU set). Fail it so the caller retries in a fresh session. */
+        fun stallLimitMs(): Long = synchronized(recentMs) {
+            if (recentMs.size < 3) 180_000L else (recentMs.sorted()[recentMs.size / 2] * 6).coerceIn(60_000L, 240_000L)
+        }
+        private fun record(ms: Long) = synchronized(recentMs) { recentMs.addLast(ms); while (recentMs.size > 9) recentMs.removeFirst() }
+    }
     /** An extra binding keeps one private service/model alive between bounded chunk requests.
      * Always released on success, cancellation or error; no started service or idle model cache. */
     suspend fun <T> withSession(block: suspend (RecognitionConnection) -> T): T {
@@ -31,8 +40,10 @@ class RecognitionConnection(private val context: Context, private val service: C
 
     suspend fun transcribe(model: File, pcm: File, backend: String = "whistle", onMetrics: (LongArray) -> Unit = {}, onProgress: (Int) -> Unit = {}): String {
         if (service == null) return withSession { it.transcribe(model, pcm, backend, onMetrics, onProgress) }
-        return withContext(Dispatchers.Main) {
-        withTimeout(8 * 60_000L) { suspendCancellableCoroutine { continuation ->
+        val limit = stallLimitMs()
+        val started = SystemClock.elapsedRealtime()
+        val result = try { withContext(Dispatchers.Main) {
+        withTimeout(limit) { suspendCancellableCoroutine<String> { continuation ->
             val requestId = java.util.UUID.randomUUID().toString()
             var remote: Messenger? = null
             val bound = AtomicBoolean(false)
@@ -92,6 +103,10 @@ class RecognitionConnection(private val context: Context, private val service: C
                 }
             }
         } }
-    }
+        } } catch (stalled: TimeoutCancellationException) {
+            throw IOException("Speech recognition stalled for ${limit / 1000} s. Retrying in a fresh session.")
+        }
+        record(SystemClock.elapsedRealtime() - started)
+        return result
     }
 }

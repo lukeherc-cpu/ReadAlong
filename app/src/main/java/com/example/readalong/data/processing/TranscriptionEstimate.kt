@@ -46,7 +46,9 @@ object TranscriptionEstimate {
         val units = cachedPlan(job.planJson)
         val remaining = units.drop(job.completedUnits)
         if (remaining.isEmpty()) return "Finishing your ReadAlong…"
-        val ms = remaining.sumOf { it.endMs - it.startMs } * value.optDouble("rate", 1.0) + remaining.size * 3000.0
+        // The rate already covers each unit's whole cycle (see ProcessingRunner). The small allowance is for
+        // the restart between batches of units; the old 3 s per unit doubled estimates on a fast phone.
+        val ms = remaining.sumOf { it.endMs - it.startMs } * value.optDouble("rate", 1.0) + remaining.size * 300.0
         return format(ms.toLong())
     }
     internal fun format(ms: Long): String {

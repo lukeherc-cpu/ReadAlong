@@ -42,6 +42,9 @@ class ProcessingRunner(private val database: ReadAlongDatabase, private val epub
                 database.bookDao().putMetadata(LibraryMetadataEntity(com.example.readalong.data.audio.Mp3Timing.versionKey(bookId),
                     com.example.readalong.data.audio.Mp3Timing.VERSION))
             }
+            // Each unit's time runs from the previous checkpoint, so the rate includes saving, publishing and
+            // the between-unit checks, and the estimate needn't guess a per-unit overhead.
+            var unitBegan = android.os.SystemClock.elapsedRealtime()
             // Start at the durable checkpoint. Re-reading the full job (including its large
             // plan JSON) for every completed chunk makes late-book one-unit batches quadratic.
             for (index in initial.completedUnits until units.size) {
@@ -49,7 +52,6 @@ class ProcessingRunner(private val database: ReadAlongDatabase, private val epub
                 val job = current(bookId, workId)
                 if (index < job.completedUnits) continue
                 update(bookId, workId, ProcessingState.PROCESSING, if (book.isDemo) "Preparing sample chapter ${index + 1} of ${units.size}." else "Transcribing chunk ${index + 1} of ${units.size} with ${com.example.readalong.domain.transcription.SpeechModels.find(engine.id)?.name ?: "Offline speech model"}…")
-                val unitBegan = android.os.SystemClock.elapsedRealtime()
                 val segments = engine.transcribe(input).toList() // A real unit contains at most 30 seconds of audio.
                 coroutineContext.ensureActive()
                 if (book.isDemo) check(segments.isNotEmpty()) { "No words were found in this audio." }
@@ -72,11 +74,12 @@ class ProcessingRunner(private val database: ReadAlongDatabase, private val epub
                 epub.publishReadingRange(input)
                 android.util.Log.d("ReadAlongPerf", "reading_publish_ms=${android.os.SystemClock.elapsedRealtime() - publishBegan}")
                 // Persist a rolling rate beside the checkpoint; no recognition timestamps are changed.
+                val unitEnded = android.os.SystemClock.elapsedRealtime()
                 if (!book.isDemo) try {
-                    TranscriptionEstimate.record(database, job, input.endMs - input.startMs,
-                        android.os.SystemClock.elapsedRealtime() - unitBegan)
+                    TranscriptionEstimate.record(database, job, input.endMs - input.startMs, unitEnded - unitBegan)
                 } catch (cancelled: CancellationException) { throw cancelled }
                 catch (_: Exception) { /* Estimates are optional; never fail a saved transcription. */ }
+                unitBegan = unitEnded
                 processed++
                 val continueSession = afterCheckpoint()
                 if ((processed >= maxUnits || !continueSession) && index < units.lastIndex) {
