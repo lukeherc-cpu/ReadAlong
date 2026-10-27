@@ -7,8 +7,38 @@ Turn any DRM-free audiobook into readable text on your phone, or sync it to an E
 
 ReadAlong works with your own audiobook files. It does not include a book catalogue, sell books, or require an account to listen and read.
 
+## Screenshots
+
+<table>
+  <tr>
+    <td><img src="docs/screenshots/library.jpg" width="200" alt="Library with cover grid"></td>
+    <td><img src="docs/screenshots/player-cover.jpg" width="200" alt="Player showing the cover"></td>
+    <td><img src="docs/screenshots/player-text.jpg" width="200" alt="Player with the cover flipped to the text"></td>
+    <td><img src="docs/screenshots/queue.jpg" width="200" alt="Transcription queue"></td>
+  </tr>
+  <tr>
+    <td align="center">Library</td>
+    <td align="center">Player</td>
+    <td align="center">Tap the cover to read along</td>
+    <td align="center">Transcription queue</td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/library-transcribing.jpg" width="200" alt="Library while a book is transcribing"></td>
+    <td><img src="docs/screenshots/player-cover-fourth-wing.jpg" width="200" alt="Player colored to match the cover"></td>
+    <td><img src="docs/screenshots/player-text-fourth-wing.jpg" width="200" alt="Text preview colored to match the cover"></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td align="center">Transcribing in the background</td>
+    <td align="center">Colors follow the cover</td>
+    <td align="center">Text preview</td>
+    <td></td>
+  </tr>
+</table>
+
 ## Contents
 
+- [Screenshots](#screenshots)
 - [Download and install](#download-and-install)
 - [Your first book](#your-first-book)
 - [Build your library](#build-your-library)
