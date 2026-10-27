@@ -48,7 +48,46 @@ fun LibraryScreen(
     val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as? com.example.readalong.ReadAlongApplication
     val scope = rememberCoroutineScope()
     val width = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp
-    Scaffold(bottomBar = miniPlayer) { insets ->
+    // The header lives in the top bar rather than the grid so it stays pinned while the library scrolls.
+    Scaffold(
+        topBar = {
+            Surface(color = MaterialTheme.colorScheme.background) {
+                Column(
+                    Modifier.fillMaxWidth()
+                        .windowInsetsPadding(ScaffoldDefaults.contentWindowInsets.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
+                        .padding(horizontal = 20.dp, vertical = 8.dp)
+                        .testTag("library_header"),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.primary) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = onAbout) { Icon(painterResource(R.drawable.ic_settings), "Settings") }
+                        IconButton(onClick = onFolders) { Icon(painterResource(R.drawable.ic_bookshelf), "Audiobook folders") }
+                        Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { com.example.readalong.ui.launch.LibraryLogo(scanningFolder, transcribing, settings.animateTranscriptionLogo, onQueue) }
+                        IconButton(onClick = { searchVisible = !searchVisible; if (!searchVisible) query = "" }) { Icon(painterResource(R.drawable.ic_search), "Search library") }
+                        importControls()
+
+                    }
+                    }
+                    if (state is LibraryUiState.Ready && searchVisible) {
+                        OutlinedTextField(
+                            value = query,
+                            onValueChange = { query = it },
+                            label = { Text(stringResource(R.string.search_books)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            leadingIcon = { Icon(painterResource(R.drawable.ic_search), null, Modifier.size(24.dp)) },
+                            trailingIcon = if (query.isNotEmpty()) {
+                                { TextButton(onClick = { query = "" }) { Text(stringResource(R.string.clear_search)) } }
+                            } else null,
+                            shape = RoundedCornerShape(16.dp),
+                        )
+                    }
+                }
+            }
+        },
+        bottomBar = miniPlayer,
+    ) { insets ->
         LazyVerticalGrid(
             columns = if (settings.listLibrary) GridCells.Fixed(1) else if (width >= 600) GridCells.Adaptive(180.dp) else GridCells.Fixed(2),
             modifier = Modifier.fillMaxSize().padding(insets).testTag("library_grid"),
@@ -56,33 +95,7 @@ fun LibraryScreen(
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            item(key = "toolbar", span = { GridItemSpan(maxLineSpan) }) {
-                CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.primary) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onAbout) { Icon(painterResource(R.drawable.ic_settings), "Settings") }
-                    IconButton(onClick = onFolders) { Icon(painterResource(R.drawable.ic_bookshelf), "Audiobook folders") }
-                    Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { com.example.readalong.ui.launch.LibraryLogo(scanningFolder, transcribing, settings.animateTranscriptionLogo, onQueue) }
-                    IconButton(onClick = { searchVisible = !searchVisible; if (!searchVisible) query = "" }) { Icon(painterResource(R.drawable.ic_search), "Search library") }
-                    importControls()
-
-                }
-                }
-            }
             if (state is LibraryUiState.Ready) {
-                if (searchVisible) item(key = "search", span = { GridItemSpan(maxLineSpan) }) {
-                    OutlinedTextField(
-                        value = query,
-                        onValueChange = { query = it },
-                        label = { Text(stringResource(R.string.search_books)) },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        leadingIcon = { Icon(painterResource(R.drawable.ic_search), null, Modifier.size(24.dp)) },
-                        trailingIcon = if (query.isNotEmpty()) {
-                            { TextButton(onClick = { query = "" }) { Text(stringResource(R.string.clear_search)) } }
-                        } else null,
-                        shape = RoundedCornerShape(16.dp),
-                    )
-                }
                 item(key = "import-status", span = { GridItemSpan(maxLineSpan) }) { importStatus() }
                 val groups = libraryGroups(state.books, query, sort)
                 if (groups.isEmpty()) {
