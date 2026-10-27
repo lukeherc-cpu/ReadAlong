@@ -1,0 +1,129 @@
+name: Desktop app
+
+# Builds ReadAlong Desktop for Windows, macOS (Apple Silicon) and Linux, transcribes a short
+# synthesized speech clip with each build, and checks the .readalong file like the phone does.
+# Run it by hand with "publish" ticked to attach the downloads to a desktop-v<version> release.
+on:
+  push:
+    paths: ["desktop/**", ".github/workflows/desktop.yml"]
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Publish a desktop-v<version> release with the downloads"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            artifact: ReadAlong-Desktop-Windows
+          - os: macos-14
+            artifact: ReadAlong-Desktop-macOS-AppleSilicon
+          - os: ubuntu-22.04
+            artifact: ReadAlong-Desktop-Linux
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller==6.16.0 pytest
+          if [ "$RUNNER_OS" = "Linux" ]; then sudo apt-get update -q && sudo apt-get install -y -q ffmpeg espeak-ng python3-tk; fi
+          if [ "$RUNNER_OS" = "macOS" ]; then brew install ffmpeg; fi
+          if [ "$RUNNER_OS" = "Windows" ]; then choco install ffmpeg -y --no-progress; fi
+
+      - name: Unit tests
+        run: python -m pytest -q tests
+
+      - name: Build
+        run: |
+          common=(--noconfirm --clean --collect-data faster_whisper --collect-binaries ctranslate2
+                  --collect-binaries onnxruntime --hidden-import tkinter --name "ReadAlong Desktop")
+          case "$RUNNER_OS" in
+            macOS) pyinstaller "${common[@]}" --windowed --osx-bundle-identifier com.readalong.desktop \
+                     --collect-all mlx --collect-all mlx_whisper run.py ;;
+            *) pyinstaller "${common[@]}" --collect-binaries nvidia.cublas --collect-binaries nvidia.cudnn \
+                 --collect-binaries nvidia.cuda_runtime run.py ;;
+          esac
+          ls dist
+
+      - name: Speech test with the built app
+        run: |
+          mkdir -p "smoke/Test Book"
+          text="The quick brown fox jumps over the lazy dog. ReadAlong turns audiobooks into text you can read while you listen."
+          case "$RUNNER_OS" in
+            Linux) espeak-ng -s 140 -w "smoke/Test Book/speech.wav" "$text $text $text" ;;
+            macOS) say --file-format=WAVE --data-format=LEI16@22050 -o "smoke/Test Book/speech.wav" "$text $text $text" ;;
+            Windows) powershell -Command "Add-Type -AssemblyName System.Speech; \$s = New-Object System.Speech.Synthesis.SpeechSynthesizer; \$s.SetOutputToWaveFile('smoke\\Test Book\\speech.wav'); \$s.Speak('$text $text $text'); \$s.Dispose()" ;;
+          esac
+          case "$RUNNER_OS" in
+            macOS) app="dist/ReadAlong Desktop.app/Contents/MacOS/ReadAlong Desktop" ;;
+            Windows) app="dist/ReadAlong Desktop/ReadAlong Desktop.exe" ;;
+            *) app="dist/ReadAlong Desktop/ReadAlong Desktop" ;;
+          esac
+          "$app" --version
+          "$app" --check
+          "$app" --list-models "smoke/Test Book"
+          "$app" --model tiny --device cpu --yes "smoke/Test Book"
+          python tests/check_output.py "smoke/Test Book/Test Book.readalong" "smoke/Test Book" fox
+
+      - name: Apple GPU test (runner GPUs are virtual, so this may not run)
+        if: runner.os == 'macOS'
+        continue-on-error: true
+        run: |
+          rm -f "smoke/Test Book/Test Book.readalong"
+          "dist/ReadAlong Desktop.app/Contents/MacOS/ReadAlong Desktop" --model tiny --device metal --yes "smoke/Test Book"
+          python tests/check_output.py "smoke/Test Book/Test Book.readalong" "smoke/Test Book" fox
+
+      - name: Package
+        run: |
+          cd dist
+          case "$RUNNER_OS" in
+            macOS) ditto -c -k --keepParent "ReadAlong Desktop.app" "../${{ matrix.artifact }}.zip" ;;
+            Windows) 7z a -tzip -mx=5 "../${{ matrix.artifact }}.zip" "ReadAlong Desktop" > /dev/null ;;
+            *) tar -czf "../${{ matrix.artifact }}.tar.gz" "ReadAlong Desktop" ;;
+          esac
+          ls -la ..
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: desktop/${{ matrix.artifact }}.*
+          compression-level: 0
+
+  publish:
+    if: github.event_name == 'workflow_dispatch' && inputs.publish
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: downloads
+          merge-multiple: true
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(python3 -c "import re;print(re.search(r'\"(.+)\"', open('desktop/readalong_desktop/__init__.py').read()).group(1))")
+          ls -la downloads
+          # Never marked latest: the latest release stays the Android app.
+          gh release create "desktop-v$version" downloads/* --target "$GITHUB_SHA" --latest=false \
+            --title "ReadAlong Desktop $version" --notes-file desktop/RELEASE_NOTES.md
