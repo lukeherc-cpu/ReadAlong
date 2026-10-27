@@ -12,7 +12,6 @@ import androidx.compose.foundation.background
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -148,7 +147,7 @@ fun QueueScreen(model: QueueViewModel, onBack: () -> Unit) {
                 item(key = "skeleton:current") { QueueSkeletonCard() }
                 items(2, key = { "skeleton:$it" }) { QueueSkeletonRow() }
             }
-            else if (ordered.isEmpty()) item(key = "empty") { Text("Tap + to add a book, then tap play on it to start its ReadAlong.", style = MaterialTheme.typography.bodyMedium) }
+            else if (ordered.isEmpty() && finished.isEmpty()) item(key = "empty") { Text("Tap + to add a book, then tap play on it to start its ReadAlong.", style = MaterialTheme.typography.bodyMedium) }
             if (current != null) item(key = current.item.bookId) {
                 val id = current.item.bookId
                 SwipeToRemove(current.item.title, enabled = drag.key == null, onRemove = { model.remove(id) }, modifier = Modifier.animateItem(placementSpec = tween(220, easing = QueueEasing))) {
@@ -196,31 +195,53 @@ fun QueueScreen(model: QueueViewModel, onBack: () -> Unit) {
                     SwipeToRemove(entry.item.title, enabled = true, onRemove = { model.remove(entry.item.bookId) }) { QueueRow(entry) }
                 }
             }
-            item(key = "not-transcribed-heading") {
-                Row(Modifier.fillMaxWidth().padding(top = 20.dp), verticalAlignment = Alignment.CenterVertically) {
-                    QueueHeading("Not transcribed", Modifier.weight(1f))
-                    TextButton(enabled = available.isNotEmpty(), onClick = model::addAll, modifier = Modifier.offset(x = 12.dp)) { Text("Add all", fontWeight = FontWeight.SemiBold) }
-                }
+        }
+    }
+    if (adding) AddToQueueSheet(available, onAdd = model::add, onAddAll = { model.addAll(); adding = false }, onDismiss = { adding = false })
+    error?.let { message -> AlertDialog(onDismissRequest = model::dismissError, title = { Text("Couldn't update queue") },
+        text = { Text(message) }, confirmButton = { TextButton(onClick = model::dismissError) { Text("OK") } }) }
+}
+
+/**
+ * Books not in the queue yet, in a sheet opened from +. Search narrows the list; an added book
+ * slides out of it so several can be added in a row.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AddToQueueSheet(available: List<QueueBook>, onAdd: (String) -> Unit, onAddAll: () -> Unit, onDismiss: () -> Unit) {
+    val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var searching by rememberSaveable { mutableStateOf(false) }
+    var query by rememberSaveable { mutableStateOf("") }
+    val shown = if (query.isBlank()) available else available.filter { entry ->
+        entry.item.title.contains(query.trim(), ignoreCase = true) || entry.book?.author?.contains(query.trim(), ignoreCase = true) == true
+    }
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = state, containerColor = MaterialTheme.colorScheme.surfaceContainerLow) {
+        Column(Modifier.fillMaxWidth().fillMaxHeight(.85f).padding(horizontal = 20.dp).testTag("add_to_queue")) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("Add to queue", Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                IconButton(onClick = { searching = !searching; if (!searching) query = "" }) { Icon(painterResource(R.drawable.ic_search), "Search books") }
+                TextButton(enabled = available.isNotEmpty(), onClick = onAddAll, modifier = Modifier.offset(x = 12.dp)) { Text("Add all", fontWeight = FontWeight.SemiBold) }
             }
-            if (available.isEmpty()) item(key = "nothing-available") { Text("Every book has been added to the queue.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-            itemsIndexed(available, key = { _, entry -> entry.item.bookId }) { index, entry ->
-                Column {
-                    if (index > 0) HorizontalDivider(Modifier.padding(start = 62.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = .5f))
-                    QueueRow(entry, action = {
-                        IconButton(onClick = { model.add(entry.item.bookId) }) { Icon(painterResource(R.drawable.ic_add), "Add ${entry.item.title} to queue") }
-                    })
+            androidx.compose.animation.AnimatedVisibility(searching,
+                enter = androidx.compose.animation.expandVertically(tween(220, easing = QueueEasing)) + androidx.compose.animation.fadeIn(tween(220)),
+                exit = androidx.compose.animation.shrinkVertically(tween(180, easing = QueueEasing)) + androidx.compose.animation.fadeOut(tween(140))) {
+                com.example.readalong.ui.components.ReadAlongSearchField(query, { query = it }, onClose = { searching = false; query = "" },
+                    accent = MaterialTheme.colorScheme.primary, modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    placeholder = "Search by title or author", testTag = "add_to_queue_search")
+            }
+            LazyColumn(Modifier.fillMaxWidth().weight(1f), contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp)) {
+                if (available.isEmpty()) item(key = "all-added") { Text("Every book has been added to the queue.", Modifier.padding(vertical = 12.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                else if (shown.isEmpty()) item(key = "no-match") { Text("No books match \"${query.trim()}\".", Modifier.padding(vertical = 12.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                items(shown, key = { it.item.bookId }) { entry ->
+                    Box(Modifier.animateItem(fadeInSpec = tween(180), placementSpec = tween(260, easing = QueueEasing), fadeOutSpec = tween(160))) {
+                        QueueRow(entry, action = {
+                            IconButton(onClick = { onAdd(entry.item.bookId) }) { Icon(painterResource(R.drawable.ic_add), "Add ${entry.item.title} to queue") }
+                        })
+                    }
                 }
             }
         }
     }
-    if (adding) AlertDialog(onDismissRequest = { adding = false }, title = { Text("Add book to queue") }, text = {
-        LazyColumn(Modifier.heightIn(max = 440.dp)) {
-            if (available.isEmpty()) item { Text("Every book has been added to the queue.") }
-            items(available, key = { it.item.bookId }) { entry -> TextButton(onClick = { model.add(entry.item.bookId); adding = false }, modifier = Modifier.fillMaxWidth()) { Text(entry.item.title, Modifier.fillMaxWidth()) } }
-        }
-    }, confirmButton = { TextButton(onClick = { adding = false }) { Text("Close") } })
-    error?.let { message -> AlertDialog(onDismissRequest = model::dismissError, title = { Text("Couldn't update queue") },
-        text = { Text(message) }, confirmButton = { TextButton(onClick = model::dismissError) { Text("OK") } }) }
 }
 
 private val activeStates = setOf("QUEUED", "PROCESSING", "PARTIAL_READY", "GENERATING_EPUB")

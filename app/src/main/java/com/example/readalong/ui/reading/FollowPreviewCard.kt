@@ -98,7 +98,7 @@ fun FollowCard(state: PlaybackState, model: ReadingViewModel, onExpand: () -> Un
     colorOf: (() -> Color)? = null, landOn: ReaderVisualAnchor? = null, onLanded: () -> Unit = {}) {
     val frame = LocalReaderFrame.current
     val insets = LocalReaderInsets.current
-    val ink = if (color.luminance() > .35f) Color(0xFF182A3B) else Color.White
+    val ink = if (color == SepiaPaper) SepiaInk else if (color.luminance() > .35f) Color(0xFF182A3B) else Color.White
     val preferences by model.preferences.collectAsStateWithLifecycle()
     val family = if (preferences.previewFont == "MATCH") preferences.fontFamily else preferences.previewFont
     val importedEdition by model.importedEdition.collectAsStateWithLifecycle()

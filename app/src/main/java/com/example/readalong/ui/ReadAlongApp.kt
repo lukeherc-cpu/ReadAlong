@@ -250,7 +250,7 @@ fun ReadAlongApp(libraryViewModel: LibraryViewModel, app: com.example.readalong.
                 val readerBackground = if (bookReading) { when (plainPreferences.theme) { "DARK" -> androidx.compose.ui.graphics.Color.Black; "SEPIA" -> com.example.readalong.ui.reading.SepiaPaper; else -> androidx.compose.ui.graphics.Color.White } } else when (readerSettings.theme) { "LIGHT" -> androidx.compose.ui.graphics.Color(0xFFFAF9F5); "SEPIA" -> com.example.readalong.ui.reading.SepiaPaper; "BLACK" -> androidx.compose.ui.graphics.Color.Black; else -> readerPalette.background }
                 // Color and corners share the bounds' duration and curve, and are only read at draw time:
                 // reading them here recomposed the entire player or reader on every transition frame.
-                val transformColor = animateColorAsState(if (mode == "follow") readerBackground else readerPalette.preview,
+                val transformColor = animateColorAsState(if (mode == "follow") readerBackground else com.example.readalong.ui.reading.minimizedReadAlongColor(readerSettings.theme, readerPalette.preview),
                     androidx.compose.animation.core.tween(com.example.readalong.ui.reading.ReaderMotionMillis, easing = com.example.readalong.ui.reading.ReaderMotionEasing), label = "Reader color")
                 val radius = animateDpAsState(if (mode == "follow") 0.dp else 24.dp,
                     androidx.compose.animation.core.tween(com.example.readalong.ui.reading.ReaderMotionMillis, easing = com.example.readalong.ui.reading.ReaderMotionEasing), label = "Reader corners")
