@@ -15,8 +15,8 @@ android {
         applicationId = "com.example.readalong"
         minSdk = 26
         targetSdk = 37
-        versionCode = 65
-        versionName = "0.40.6"
+        versionCode = 66
+        versionName = "0.40.7"
 
         ndk { abiFilters += providers.gradleProperty("readalongAbi").orNull?.let { listOf(it) } ?: listOf("arm64-v8a") }
         externalNativeBuild { cmake { arguments += "-DANDROID_STL=c++_shared" } }
