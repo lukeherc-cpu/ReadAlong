@@ -40,14 +40,19 @@ class QueueNavigationTest {
             compose.waitUntil(5000) { runBlocking { app.database.processingDao().find(ids[2])!!.state == "WAITING_QUEUE" } }
             assertEquals(0, runBlocking { app.database.processingDao().find(ids[2])!!.completedUnits })
             compose.onRoot().captureToImage().asAndroidBitmap().let { bitmap -> java.io.File(app.getExternalFilesDir(null), "verification-queue.png").outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) } }
-            compose.onNodeWithTag("transcription_queue").performScrollToNode(hasContentDescription("Reorder Queue sample A"))
-            val first = compose.onNodeWithContentDescription("Reorder Queue sample A").fetchSemanticsNode().boundsInRoot
-            val second = compose.onNodeWithContentDescription("Reorder Queue sample B").fetchSemanticsNode().boundsInRoot
-            compose.onNodeWithContentDescription("Reorder Queue sample A").performTouchInput {
-                down(center); advanceEventTime(16); moveBy(Offset(0f, second.center.y-first.center.y), 500); up()
+            compose.onNodeWithTag("transcription_queue").performScrollToNode(hasTestTag("queue:${ids[0]}"))
+            val first = compose.onNodeWithTag("queue:${ids[0]}").fetchSemanticsNode().boundsInRoot
+            val second = compose.onNodeWithTag("queue:${ids[1]}").fetchSemanticsNode().boundsInRoot
+            // Hold the row to pick it up, then drag it below the next one.
+            compose.onNodeWithTag("queue:${ids[0]}").performTouchInput {
+                down(center); advanceEventTime(viewConfiguration.longPressTimeoutMillis + 100); moveBy(Offset(0f, second.center.y-first.center.y), 500); up()
             }
             compose.waitUntil(5000) { runBlocking { app.database.processingDao().registeredQueue().filter { it.bookId in ids }.first().bookId == ids[1] } }
-            compose.onNodeWithContentDescription("Remove Queue sample A from queue").performClick()
+            // Swiping left removes a row; the same action is offered to accessibility services.
+            val remove = compose.onNode(SemanticsMatcher("can remove Queue sample A") { node ->
+                node.config.getOrNull(SemanticsActions.CustomActions)?.any { it.label == "Remove Queue sample A from queue" } == true
+            }).fetchSemanticsNode().config[SemanticsActions.CustomActions].first { it.label == "Remove Queue sample A from queue" }
+            compose.runOnUiThread { remove.action() }
             compose.waitUntil(5000) { runBlocking { app.database.processingDao().find(ids[0])!!.state == "WAITING_SELECTION" } }
             compose.onNodeWithText("Not transcribed").assertExists()
             compose.onNodeWithText("Add all").performScrollTo().performClick()
