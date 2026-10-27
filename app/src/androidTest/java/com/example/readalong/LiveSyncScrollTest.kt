@@ -50,9 +50,7 @@ class LiveSyncScrollTest {
     private fun scrollsWhilePublishing(epub: Boolean) {
         val rows = runBlocking { app.database.readingDao().segments(id) }
         if (epub) importEpub(rows)
-        compose.waitUntil(10_000) { compose.onAllNodesWithContentDescription("Search library").fetchSemanticsNodes().isNotEmpty() }
-        compose.onNodeWithContentDescription("Search library").performClick()
-        compose.onNodeWithText("Search title or author").performTextInput("Mira")
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("library_grid").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("library_grid").performScrollToNode(hasTestTag("book:$id"))
         compose.onNodeWithTag("book:$id").performClick()
         compose.waitUntil(5000) { app.playback.state.value.bookId == id }
