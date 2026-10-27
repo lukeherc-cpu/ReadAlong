@@ -51,7 +51,7 @@ internal fun ReaderAppearance(value: ReaderPreferences, onDismiss: () -> Unit, b
             // Background first: "Cover" is the book's own color; "Dark" is Read only's black.
             @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
             androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                (if (bookMode) listOf("LIGHT" to "Light", "DARK" to "Dark") else listOf("DARK" to "Cover", "BLACK" to "Dark", "LIGHT" to "Light", "SEPIA" to "Sepia")).forEach { (theme, label) ->
+                (if (bookMode) listOf("LIGHT" to "Light", "SEPIA" to "Sepia", "DARK" to "Dark") else listOf("DARK" to "Cover", "BLACK" to "Dark", "LIGHT" to "Light", "SEPIA" to "Sepia")).forEach { (theme, label) ->
                     FilterChip(selected = draft.theme == theme, onClick = { draft = draft.copy(theme = theme) }, label = { Text(label) })
                 }
             }

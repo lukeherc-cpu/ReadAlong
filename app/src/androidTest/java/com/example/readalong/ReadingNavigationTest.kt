@@ -375,7 +375,7 @@ class ReadingNavigationTest {
             compose.onRoot().captureToImage().asAndroidBitmap().let { bitmap ->
                 java.io.File(app.getExternalFilesDir(null), "verification-player-flip.png").outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
             }
-            compose.onNodeWithText("Cover").performClick()
+            compose.onNodeWithTag("follow_card", useUnmergedTree = true).performClick() // Tapping the preview flips back to the cover.
             compose.waitUntil(5000) { compose.onAllNodesWithTag("flip_cover", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
             compose.waitForIdle()
             flipToPreview()

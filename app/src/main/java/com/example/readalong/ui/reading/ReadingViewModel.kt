@@ -125,7 +125,7 @@ class ReadingViewModel(val bookId: String, val database: ReadAlongDatabase, priv
             org.json.JSONObject().put("edition", mutableStart.value?.editionId).put("index", index).put("id", segment.id).put("character", character).toString()))
         visible(segment, segment.anchorAtCharacter(character))
     }
-    fun bookSettings(value: ReaderPreferences) = action { (bookPreferencesStore ?: preferencesStore).save(value.copy(theme = if (value.theme == "DARK") "DARK" else "LIGHT")) }
+    fun bookSettings(value: ReaderPreferences) = action { (bookPreferencesStore ?: preferencesStore).save(value.copy(theme = if (value.theme in setOf("DARK", "SEPIA")) value.theme else "LIGHT")) }
     val preferences = preferencesStore.preferences.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ReaderPreferences())
     private val mutableStart = MutableStateFlow<ReaderStart?>(null)
     val readerStart = mutableStart.asStateFlow()
