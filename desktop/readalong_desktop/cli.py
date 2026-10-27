@@ -38,6 +38,13 @@ def main(argv: list[str] | None = None) -> int:
             importlib.import_module(module)
         if sys.platform == "darwin" and __import__("platform").machine() == "arm64":
             importlib.import_module("mlx_whisper")
+        if sys.platform != "darwin" and getattr(sys, "frozen", False):
+            from . import gpu_libraries
+            found = gpu_libraries.bundled()
+            print(f"NVIDIA libraries bundled: {', '.join(found)}")
+            if not {"cublas", "cudnn"} <= set(found):
+                print("Missing NVIDIA libraries.")
+                return 1
         print("Bundle OK")
         return 0
     if not args.paths and not args.list_models:
