@@ -49,6 +49,7 @@ import com.example.readalong.R
 import com.example.readalong.domain.model.Book
 import com.example.readalong.playback.*
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import com.example.readalong.ui.components.ReadAlongSearchField
 import com.example.readalong.ui.components.SearchCountLabel
@@ -65,29 +66,32 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
     val bookPreferences by model.bookPreferences.collectAsStateWithLifecycle()
     val preferences = if (readingOnly) bookPreferences else followPreferences
     val palette = com.example.readalong.ui.components.rememberCoverPalette(book)
-    val plainBackground = if (preferences.theme == "DARK") Color.Black else Color.White
-    val plainInk = if (preferences.theme == "DARK") Color.White else Color.Black
+    val plainBackground = when (preferences.theme) { "DARK" -> Color.Black; "SEPIA" -> SepiaPaper; else -> Color.White }
+    val plainInk = when (preferences.theme) { "DARK" -> Color.White; "SEPIA" -> SepiaInk; else -> Color.Black }
+    val pagePalette = if (preferences.theme == "SEPIA") SepiaPalette else palette
     val colors = if (readingOnly) {
         // Read only is deliberately monochrome; a grey palette fills every other role (no Material purple).
         val grey = com.example.readalong.ui.components.CoverPalette(Color(0xFF111111), Color(0xFF4A4A4A), Color(0xFFE5E5E5))
         if (preferences.theme == "DARK") com.example.readalong.ui.theme.readAlongScheme(false, grey).copy(background = plainBackground, surface = plainBackground, onSurface = plainInk, onBackground = plainInk, primary = Color.White, onPrimary = Color.Black, secondaryContainer = Color(0xFF333333), onSecondaryContainer = Color.White)
+        else if (preferences.theme == "SEPIA") com.example.readalong.ui.theme.readAlongScheme(true, SepiaPalette, plainBackground).copy(onSurface = plainInk, onBackground = plainInk, primary = plainInk, onPrimary = plainBackground, secondaryContainer = Color(0xFFE2D5BC), onSecondaryContainer = plainInk)
         else com.example.readalong.ui.theme.readAlongScheme(true, grey, plainBackground).copy(onSurface = plainInk, onBackground = plainInk, primary = Color.Black, onPrimary = Color.White, secondaryContainer = Color(0xFFE5E5E5), onSecondaryContainer = Color.Black)
     } else if (preferences.theme == "DARK") com.example.readalong.ui.theme.playerScheme(palette, palette.background).copy(onSurface = Color.White, onBackground = Color.White, secondaryContainer = palette.preview, onSecondaryContainer = Color.White)
     // "Dark": the same black as Read only's dark page, with the cover's accent for controls.
     else if (preferences.theme == "BLACK") com.example.readalong.ui.theme.playerScheme(palette, Color.Black).copy(background = Color.Black, surface = Color.Black, onSurface = Color.White, onBackground = Color.White, secondaryContainer = Color(0xFF333333), onSecondaryContainer = Color.White)
-    else com.example.readalong.ui.theme.readAlongScheme(true, palette).copy(
-        primary = palette.preview, onPrimary = Color.White,
-        background = if (preferences.theme == "SEPIA") Color(0xFFF0E6D2) else Color(0xFFFAF9F5),
-        surface = if (preferences.theme == "SEPIA") Color(0xFFF0E6D2) else Color(0xFFFAF9F5),
+    // Sepia tones its controls with the page (no cover purple on brown paper); Light keeps the cover's accent.
+    else com.example.readalong.ui.theme.readAlongScheme(true, pagePalette).copy(
+        primary = pagePalette.preview, onPrimary = Color.White,
+        background = if (preferences.theme == "SEPIA") SepiaPaper else Color(0xFFFAF9F5),
+        surface = if (preferences.theme == "SEPIA") SepiaPaper else Color(0xFFFAF9F5),
         onSurface = Color(0xFF242820), onBackground = Color(0xFF242820))
     // Search accent: the cover's bright accent on dark pages, its deeper tone on light and sepia pages.
     val darkPage = preferences.theme == "DARK" || preferences.theme == "BLACK"
-    val searchAccent = if (darkPage) palette.accent else palette.preview
+    val searchAccent = if (darkPage) palette.accent else pagePalette.preview
     // The spoken sentence turns the page's strong ink (no highlight box): white on Cover and Dark,
     // near-black on Light, dark brown on Sepia; the rest of the text stays muted.
     val (spokenInk, restInk) = when (preferences.theme) {
         "LIGHT" -> Color(0xFF14181B) to Color(0xFF7D8682)
-        "SEPIA" -> Color(0xFF3A2611) to Color(0xFF9C8B72)
+        "SEPIA" -> SepiaInk to Color(0xFF9C8B72)
         else -> Color.White to Color.White.copy(alpha = .52f)
     }
     MaterialTheme(colorScheme = colors) {
@@ -187,7 +191,14 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
         // Controls fade in with the expansion instead of appearing at its end.
         val chromeIn = remember(book.id) { androidx.compose.animation.core.Animatable(if (frame?.frozen == true) 0f else 1f) }
         LaunchedEffect(book.id) { chromeIn.animateTo(1f, tween(ReaderMotionMillis, delayMillis = ReaderMotionMillis / 3, easing = ReaderMotionEasing)) }
-        LaunchedEffect(start?.generation, layouts[start?.index], paragraphTops[start?.index]) {
+        // Read only until the page is revealed: reading a paragraph's top here recomposed the whole
+        // reader on every frame of a scroll, which a phone busy making a ReadAlong can't keep up with.
+        val handoffLayout = if (contentReady) null else layouts[start?.index]
+        val handoffTop = if (contentReady) null else paragraphTops[start?.index]
+        // Keyed on the refresh state too: while a ReadAlong is being made or matched to an EPUB, every
+        // chunk invalidates the pager, so a refresh is often in flight when the page lays out. Without
+        // this key the page was never revealed and the unscrollable stand-in preview stayed on top.
+        LaunchedEffect(start?.generation, handoffLayout, handoffTop, items.loadState.refresh is LoadState.NotLoading) {
             if (contentReady || items.loadState.refresh !is LoadState.NotLoading) return@LaunchedEffect
             val target = start ?: return@LaunchedEffect
             if (items.itemCount == 0) { contentReady = true; return@LaunchedEffect }
@@ -201,6 +212,14 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
             }
             // Do not reveal a paragraph until the initial anchor has been laid out at its destination.
             withFrameNanos { }
+            contentReady = true
+        }
+        // Last resort: never leave the stand-in over the page. Text that keeps changing underneath can
+        // stop the anchored handoff from completing; show the live page as it is.
+        LaunchedEffect(start?.generation) {
+            if (start == null) return@LaunchedEffect
+            kotlinx.coroutines.delay(1_500)
+            snapshotFlow { items.itemCount > 0 || items.loadState.refresh is LoadState.NotLoading }.first { it }
             contentReady = true
         }
         val export = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/epub+zip")) { it?.let(model::export) }
@@ -378,7 +397,8 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
         // on the previous white page when returning from book mode to dark ReadAlong.
         val surfaceColor = colors.background
         val surfaceColorOf = LocalReaderSurfaceColor.current
-        val animatedSurface = transforming && !readingOnly
+        // Read only also morphs its paper from the card's color, instead of turning white at the first frame.
+        val animatedSurface = transforming
         Box(LocalReaderSurface.current.fillMaxSize().drawBehind {
             drawRect((if (animatedSurface) surfaceColorOf().takeIf { it != Color.Unspecified } else null) ?: surfaceColor)
         }.onGloballyPositioned { surfaceTop = it.positionInRoot().y; surfaceCoordinates[0] = it }) {
@@ -565,7 +585,9 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
             }
         }
         }
-        if (reveal < 1f) {
+        // Read only's page shows the book's own text at its own position: the ReadAlong preview
+        // can't stand in for it, so that page simply fades in over its paper.
+        if (reveal < 1f && !readingOnly) {
             // Until the page is ready, a live copy of the preview stands in: same column width and the
             // same line position as the card, so as the bounds grow its text simply continues below
             // (no blank area), and the page then crossfades in over it line for line.
@@ -634,3 +656,8 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
 private fun com.example.readalong.domain.model.TranscriptSegment.anchorAt(offset: Int) =
     anchors.firstOrNull { if (imported) offset >= it.start && offset < it.end else offset < it.end }
 
+/** Sepia paper and its dark brown ink, shared by ReadAlong and Read only. */
+internal val SepiaPaper = Color(0xFFF0E6D2)
+internal val SepiaInk = Color(0xFF3A2611)
+/** Brown controls for sepia pages: deep ink, a mid brown for filled buttons and a tan for containers. */
+internal val SepiaPalette = com.example.readalong.ui.components.CoverPalette(SepiaInk, Color(0xFF7A5A38), Color(0xFFD9C6A3))

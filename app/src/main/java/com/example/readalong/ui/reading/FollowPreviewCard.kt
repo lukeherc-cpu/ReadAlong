@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.layout.onSizeChanged
@@ -167,6 +168,17 @@ fun FollowCard(state: PlaybackState, model: ReadingViewModel, onExpand: () -> Un
             }
         }
     }
+    // Read only's page has other text on other paper, so its frame can't morph into the card: the card
+    // keeps its own text and fades it in while the paper shrinks back to the card's color.
+    val bookMode by model.readOnly.collectAsStateWithLifecycle()
+    val pageFrame = frame.takeIf { !bookMode }
+    val textIn = remember { androidx.compose.animation.core.Animatable(1f) }
+    LaunchedEffect(frame?.frozen, bookMode) {
+        if (bookMode && frame?.frozen == true) {
+            textIn.snapTo(0f)
+            textIn.animateTo(1f, androidx.compose.animation.core.tween(ReaderMotionMillis * 2 / 3, delayMillis = ReaderMotionMillis / 3, easing = ReaderMotionEasing))
+        } else textIn.snapTo(1f)
+    }
     // After the card shrinks back from the full page, the page's last frame fades out over the live card.
     val handoff = remember { androidx.compose.animation.core.Animatable(0f) }
     var wasFrozen by remember { mutableStateOf(false) }
@@ -179,10 +191,10 @@ fun FollowCard(state: PlaybackState, model: ReadingViewModel, onExpand: () -> Un
     val surface = if (colorOf != null) Modifier.clip(cardShape).drawBehind { drawRect(colorOf().takeIf { it != Color.Unspecified } ?: color) } else Modifier
     Card(onClick = onCover ?: onExpand, modifier = modifier.fillMaxWidth().then(if (square) Modifier.aspectRatio(1f) else Modifier.fillMaxHeight()).then(surface).testTag("follow_card"), shape = cardShape, colors = CardDefaults.cardColors(containerColor = if (colorOf != null) Color.Transparent else color)) {
         val density = androidx.compose.ui.platform.LocalDensity.current
-        val retainedSize = frame?.layer?.size
-        val fixed = if (frame?.frozen == true && retainedSize != null && retainedSize.width > 0)
+        val retainedSize = pageFrame?.layer?.size
+        val fixed = if (pageFrame?.frozen == true && retainedSize != null && retainedSize.width > 0)
             with(density) { Modifier.wrapContentSize(Alignment.TopCenter, unbounded = true).requiredSize(retainedSize.width.toDp(), retainedSize.height.toDp()) } else Modifier
-        Box(Modifier.fillMaxSize().then(fixed).onSizeChanged { if (square && frame?.frozen != true) frame?.previewWidthPx = it.width }.onGloballyPositioned { cardTop = it.positionInRoot().y }.retainReaderFrame(frame, LocalReaderDrawFrame.current) { handoff.value }) {
+        Box(Modifier.fillMaxSize().then(fixed).onSizeChanged { if (square && frame?.frozen != true) frame?.previewWidthPx = it.width }.onGloballyPositioned { cardTop = it.positionInRoot().y }.retainReaderFrame(pageFrame, LocalReaderDrawFrame.current) { handoff.value }.graphicsLayer { alpha = textIn.value }) {
             androidx.compose.foundation.lazy.LazyColumn(state = list, userScrollEnabled = false,
                 modifier = Modifier.fillMaxSize().padding(top = insets.top, bottom = insets.bottom).onSizeChanged { viewport = it.height }.testTag("follow_preview"),
                 contentPadding = PaddingValues(horizontal = preferences.margin.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
@@ -210,9 +222,6 @@ fun FollowCard(state: PlaybackState, model: ReadingViewModel, onExpand: () -> Un
                 Modifier.fillMaxSize().padding(top = maxOf(insets.top, 56.dp), bottom = insets.bottom + 16.dp, start = maxOf(preferences.margin.dp, 16.dp), end = maxOf(preferences.margin.dp, 16.dp)),
                 style = MaterialTheme.typography.bodyLarge.copy(color = ink.copy(alpha = .78f), lineHeight = androidx.compose.ui.unit.TextUnit(1.35f, androidx.compose.ui.unit.TextUnitType.Em)),
                 autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 9.sp, maxFontSize = 17.sp, stepSize = .5.sp))
-            if (onCover != null) TextButton(onClick = onCover, modifier = Modifier.align(Alignment.TopStart).padding(8.dp)) {
-                Text("Cover", color = ink)
-            }
             if (showExpand) IconButton(onClick = onExpand, modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)) {
                 Icon(painterResource(R.drawable.ic_fullscreen), "Read in full screen", tint = ink)
             }
