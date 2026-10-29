@@ -13,6 +13,9 @@ import com.example.readalong.ReadAlongApplication
 import com.example.readalong.data.local.AudioFileEntity
 import com.example.readalong.data.local.AudioChapterEntity
 import com.example.readalong.data.local.LibraryMetadataEntity
+import com.example.readalong.data.epub.TimedEpubChapter
+import com.example.readalong.data.epub.epubChapters
+import com.example.readalong.data.epub.useForReading
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.SettableFuture
@@ -35,6 +38,10 @@ class AudiobookService : MediaSessionService() {
     private var embeddedChapters = emptyList<AudioChapterEntity>()
     private var cachedFiles = emptyList<AudioFileEntity>()
     private var cachedEmbedded = emptyList<AudioChapterEntity>()
+    private var epubContents = emptyList<TimedEpubChapter>()
+    private var cachedEpub = emptyList<TimedEpubChapter>()
+    private var epubJob: Job? = null
+    private var bookTitle = ""
     private var cachedChapters = emptyList<PlaybackChapter>()
     private var fileOffsets = emptyList<Long>()
     private var totalDuration = 0L
@@ -102,7 +109,7 @@ class AudiobookService : MediaSessionService() {
                                 CLEAR_BOOK -> {
                                     player.pause()
                                     saveLock.withLock {
-                                        bookId = null; files = emptyList(); embeddedChapters = emptyList()
+                                        bookId = null; files = emptyList(); embeddedChapters = emptyList(); clearEpubChapters()
                                         sleepEndsAt = null; sleepChapter = null; player.clearMediaItems()
                                         app.playbackStore.publish(PlaybackState())
                                     }
@@ -133,7 +140,7 @@ class AudiobookService : MediaSessionService() {
                         result.set(SessionResult(SessionResult.RESULT_SUCCESS))
                     } catch (cancelled: CancellationException) { result.cancel(false); throw cancelled }
                     catch (_: Exception) {
-                        if (customCommand.customAction == SELECT_BOOK) { player.pause(); player.clearMediaItems(); files = emptyList(); embeddedChapters = emptyList(); bookId = args.getString("bookId") }
+                        if (customCommand.customAction == SELECT_BOOK) { player.pause(); player.clearMediaItems(); files = emptyList(); embeddedChapters = emptyList(); clearEpubChapters(); bookId = args.getString("bookId") }
                         error = "Audio access was lost. Rescan or add its folder again to restore access."
                         publish()
                         result.set(SessionResult(SessionError.ERROR_IO))
@@ -166,6 +173,8 @@ class AudiobookService : MediaSessionService() {
             contentResolver.openFileDescriptor(Uri.parse(audio.first().uri), "r")?.use { } ?: error("Missing audio")
         } catch (failure: Exception) { database.mediaDao().mediaState(id, "MISSING"); throw failure }
         files = audio; embeddedChapters = database.mediaDao().chapters(id); bookId = id; error = null; sleepEndsAt = null; sleepChapter = null
+        bookTitle = book.title
+        watchEpubChapters(id)
         val progress = database.bookDao().progress(id)?.audioPositionMs ?: 0
         val previousFileId = database.bookDao().metadata("file:$id")
         val savedIndex = audio.indexOfFirst { it.id == previousFileId }
@@ -184,6 +193,20 @@ class AudiobookService : MediaSessionService() {
         publish()
     }
 
+    private fun clearEpubChapters() { epubJob?.cancel(); epubJob = null; epubContents = emptyList() }
+    /** Matched EPUB chapters replace audio-file chapters; alignment and manual sync updates touch the edition row. */
+    private fun watchEpubChapters(id: String) {
+        clearEpubChapters()
+        epubJob = scope.launch {
+            database.importedEpubDao().observe(id).collect { edition ->
+                val chapters = try {
+                    edition?.takeIf { it.useForReading() }?.let { withContext(Dispatchers.IO) { database.epubChapters(it) } }.orEmpty()
+                } catch (cancelled: CancellationException) { throw cancelled }
+                catch (_: Exception) { emptyList() }
+                if (bookId == id) { epubContents = chapters; publish() }
+            }
+        }
+    }
     private fun locate(positionMs: Long): Pair<Int, Long> {
         var remaining = positionMs.coerceAtLeast(0)
         files.forEachIndexed { index, file ->
@@ -201,6 +224,17 @@ class AudiobookService : MediaSessionService() {
     }
     private fun checkChapterSleep() {
         val target = sleepChapter ?: return
+        val targetEnd = target.durationMs?.let { target.startMs + it }
+        if (totalDuration > 0 && targetEnd != null) {
+            // Known file lengths: chapters may span files, so compare book positions.
+            if ((fileOffsets.getOrNull(player.currentMediaItemIndex) ?: 0L) + player.currentPosition >= targetEnd) {
+                sleepChapter = null
+                player.pause()
+                val (index, position) = locate(targetEnd)
+                player.seekTo(index, position)
+            }
+            return
+        }
         val end = target.durationMs?.let { target.fileStartMs + it }
         if (player.currentMediaItemIndex != target.fileIndex || (end != null && player.currentPosition >= end)) {
             // Clear before seeking: listener callbacks can be reentrant.
@@ -214,8 +248,8 @@ class AudiobookService : MediaSessionService() {
         }
     }
     private fun refreshChapterCache() {
-        if (cachedFiles === files && cachedEmbedded === embeddedChapters) return
-        cachedFiles = files; cachedEmbedded = embeddedChapters
+        if (cachedFiles === files && cachedEmbedded === embeddedChapters && cachedEpub === epubContents) return
+        cachedFiles = files; cachedEmbedded = embeddedChapters; cachedEpub = epubContents
         var offset = 0L
         val chapters = mutableListOf<PlaybackChapter>()
         val offsets = mutableListOf<Long>()
@@ -231,8 +265,9 @@ class AudiobookService : MediaSessionService() {
             }
             offset += file.durationMs ?: 0
         }
-        cachedChapters = chapters; fileOffsets = offsets
         totalDuration = if (files.all { it.durationMs != null }) offset else 0
+        val fromEpub = if (totalDuration > 0) epubPlaybackChapters(epubContents, files.map { it.durationMs ?: 0 }, bookTitle) else emptyList()
+        cachedChapters = fromEpub.ifEmpty { chapters }; fileOffsets = offsets
     }
     private fun snapshot(): PlaybackState {
         refreshChapterCache()
@@ -240,8 +275,10 @@ class AudiobookService : MediaSessionService() {
         val fileIndex = player.currentMediaItemIndex.coerceAtLeast(0)
         val currentOffset = fileOffsets.getOrNull(fileIndex) ?: 0L
         val filePosition = player.currentPosition.coerceAtLeast(0)
-        val chapterIndex = chapters.indexOfLast { it.fileIndex == fileIndex && it.fileStartMs <= filePosition }.coerceAtLeast(0)
-        return PlaybackState(bookId, currentOffset + filePosition, totalDuration, player.isPlaying,
+        val position = currentOffset + filePosition
+        val chapterIndex = (if (totalDuration > 0) chapters.indexOfLast { it.startMs <= position }
+            else chapters.indexOfLast { it.fileIndex == fileIndex && it.fileStartMs <= filePosition }).coerceAtLeast(0)
+        return PlaybackState(bookId, position, totalDuration, player.isPlaying,
             player.playbackParameters.speed, sleepEndsAt, sleepChapter != null, error,
             chapters = chapters, chapterIndex = chapterIndex, filePositionMs = filePosition, isLoading = player.playbackState == Player.STATE_BUFFERING)
     }
