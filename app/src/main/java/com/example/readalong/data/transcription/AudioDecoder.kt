@@ -119,10 +119,18 @@ class AudioDecoder(private val context: Context) {
                         platformInput()
                     }
                 }
-            } else platformInput()
+            } else try { platformInput() }
+            catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+            catch (platform: Exception) {
+                // Playback reads MP3s with Media3, which accepts some files (unusual ID3 tags, junk
+                // before the first frame) that MediaExtractor rejects. Take the format from Media3 too.
+                try { Mp3PacketSource(context, uri).also { mp3 = it; it.open(fromUs) }.mediaFormat() }
+                catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                catch (_: Exception) { runCatching { mp3?.close() }; mp3 = null; throw platform }
+            }
             format(input)
             val mime = requireNotNull(input.getString(MediaFormat.KEY_MIME))
-            if (mime == "audio/mpeg") {
+            if (mime == "audio/mpeg" && mp3 == null) {
                 mp3 = Mp3PacketSource(context, uri)
                 mp3.open(fromUs)
             }

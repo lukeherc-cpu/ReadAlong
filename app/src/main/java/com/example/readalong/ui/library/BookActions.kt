@@ -31,7 +31,10 @@ class BookActionsViewModel(private val app: ReadAlongApplication) : ViewModel() 
      * then, so a failure is shown as a toast instead of the sheet's error line. */
     fun delete(book: Book) = action {
         try {
-            app.processing.cancel(book.id); app.playback.releaseBook(book.id)
+            // Stopping work and playback is best effort: if either fails, the book must still be deleted.
+            // A failure here used to end the delete silently, leaving the book and its progress in place.
+            runCatching { app.processing.cancel(book.id) }.onFailure { android.util.Log.w("ReadAlong", "Delete: pausing the ReadAlong failed", it) }
+            runCatching { app.playback.releaseBook(book.id) }.onFailure { android.util.Log.w("ReadAlong", "Delete: releasing playback failed", it) }
             app.processing.forgetAudioCaches(book.id)
             app.importedEpub.remove(book.id); repository.delete(book.id)
             app.processing.clearStoppedNotification(book.id)
