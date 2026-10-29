@@ -1,0 +1,7 @@
+FAIL
+book: Test Book · 1 file(s) · 23605 ms · 0 chapter(s)
+devices: cpu:AMD EPYC 7763 64-Core Processor                 (CPU)
+system: WHISPER : COREML = 0 | OPENVINO = 0 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | REPACK = 1 |
+loaded on: CPU (gpu=false)
+expected the GPU but whisper.cpp is on the CPU
+FAIL
