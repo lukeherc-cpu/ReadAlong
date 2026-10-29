@@ -69,10 +69,11 @@ fun ReaderScreen(app: AppState, bookId: String) {
     val scope = rememberCoroutineScope()
     val searchFocus = remember { FocusRequester() }
 
-    Box(Modifier.fillMaxSize().background(page).onPointerEvent(PointerEventType.Move) { lastMove = System.currentTimeMillis() }
-        .onPreviewKeyEvent { event ->
-            if (event.type == KeyEventType.KeyDown && event.isCtrlPressed && event.key == Key.F) { searchOpen = true; scope.launch { delay(50); runCatching { searchFocus.requestFocus() } }; true } else false
-        }) {
+    LaunchedEffect(app.searchRequests) {
+        if (app.searchRequests == 0) return@LaunchedEffect
+        searchOpen = true; delay(80); runCatching { searchFocus.requestFocus() }
+    }
+    Box(Modifier.fillMaxSize().background(page).onPointerEvent(PointerEventType.Move) { lastMove = System.currentTimeMillis() }) {
         if (t == null) CircularProgressIndicator(Modifier.align(Alignment.Center))
         else if (t.isEmpty) ReadAlongCard(app, b, Modifier.align(Alignment.Center).widthIn(max = 560.dp), ink)
         else FollowText(t, clock, follow, { seekBook(app, bookId, it) }, Modifier.fillMaxSize(), Fonts.reading(settings.readerFont), settings.readerSize, ink,
@@ -88,7 +89,7 @@ fun ReaderScreen(app: AppState, bookId: String) {
                     Text(b.title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = ink)
                     b.chapters.getOrNull(b.chapterAt(clock.value))?.let { Text(it.title, style = MaterialTheme.typography.labelMedium, color = ink.copy(alpha = .6f), maxLines = 1) }
                 }
-                AppIconButton("ic_search", "Search (Ctrl+F)", { searchOpen = !searchOpen })
+                AppIconButton("ic_search", "Search (Ctrl+F)", { if (searchOpen) searchOpen = false else app.searchRequests++ })
                 if (t?.contents?.isNotEmpty() == true) AppIconButton("ic_chapters", "Contents", { contentsOpen = !contentsOpen })
                 AppearanceMenu(app, ink)
             }

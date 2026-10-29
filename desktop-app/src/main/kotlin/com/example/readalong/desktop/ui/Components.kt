@@ -4,6 +4,8 @@ package com.example.readalong.desktop.ui
 
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -93,10 +95,10 @@ fun SeekBar(fraction: Float, onSeek: (Float) -> Unit, modifier: Modifier = Modif
     val shown = dragging ?: fraction
     Canvas(modifier.height(24.dp).fillMaxWidth().onSizeChanged { width = it.width }.hoverable(interaction).pointerHoverIcon(PointerIcon.Hand)
         .pointerInput(Unit) {
-            detectTapGesturesCompat { offset -> onSeek((offset.x / width).coerceIn(0f, 1f)) }
+            detectTapGestures { offset -> onSeek((offset.x / width).coerceIn(0f, 1f)) }
         }
         .pointerInput(Unit) {
-            androidx.compose.foundation.gestures.detectHorizontalDragGestures(
+            detectHorizontalDragGestures(
                 onDragStart = { dragging = (it.x / width).coerceIn(0f, 1f) },
                 onDragEnd = { dragging?.let(onSeek); dragging = null },
                 onDragCancel = { dragging = null }) { change, _ -> dragging = (change.position.x / width).coerceIn(0f, 1f) }
@@ -108,9 +110,6 @@ fun SeekBar(fraction: Float, onSeek: (Float) -> Unit, modifier: Modifier = Modif
         drawCircle(color, r, Offset(size.width * shown.coerceIn(0f, 1f), y))
     }
 }
-
-suspend fun androidx.compose.ui.input.pointer.PointerInputScope.detectTapGesturesCompat(onTap: (Offset) -> Unit) =
-    androidx.compose.foundation.gestures.detectTapGestures(onTap = onTap)
 
 /** A rounded, animated progress line. */
 @Composable

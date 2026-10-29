@@ -88,6 +88,7 @@ fun handleKey(app: AppState, event: KeyEvent): Boolean {
     if (event.type != KeyEventType.KeyDown) return false
     val settings = app.settingsStore.value
     return when {
+        event.key == Key.F && event.isCtrlPressed && app.screen is Screen.Reader -> { app.searchRequests++; true }
         event.key == Key.Escape && app.screen != Screen.Library -> { app.back(); true }
         event.key == Key.Spacebar && !event.isCtrlPressed && app.player.state.value.bookId != null -> { app.player.toggle(); true }
         event.key == Key.DirectionLeft && event.isCtrlPressed -> { app.player.skip(-settings.skipBackSeconds * 1000L); true }
