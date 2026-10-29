@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.16)
+cmake_policy(SET CMP0091 NEW)
+project(vkprobe C)
+set(CMAKE_MSVC_RUNTIME_LIBRARY MultiThreaded)
+find_package(Vulkan REQUIRED)
+add_executable(vkprobe vkprobe.c)
+target_link_libraries(vkprobe Vulkan::Vulkan)
