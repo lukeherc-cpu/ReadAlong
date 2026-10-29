@@ -25,6 +25,8 @@ import java.util.UUID
 /** One ongoing notification, including between checkpoint workers. No extra foreground service. */
 object TranscriptionNotifications {
     const val ID = 4301
+    /** Tagged "stopped:<book>": one "ReadAlong stopped" card per book. */
+    const val STOPPED_ID = ID + 1
     fun notificationId(bookId: String): Int = 10_000 + (bookId.hashCode() and 0x3fffffff)
     internal fun recoveryId(bookId: String): Int = notificationId(bookId) xor 0x40000000
     internal fun recovery(context: Context, bookId: String): android.app.Notification {
@@ -138,7 +140,7 @@ object TranscriptionNotifications {
             explanation.length > 140 -> "Your ReadAlong paused unexpectedly. Progress is saved."
             else -> explanation
         }
-        if (NotificationManagerCompat.from(context).areNotificationsEnabled()) manager.notify("stopped:$bookId", ID + 1,
+        if (NotificationManagerCompat.from(context).areNotificationsEnabled()) manager.notify("stopped:$bookId", STOPPED_ID,
             NotificationCompat.Builder(context, STOPPED_CHANNEL).setSmallIcon(R.drawable.ic_notification).setContentTitle("ReadAlong stopped").setSubText(title)
                 .setContentText(text).setStyle(NotificationCompat.BigTextStyle().bigText(text)).setContentIntent(open)
                 .setAutoCancel(true).addAction(R.drawable.ic_forward, "Retry", retry).build())
@@ -161,7 +163,7 @@ object TranscriptionNotifications {
                         stopped(app, item.bookId, item.title, job.message ?: "Your ReadAlong stopped. Progress is saved.")
                         app.database.bookDao().putMetadata(com.example.readalong.data.local.LibraryMetadataEntity(key, job.workId))
                     }
-                } else if (item.state in listOf("QUEUED", "PROCESSING", "PARTIAL_READY", "READY")) manager.cancel("stopped:${item.bookId}", ID + 1)
+                } else if (item.state in listOf("QUEUED", "PROCESSING", "PARTIAL_READY", "READY")) manager.cancel("stopped:${item.bookId}", STOPPED_ID)
             }
             val pausedBook = app.database.bookDao().metadata("paused_transcription_notification")
             val visible = queue.filter { item ->
