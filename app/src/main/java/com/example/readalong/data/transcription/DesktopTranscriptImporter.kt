@@ -42,8 +42,14 @@ class DesktopTranscriptImporter(private val context: Context, private val databa
                 val manifest = JSONObject(header.toString(Charsets.UTF_8))
                 require(manifest.getString("format") == "readalong-transcript" && manifest.getInt("version") == 1 && manifest.getBoolean("complete")) { "This transcript format is not supported or is incomplete." }
                 importedModelId = manifest.getString("model")
-                require(importedModelId in setOf(SpeechModelStore.ID, "whisper-tiny-v1")) { "This transcript was made with an unsupported speech model." }
-                importedEngine = if (importedModelId == "whisper-tiny-v1") "Whisper Tiny" else "Cactus Whistle"
+                // ReadAlong for Windows writes "desktop:<backend>:<model>" and the engine's name, e.g. "Whisper small.en".
+                val desktop = importedModelId.startsWith("desktop:") && importedModelId.length <= 120
+                require(desktop || importedModelId in setOf(SpeechModelStore.ID, "whisper-tiny-v1")) { "This transcript was made with an unsupported speech model." }
+                importedEngine = when {
+                    desktop -> manifest.optString("engine").trim().take(60).ifEmpty { "Whisper" }
+                    importedModelId == "whisper-tiny-v1" -> "Whisper Tiny"
+                    else -> "Cactus Whistle"
+                }
                 val sources = manifest.getJSONArray("sources")
                 require(libraryFiles.isNotEmpty() && sources.length() == libraryFiles.size && libraryFiles.size <= 4096) { "This transcript must contain the same audiobook audio files." }
                 // Match source bytes, not desktop filenames/paths or incidental selection order.
