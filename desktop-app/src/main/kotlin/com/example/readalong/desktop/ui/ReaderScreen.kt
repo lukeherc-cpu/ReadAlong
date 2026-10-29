@@ -100,7 +100,7 @@ fun ReaderScreen(app: AppState, bookId: String) {
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             CompositionLocalProvider(LocalContentColor provides ink) {
                 AppIconButton("ic_previous_sentence", "Previous sentence", { t?.let { sentenceJump(app, bookId, it, clock.value, -1) } }, size = 48.dp)
-                Surface(Modifier.size(64.dp).pointerHoverIcon(PointerIcon.Hand), shape = CircleShape, color = ink, shadowElevation = 8.dp,
+                Surface(modifier = Modifier.size(64.dp).pointerHoverIcon(PointerIcon.Hand), shape = CircleShape, color = ink, shadowElevation = 8.dp,
                     onClick = { if (current) app.player.toggle() else app.player.open(bookId) }) {
                     Box(contentAlignment = Alignment.Center) { CompositionLocalProvider(LocalContentColor provides page) { PlayPauseIcon(current && playback.playing, Modifier.size(26.dp)) } }
                 }

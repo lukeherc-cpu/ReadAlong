@@ -1,5 +1,6 @@
 package com.example.readalong.desktop.ui
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -49,7 +50,7 @@ fun MiniPlayer(app: AppState, modifier: Modifier = Modifier) {
                 }
                 CompositionLocalProvider(LocalContentColor provides Color.White) {
                     AppIconButton("ic_rewind", "Back ${settings.skipBackSeconds} seconds", { app.player.skip(-settings.skipBackSeconds * 1000L) })
-                    Surface(Modifier.size(46.dp).pointerHoverIcon(PointerIcon.Hand), shape = CircleShape, color = palette.accent, onClick = { app.player.toggle() }) {
+                    Surface(modifier = Modifier.size(46.dp).pointerHoverIcon(PointerIcon.Hand), shape = CircleShape, color = palette.accent, onClick = { app.player.toggle() }) {
                         Box(contentAlignment = Alignment.Center) {
                             CompositionLocalProvider(LocalContentColor provides palette.background) { PlayPauseIcon(state.playing, Modifier.size(20.dp)) }
                         }

@@ -173,7 +173,7 @@ private fun PlayerControls(app: AppState, book: LibraryBook, clock: State<Long>,
             val interaction = remember { MutableInteractionSource() }
             val hovered by interaction.collectIsHoveredAsState()
             val scale by animateFloatAsState(if (hovered) 1.06f else 1f, spring(dampingRatio = .55f, stiffness = 500f))
-            Surface(Modifier.size(84.dp).graphicsLayer { scaleX = scale; scaleY = scale }.hoverable(interaction).pointerHoverIcon(PointerIcon.Hand),
+            Surface(modifier = Modifier.size(84.dp).graphicsLayer { scaleX = scale; scaleY = scale }.hoverable(interaction).pointerHoverIcon(PointerIcon.Hand),
                 shape = CircleShape, color = MaterialTheme.colorScheme.primary, shadowElevation = 10.dp,
                 onClick = { if (current) app.player.toggle() else app.player.open(book.id) }) {
                 Box(contentAlignment = Alignment.Center) {
