@@ -1,0 +1,118 @@
+> Task :checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :convertXmlValueResourcesForMain NO-SOURCE
+> Task :copyNonXmlValueResourcesForMain NO-SOURCE
+> Task :prepareComposeResourcesTaskForMain NO-SOURCE
+> Task :generateResourceAccessorsForMain SKIPPED
+> Task :generateActualResourceCollectorsForMain SKIPPED
+> Task :generateComposeResClass SKIPPED
+> Task :sharedSources UP-TO-DATE
+> Task :compileKotlin UP-TO-DATE
+> Task :compileJava NO-SOURCE
+> Task :assembleMainResources UP-TO-DATE
+> Task :sharedResources UP-TO-DATE
+> Task :processResources UP-TO-DATE
+> Task :classes UP-TO-DATE
+> Task :jar UP-TO-DATE
+> Task :prepareAppResources NO-SOURCE
+
+> Task :run FAILED
+Exception in thread "main" java.lang.IllegalArgumentException: Invalid color value @android:color/transparent
+	at androidx.compose.ui.res.vector.DesktopValueParsers_desktopKt.parseColorValue(DesktopValueParsers.desktop.kt:38)
+	at androidx.compose.ui.res.vector.DesktopXmlVectorParser_desktopKt.parseStringBrush(DesktopXmlVectorParser.desktop.kt:154)
+	at androidx.compose.ui.res.vector.DesktopXmlVectorParser_desktopKt.parsePath(DesktopXmlVectorParser.desktop.kt:106)
+	at androidx.compose.ui.res.vector.DesktopXmlVectorParser_desktopKt.parseVectorNode(DesktopXmlVectorParser.desktop.kt:94)
+	at androidx.compose.ui.res.vector.DesktopXmlVectorParser_desktopKt.parseVectorNodes(DesktopXmlVectorParser.desktop.kt:88)
+	at androidx.compose.ui.res.vector.DesktopXmlVectorParser_desktopKt.parseVectorRoot(DesktopXmlVectorParser.desktop.kt:80)
+	at androidx.compose.ui.res.DesktopXmlVectorResources_desktopKt.loadXmlImageVector(DesktopXmlVectorResources.desktop.kt:56)
+	at com.example.readalong.desktop.ui.AppIcons.get(Theme.kt:81)
+	at com.example.readalong.desktop.ui.LibraryScreenKt.SearchField(LibraryScreen.kt:110)
+	at com.example.readalong.desktop.ui.LibraryScreenKt.LibraryScreen(LibraryScreen.kt:57)
+	at com.example.readalong.desktop.ui.AppKt.ReadAlongApp$lambda$21$lambda$20$lambda$19$lambda$13(App.kt:62)
+	at androidx.compose.runtime.internal.ComposableLambdaImpl.invoke(ComposableLambda.kt:142)
+	at androidx.compose.runtime.internal.ComposableLambdaImpl.invoke(ComposableLambda.kt:51)
+	at androidx.compose.animation.AnimatedContentKt$AnimatedContent$6$1$5.invoke(AnimatedContent.kt:863)
+	at androidx.compose.animation.AnimatedContentKt$AnimatedContent$6$1$5.invoke(AnimatedContent.kt:853)
+	at androidx.compose.runtime.internal.ComposableLambdaImpl.invoke(ComposableLambda.kt:130)
+	at androidx.compose.runtime.internal.ComposableLambdaImpl.invoke(ComposableLambda.kt:51)
+	at androidx.compose.animation.AnimatedVisibilityKt.AnimatedEnterExitImpl(AnimatedVisibility.kt:752)
+	at androidx.compose.animation.AnimatedContentKt$AnimatedContent$6$1.invoke(AnimatedContent.kt:835)
+	at androidx.compose.animation.AnimatedContentKt$AnimatedContent$6$1.invoke(AnimatedContent.kt:818)
+	at androidx.compose.runtime.internal.ComposableLambdaImpl.invoke(ComposableLambda.kt:121)
+	at androidx.compose.runtime.internal.ComposableLambdaImpl.invoke(ComposableLambda.kt:51)
+	at androidx.compose.animation.AnimatedContentKt.AnimatedContent(AnimatedContent.kt:873)
+	at androidx.compose.animation.AnimatedContentKt.AnimatedContent(AnimatedContent.kt:143)
+	at com.example.readalong.desktop.ui.AppKt.ReadAlongApp$lambda$21(App.kt:56)
+	at androidx.compose.runtime.internal.ComposableLambdaImpl.invoke(ComposableLambda.kt:121)
+	at androidx.compose.runtime.internal.ComposableLambdaImpl.invoke(ComposableLambda.kt:51)
+	at androidx.compose.runtime.CompositionLocalKt.CompositionLocalProvider(CompositionLocal.kt:390)
+	at androidx.compose.material3.TextKt.ProvideTextStyle(Text.kt:462)
+	at androidx.compose.material3.MaterialThemeKt$MaterialTheme$2.invoke(MaterialTheme.kt:107)
+	at androidx.compose.material3.MaterialThemeKt$MaterialTheme$2.invoke(MaterialTheme.kt:106)
+	at androidx.compose.runtime.internal.ComposableLambdaImpl.invoke(ComposableLambda.kt:121)
+	at androidx.compose.runtime.internal.ComposableLambdaImpl.invoke(ComposableLambda.kt:51)
+	at androidx.compose.runtime.CompositionLocalKt.CompositionLocalProvider(CompositionLocal.kt:370)
+	at androidx.compose.material3.MaterialThemeKt.MaterialTheme(MaterialTheme.kt:99)
+	at androidx.compose.material3.MaterialThemeKt.MaterialTheme(MaterialTheme.kt:60)
+	at com.example.readalong.desktop.ui.ThemeKt.ReadAlongTheme(Theme.kt:99)
+	at com.example.readalong.desktop.ui.AppKt.ReadAlongApp(App.kt:52)
+	at com.example.readalong.desktop.Screenshots.run$shot$lambda$2(Screenshots.kt:44)
+	at androidx.compose.runtime.internal.ComposableLambdaImpl.invoke(ComposableLambda.kt:121)
+	at androidx.compose.runtime.internal.ComposableLambdaImpl.invoke(ComposableLambda.kt:51)
+	at androidx.compose.runtime.CompositionLocalKt.CompositionLocalProvider(CompositionLocal.kt:370)
+	at androidx.compose.ui.scene.BaseComposeScene$setContent$1$2.invoke(BaseComposeScene.skiko.kt:150)
+	at androidx.compose.ui.scene.BaseComposeScene$setContent$1$2.invoke(BaseComposeScene.skiko.kt:149)
+	at androidx.compose.runtime.internal.ComposableLambdaImpl.invoke(ComposableLambda.kt:121)
+	at androidx.compose.runtime.internal.ComposableLambdaImpl.invoke(ComposableLambda.kt:51)
+	at androidx.compose.runtime.CompositionLocalKt.CompositionLocalProvider(CompositionLocal.kt:370)
+	at androidx.compose.ui.platform.CompositionLocalsKt.ProvideCommonCompositionLocals(CompositionLocals.kt:216)
+	at androidx.compose.ui.platform.Wrapper_skikoKt$setContent$2$1.invoke(Wrapper.skiko.kt:47)
+	at androidx.compose.ui.platform.Wrapper_skikoKt$setContent$2$1.invoke(Wrapper.skiko.kt:46)
+	at androidx.compose.runtime.internal.ComposableLambdaImpl.invoke(ComposableLambda.kt:121)
+	at androidx.compose.runtime.internal.ComposableLambdaImpl.invoke(ComposableLambda.kt:51)
+	at androidx.compose.ui.platform.Wrapper_skikoKt.provide(Wrapper.skiko.kt:62)
+	at androidx.compose.ui.platform.Wrapper_skikoKt.access$provide(Wrapper.skiko.kt:1)
+	at androidx.compose.ui.platform.Wrapper_skikoKt$setContent$2.invoke(Wrapper.skiko.kt:46)
+	at androidx.compose.ui.platform.Wrapper_skikoKt$setContent$2.invoke(Wrapper.skiko.kt:45)
+	at androidx.compose.runtime.internal.ComposableLambdaImpl.invoke(ComposableLambda.kt:121)
+	at androidx.compose.runtime.internal.ComposableLambdaImpl.invoke(ComposableLambda.kt:51)
+	at androidx.compose.runtime.internal.Expect_jvmKt.invokeComposable(Expect.jvm.kt:24)
+	at androidx.compose.runtime.ComposerImpl.doCompose-aFTiNEg(Composer.kt:3843)
+	at androidx.compose.runtime.ComposerImpl.composeContent--ZbOJvo$runtime(Composer.kt:3747)
+	at androidx.compose.runtime.CompositionImpl.composeContent(Composition.kt:832)
+	at androidx.compose.runtime.Recomposer.composeInitial$runtime(Recomposer.kt:1233)
+	at androidx.compose.runtime.CompositionImpl.composeInitial(Composition.kt:672)
+	at androidx.compose.runtime.CompositionImpl.setContent(Composition.kt:639)
+	at androidx.compose.ui.platform.Wrapper_skikoKt.setContent(Wrapper.skiko.kt:45)
+	at androidx.compose.ui.scene.CanvasLayersComposeSceneImpl.createComposition(CanvasLayersComposeScene.skiko.kt:215)
+	at androidx.compose.ui.scene.BaseComposeScene.setContent(BaseComposeScene.skiko.kt:149)
+	at androidx.compose.ui.ImageComposeScene.<init>(ImageComposeScene.skiko.kt:168)
+	at androidx.compose.ui.ImageComposeScene.<init>(ImageComposeScene.skiko.kt:138)
+	at androidx.compose.ui.ImageComposeScene.<init>(ImageComposeScene.skiko.kt:132)
+	at com.example.readalong.desktop.Screenshots.run$shot(Screenshots.kt:44)
+	at com.example.readalong.desktop.Screenshots.run$shot$default(Screenshots.kt:42)
+	at com.example.readalong.desktop.Screenshots.run(Screenshots.kt:54)
+	at com.example.readalong.desktop.MainKt.main(Main.kt:22)
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_2-1793317168189.json
+
+[Incubating] Problems report is available at: file:///home/runner/work/ReadAlong/ReadAlong/desktop-app/build/reports/problems/problems-report.html
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':run' (registered by plugin 'org.jetbrains.compose').
+> Process 'command '/usr/lib/jvm/temurin-21-jdk-amd64/bin/java'' finished with non-zero exit value 1
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights from a Build Scan (powered by Develocity).
+> Get more help at https://help.gradle.org.
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/9.6.0/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD FAILED in 2s
+7 actionable tasks: 1 executed, 6 up-to-date
