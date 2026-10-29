@@ -9,6 +9,7 @@ import com.example.readalong.data.preferences.*
 import com.example.readalong.data.reading.toSegment
 import com.example.readalong.data.epub.toReadingSegment
 import com.example.readalong.data.epub.useForReading
+import com.example.readalong.data.epub.epubChapters
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import com.example.readalong.data.local.ReadingProgressEntity
@@ -343,23 +344,11 @@ class ReadingViewModel(val bookId: String, val database: ReadAlongDatabase, priv
     }
     private suspend fun loadImportedContents(edition: com.example.readalong.data.local.ImportedEpubEntity) {
         importedContents.value = withContext(Dispatchers.IO) {
-                val blocks = database.importedEpubDao().blocks(bookId, edition.editionId)
-                val nav = runCatching {
-                    val rows = org.json.JSONArray(database.bookDao().metadata("epub_contents:${edition.editionId}") ?: "[]")
-                    (0 until rows.length()).map { rows.getJSONObject(it).let { row -> row.getInt("ordinal") to row.getString("title") } }
-                }.getOrDefault(emptyList())
-                val entries = if (nav.isNotEmpty()) nav else blocks.groupBy { it.spine }.values.map { section ->
-                    section.first().ordinal to (section.filter { it.kind.startsWith("H") }.take(3).joinToString(" · ") { it.text }.ifBlank { section.first().text.take(100) })
-                }
-                val ordered = entries.distinctBy { it.first }.sortedBy { it.first }
-                ordered.mapIndexed { index, (ordinal, title) ->
-                    val end = ordered.getOrNull(index + 1)?.first ?: Int.MAX_VALUE
-                    val section = blocks.filter { it.ordinal in ordinal until end }
-                    val timed = section.filter { it.startMs >= 0 }
-                    ReadingChapter("epub:$ordinal", timed.minOfOrNull { it.startMs } ?: -1,
-                        title, if (timed.isEmpty()) "Text ready · audio not matched yet" else "Audio matched", true, ordinal)
-                }
+            database.epubChapters(edition).map { chapter ->
+                ReadingChapter("epub:${chapter.ordinal}", chapter.startMs, chapter.title,
+                    if (chapter.startMs < 0) "Text ready · audio not matched yet" else "Audio matched", true, chapter.ordinal)
             }
+        }
     }
     fun openEpubSection(index: Int) = action {
         val start = mutableStart.value ?: return@action
