@@ -123,8 +123,8 @@ extern "C" JNIEXPORT jstring JNICALL NATIVE(transcribe)(JNIEnv * env, jobject, j
             auto token = whisper_full_get_token_data(context, s, t);
             if (!first) output << ','; first = false;
             output << "{\"text\":" << quoted(whisper_full_get_token_text(context, s, t))
-                   << ",\"startMs\":" << whisper_full_get_token_t0(context, s, t) * 10
-                   << ",\"endMs\":" << whisper_full_get_token_t1(context, s, t) * 10
+                   << ",\"startMs\":" << token.t0 * 10
+                   << ",\"endMs\":" << token.t1 * 10
                    << ",\"dtwMs\":" << (token.t_dtw >= 0 ? token.t_dtw * 10 : -1)
                    << ",\"confidence\":" << token.p << '}';
         }
