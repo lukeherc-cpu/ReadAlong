@@ -53,6 +53,8 @@ class QueueViewModel(private val app: ReadAlongApplication) : ViewModel() {
     fun addAll() = action { repository.addAllToQueue() }
     fun pause(id: String) = action { repository.cancel(id) }
     fun remove(id: String) = action { repository.removeFromQueue(id) }
+    /** Offered only on a stopped (FAILED) book: makes its ReadAlong again from the start. */
+    fun rebuild(id: String) = action { repository.rebuild(id) }
     fun add(id: String) = action { repository.addToQueue(id) }
     /** Saves the new order. A book dragged to the top starts transcribing; the displaced book keeps its checkpoint. */
     fun reorder(ids: List<String>) = action {
@@ -185,7 +187,14 @@ fun QueueScreen(model: QueueViewModel, onBack: () -> Unit) {
                             scope.launch { drag.moveBy(amount.y); drag.swapIfNeeded(list, upNextIds()) { setUpNext(it) } }
                         }
                     }, action = {
-                        IconButton(onClick = { model.next(id) }) { Icon(painterResource(R.drawable.ic_play), "Transcribe ${entry.item.title} now", Modifier.size(20.dp)) }
+                        Row {
+                            if (entry.item.state == "FAILED") IconButton(onClick = { model.rebuild(id) }) {
+                                Icon(painterResource(R.drawable.ic_redo), "Rebuild ${entry.item.title} from the start", Modifier.size(20.dp))
+                            }
+                            IconButton(onClick = { model.next(id) }) {
+                                Icon(painterResource(R.drawable.ic_play), if (entry.item.state == "FAILED") "Try ${entry.item.title} again" else "Transcribe ${entry.item.title} now", Modifier.size(20.dp))
+                            }
+                        }
                     })
                 }
             }
@@ -347,6 +356,7 @@ private fun QueueBook.status(bookPercent: Int) = when {
     item.state == "WAITING_MODEL" -> "Needs the offline speech model"
     item.message?.startsWith("Waiting for charging") == true -> "Waiting for charging · $bookPercent% done"
     item.state == "WAITING_QUEUE" -> "Waiting · $bookPercent% done"
+    item.state == "FAILED" -> "Stopped · $bookPercent% done"
     job?.planJson == null -> "Ready to transcribe"
     else -> "Paused · $bookPercent% done"
 }

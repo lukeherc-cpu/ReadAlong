@@ -150,10 +150,12 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
         androidx.activity.compose.BackHandler(onBack = onPlayer)
         val snackbar = remember { SnackbarHostState() }
         LaunchedEffect(error, fullScreen) {
-            if (error != null && manualSync == null) {
-                kotlinx.coroutines.withTimeoutOrNull(5_000) { snackbar.showSnackbar(error!!, duration = SnackbarDuration.Indefinite) }
+            // Read once: the error can be cleared elsewhere while the snackbar is showing.
+            val message = error
+            if (message != null && manualSync == null) {
+                kotlinx.coroutines.withTimeoutOrNull(5_000) { snackbar.showSnackbar(message, duration = SnackbarDuration.Indefinite) }
                 snackbar.currentSnackbarData?.dismiss()
-                model.clearError(error!!)
+                model.clearError(message)
             }
         }
         val scope = rememberCoroutineScope()
