@@ -52,6 +52,13 @@ internal class Mp3PacketSource(context: Context, private val uri: Uri) : Closeab
         }
     }
 
+    /** The decoder format from Media3's own frame header, for files Android's MediaExtractor can't open. */
+    fun mediaFormat(): android.media.MediaFormat {
+        val source = requireNotNull(sourceFormat) { "No MP3 frames were found." }
+        return android.media.MediaFormat.createAudioFormat("audio/mpeg", source.sampleRate, source.channelCount)
+            .apply { setInteger(android.media.MediaFormat.KEY_MAX_INPUT_SIZE, pending.size) }
+    }
+
     suspend fun open(startUs: Long) {
         activeContext = coroutineContext
         extractor.init(object : ExtractorOutput {
