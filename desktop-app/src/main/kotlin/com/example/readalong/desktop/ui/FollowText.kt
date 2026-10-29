@@ -173,7 +173,7 @@ private fun Paragraph(paragraph: ReadingParagraph, sentence: Int, isActive: Bool
 @Composable
 fun ReturnToPosition(follow: FollowState, modifier: Modifier = Modifier) {
     AnimatedVisibility(!follow.following, modifier, enter = fadeIn() + slideInVertically { it / 2 }, exit = fadeOut() + slideOutVertically { it / 2 }) {
-        Surface(Modifier.pointerHoverIcon(PointerIcon.Hand), shape = CircleShape, color = MaterialTheme.colorScheme.primary, shadowElevation = 8.dp,
+        Surface(modifier = Modifier.pointerHoverIcon(PointerIcon.Hand), shape = CircleShape, color = MaterialTheme.colorScheme.primary, shadowElevation = 8.dp,
             onClick = { follow.following = true }) {
             Row(Modifier.padding(horizontal = 18.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(AppIcons.get("ic_down"), null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onPrimary)
