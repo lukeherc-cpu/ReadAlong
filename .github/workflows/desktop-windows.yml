@@ -1,0 +1,140 @@
+name: ReadAlong for Windows
+
+# Builds the Windows app (desktop-app/): whisper.cpp with its Vulkan GPU backend and CPU variants,
+# the Compose app, an MSI installer and a portable zip. It then transcribes synthesized speech with
+# the packaged app, on the CPU and on software Vulkan (the runner has no GPU), and renders screenshots.
+on:
+  push:
+    paths: ["desktop-app/**", ".github/workflows/desktop-windows.yml", "app/src/main/java/com/example/readalong/domain/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  WHISPER_CPP_VERSION: v1.8.7
+  VULKAN_SDK_VERSION: 1.4.309.0
+
+jobs:
+  check:
+    name: Compile, unit tests and screenshots (Linux)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Compile and test
+        run: |
+          set -o pipefail
+          mkdir -p ci-results
+          ./gradlew -p desktop-app --console=plain test 2>&1 | tee ci-results/gradle.log
+      - name: Screenshots
+        run: |
+          set -o pipefail
+          sudo apt-get install -y -q espeak-ng > /dev/null
+          ./gradlew -p desktop-app --console=plain run --args="--screenshots $PWD/ci-results/screenshots" 2>&1 | tee ci-results/screenshots.log
+      - name: Keep the results
+        if: always()
+        uses: ./.github/actions/ci-results
+        with:
+          job: linux
+
+  windows:
+    name: Windows app
+    runs-on: windows-latest
+    timeout-minutes: 75
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Vulkan SDK
+        uses: jakoch/install-vulkan-sdk-action@v1
+        with:
+          vulkan_version: ${{ env.VULKAN_SDK_VERSION }}
+          install_runtime: true
+          cache: true
+          stripdown: true
+
+      - name: Build whisper.cpp (Vulkan + CPU) and the JNI bridge
+        run: |
+          set -o pipefail
+          mkdir -p ci-results
+          git clone -q --depth 1 --branch "$WHISPER_CPP_VERSION" https://github.com/ggml-org/whisper.cpp ../whisper.cpp
+          # ggml's Vulkan backend wants the SPIR-V headers package, which the SDK install doesn't keep.
+          git clone -q --depth 1 --branch "vulkan-sdk-$VULKAN_SDK_VERSION" https://github.com/KhronosGroup/SPIRV-Headers ../spirv-src
+          spirv=$(cygpath -m "$(cd .. && pwd)/spirv")
+          cmake -S ../spirv-src -B ../spirv-src/build -DCMAKE_INSTALL_PREFIX="$spirv" -DSPIRV_HEADERS_ENABLE_TESTS=OFF > /dev/null
+          cmake --install ../spirv-src/build > /dev/null
+          export CXXFLAGS="-I$spirv/include"
+          # Static C runtime: nothing to install besides the graphics driver the computer already has.
+          cmake -S desktop-app/native -B desktop-app/native/build -A x64 -DWHISPER_CPP="$(cygpath -m "$(cd ../whisper.cpp && pwd)")" \
+            -DCMAKE_PREFIX_PATH="$spirv" -DCMAKE_POLICY_DEFAULT_CMP0091=NEW -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded 2>&1 | tee ci-results/native.log
+          cmake --build desktop-app/native/build --config Release -j 4 2>&1 | tail -40 | tee -a ci-results/native.log
+          ls -la desktop-app/native/build/resources/windows/whisper | tee -a ci-results/native.log
+
+      - name: Build the app, MSI installer and portable zip
+        run: |
+          set -o pipefail
+          ./gradlew -p desktop-app --console=plain test packageReleaseMsi createReleaseDistributable 2>&1 | tee ci-results/gradle.log
+          app=desktop-app/build/compose/binaries/main-release
+          ls -R "$app" | head -50
+          mkdir -p dist
+          cp "$app"/msi/*.msi dist/ReadAlong-Windows.msi
+          (cd "$app/app" && 7z a -tzip -mx=5 ../../../../../../dist/ReadAlong-Windows-portable.zip ReadAlong > /dev/null)
+          ls -la dist | tee -a ci-results/gradle.log
+
+      - name: Speech test with the packaged app (CPU)
+        run: |
+          set -o pipefail
+          mkdir -p "smoke/Test Book" models
+          text="The quick brown fox jumps over the lazy dog. ReadAlong turns audiobooks into text you can read while you listen."
+          powershell -Command "Add-Type -AssemblyName System.Speech; \$s = New-Object System.Speech.Synthesis.SpeechSynthesizer; \$s.SetOutputToWaveFile('smoke\\Test Book\\speech.wav'); \$s.Speak('$text $text $text'); \$s.Dispose()"
+          curl -sSL -o models/ggml-tiny.en.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.en.bin
+          app="desktop-app/build/compose/binaries/main-release/app/ReadAlong/ReadAlong.exe"
+          "$app" --self-test "smoke/Test Book" --model models/ggml-tiny.en.bin --device cpu --expect fox --out ci-results/self-test-cpu.txt || true
+          cat ci-results/self-test-cpu.txt
+          grep -q "^PASS" ci-results/self-test-cpu.txt
+
+      - name: Speech test on the GPU path (Mesa's software Vulkan driver)
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          curl -sSL -o mesa.7z https://github.com/pal1000/mesa-dist-win/releases/download/25.2.6/mesa3d-25.2.6-release-msvc.7z
+          7z x -y -omesa mesa.7z > /dev/null
+          export VK_DRIVER_FILES="$(cygpath -w "$PWD/mesa/x64/lvp_icd.x86_64.json")"
+          export VK_ICD_FILENAMES="$VK_DRIVER_FILES"
+          app="desktop-app/build/compose/binaries/main-release/app/ReadAlong/ReadAlong.exe"
+          "$app" --self-test "smoke/Test Book" --model models/ggml-tiny.en.bin --device gpu --expect fox --out ci-results/self-test-gpu.txt || true
+          cat ci-results/self-test-gpu.txt
+          grep -q "^PASS" ci-results/self-test-gpu.txt
+
+      - name: Screenshots (Windows)
+        if: always()
+        continue-on-error: true
+        run: |
+          app="desktop-app/build/compose/binaries/main-release/app/ReadAlong/ReadAlong.exe"
+          "$app" --screenshots "$(cygpath -w "$PWD/ci-results/screenshots-windows")" || true
+          ls ci-results/screenshots-windows || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ReadAlong-Windows
+          path: dist/*
+          compression-level: 0
+
+      - name: Keep the results
+        if: always()
+        uses: ./.github/actions/ci-results
+        with:
+          job: windows

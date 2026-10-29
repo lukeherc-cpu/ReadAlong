@@ -1,0 +1,24 @@
+name: Keep CI results
+description: Commits ci-results/ (logs, test output, screenshots) to the desktop-ci-results branch, under <run>/<job>.
+inputs:
+  job:
+    required: true
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        [ -d ci-results ] || exit 0
+        run="${{ github.run_id }}"; job="${{ inputs.job }}"; sha="${{ github.sha }}"
+        git config --global user.name "ReadAlong CI"; git config --global user.email "ci@readalong.invalid"
+        rm -rf ../results && mkdir -p ../results
+        cd ../results && git init -q && git remote add origin "$(cd "$GITHUB_WORKSPACE" && git config --get remote.origin.url)"
+        git config http.https://github.com/.extraheader "$(cd "$GITHUB_WORKSPACE" && git config --get http.https://github.com/.extraheader)"
+        for attempt in 1 2 3 4 5; do
+          if git fetch -q --depth 1 origin desktop-ci-results 2>/dev/null; then git checkout -q -B desktop-ci-results FETCH_HEAD; else git checkout -q --orphan desktop-ci-results; fi
+          rm -rf "$run/$job" && mkdir -p "$run/$job" && cp -r "$GITHUB_WORKSPACE/ci-results/." "$run/$job/"
+          echo "$sha" > "$run/$job/commit.txt"
+          git add -A && git commit -q -m "CI results $run $job" && git push -q origin desktop-ci-results && exit 0
+          sleep $((attempt * 5))
+        done
+        exit 1
