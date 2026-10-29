@@ -40,6 +40,7 @@ fun ReadableProgressCard(book: Book, job: ProcessingJobEntity?, estimate: String
     val shownPercent by com.example.readalong.ui.components.animatedPercent(progress?.bookPercent ?: 0)
     val bar = com.example.readalong.ui.components.animatedFraction((progress?.bookPercent ?: 0) / 100f)
     val left = timeLeft(estimate)
+    var stoppedChoices by rememberSaveable(book.id) { mutableStateOf(false) }
     val title = when {
         ready -> "ReadAlong ready"
         !created -> "Make a ReadAlong"
@@ -69,9 +70,15 @@ fun ReadableProgressCard(book: Book, job: ProcessingJobEntity?, estimate: String
         job?.state == "WAITING_MODEL" -> onModel
         waitingForCharging -> reading::allowBatteryForThirtyMinutes
         job?.state == "WAITING_QUEUE" -> onQueue
-        job?.state == "FAILED" || (!active && !ready) -> reading::prepareReadable
+        job?.state == "FAILED" -> ({ stoppedChoices = true })
+        !active && !ready -> reading::prepareReadable
         else -> onQueue // making it (or ready): see it in the queue
     }
+    // Only a stopped ReadAlong offers Rebuild: try again from the saved point, or start over.
+    if (stoppedChoices && job?.state == "FAILED") StoppedReadAlongDialog(job, shownPercent, execution?.diagnostics,
+        onRetry = { stoppedChoices = false; reading.prepareReadable() },
+        onRebuild = { stoppedChoices = false; reading.rebuildTranscription() },
+        onDismiss = { stoppedChoices = false })
     val epubSide = when {
         book.isDemo -> null
         sourceEpub.isInitialSyncPending() -> EpubSide("Matching\nEPUB…", busy = true, onClick = null)
@@ -92,6 +99,25 @@ fun ReadableProgressCard(book: Book, job: ProcessingJobEntity?, estimate: String
             }
         }
     }
+}
+
+/** Why the ReadAlong stopped, and the two ways forward. Shown only for a FAILED book. */
+@Composable
+private fun StoppedReadAlongDialog(job: ProcessingJobEntity, percent: Int, diagnostics: String?, onRetry: () -> Unit, onRebuild: () -> Unit, onDismiss: () -> Unit) {
+    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+    var copied by remember { mutableStateOf(false) }
+    AlertDialog(onDismissRequest = onDismiss, title = { Text("ReadAlong stopped") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                job.message?.let { Text(it) }
+                Text("Try again continues from $percent%. Rebuild makes this book's ReadAlong again from the start; the text you have stays until it's replaced.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (diagnostics != null) TextButton(onClick = { clipboard.setText(androidx.compose.ui.text.AnnotatedString(diagnostics)); copied = true },
+                    contentPadding = PaddingValues(0.dp)) { Text(if (copied) "Error details copied" else "Copy error details") }
+            }
+        },
+        confirmButton = { TextButton(onClick = onRetry) { Text("Try again") } },
+        dismissButton = { TextButton(onClick = onRebuild) { Text("Rebuild") } })
 }
 
 /** "About 1 h 48 min remaining" → "1h 48m"; null while there's no estimate yet. */

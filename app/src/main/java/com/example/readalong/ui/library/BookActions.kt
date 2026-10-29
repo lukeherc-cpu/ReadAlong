@@ -27,9 +27,19 @@ class BookActionsViewModel(private val app: ReadAlongApplication) : ViewModel() 
     fun edit(book: Book, title: String? = null, author: String? = null, cover: Uri? = null) = action { repository.edit(book.id, title, author, cover) }
     fun finished(book: Book) = action { app.bookRepository.setFinished(book.id, true) }
     fun notStarted(book: Book) = action { app.playback.releaseBook(book.id); repository.notStarted(book.id) }
+    /** Leaves nothing behind that a re-added copy of the book would pick up. The sheet is closed by
+     * then, so a failure is shown as a toast instead of the sheet's error line. */
     fun delete(book: Book) = action {
-        app.processing.cancel(book.id); app.playback.releaseBook(book.id)
-        app.importedEpub.remove(book.id); repository.delete(book.id)
+        try {
+            app.processing.cancel(book.id); app.playback.releaseBook(book.id)
+            app.processing.forgetAudioCaches(book.id)
+            app.importedEpub.remove(book.id); repository.delete(book.id)
+            app.processing.clearStoppedNotification(book.id)
+        } catch (cancelled: CancellationException) { throw cancelled }
+        catch (failure: Exception) {
+            android.widget.Toast.makeText(app, "Couldn't delete ${book.title}. ${failure.message.orEmpty()}".trim(), android.widget.Toast.LENGTH_LONG).show()
+            throw failure
+        }
     }
     fun dismissError() { error.value = null }
     private fun action(work: suspend () -> Unit) { viewModelScope.launch {

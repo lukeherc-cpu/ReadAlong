@@ -83,7 +83,9 @@ fun SettingsScreen(app: ReadAlongApplication, onBack: () -> Unit, onModel: () ->
         SettingsGroup {
             PreferenceSwitch("Animate the queue logo while working", preferences.animateTranscriptionLogo, icon = R.drawable.ic_book) { value -> save { it.copy(animateTranscriptionLogo = value) } }
             SettingsRow(if (copied) "Crash details copied" else "Copy crash details for support", R.drawable.ic_bug, onClick = { scope.launch {
-                val report = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.example.readalong.data.diagnostics.CrashDiagnostics.read(app) }
+                val report = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    com.example.readalong.data.diagnostics.CrashDiagnostics.read(app) + com.example.readalong.data.diagnostics.CrashDiagnostics.transcriptionFailures(app.database)
+                }
                 clipboard.setClipEntry(androidx.compose.ui.platform.ClipEntry(android.content.ClipData.newPlainText("ReadAlong crash details", report))); copied = true
             } })
         }

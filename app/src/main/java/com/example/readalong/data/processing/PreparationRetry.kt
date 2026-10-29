@@ -51,13 +51,23 @@ object PreparationRetry {
         val stage = (failure as? SpeechPreparationException)?.explanation ?: "Processing failed."
         return "$stage (${cause.javaClass.simpleName}: ${cause.message.orEmpty().take(180)})"
     }
+    /** Which file and where in it the failing chunk is, so a report points at the audio. */
+    private suspend fun location(database: ReadAlongDatabase, job: com.example.readalong.data.local.ProcessingJobEntity): String = runCatching {
+        val unit = TranscriptionPlan.decode(job.planJson ?: return@runCatching "").getOrNull(job.completedUnits) ?: return@runCatching ""
+        val file = database.mediaDao().audioFiles(job.bookId).firstOrNull { it.uri == unit.audioUri }
+        val name = file?.name ?: unit.audioUri?.substringAfterLast('/').orEmpty()
+        val type = unit.audioUri?.let { android.net.Uri.decode(it).substringAfterLast('.', "").take(5) }.orEmpty()
+        "At chunk ${job.completedUnits + 1} of ${job.totalUnits}: \"$name\"${if (type.isNotEmpty()) " (.$type)" else ""}, " +
+            "${unit.fileStartMs / 1000}–${(unit.fileStartMs + unit.endMs - unit.startMs) / 1000} s into the file (file length ${file?.durationMs?.div(1000) ?: "?"} s)\n"
+    }.getOrDefault("")
+
     suspend fun record(database: ReadAlongDatabase, bookId: String, workId: String, failure: Throwable): Boolean =
         decide(database, bookId, workId, failure) is Decision.Retry
 
     suspend fun decide(database: ReadAlongDatabase, bookId: String, workId: String, failure: Throwable): Decision = database.withTransaction {
         val job = database.processingDao().find(bookId) ?: return@withTransaction Decision.NotRetryable
         if (job.workId != workId) return@withTransaction Decision.NotRetryable
-        database.bookDao().putMetadata(LibraryMetadataEntity("preparation_failure:$bookId", technical(failure) + "\n" +
+        database.bookDao().putMetadata(LibraryMetadataEntity("preparation_failure:$bookId", technical(failure) + "\n" + location(database, job) +
             generateSequence(failure) { it.cause }.take(12).joinToString("\n") { cause ->
                 cause.javaClass.simpleName + ": " + cause.stackTrace.filter { it.className.startsWith("com.example.readalong") }.take(8).joinToString(" ")
             }))
