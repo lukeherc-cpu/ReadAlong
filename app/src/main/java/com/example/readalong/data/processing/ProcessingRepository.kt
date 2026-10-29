@@ -90,10 +90,24 @@ class ProcessingRepository(private val context: Context, private val database: R
     suspend fun addAllToQueue() = queueCommands.withLock {
         queue.first().filter { it.state == "WAITING_SELECTION" }.forEach { addToQueue(it.bookId) }
     }
-    /** Explicit repair after an engine/timing update; opening a book never invokes this. */
+    /** Explicit repair after an engine/timing update or a stopped ReadAlong; opening a book never invokes this. */
     suspend fun rebuild(bookId: String) {
         cancel(bookId)
+        forgetAudioCaches(bookId)
+        listOf("preparation_retry:$bookId", "preparation_failure:$bookId", "stop_notification:$bookId").forEach { database.bookDao().removeMetadata(it) }
+        clearStoppedNotification(bookId)
         prepare(bookId, first = true, fromBeginning = true)
+    }
+    /** Saved MP3 frame positions are keyed by file, not book, so they outlive Delete book unless dropped here. */
+    suspend fun forgetAudioCaches(bookId: String) = withContext(Dispatchers.IO) {
+        database.mediaDao().audioFiles(bookId).forEach { file ->
+            runCatching { com.example.readalong.data.audio.Mp3SeekIndex.forget(context, android.net.Uri.parse(file.uri)) }
+        }
+    }
+    fun clearStoppedNotification(bookId: String) {
+        val notifications = context.getSystemService(android.app.NotificationManager::class.java)
+        notifications.cancel("stopped:$bookId", com.example.readalong.data.transcription.TranscriptionNotifications.STOPPED_ID)
+        notifications.cancel(com.example.readalong.data.transcription.TranscriptionNotifications.notificationId(bookId))
     }
     suspend fun isTurn(bookId: String, workId: String): Boolean = database.withTransaction {
         val job = database.processingDao().find(bookId)

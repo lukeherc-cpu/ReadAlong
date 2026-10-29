@@ -54,6 +54,9 @@ interface BookDao {
     @Query("SELECT value FROM library_metadata WHERE `key` = :key")
     suspend fun metadata(key: String): String?
 
+    @Query("SELECT * FROM library_metadata WHERE substr(`key`, 1, length(:prefix)) = :prefix")
+    suspend fun metadataWithPrefix(prefix: String): List<LibraryMetadataEntity>
+
     @Query("SELECT value FROM library_metadata WHERE `key` = :key")
     fun observeMetadata(key: String): kotlinx.coroutines.flow.Flow<String?>
 

@@ -56,6 +56,12 @@ internal class Mp3SeekIndex(private val times: LongArray, private val positions:
             } }.getOrNull() ?: 0L
             return java.security.MessageDigest.getInstance("SHA-256").digest("v1:$uri:$size:$modified".toByteArray()).joinToString("") { "%02x".format(it) }
         }
+        /** Drops this file's saved frame positions so the next read scans it again. */
+        fun forget(context: Context, uri: Uri) = synchronized(lock) {
+            val key = identity(context, uri)
+            cached.remove(key)
+            File(context.filesDir, "mp3-seek-indexes").listFiles()?.filter { it.name.startsWith("$key.") }?.forEach { it.delete() }
+        }
         /** Runs on Media3's loader or decoder's IO dispatcher. Reuses a verified, atomically
          * written index; an interrupted scan leaves no published cache file. */
         fun load(context: Context, uri: Uri, checkCancelled: () -> Unit = {}): Mp3SeekIndex = synchronized(lock) {
