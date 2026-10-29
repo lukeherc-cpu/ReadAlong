@@ -34,6 +34,8 @@ class AppState(val scope: CoroutineScope, background: Boolean = true) {
         private set
     private val history = ArrayDeque<Screen>()
     val messages = MutableSharedFlow<String>(extraBufferCapacity = 8)
+    /** Ctrl+F in the reader. */
+    var searchRequests by mutableStateOf(0)
 
     fun open(next: Screen) { if (next != screen) { history.addLast(screen); screen = next } }
     fun back() { screen = history.removeLastOrNull() ?: Screen.Library }

@@ -4,6 +4,8 @@ package com.example.readalong.desktop.ui
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
@@ -111,7 +113,8 @@ fun FollowText(
         val cue = text.paragraphs[index].cues.getOrNull(sentence)
         if (item == null || layout == null) {
             // Far away (opening the book, a chapter jump): place it at once, then glide from there.
-            follow.list.scrollToItem(index, -target.toInt())
+            follow.list.scrollToItem(index)
+            follow.list.scrollBy(-target)
             return@LaunchedEffect
         }
         val lineTop = if (cue != null && cue.start <= layout.layoutInput.text.length) layout.getLineTop(layout.getLineForOffset(cue.start.coerceAtMost(layout.layoutInput.text.length))) else 0f
@@ -156,7 +159,7 @@ private fun Paragraph(paragraph: ReadingParagraph, sentence: Int, isActive: Bool
         }
         .onPointerEvent(PointerEventType.Exit) { hovered = null }
         .pointerInput(paragraph) {
-            androidx.compose.foundation.gestures.detectTapGestures { position ->
+            detectTapGestures { position ->
                 val l = layout ?: return@detectTapGestures
                 val c = sentenceAt(paragraph.cues, l.getOffsetForPosition(position)) ?: return@detectTapGestures
                 val sources = c.let { paragraph.segment.anchors.mapNotNull { a -> text.sources[a.id] } }

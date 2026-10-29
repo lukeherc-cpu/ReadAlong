@@ -10,7 +10,7 @@ import com.sun.jna.platform.win32.WinDef
 import com.sun.jna.ptr.IntByReference
 import com.sun.jna.win32.StdCallLibrary
 
-private interface Dwm : StdCallLibrary {
+interface Dwm : StdCallLibrary {
     fun DwmSetWindowAttribute(hwnd: WinDef.HWND, attribute: Int, value: IntByReference, size: Int): Int
 }
 
