@@ -29,10 +29,11 @@ object CrashDiagnostics {
     /** The last saved transcription error of each book, which isn't a crash and so isn't in last-crash.txt. */
     suspend fun transcriptionFailures(database: com.example.readalong.data.local.ReadAlongDatabase): String = runCatching {
         val failures = database.bookDao().metadataWithPrefix("preparation_failure:")
-        if (failures.isEmpty()) "" else failures.joinToString("\n\n", "\nTranscription errors:\n") { entry ->
+        val reports = failures.map { entry ->
             val bookId = entry.key.removePrefix("preparation_failure:")
             val title = database.bookDao().findBook(bookId)?.title ?: bookId.take(12)
             "$title\n${entry.value}"
-        }.take(8000)
+        }
+        if (reports.isEmpty()) "" else reports.joinToString("\n\n", "\nTranscription errors:\n").take(8000)
     }.getOrDefault("")
 }
