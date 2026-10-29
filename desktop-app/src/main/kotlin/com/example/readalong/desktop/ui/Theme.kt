@@ -77,8 +77,11 @@ object AppIcons {
     @Suppress("DEPRECATION")
     fun get(name: String): ImageVector = synchronized(cache) {
         cache.getOrPut(name) {
-            requireNotNull(AppIcons::class.java.getResourceAsStream("/icons/$name.xml")) { "Missing icon $name" }
-                .use { loadXmlImageVector(InputSource(it), Density(1f)) }
+            val xml = requireNotNull(AppIcons::class.java.getResourceAsStream("/icons/$name.xml")) { "Missing icon $name" }
+                .use { it.readBytes().decodeToString() }
+                // Android resource references have no meaning outside Android.
+                .replace("@android:color/transparent", "#00000000")
+            loadXmlImageVector(InputSource(java.io.StringReader(xml)), Density(1f))
         }
     }
 }
