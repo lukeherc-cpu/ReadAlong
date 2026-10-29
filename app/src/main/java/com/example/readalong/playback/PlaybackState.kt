@@ -15,7 +15,8 @@ data class PlaybackState(
     val isLoading: Boolean = false,
 ) {
     val chapterStartMs get() = chapters.getOrNull(chapterIndex)?.startMs ?: chapterStart(positionMs)
-    val chapterPositionMs get() = filePositionMs?.let { (it - (chapters.getOrNull(chapterIndex)?.fileStartMs ?: 0)).coerceAtLeast(0) } ?: (positionMs - chapterStartMs).coerceAtLeast(0)
+    // With every file length known, chapter starts are exact book positions, and a chapter can span files.
+    val chapterPositionMs get() = if (durationMs > 0 && chapters.isNotEmpty()) (positionMs - chapterStartMs).coerceAtLeast(0) else filePositionMs?.let { (it - (chapters.getOrNull(chapterIndex)?.fileStartMs ?: 0)).coerceAtLeast(0) } ?: (positionMs - chapterStartMs).coerceAtLeast(0)
     val chapterDurationMs get() = chapters.getOrNull(chapterIndex)?.durationMs ?: (durationMs - chapterStartMs).coerceIn(1, 1_800_000)
     val chapterTitle get() = chapters.getOrNull(chapterIndex)?.title ?: "Demo · Chapter ${positionMs / 1_800_000 + 1}"
 }
