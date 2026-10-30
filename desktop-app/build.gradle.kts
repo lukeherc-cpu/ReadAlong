@@ -31,7 +31,7 @@ val sharedSources by tasks.registering(Sync::class) {
 // The phone app's fonts and icons (Android vector drawables load as Compose ImageVectors on desktop too).
 val sharedResources by tasks.registering(Sync::class) {
     from("../app/src/main/res/font") { include("*.ttf"); into("fonts") }
-    from("../app/src/main/res/drawable") { include("ic_*.xml"); exclude("ic_launcher*", "ic_splash*", "ic_notification*"); into("icons") }
+    from("../app/src/main/res/drawable") { include("ic_*.xml", "ic_launcher_foreground.xml"); exclude("ic_launcher_background*", "ic_launcher_padded*", "ic_splash*", "ic_notification*"); into("icons") }
     into(layout.buildDirectory.dir("shared-resources"))
 }
 sourceSets.main {
