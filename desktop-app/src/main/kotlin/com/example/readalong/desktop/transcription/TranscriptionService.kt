@@ -182,7 +182,9 @@ class TranscriptionService(private val scope: CoroutineScope, private val librar
                 val cores = Runtime.getRuntime().availableProcessors()
                 val threads = if (onGpu) minOf(4, cores) else (cores - 1).coerceIn(1, 12)
                 // Beam search on a GPU (accuracy is cheap there); greedy decoding on a CPU, several times faster.
-                val beams = if (onGpu) 5 else 1
+                // After a GPU crash, greedy there too: a driver that resets long-running work (amdgpu's job
+                // timeout on Linux, Windows' TDR) gets much shorter submissions.
+                val beams = if (onGpu && gpuCrashes == 0) 5 else 1
                 while (done < plan.size) {
                     val file = plan[done].file
                     val units = plan.drop(done).takeWhile { it.file == file }
