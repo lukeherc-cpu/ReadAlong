@@ -27,6 +27,9 @@ fun ReadAlongApp(app: AppState) {
     val settings by app.settingsStore.settings.collectAsState()
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(Unit) { app.messages.collect { snackbar.showSnackbar(it, withDismissAction = true) } }
+    // Coming back to the computer picks up where the phone left off.
+    val focused = androidx.compose.ui.platform.LocalWindowInfo.current.isWindowFocused
+    LaunchedEffect(focused) { if (focused) app.syncProgress() }
     var dropping by remember { mutableStateOf(false) }
     val drop = remember {
         object : DragAndDropTarget {

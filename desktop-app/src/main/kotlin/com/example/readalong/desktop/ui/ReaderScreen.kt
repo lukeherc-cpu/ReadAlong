@@ -20,6 +20,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerIcon
@@ -49,8 +50,13 @@ fun ReaderScreen(app: AppState, bookId: String) {
     val b = book ?: run { LaunchedEffect(Unit) { app.back() }; return }
     val text by app.reader(bookId).text.collectAsState()
     val settings by app.settingsStore.settings.collectAsState()
-    val colors = readerColors(settings.readerTheme)
+    // The dark theme takes the cover's colours, the same way the player does; sepia and light stay paper.
+    val palette = rememberCoverPalette(b)
+    val tinted = settings.readerTheme != "SEPIA" && settings.readerTheme != "LIGHT"
+    val base = readerColors(settings.readerTheme)
+    val colors = if (tinted) base.copy(page = lerp(palette.preview, Color(0xFF101418), .15f), chrome = lerp(palette.background, Color(0xFF1B1F23), .45f)) else base
     val page by animateColorAsState(colors.page, tween(400))
+    val bottom by animateColorAsState(if (tinted) palette.background else colors.page, tween(400))
     val ink by animateColorAsState(colors.ink, tween(400))
     val playback by app.player.state.collectAsState()
     val clock = rememberPlaybackClock(app.player, bookId, b.positionMs)
@@ -73,60 +79,62 @@ fun ReaderScreen(app: AppState, bookId: String) {
         if (app.searchRequests == 0) return@LaunchedEffect
         searchOpen = true; delay(80); runCatching { searchFocus.requestFocus() }
     }
-    Box(Modifier.fillMaxSize().background(page).onPointerEvent(PointerEventType.Move) { lastMove = System.currentTimeMillis() }) {
-        if (t == null) CircularProgressIndicator(Modifier.align(Alignment.Center))
-        else if (t.isEmpty) ReadAlongCard(app, b, Modifier.align(Alignment.Center).widthIn(max = 560.dp), ink)
-        else FollowText(t, clock, follow, { seekBook(app, bookId, it) }, Modifier.fillMaxSize(), Fonts.reading(settings.readerFont), settings.readerSize, ink,
-            contentPadding = PaddingValues(horizontal = 48.dp, vertical = 200.dp), maxWidth = 760.dp, anchor = .38f)
+    MaterialTheme(colorScheme = if (tinted) darkScheme(palette) else MaterialTheme.colorScheme) {
+        Box(Modifier.fillMaxSize().background(if (tinted) playerBackground(CoverPalette(bottom, page, palette.accent), top = page) else SolidColor(page)).onPointerEvent(PointerEventType.Move) { lastMove = System.currentTimeMillis() }) {
+            if (t == null) CircularProgressIndicator(Modifier.align(Alignment.Center))
+            else if (t.isEmpty) ReadAlongCard(app, b, Modifier.align(Alignment.Center).widthIn(max = 560.dp), ink)
+            else FollowText(t, clock, follow, { seekBook(app, bookId, it) }, Modifier.fillMaxSize(), Fonts.reading(settings.readerFont), settings.readerSize, ink,
+                contentPadding = PaddingValues(horizontal = 48.dp, vertical = 200.dp), maxWidth = 760.dp, anchor = .38f)
 
-        // Top: back, title, appearance, search, contents.
-        Row(Modifier.fillMaxWidth().align(Alignment.TopCenter).alpha(chrome).background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(page, page.copy(alpha = 0f))))
-            .padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            CompositionLocalProvider(LocalContentColor provides ink) {
-                AppIconButton("ic_back", "Back (Esc)", { app.back() })
-                Spacer(Modifier.width(8.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(b.title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = ink)
-                    b.chapters.getOrNull(b.chapterAt(clock.value))?.let { Text(it.title, style = MaterialTheme.typography.labelMedium, color = ink.copy(alpha = .6f), maxLines = 1) }
+            // Top: back, title, appearance, search, contents.
+            Row(Modifier.fillMaxWidth().align(Alignment.TopCenter).alpha(chrome).background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(page, page.copy(alpha = 0f))))
+                .padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                CompositionLocalProvider(LocalContentColor provides ink) {
+                    AppIconButton("ic_back", "Back (Esc)", { app.back() })
+                    Spacer(Modifier.width(8.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(b.title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = ink)
+                        b.chapters.getOrNull(b.chapterAt(clock.value))?.let { Text(it.title, style = MaterialTheme.typography.labelMedium, color = ink.copy(alpha = .6f), maxLines = 1) }
+                    }
+                    AppIconButton("ic_search", "Search (Ctrl+F)", { if (searchOpen) searchOpen = false else app.searchRequests++ })
+                    if (t?.contents?.isNotEmpty() == true) AppIconButton("ic_chapters", "Contents", { contentsOpen = !contentsOpen })
+                    AppearanceMenu(app, ink)
                 }
-                AppIconButton("ic_search", "Search (Ctrl+F)", { if (searchOpen) searchOpen = false else app.searchRequests++ })
-                if (t?.contents?.isNotEmpty() == true) AppIconButton("ic_chapters", "Contents", { contentsOpen = !contentsOpen })
-                AppearanceMenu(app, ink)
             }
-        }
 
-        // Bottom: sentence and playback controls.
-        Row(Modifier.align(Alignment.BottomCenter).padding(bottom = 26.dp).alpha(maxOf(chrome, if (follow.following) 0f else 1f)),
-            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            CompositionLocalProvider(LocalContentColor provides ink) {
-                AppIconButton("ic_previous_sentence", "Previous sentence", { t?.let { sentenceJump(app, bookId, it, clock.value, -1) } }, size = 48.dp)
-                Surface(modifier = Modifier.size(64.dp).pointerHoverIcon(PointerIcon.Hand), shape = CircleShape, color = ink, shadowElevation = 8.dp,
-                    onClick = { if (current) app.player.toggle() else app.player.open(bookId) }) {
-                    Box(contentAlignment = Alignment.Center) { CompositionLocalProvider(LocalContentColor provides page) { PlayPauseIcon(current && playback.playing, Modifier.size(26.dp)) } }
+            // Bottom: sentence and playback controls.
+            Row(Modifier.align(Alignment.BottomCenter).padding(bottom = 26.dp).alpha(maxOf(chrome, if (follow.following) 0f else 1f)),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                CompositionLocalProvider(LocalContentColor provides ink) {
+                    AppIconButton("ic_previous_sentence", "Previous sentence", { t?.let { sentenceJump(app, bookId, it, clock.value, -1) } }, size = 48.dp)
+                    Surface(modifier = Modifier.size(64.dp).pointerHoverIcon(PointerIcon.Hand), shape = CircleShape, color = ink, shadowElevation = 8.dp,
+                        onClick = { if (current) app.player.toggle() else app.player.open(bookId) }) {
+                        Box(contentAlignment = Alignment.Center) { CompositionLocalProvider(LocalContentColor provides page) { PlayPauseIcon(current && playback.playing, Modifier.size(26.dp)) } }
+                    }
+                    AppIconButton("ic_next_sentence", "Next sentence", { t?.let { sentenceJump(app, bookId, it, clock.value, 1) } }, size = 48.dp)
                 }
-                AppIconButton("ic_next_sentence", "Next sentence", { t?.let { sentenceJump(app, bookId, it, clock.value, 1) } }, size = 48.dp)
             }
-        }
-        ReturnToPosition(follow, Modifier.align(Alignment.BottomCenter).padding(bottom = 110.dp))
+            ReturnToPosition(follow, Modifier.align(Alignment.BottomCenter).padding(bottom = 110.dp))
 
-        AnimatedVisibility(searchOpen && t != null, Modifier.align(Alignment.TopEnd).padding(top = 64.dp, end = 16.dp),
-            enter = fadeIn() + slideInHorizontally { it / 3 }, exit = fadeOut() + slideOutHorizontally { it / 3 }) {
-            SearchPanel(t ?: ReadingText.Empty, colors, searchFocus, onClose = { searchOpen = false }) { paragraph, startMs ->
-                follow.following = false
-                scope.launch { follow.list.animateScrollToItem(paragraph, -200) }
-                if (startMs != null) seekBook(app, bookId, startMs)
+            AnimatedVisibility(searchOpen && t != null, Modifier.align(Alignment.TopEnd).padding(top = 64.dp, end = 16.dp),
+                enter = fadeIn() + slideInHorizontally { it / 3 }, exit = fadeOut() + slideOutHorizontally { it / 3 }) {
+                SearchPanel(t ?: ReadingText.Empty, colors, searchFocus, onClose = { searchOpen = false }) { paragraph, startMs ->
+                    follow.following = false
+                    scope.launch { follow.list.animateScrollToItem(paragraph, -200) }
+                    if (startMs != null) seekBook(app, bookId, startMs)
+                }
             }
-        }
-        AnimatedVisibility(contentsOpen && t != null, Modifier.align(Alignment.TopEnd).padding(top = 64.dp, end = 16.dp),
-            enter = fadeIn() + slideInHorizontally { it / 3 }, exit = fadeOut() + slideOutHorizontally { it / 3 }) {
-            Surface(Modifier.width(360.dp).heightIn(max = 560.dp), shape = RoundedCornerShape(Corners.large), color = colors.chrome, contentColor = colors.ink, shadowElevation = 12.dp) {
-                LazyColumn(contentPadding = PaddingValues(vertical = 8.dp)) {
-                    items(t?.contents.orEmpty()) { entry ->
-                        Text(entry.title, Modifier.fillMaxWidth().clickable {
-                            contentsOpen = false
-                            if (entry.startMs != null) { follow.following = true; seekBook(app, bookId, entry.startMs) }
-                            else { follow.following = false; scope.launch { follow.list.animateScrollToItem(entry.paragraph) } }
-                        }.pointerHoverIcon(PointerIcon.Hand).padding(horizontal = 20.dp, vertical = 12.dp), color = colors.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            AnimatedVisibility(contentsOpen && t != null, Modifier.align(Alignment.TopEnd).padding(top = 64.dp, end = 16.dp),
+                enter = fadeIn() + slideInHorizontally { it / 3 }, exit = fadeOut() + slideOutHorizontally { it / 3 }) {
+                Surface(Modifier.width(360.dp).heightIn(max = 560.dp), shape = RoundedCornerShape(Corners.large), color = colors.chrome, contentColor = colors.ink, shadowElevation = 12.dp) {
+                    LazyColumn(contentPadding = PaddingValues(vertical = 8.dp)) {
+                        items(t?.contents.orEmpty()) { entry ->
+                            Text(entry.title, Modifier.fillMaxWidth().clickable {
+                                contentsOpen = false
+                                if (entry.startMs != null) { follow.following = true; seekBook(app, bookId, entry.startMs) }
+                                else { follow.following = false; scope.launch { follow.list.animateScrollToItem(entry.paragraph) } }
+                            }.pointerHoverIcon(PointerIcon.Hand).padding(horizontal = 20.dp, vertical = 12.dp), color = colors.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        }
                     }
                 }
             }

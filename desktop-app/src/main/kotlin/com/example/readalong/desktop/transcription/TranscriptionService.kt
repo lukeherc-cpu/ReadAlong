@@ -4,6 +4,7 @@ import com.example.readalong.desktop.core.AppPaths
 import com.example.readalong.desktop.core.LibraryBook
 import com.example.readalong.desktop.core.LibraryStore
 import com.example.readalong.desktop.core.SettingsStore
+import com.example.readalong.desktop.core.companionFile
 import com.example.readalong.desktop.core.writeAtomically
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
@@ -213,11 +214,7 @@ class TranscriptionService(private val scope: CoroutineScope, private val librar
     }
 
     /** Where the phone's library scan finds a book's package: <folder>/<folder>.readalong, or <file>.readalong for a single file. */
-    fun packageFile(book: LibraryBook): File {
-        val first = File(book.parts.first().path)
-        return if (book.key.startsWith("file:")) File(first.parentFile, first.nameWithoutExtension + ".readalong")
-        else File(book.folder ?: first.parent, File(book.folder ?: first.parent).name + ".readalong")
-    }
+    fun packageFile(book: LibraryBook): File = book.companionFile("readalong")
 
     fun savePackage(book: LibraryBook, destination: File = packageFile(book)): Boolean = try {
         transcripts.exportPackage(book, destination); true
