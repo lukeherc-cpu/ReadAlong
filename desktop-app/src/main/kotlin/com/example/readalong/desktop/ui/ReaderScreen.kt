@@ -119,7 +119,7 @@ fun ReaderScreen(app: AppState, bookId: String) {
         }
         AnimatedVisibility(contentsOpen && t != null, Modifier.align(Alignment.TopEnd).padding(top = 64.dp, end = 16.dp),
             enter = fadeIn() + slideInHorizontally { it / 3 }, exit = fadeOut() + slideOutHorizontally { it / 3 }) {
-            Surface(Modifier.width(360.dp).heightIn(max = 560.dp), shape = RoundedCornerShape(Corners.large), color = colors.chrome, shadowElevation = 12.dp) {
+            Surface(Modifier.width(360.dp).heightIn(max = 560.dp), shape = RoundedCornerShape(Corners.large), color = colors.chrome, contentColor = colors.ink, shadowElevation = 12.dp) {
                 LazyColumn(contentPadding = PaddingValues(vertical = 8.dp)) {
                     items(t?.contents.orEmpty()) { entry ->
                         Text(entry.title, Modifier.fillMaxWidth().clickable {
@@ -149,7 +149,7 @@ private fun SearchPanel(text: ReadingText, colors: ReaderColors, focus: FocusReq
             text.paragraphs.withIndex().flatMap { (i, p) -> search.feed(SearchPassage(i, p.segment)) }.take(50)
         }.getOrDefault(emptyList())
     }
-    Surface(Modifier.width(400.dp).heightIn(max = 560.dp), shape = RoundedCornerShape(Corners.large), color = colors.chrome, shadowElevation = 12.dp) {
+    Surface(Modifier.width(400.dp).heightIn(max = 560.dp), shape = RoundedCornerShape(Corners.large), color = colors.chrome, contentColor = colors.ink, shadowElevation = 12.dp) {
         Column(Modifier.padding(12.dp)) {
             Row(Modifier.fillMaxWidth().background(colors.page, CircleShape).padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(AppIcons.get("ic_search"), null, Modifier.size(16.dp), tint = colors.ink.copy(alpha = .6f))

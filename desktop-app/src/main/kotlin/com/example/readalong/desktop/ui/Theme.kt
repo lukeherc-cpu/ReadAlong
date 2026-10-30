@@ -101,7 +101,10 @@ fun ReadAlongTheme(accent: Long, content: @Composable () -> Unit) {
         labelSmall = TextStyleCopy(base.labelSmall.copy(fontSize = 12.sp, lineHeight = 16.sp)))
     MaterialTheme(colorScheme = darkScheme(palette), typography = typography,
         shapes = Shapes(small = androidx.compose.foundation.shape.RoundedCornerShape(Corners.small), medium = androidx.compose.foundation.shape.RoundedCornerShape(Corners.medium),
-            large = androidx.compose.foundation.shape.RoundedCornerShape(Corners.large)), content = content)
+            large = androidx.compose.foundation.shape.RoundedCornerShape(Corners.large))) {
+        // Text drawn straight on the window background (not inside a Surface) would otherwise default to black.
+        androidx.compose.runtime.CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onBackground, content = content)
+    }
 }
 
 /** The app's corner sizes: small (chips, thumbnails), medium (covers, rows), large (cards, sheets). */

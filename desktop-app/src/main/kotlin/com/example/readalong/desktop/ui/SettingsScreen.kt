@@ -69,6 +69,7 @@ fun SettingsScreen(app: AppState) {
                         .clickable { app.settingsStore.update { it.copy(modelId = model.id) } }.pointerHoverIcon(PointerIcon.Hand),
                         shape = RoundedCornerShape(Corners.medium),
                         color = if (chosen.id == model.id) MaterialTheme.colorScheme.primary.copy(alpha = .14f) else MaterialTheme.colorScheme.surfaceContainerLow,
+                        contentColor = MaterialTheme.colorScheme.onSurface,
                         border = if (chosen.id == model.id) BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = .6f)) else null) {
                         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                             RadioButton(chosen.id == model.id, { app.settingsStore.update { it.copy(modelId = model.id) } })
