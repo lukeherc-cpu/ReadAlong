@@ -69,8 +69,6 @@ class TranscriptionService(private val scope: CoroutineScope, private val librar
     val errors: StateFlow<Map<String, String>> = mutableErrors
     private var runner: Job? = null
     private var process: TranscriberProcess? = null
-    /** Set when the GPU failed this session; later books go straight to the CPU. */
-    private var gpuFailed = false
 
     init {
         if (probe) {
@@ -80,7 +78,7 @@ class TranscriptionService(private val scope: CoroutineScope, private val librar
     }
 
     fun model(): SpeechModel = SpeechModels.find(settings.value.modelId)
-        ?: SpeechModels.recommended(mutableDevices.value.orEmpty(), settings.value.language)
+        ?: SpeechModels.default(settings.value.language)
 
     private suspend fun probeDevices() {
         val cache = File(AppPaths.data, "devices.json")
@@ -170,18 +168,23 @@ class TranscriptionService(private val scope: CoroutineScope, private val librar
             try { models.download(model) } finally { watcher.cancel() }
         }
         var started = System.nanoTime(); var audioDone = 0L
+        // A crash on the GPU is often a one-off (a driver hiccup, a timeout on one hard chunk), so the GPU gets
+        // [GPU_RETRIES] fresh starts before this book moves to the CPU. The next book tries the GPU again.
+        var gpuCrashes = 0
         while (done < plan.size) {
             val worker = process ?: TranscriberProcess.start().also { process = it }
             mutableDevices.value = worker.devices
             mutableJob.update { it?.copy(phase = "Loading ${model.name}", done = done, downloadProgress = null) }
-            val preference = if (gpuFailed) "cpu" else settings.value.device
+            val preference = if (gpuCrashes > GPU_RETRIES) "cpu" else settings.value.device
             try {
                 val (device, onGpu) = worker.load(modelFile, model.heads, preference)
                 mutableJob.update { it?.copy(phase = "Transcribing", device = device, onGpu = onGpu) }
                 val cores = Runtime.getRuntime().availableProcessors()
                 val threads = if (onGpu) minOf(4, cores) else (cores - 1).coerceIn(1, 12)
                 // Beam search on a GPU (accuracy is cheap there); greedy decoding on a CPU, several times faster.
-                val beams = if (onGpu) 5 else 1
+                // After a GPU crash, greedy there too: a driver that resets long-running work (amdgpu's job
+                // timeout on Linux, Windows' TDR) gets much shorter submissions.
+                val beams = if (onGpu && gpuCrashes == 0) 5 else 1
                 while (done < plan.size) {
                     val file = plan[done].file
                     val units = plan.drop(done).takeWhile { it.file == file }
@@ -199,18 +202,34 @@ class TranscriptionService(private val scope: CoroutineScope, private val librar
                     }
                 }
             } catch (failure: TranscriberException) {
+                if (failure.processDied) saveCrashLog(worker, book, model, preference)
                 process?.kill(); process = null
                 if (preference != "cpu" && failure.processDied) {
-                    // A driver fault or running out of graphics memory: carry on, on the CPU.
-                    gpuFailed = true
-                    mutableMessages.tryEmit("The GPU stopped responding, so ReadAlong switched to the CPU. It's slower, but your progress is kept.")
-                    started = System.nanoTime(); audioDone = 0
+                    // A driver fault, a GPU timeout or running out of graphics memory: start again where it stopped.
+                    gpuCrashes++
+                    if (gpuCrashes > GPU_RETRIES) {
+                        mutableMessages.tryEmit("The GPU stopped responding again, so ReadAlong finished ${book.title} on the CPU. It's slower, but your progress is kept.")
+                        started = System.nanoTime(); audioDone = 0
+                    }
                     continue
                 }
                 throw failure
             }
         }
         if (settings.value.savePackages) savePackage(book)
+    }
+
+    /** The transcriber's last log lines when it died, for working out why (the GPU driver, memory, a bad file). */
+    private fun saveCrashLog(worker: TranscriberProcess, book: LibraryBook, model: SpeechModel, preference: String) = runCatching {
+        val log = File(AppPaths.data, "transcriber-crash.log")
+        val entry = buildString {
+            appendLine("== ${java.time.LocalDateTime.now()} · ${book.title} · ${model.id} · device $preference · ${AppPaths.platformName}")
+            worker.devices.forEach { appendLine("device: ${it.type} ${it.label} ${it.memoryTotal / (1 shl 20)} MB") }
+            worker.recentLog().forEach { appendLine(it) }
+        }
+        // Keep the latest few crashes only.
+        val previous = if (log.isFile) log.readText().takeLast(60_000) else ""
+        log.writeAtomically(previous + entry)
     }
 
     /** Where the phone's library scan finds a book's package: <folder>/<folder>.readalong, or <file>.readalong for a single file. */
@@ -224,4 +243,9 @@ class TranscriptionService(private val scope: CoroutineScope, private val librar
 
     private fun loadQueue(): List<String> = runCatching { JSONArray(queueFile.readText()).let { a -> List(a.length()) { a.getString(it) } } }.getOrDefault(emptyList())
     private fun saveQueue() = runCatching { queueFile.writeAtomically(JSONArray(mutableQueue.value).toString()) }
+
+    private companion object {
+        /** Fresh starts on the GPU after a crash before a book moves to the CPU. */
+        const val GPU_RETRIES = 2
+    }
 }

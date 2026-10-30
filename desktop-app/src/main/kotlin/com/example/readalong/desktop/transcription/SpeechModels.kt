@@ -19,24 +19,16 @@ data class Device(val name: String, val description: String, val backend: String
 object SpeechModels {
     // DTW presets: whisper_alignment_heads_preset in whisper.h.
     val all = listOf(
-        SpeechModel("tiny.en", "Tiny (English)", 77_704_715, true, 3, 1.0, "Fastest. For slower computers; more mistakes in names."),
+        SpeechModel("tiny.en", "Tiny (English)", 77_704_715, true, 3, 1.0, "Fastest and smallest. More mistakes in names."),
+        SpeechModel("tiny", "Tiny (every language)", 77_691_713, false, 4, 1.0, "Fastest and smallest, for books in other languages. More mistakes."),
         SpeechModel("base.en", "Base (English)", 147_964_211, true, 5, 2.0, "Fast on any computer. Good for clearly read books."),
         SpeechModel("small.en", "Small (English)", 487_614_201, true, 7, 5.0, "Accurate. Comfortable on a recent CPU, quick on a GPU."),
         SpeechModel("large-v3-turbo-q5_0", "Large v3 Turbo", 574_041_195, false, 14, 9.0, "Most accurate, every language. Best with a GPU."),
     )
     fun find(id: String?) = all.firstOrNull { it.id == id }
 
-    /** The model that finishes a typical book in reasonable time on this hardware. */
-    fun recommended(devices: List<Device>, language: String): SpeechModel {
-        val gpu = devices.filter { it.isGpu }.maxByOrNull { it.memoryTotal }
-        return when {
-            language != "en" -> find("large-v3-turbo-q5_0")!!
-            gpu != null && gpu.type == "gpu" && gpu.memoryTotal >= 3L shl 30 -> find("large-v3-turbo-q5_0")!!
-            gpu != null -> find("small.en")!!
-            Runtime.getRuntime().availableProcessors() >= 12 -> find("small.en")!!
-            else -> find("base.en")!!
-        }
-    }
+    /** Used until a model is chosen in Settings: the smallest, quickest one for the book's language. */
+    fun default(language: String): SpeechModel = find(if (language == "en") "tiny.en" else "tiny")!!
 
     /** The GPU whisper.cpp should use, as its GPU index, or -1 for the CPU. Prefers a discrete card with the most memory. */
     fun gpuIndex(devices: List<Device>, preference: String): Int {
