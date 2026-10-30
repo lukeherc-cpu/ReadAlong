@@ -33,8 +33,8 @@ import com.example.readalong.ui.components.MarqueeTitle
 import com.example.readalong.ui.components.PlayPauseIcon
 
 /** The book's colours over the whole window, darkening downwards, as on the phone's player. */
-fun playerBackground(palette: CoverPalette) = Brush.verticalGradient(
-    0f to lerp(palette.preview, Color(0xFF101418), .15f), .45f to lerp(palette.background, Color(0xFF101418), .35f), 1f to Color(0xFF0E1114))
+fun playerBackground(palette: CoverPalette, top: Color = lerp(palette.preview, Color(0xFF101418), .15f)) = Brush.verticalGradient(
+    0f to top, .45f to lerp(palette.background, Color(0xFF101418), .35f), 1f to Color(0xFF0E1114))
 
 @Composable
 fun PlayerScreen(app: AppState, bookId: String) {

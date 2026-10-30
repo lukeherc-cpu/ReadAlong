@@ -21,7 +21,7 @@ sealed interface Screen {
 }
 
 /** Everything the window shows, wired together once. */
-class AppState(val scope: CoroutineScope, background: Boolean = true) {
+class AppState(val scope: CoroutineScope, private val background: Boolean = true) {
     val settingsStore = SettingsStore()
     val library = LibraryStore(scope = scope)
     val transcripts = TranscriptStore()
@@ -29,6 +29,8 @@ class AppState(val scope: CoroutineScope, background: Boolean = true) {
     val importer = LibraryImporter(library, transcripts)
     val player = AudioPlayer(scope, library, settingsStore)
     val transcription = TranscriptionService(scope, library, settingsStore, transcripts, models, probe = background)
+    /** Shares listening positions with the phone through a file beside each book. */
+    val progress = ProgressSync(library)
 
     var screen by mutableStateOf<Screen>(Screen.Library)
         private set
@@ -43,7 +45,28 @@ class AppState(val scope: CoroutineScope, background: Boolean = true) {
 
     init {
         scope.launch { transcription.messages.collect { messages.emit(it) } }
-        if (background) scope.launch { runCatching { importer.rescan() } }
+        if (background) scope.launch(Dispatchers.IO) { runCatching { importer.rescan() }; syncProgressNow() }
+        // Pausing hands the position to the phone.
+        if (background) scope.launch {
+            var last: Pair<String?, Boolean>? = null
+            player.state.collect { state ->
+                val previous = last
+                if (previous?.second == true && (!state.playing || state.bookId != previous.first)) previous.first?.let { id ->
+                    // The library catches up with the paused position a moment later; the player's state has it now.
+                    library.book(id)?.let { b -> withContext(Dispatchers.IO) { progress.write(if (state.bookId == id) b.copy(positionMs = state.positionMs) else b) } }
+                }
+                last = state.bookId to state.playing
+            }
+        }
+    }
+
+    /** Picks up positions from the phone; run when the window comes to the front. */
+    fun syncProgress() { if (background) scope.launch(Dispatchers.IO) { syncProgressNow() } }
+    private fun syncProgressNow() = runCatching {
+        val state = player.state.value
+        val changed = progress.syncAll(playing = state.bookId.takeIf { state.playing })
+        // A book that is loaded but paused moves to the phone's place too.
+        if (!state.playing && state.bookId in changed) library.book(state.bookId!!)?.let { player.seekTo(it.positionMs) }
     }
 
     fun addPaths(paths: List<File>) = scope.launch {
@@ -51,12 +74,20 @@ class AppState(val scope: CoroutineScope, background: Boolean = true) {
         messages.emit(when (added.size) { 0 -> "No new audiobooks found there."; 1 -> "Added ${library.book(added[0])?.title}."; else -> "Added ${added.size} audiobooks." })
     }
 
-    fun play(bookId: String) { if (player.state.value.bookId == bookId) player.play() else player.open(bookId) }
+    fun play(bookId: String) {
+        if (player.state.value.bookId == bookId) player.play()
+        else { library.book(bookId)?.let { runCatching { progress.sync(it) } }; player.open(bookId) }
+    }
 
     private val readers = HashMap<String, ReaderModel>()
     fun reader(bookId: String): ReaderModel = readers.getOrPut(bookId) { ReaderModel(bookId, this) }
 
-    fun shutdown() { player.close(); transcription.shutdown(); library.flush() }
+    fun shutdown() {
+        val current = player.state.value.bookId
+        player.close(); transcription.shutdown()
+        current?.let { id -> library.book(id)?.let { runCatching { progress.write(it) } } }
+        library.flush()
+    }
 }
 
 /**
