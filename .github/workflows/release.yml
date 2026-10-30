@@ -82,3 +82,19 @@ jobs:
     uses: ./.github/workflows/desktop-windows.yml
     with:
       release: true
+
+  linux:
+    name: Linux Flatpak
+    needs: release
+    if: startsWith(github.ref, 'refs/heads/release/')
+    uses: ./.github/workflows/desktop-linux.yml
+    with:
+      release: true
+
+  macos:
+    name: macOS apps
+    needs: release
+    if: startsWith(github.ref, 'refs/heads/release/')
+    uses: ./.github/workflows/desktop-macos.yml
+    with:
+      release: true

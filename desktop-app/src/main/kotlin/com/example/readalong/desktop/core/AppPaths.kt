@@ -2,12 +2,20 @@ package com.example.readalong.desktop.core
 
 import java.io.File
 
-/** Where ReadAlong keeps its library, transcripts and speech models: %APPDATA%\ReadAlong on Windows. */
+/**
+ * Where ReadAlong keeps its library, transcripts and speech models: %APPDATA%\ReadAlong on Windows,
+ * ~/Library/Application Support/ReadAlong on a Mac, and $XDG_DATA_HOME/ReadAlong on Linux (inside the
+ * Flatpak that is ~/.var/app/<app id>/data/ReadAlong).
+ */
 object AppPaths {
     val data: File by lazy {
         val override = System.getProperty("readalong.home") ?: System.getenv("READALONG_HOME")
-        val base = override?.let(::File) ?: System.getenv("APPDATA")?.let { File(it, "ReadAlong") }
-            ?: File(System.getProperty("user.home"), ".local/share/ReadAlong")
+        val home = System.getProperty("user.home")
+        val base = override?.let(::File) ?: when (os()) {
+            "windows" -> System.getenv("APPDATA")?.let { File(it, "ReadAlong") }
+            "macos" -> File(home, "Library/Application Support/ReadAlong")
+            else -> System.getenv("XDG_DATA_HOME")?.takeIf { it.isNotBlank() }?.let { File(it, "ReadAlong") }
+        } ?: File(home, ".local/share/ReadAlong")
         base.apply { mkdirs() }
     }
     val library get() = File(data, "library.json")
@@ -25,6 +33,11 @@ object AppPaths {
 
     fun os() = System.getProperty("os.name").lowercase().let { if ("win" in it) "windows" else if ("mac" in it) "macos" else "linux" }
     val isWindows get() = os() == "windows"
+    val isMac get() = os() == "macos"
+    /** "Windows", "macOS" or "Linux": shown in Settings and written to the progress file the phone reads. */
+    val platformName get() = when (os()) { "windows" -> "Windows"; "macos" -> "macOS"; else -> "Linux" }
+    /** How shortcut labels name the modifier key. */
+    val shortcutKey get() = if (isMac) "⌘" else "Ctrl+"
 }
 
 /** Writes through a temporary file, so a crash or power loss never leaves half a file. */

@@ -4,6 +4,7 @@ import androidx.compose.animation.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -34,7 +35,8 @@ fun QueueScreen(app: AppState) {
             Text("Queue", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
             if (queue.isNotEmpty()) PillButton(if (paused) "Resume" else "Pause", { app.transcription.pause(!paused) }, filled = paused)
         }
-        LazyColumn(Modifier.widthIn(max = 860.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = 32.dp)) {
+        val list = rememberLazyListState()
+        LazyColumn(Modifier.widthIn(max = 860.dp).fillMaxWidth().smoothWheelScroll(list), state = list, verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = 32.dp)) {
             val currentId = job?.bookId
             val current = currentId?.let { byId[it] }
             if (current != null && job != null) item(key = "current") {
