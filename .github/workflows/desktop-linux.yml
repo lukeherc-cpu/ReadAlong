@@ -65,6 +65,9 @@ jobs:
           ls -la dist | tee -a ci-results/flatpak.log
 
       - name: Speech test with the packaged app (CPU)
+        env:
+          # Echo the transcriber process's own log, so a failure to start shows why.
+          READALONG_VERBOSE: "1"
         run: |
           set -o pipefail
           mkdir -p "smoke/Test Book" models
@@ -80,7 +83,7 @@ jobs:
         run: |
           set -o pipefail
           flatpak install --user -y --noninteractive dist/ReadAlong-Linux.flatpak 2>&1 | tail -5
-          flatpak run "$APP_ID" --self-test "$PWD/smoke/Test Book" --model "$PWD/models/ggml-tiny.en.bin" --device cpu --expect fox \
+          flatpak run --env=READALONG_VERBOSE=1 "$APP_ID" --self-test "$PWD/smoke/Test Book" --model "$PWD/models/ggml-tiny.en.bin" --device cpu --expect fox \
             --out "$PWD/ci-results/self-test-flatpak.txt" || true
           cat ci-results/self-test-flatpak.txt
           grep -q "^PASS" ci-results/self-test-flatpak.txt

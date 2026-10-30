@@ -68,6 +68,9 @@ jobs:
           ls -la dist | tee -a ci-results/gradle.log
 
       - name: Speech test with the packaged app (CPU)
+        env:
+          # Echo the transcriber process's own log, so a failure to start shows why.
+          READALONG_VERBOSE: "1"
         run: |
           set -o pipefail
           mkdir -p "smoke/Test Book" models
