@@ -7,6 +7,12 @@ on:
   push:
     paths: ["desktop-app/**", ".github/workflows/desktop-windows.yml", "app/src/main/java/com/example/readalong/domain/**"]
   workflow_dispatch:
+  # release.yml calls this after publishing the APK, to add the installer to the same release.
+  workflow_call:
+    inputs:
+      release:
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -136,6 +142,14 @@ jobs:
           name: ReadAlong-Windows
           path: dist/*
           compression-level: 0
+
+      - name: Add the installer to the release
+        if: inputs.release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)
+          gh release upload "v$version" dist/ReadAlong-Windows.msi dist/ReadAlong-Windows-portable.zip --clobber
 
       - name: Keep the results
         if: always()

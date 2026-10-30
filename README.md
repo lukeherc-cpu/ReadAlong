@@ -36,6 +36,15 @@ ReadAlong downloads its small offline speech model in the background. You can li
 
 When installing a later version, install it over the existing app to keep your library, reading positions and prepared text.
 
+### Windows
+
+ReadAlong for Windows 10 and 11 plays the same books and makes the same read-along text, using your graphics card for transcription when it can.
+
+1. [Download the Windows installer](https://github.com/lukeherc-cpu/ReadAlong/releases/latest/download/ReadAlong-Windows.msi) and open it. If Windows says it protected your PC, choose **More info**, then **Run anyway**. A [portable zip](https://github.com/lukeherc-cpu/ReadAlong/releases/latest/download/ReadAlong-Windows-portable.zip) is also available.
+2. Choose **Add books** and pick your audiobook folder, then **Make ReadAlong** on a book.
+
+Transcripts made on Windows are saved as a `.readalong` file beside the audiobook. Copy it next to the same book on your phone and ReadAlong uses it instead of transcribing again. See [desktop-app/README.md](desktop-app/README.md) for details.
+
 ## Your first book
 
 Tap **+** in the library to add an audiobook. Choose a single audio file, select several files that belong to one book, or choose the book's folder.

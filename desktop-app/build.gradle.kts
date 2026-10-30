@@ -6,7 +6,10 @@ plugins {
     id("org.jetbrains.compose") version "1.9.3"
 }
 
-val appVersion = "1.0.0"
+// One version for the phone and Windows apps: the phone's versionName. MSI versions need a major
+// version above 0, so the installer of 0.41.0 is numbered 1.41.0.
+val appVersion = Regex("versionName = \"([^\"]+)\"").find(file("../app/build.gradle.kts").readText())!!.groupValues[1]
+val installerVersion = appVersion.substringBefore('-').split('.').let { (major, minor, patch) -> "${major.toInt() + 1}.$minor.$patch" }
 group = "com.example.readalong"
 version = appVersion
 
@@ -73,11 +76,11 @@ val nativeDir = layout.projectDirectory.dir("native/build/out")
 compose.desktop {
     application {
         mainClass = "com.example.readalong.desktop.MainKt"
-        jvmArgs += listOf("-Xmx2g")
+        jvmArgs += listOf("-Xmx2g", "-Dreadalong.version=$appVersion")
         nativeDistributions {
             targetFormats(TargetFormat.Msi, TargetFormat.Exe)
             packageName = "ReadAlong"
-            packageVersion = appVersion
+            packageVersion = installerVersion
             description = "Audiobook player that highlights the text as the narrator reads"
             vendor = "ReadAlong"
             copyright = "GPL-3.0"
