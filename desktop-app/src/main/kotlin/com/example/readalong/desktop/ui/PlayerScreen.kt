@@ -58,7 +58,10 @@ fun PlayerScreen(app: AppState, bookId: String) {
                     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                         AppIconButton("ic_back", "Back (Esc)", { app.back() })
                         Spacer(Modifier.weight(1f))
-                        if (text?.isEmpty == false) AppIconButton("ic_fullscreen", "Full-screen reader", { app.open(Screen.Reader(bookId)) })
+                        if (text?.isEmpty == false) {
+                            AppearanceMenu(app, themes = false)
+                            AppIconButton("ic_fullscreen", "Full-screen reader", { app.open(Screen.Reader(bookId)) })
+                        }
                         var menu by remember { mutableStateOf(false) }
                         Box {
                             AppIconButton("ic_more", "More", { menu = true })
