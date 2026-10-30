@@ -10,6 +10,8 @@ import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.background
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -87,7 +89,7 @@ class QueueViewModel(private val app: ReadAlongApplication) : ViewModel() {
 }
 
 @Composable
-fun QueueScreen(model: QueueViewModel, onBack: () -> Unit) {
+fun QueueScreen(model: QueueViewModel, onBack: () -> Unit, onOpen: (String) -> Unit = {}) {
     val loaded by model.books.collectAsStateWithLifecycle()
     val loading = loaded == null
     val books = loaded.orEmpty()
@@ -153,7 +155,7 @@ fun QueueScreen(model: QueueViewModel, onBack: () -> Unit) {
             if (current != null) item(key = current.item.bookId) {
                 val id = current.item.bookId
                 SwipeToRemove(current.item.title, enabled = drag.key == null, onRemove = { model.remove(id) }, modifier = Modifier.animateItem(placementSpec = tween(220, easing = QueueEasing))) {
-                    TranscribingCard(current, onPause = { model.pause(id) })
+                    TranscribingCard(current, onOpen = { onOpen(id) }, onPause = { model.pause(id) })
                 }
             }
             if (upNext.isNotEmpty()) item(key = "up-next-heading") { QueueHeading("Up next", Modifier.padding(top = if (current == null) 0.dp else 20.dp)) }
@@ -168,7 +170,7 @@ fun QueueScreen(model: QueueViewModel, onBack: () -> Unit) {
                         shadowElevation = 10.dp.toPx() * lift; shape = RoundedCornerShape(com.example.readalong.ui.theme.Corners.medium); clip = false
                     }) {
                     // Hold a row to pick it up, then drag it into place.
-                    QueueRow(entry, Modifier.semantics {
+                    QueueRow(entry, onOpen = { onOpen(id) }, modifier = Modifier.semantics {
                         customActions = listOf(CustomAccessibilityAction("Move up") { model.move(id, -1); true }, CustomAccessibilityAction("Move down") { model.move(id, 1); true })
                     }.pointerInput(id) {
                         detectDragGesturesAfterLongPress(
@@ -201,7 +203,7 @@ fun QueueScreen(model: QueueViewModel, onBack: () -> Unit) {
             if (finished.isNotEmpty()) {
                 item(key = "finished-heading") { QueueHeading("Transcribed", Modifier.padding(top = 20.dp)) }
                 items(finished, key = { it.item.bookId }) { entry ->
-                    SwipeToRemove(entry.item.title, enabled = true, onRemove = { model.remove(entry.item.bookId) }) { QueueRow(entry) }
+                    SwipeToRemove(entry.item.title, enabled = true, onRemove = { model.remove(entry.item.bookId) }) { QueueRow(entry, onOpen = { onOpen(entry.item.bookId) }) }
                 }
             }
         }
@@ -361,9 +363,10 @@ private fun QueueBook.status(bookPercent: Int) = when {
     else -> "Paused · $bookPercent% done"
 }
 
-/** The book being transcribed: cover, title and chapter, then one progress line and the pause button. Tap it for details. */
+/** The book being transcribed: cover, title and chapter, then one progress line and the pause button. Tap it to open the book; hold it for details. */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun TranscribingCard(entry: QueueBook, onPause: () -> Unit) {
+private fun TranscribingCard(entry: QueueBook, onOpen: () -> Unit, onPause: () -> Unit) {
     var details by rememberSaveable(entry.item.bookId) { mutableStateOf(false) }
     val progress = entry.job?.progress()
     val palette = entry.book?.let { com.example.readalong.ui.components.rememberCoverPalette(it) }
@@ -377,7 +380,9 @@ private fun TranscribingCard(entry: QueueBook, onPause: () -> Unit) {
         !started -> "Starting"
         else -> "Transcribing"
     }
-    Surface(onClick = { details = !details }, modifier = Modifier.testTag("queue:${entry.item.bookId}").semantics { stateDescription = if (details) "Details shown" else "Details hidden" },
+    Surface(modifier = Modifier.testTag("queue:${entry.item.bookId}").clip(RoundedCornerShape(com.example.readalong.ui.theme.Corners.large))
+            .combinedClickable(onClickLabel = "Open ${entry.item.title}", onLongClickLabel = if (details) "Hide details" else "Show details", onLongClick = { details = !details }, onClick = onOpen)
+            .semantics { stateDescription = if (details) "Details shown" else "Details hidden" },
         shape = RoundedCornerShape(com.example.readalong.ui.theme.Corners.large), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .7f)) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -407,12 +412,14 @@ private fun TranscribingCard(entry: QueueBook, onPause: () -> Unit) {
 
 /** A plain row: square cover, title, one line under it and a single button. Queued books also get a thin progress line. */
 @Composable
-private fun QueueRow(entry: QueueBook, modifier: Modifier = Modifier, action: (@Composable () -> Unit)? = null) {
+private fun QueueRow(entry: QueueBook, modifier: Modifier = Modifier, onOpen: (() -> Unit)? = null, action: (@Composable () -> Unit)? = null) {
     val queued = entry.item.state != "WAITING_SELECTION"
     val percent = entry.job?.progress()?.bookPercent ?: 0
     val bar = com.example.readalong.ui.components.animatedFraction(percent / 100f)
     val subtitle = if (queued) entry.status(percent) else entry.book?.author
-    Row(modifier.fillMaxWidth().testTag("queue:${entry.item.bookId}").heightIn(min = 64.dp).background(MaterialTheme.colorScheme.background, RoundedCornerShape(com.example.readalong.ui.theme.Corners.medium)).padding(vertical = 8.dp),
+    val shape = RoundedCornerShape(com.example.readalong.ui.theme.Corners.medium)
+    Row(modifier.fillMaxWidth().testTag("queue:${entry.item.bookId}").heightIn(min = 64.dp).background(MaterialTheme.colorScheme.background, shape)
+            .then(if (onOpen == null) Modifier else Modifier.clip(shape).clickable(onClickLabel = "Open ${entry.item.title}", onClick = onOpen)).padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
         QueueCover(entry, 48.dp)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
