@@ -20,9 +20,8 @@ set(BUILD_SHARED_LIBS ON CACHE BOOL "" FORCE)
 set(GGML_BACKEND_DL ON CACHE BOOL "" FORCE)
 set(GGML_NATIVE OFF CACHE BOOL "" FORCE)
 if(APPLE AND CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64")
-    # Every Apple silicon chip has the dot-product instructions; one CPU library covers them all.
+    # One CPU library for every Apple silicon chip: Apple's compiler already targets the M1 by default.
     set(GGML_CPU_ALL_VARIANTS OFF CACHE BOOL "" FORCE)
-    set(GGML_CPU_ARM_ARCH "armv8.2-a+dotprod+fp16" CACHE STRING "" FORCE)
 else()
     set(GGML_CPU_ALL_VARIANTS ON CACHE BOOL "" FORCE)
 endif()
