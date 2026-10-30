@@ -4,4 +4,5 @@
     <files-path name="editions" path="editions/" />
     <cache-path name="exports" path="exports/" />
     <cache-path name="downloads" path="downloads/" />
+    <files-path name="audible" path="audible/books/" />
 </paths>
