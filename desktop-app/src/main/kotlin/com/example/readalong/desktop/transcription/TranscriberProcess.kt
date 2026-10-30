@@ -95,7 +95,11 @@ class TranscriberProcess private constructor(private val process: Process) : Aut
                     .mapNotNull { key -> System.getProperty(key)?.let { "-D$key=$it" } }
                 listOf(command, "-Xmx1g") + properties + listOf("-cp", System.getProperty("java.class.path"), "com.example.readalong.desktop.MainKt", "--transcriber")
             } else listOf(command, "--transcriber")
-            val process = ProcessBuilder(args).start()
+            val process = ProcessBuilder(args).apply {
+                // The Linux launcher re-runs itself and marks the second run with an environment variable; a copy
+                // started with that mark inherited would read --transcriber as a Java option and stop.
+                environment().keys.removeIf { it.startsWith("_JPACKAGE") }
+            }.start()
             TranscriberProcess(process).also {
                 try { it.handshake() } catch (failure: Exception) { it.kill(); throw failure }
             }
