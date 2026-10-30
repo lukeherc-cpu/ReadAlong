@@ -27,10 +27,13 @@ class ProcessingRunner(private val database: ReadAlongDatabase, private val epub
                     job.copy(planJson = TranscriptionPlan.encode(TranscriptionPlan.decode(job.planJson))).also { jobs.put(it) } else job)
                 else job.copy(planJson = TranscriptionPlan.encode(TranscriptionPlan.inputs(database, bookId)),
                     sourceFingerprint = TranscriptionPlan.fingerprint(database, bookId)).also { jobs.put(it) }
+            }.let { job ->
+                // Playing the book can correct a file's length. Move onto the corrected plan, keeping finished work.
+                if (job.sourceFingerprint == TranscriptionPlan.fingerprint(database, bookId)) job
+                else database.withTransaction { (TranscriptionPlan.rebase(database, current(bookId, workId)) ?: throw AudioLayoutChanged()).also { jobs.put(it) } }
             }
             val units = TranscriptionPlan.decode(requireNotNull(initial.planJson))
             check(initial.completedUnits in 0..units.size) { "Saved checkpoint is outside this audio plan." }
-            if (initial.sourceFingerprint != TranscriptionPlan.fingerprint(database, bookId)) throw AudioLayoutChanged()
             // A process may stop after the atomic transcript/checkpoint commit but before
             // publishing its reading edition. Repair that derived view without recognizing
             // any already completed audio again. Normally this is a cheap revision check.
@@ -42,6 +45,9 @@ class ProcessingRunner(private val database: ReadAlongDatabase, private val epub
                 database.bookDao().putMetadata(LibraryMetadataEntity(com.example.readalong.data.audio.Mp3Timing.versionKey(bookId),
                     com.example.readalong.data.audio.Mp3Timing.VERSION))
             }
+            // Each unit's time runs from the previous checkpoint, so the rate includes saving, publishing and
+            // the between-unit checks, and the estimate needn't guess a per-unit overhead.
+            var unitBegan = android.os.SystemClock.elapsedRealtime()
             // Start at the durable checkpoint. Re-reading the full job (including its large
             // plan JSON) for every completed chunk makes late-book one-unit batches quadratic.
             for (index in initial.completedUnits until units.size) {
@@ -49,15 +55,14 @@ class ProcessingRunner(private val database: ReadAlongDatabase, private val epub
                 val job = current(bookId, workId)
                 if (index < job.completedUnits) continue
                 update(bookId, workId, ProcessingState.PROCESSING, if (book.isDemo) "Preparing sample chapter ${index + 1} of ${units.size}." else "Transcribing chunk ${index + 1} of ${units.size} with ${com.example.readalong.domain.transcription.SpeechModels.find(engine.id)?.name ?: "Offline speech model"}…")
-                val unitBegan = android.os.SystemClock.elapsedRealtime()
                 val segments = engine.transcribe(input).toList() // A real unit contains at most 30 seconds of audio.
                 coroutineContext.ensureActive()
-                if (book.isDemo) check(segments.isNotEmpty()) { "No readable text was produced." }
+                if (book.isDemo) check(segments.isNotEmpty()) { "No words were found in this audio." }
                 TranscriptIndex(segments) // Validates canonical interval ordering before committing.
                 check(segments.all { it.bookId == bookId && it.chapterId == input.chapterId && it.startMs >= input.startMs && it.endMs <= input.endMs })
                 database.withTransaction {
                     val latest = current(bookId, workId)
-                    if (latest.sourceFingerprint != TranscriptionPlan.fingerprint(database, bookId)) throw AudioLayoutChanged()
+                    if (latest.sourceFingerprint != TranscriptionPlan.fingerprint(database, bookId)) throw PlanOutdated()
                     val reading = database.readingDao()
                     val version = reading.findVersion(bookId) ?: ReadableVersionEntity(bookId, "PARTIAL_READY", null, 0, chapterEnds.size, null, 0)
                     if (!book.isDemo) reading.deleteRange(bookId, input.startMs, input.endMs)
@@ -72,11 +77,12 @@ class ProcessingRunner(private val database: ReadAlongDatabase, private val epub
                 epub.publishReadingRange(input)
                 android.util.Log.d("ReadAlongPerf", "reading_publish_ms=${android.os.SystemClock.elapsedRealtime() - publishBegan}")
                 // Persist a rolling rate beside the checkpoint; no recognition timestamps are changed.
+                val unitEnded = android.os.SystemClock.elapsedRealtime()
                 if (!book.isDemo) try {
-                    TranscriptionEstimate.record(database, job, input.endMs - input.startMs,
-                        android.os.SystemClock.elapsedRealtime() - unitBegan)
+                    TranscriptionEstimate.record(database, job, input.endMs - input.startMs, unitEnded - unitBegan)
                 } catch (cancelled: CancellationException) { throw cancelled }
                 catch (_: Exception) { /* Estimates are optional; never fail a saved transcription. */ }
+                unitBegan = unitEnded
                 processed++
                 val continueSession = afterCheckpoint()
                 if ((processed >= maxUnits || !continueSession) && index < units.lastIndex) {
@@ -88,13 +94,16 @@ class ProcessingRunner(private val database: ReadAlongDatabase, private val epub
             if (database.readingDao().count(bookId) == 0) {
                 update(bookId, workId, ProcessingState.READY, "Processing finished, but no speech was recognized. Audio remains available.")
             } else {
-                update(bookId, workId, ProcessingState.GENERATING_EPUB, if (book.isDemo) "Building the sample EPUB." else "Building the readable EPUB.")
+                update(bookId, workId, ProcessingState.GENERATING_EPUB, if (book.isDemo) "Building the sample EPUB." else "Finishing your ReadAlong…")
                 epub.generate(bookId)
                 update(bookId, workId, ProcessingState.READY,
-                    if (book.isDemo) "Sample readable version ready · synthetic timestamps · no narration." else "Whole-book readable version ready · ${com.example.readalong.domain.transcription.SpeechModels.find(engine.id)?.name ?: "Offline speech model"} · recognition may contain errors.")
+                    if (book.isDemo) "Sample ReadAlong ready." else "Whole-book readable version ready · ${com.example.readalong.domain.transcription.SpeechModels.find(engine.id)?.name ?: "Offline speech model"} · recognition may contain errors.")
             }
             return true
         } catch (cancelled: CancellationException) { throw cancelled }
+        // The audio layout changed during this chunk; nothing of it was saved. Start again from the checkpoint,
+        // which moves onto the new plan, or fails with AudioLayoutChanged when the files really changed.
+        catch (_: PlanOutdated) { return run(bookId, workId, engine, maxUnits, afterCheckpoint) }
         catch (failure: Exception) {
             android.util.Log.w("ReadAlong", "Readable pipeline failed: ${failure.javaClass.simpleName}")
             database.withTransaction {
@@ -103,7 +112,7 @@ class ProcessingRunner(private val database: ReadAlongDatabase, private val epub
                     if (failure is AudioLayoutChanged) database.importedEpubDao().invalidateAudioMapping(bookId)
                     jobs.put(latest.copy(state = if (PreparationRetry.transient(failure)) ProcessingState.QUEUED.name else ProcessingState.FAILED.name,
                         message = if (failure is AudioLayoutChanged) "The audio file order, duration or chapter boundaries changed. Retry preparation to build a new plan. The saved edition and listening position are preserved." else if (failure is com.example.readalong.data.transcription.SpeechPreparationException) failure.explanation
-                        else "Couldn't prepare readable text. Check model, audio access and free storage, then retry. Completed text, audio and saved positions are preserved.", updatedAt = System.currentTimeMillis()))
+                        else "Couldn't finish this ReadAlong. Check that the audio is still there and there's free space, then try again. Progress so far is kept.", updatedAt = System.currentTimeMillis()))
                 }
             }
             throw failure
@@ -127,3 +136,4 @@ class ProcessingRunner(private val database: ReadAlongDatabase, private val epub
 }
 
 private class AudioLayoutChanged : IllegalStateException()
+private class PlanOutdated : IllegalStateException()

@@ -56,6 +56,12 @@ internal class Mp3SeekIndex(private val times: LongArray, private val positions:
             } }.getOrNull() ?: 0L
             return java.security.MessageDigest.getInstance("SHA-256").digest("v1:$uri:$size:$modified".toByteArray()).joinToString("") { "%02x".format(it) }
         }
+        /** Drops this file's saved frame positions so the next read scans it again. */
+        fun forget(context: Context, uri: Uri) = synchronized(lock) {
+            val key = identity(context, uri)
+            cached.remove(key)
+            File(context.filesDir, "mp3-seek-indexes").listFiles()?.filter { it.name.startsWith("$key.") }?.forEach { it.delete() }
+        }
         /** Runs on Media3's loader or decoder's IO dispatcher. Reuses a verified, atomically
          * written index; an interrupted scan leaves no published cache file. */
         fun load(context: Context, uri: Uri, checkCancelled: () -> Unit = {}): Mp3SeekIndex = synchronized(lock) {
@@ -104,6 +110,7 @@ internal class Mp3SeekIndex(private val times: LongArray, private val positions:
             val extractor = Mp3Extractor(Mp3Extractor.FLAG_DISABLE_ID3_METADATA)
             val times = ArrayList<Long>(); val positions = ArrayList<Long>()
             var duration = C.TIME_UNSET
+            var lastSampleUs = C.TIME_UNSET
             var packetSize = 0
             val buffer = ByteArray(4096)
             lateinit var input: DefaultExtractorInput
@@ -117,6 +124,7 @@ internal class Mp3SeekIndex(private val times: LongArray, private val positions:
                 override fun sampleData(data: ParsableByteArray, length: Int, sampleDataPart: Int) { data.skipBytes(length); packetSize += length }
                 override fun sampleMetadata(timeUs: Long, flags: Int, size: Int, offset: Int, cryptoData: TrackOutput.CryptoData?) {
                     check(offset == 0 && packetSize == size)
+                    lastSampleUs = timeUs
                     if (times.isEmpty() || timeUs - times.last() >= 1_000_000) {
                         check(times.size < 1_000_000) { "This MP3 exceeds the seek index limit." }
                         times += timeUs; positions += input.position - size
@@ -140,8 +148,10 @@ internal class Mp3SeekIndex(private val times: LongArray, private val positions:
                     if (status == Extractor.RESULT_END_OF_INPUT) break
                     check(status != Extractor.RESULT_SEEK) { "MP3 indexing must read sequentially." }
                 }
-                check(times.isNotEmpty() && duration >= times.last()) { "MP3 did not provide a valid frame timeline." }
-                return Mp3SeekIndex(times.toLongArray(), positions.toLongArray(), duration)
+                check(times.isNotEmpty()) { "MP3 did not provide a valid frame timeline." }
+                // The Xing/VBRI header's frame count can be short (or missing) when a file was cut or
+                // joined after encoding. The frames actually scanned are the truth; never fail on the header.
+                return Mp3SeekIndex(times.toLongArray(), positions.toLongArray(), if (duration == C.TIME_UNSET) lastSampleUs else maxOf(duration, lastSampleUs))
             } finally { try { data.close() } finally { extractor.release() } }
         }
     }

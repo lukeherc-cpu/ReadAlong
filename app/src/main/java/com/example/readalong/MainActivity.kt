@@ -41,6 +41,14 @@ open class MainActivity : ComponentActivity() {
             androidx.compose.foundation.layout.Box {
             val app = application as ReadAlongApplication
             val settings by app.appPreferences.preferences.collectAsStateWithLifecycle<com.example.readalong.data.preferences.AppPreferences?>(null)
+            // Light/dark can change while the app is open (no restart): keep the system bar icons in step.
+            val lightNow = settings?.libraryLight ?: launchSettings.libraryLight
+            androidx.compose.runtime.LaunchedEffect(lightNow) {
+                if (lightNow != launchSettings.libraryLight || settings != null) enableEdgeToEdge(
+                    statusBarStyle = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT) { !lightNow },
+                    navigationBarStyle = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT) { !lightNow },
+                )
+            }
             settings?.let { preferences ->
                 androidx.compose.runtime.CompositionLocalProvider(com.example.readalong.ui.theme.LocalAppSettings provides preferences) {
                     ReadAlongTheme(light = preferences.libraryLight) {

@@ -5,6 +5,7 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.getOrNull
 import com.example.readalong.data.local.*
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.flow.first
@@ -35,22 +36,34 @@ class QueueNavigationTest {
             compose.onNodeWithContentDescription("Resume top 3").assertDoesNotExist()
             compose.onNodeWithContentDescription("Pause top 3").assertDoesNotExist()
             compose.onNodeWithContentDescription("Add book to queue").performClick()
-            val choices = compose.onAllNodesWithText("Queue sample C")
-            choices[choices.fetchSemanticsNodes().lastIndex].performClick()
+            compose.waitUntil(5000) { compose.onAllNodesWithTag("add_to_queue").fetchSemanticsNodes().isNotEmpty() }
+            // Search narrows the sheet's list; adding a book takes it out of the list.
+            compose.onNodeWithContentDescription("Search books").performClick()
+            compose.onNodeWithTag("add_to_queue_search").performTextInput("sample C")
+            compose.onNodeWithContentDescription("Add Queue sample C to queue").performClick()
             compose.waitUntil(5000) { runBlocking { app.database.processingDao().find(ids[2])!!.state == "WAITING_QUEUE" } }
+            compose.waitUntil(5000) { compose.onAllNodesWithContentDescription("Add Queue sample C to queue").fetchSemanticsNodes().isEmpty() }
+            androidx.test.espresso.Espresso.pressBack()
+            compose.waitUntil(5000) { compose.onAllNodesWithTag("add_to_queue").fetchSemanticsNodes().isEmpty() }
             assertEquals(0, runBlocking { app.database.processingDao().find(ids[2])!!.completedUnits })
             compose.onRoot().captureToImage().asAndroidBitmap().let { bitmap -> java.io.File(app.getExternalFilesDir(null), "verification-queue.png").outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) } }
-            compose.onNodeWithTag("transcription_queue").performScrollToNode(hasContentDescription("Reorder Queue sample A"))
-            val first = compose.onNodeWithContentDescription("Reorder Queue sample A").fetchSemanticsNode().boundsInRoot
-            val second = compose.onNodeWithContentDescription("Reorder Queue sample B").fetchSemanticsNode().boundsInRoot
-            compose.onNodeWithContentDescription("Reorder Queue sample A").performTouchInput {
-                down(center); advanceEventTime(16); moveBy(Offset(0f, second.center.y-first.center.y), 500); up()
+            compose.onNodeWithTag("transcription_queue").performScrollToNode(hasTestTag("queue:${ids[0]}"))
+            val first = compose.onNodeWithTag("queue:${ids[0]}").fetchSemanticsNode().boundsInRoot
+            val second = compose.onNodeWithTag("queue:${ids[1]}").fetchSemanticsNode().boundsInRoot
+            // Hold the row to pick it up, then drag it below the next one.
+            compose.onNodeWithTag("queue:${ids[0]}").performTouchInput {
+                down(center); advanceEventTime(viewConfiguration.longPressTimeoutMillis + 100); moveBy(Offset(0f, second.center.y-first.center.y), 500); up()
             }
             compose.waitUntil(5000) { runBlocking { app.database.processingDao().registeredQueue().filter { it.bookId in ids }.first().bookId == ids[1] } }
-            compose.onNodeWithContentDescription("Remove Queue sample A from queue").performClick()
+            // Swiping left removes a row; the same action is offered to accessibility services.
+            val remove = compose.onNode(SemanticsMatcher("can remove Queue sample A") { node ->
+                node.config.getOrNull(SemanticsActions.CustomActions)?.any { it.label == "Remove Queue sample A from queue" } == true
+            }).fetchSemanticsNode().config[SemanticsActions.CustomActions].first { it.label == "Remove Queue sample A from queue" }
+            compose.runOnUiThread { remove.action() }
             compose.waitUntil(5000) { runBlocking { app.database.processingDao().find(ids[0])!!.state == "WAITING_SELECTION" } }
-            compose.onNodeWithText("Not transcribed").assertExists()
-            compose.onNodeWithText("Add all").performScrollTo().performClick()
+            compose.onNodeWithText("Not transcribed").assertDoesNotExist()
+            compose.onNodeWithContentDescription("Add book to queue").performClick()
+            compose.onNodeWithText("Add all").performClick()
             compose.waitUntil(5000) { runBlocking { app.database.processingDao().find(ids[0])!!.state == "WAITING_QUEUE" } }
             assertTrue(runBlocking { app.database.processingDao().unfinished().none { it.bookId in ids } })
             compose.onNodeWithContentDescription("Back to library").performClick()

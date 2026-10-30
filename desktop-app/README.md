@@ -1,0 +1,56 @@
+# ReadAlong for Windows
+
+The ReadAlong library, player and read-along reader as a Windows app, with transcription that runs on the
+graphics card when there is one.
+
+## What it does
+
+- **Library.** Add your audiobook folder (or drop folders and files on the window). Books are found with the
+  phone's library rules: a folder per book with CD1/CD2 subfolders, Author/Book shelves, and side-by-side
+  `.m4b` files as separate books. Chapters come from the phone's own MP4 and ID3 chapter readers; covers from a
+  `cover.jpg`/`folder.jpg` or the artwork in the file. An EPUB beside a book is used for its text.
+- **Player.** MP3, M4A, M4B, AAC, OGG, Opus, FLAC and WAV through FFmpeg. Speed from 0.5× to 3× without
+  changing pitch, sleep timer, bookmarks, chapters, and a mini player that stays with you in the library.
+- **Read along.** The text follows the narration and lights the sentence being read; click any sentence to
+  listen from it. Generated text and EPUB matching use the phone's code unchanged (ParagraphFormatter,
+  EpubParser, EpubAligner, sentence timing), so a book reads the same on both.
+- **Transcription.** whisper.cpp in a separate process. Its Vulkan backend runs on NVIDIA, AMD and Intel
+  graphics cards; without one (or if the driver fails) it uses the best CPU code for the processor. A GPU
+  that stops responding switches the book to the CPU and keeps the progress. Models (tiny.en to
+  large-v3-turbo) download from Hugging Face the first time; the recommended one depends on the hardware.
+
+## Transcripts move between the phone and the PC
+
+Transcripts are stored, from the start, as the `.readalong` package the phone imports
+(`DesktopTranscriptImporter`):
+
+- `manifest.json`: `format: "readalong-transcript"`, `version: 1`, `complete`, `model`
+  (`desktop:whisper.cpp:<model>`), `engine`, `chunks`, and `sources` (each audio file's name, size, SHA-256
+  and length).
+- `chunks.jsonl`: one line per unit of at most 30 s, back to back from 0 to each file's length:
+  `{"file", "startMs", "endMs", "result": {"text", "words": [{"word", "start", "end", "probability"}]}}`,
+  word times in seconds from the start of the chunk.
+
+The app reads its own text through the phone's `WhistleResult`, exactly as the phone reads a package, so
+there is no conversion either way. With **Settings → Phone → Save each ReadAlong beside its audiobook** on,
+each finished book gets `<book>.readalong` next to its audio, where the phone's library scan finds it. A
+`.readalong` found beside a book (from the phone, PR #18's command-line transcriber, or another PC) is
+imported when the library is scanned. The phone accepts `desktop:` model ids once the `DesktopTranscriptImporter` change in this branch ships in an Android release.
+
+## Build
+
+Needs JDK 21, CMake, Visual Studio 2022 (C++), and the Vulkan SDK for the GPU backend.
+
+```
+git clone --branch v1.8.7 https://github.com/ggml-org/whisper.cpp ../whisper.cpp
+cmake -S desktop-app/native -B desktop-app/native/build -A x64 -DWHISPER_CPP=../whisper.cpp -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
+cmake --build desktop-app/native/build --config Release
+./gradlew -p desktop-app run                 # run from source
+./gradlew -p desktop-app packageReleaseMsi   # installer in desktop-app/build/compose/binaries/main-release/msi
+```
+
+`.github/workflows/desktop-windows.yml` does all of this on every push to `desktop-app/`, then transcribes
+synthesized speech with the packaged app (on the CPU, and on Mesa's software Vulkan to exercise the GPU path)
+and uploads the MSI and a portable zip as the run's **ReadAlong-Windows** artifact.
+
+`ReadAlong.exe --self-test <book folder> --model <ggml model> --device cpu|gpu` runs that check by hand.

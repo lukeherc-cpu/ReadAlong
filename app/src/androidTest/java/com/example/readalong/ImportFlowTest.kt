@@ -21,13 +21,13 @@ class ImportFlowTest {
                 app.processing.imported(id); model.offerPriority(listOf(id))
             }
             compose.setContent { com.example.readalong.ui.theme.ReadAlongTheme { ImportPriorityPrompt(model) } }
-            compose.onNodeWithText("Read along with your audiobook?").assertIsDisplayed()
-            compose.onNodeWithTag("reading_source_epub").assertDoesNotExist()
+            // One step: the new book's "Make a ReadAlong" choice appears straight away.
+            compose.onNodeWithText("Make a ReadAlong").assertIsDisplayed()
+            compose.onNodeWithTag("reading_source_epub").assertIsDisplayed()
             compose.onNodeWithText("Later").performClick()
             compose.onNodeWithTag("reading_source_epub").assertDoesNotExist()
             assertEquals("WAITING_SELECTION", runBlocking { app.database.processingDao().find(id)!!.state })
             runBlocking { model.offerPriority(listOf(id)) }
-            compose.onNodeWithText("Create ReadAlong").performClick()
             compose.onNodeWithTag("reading_source_epub").assertIsDisplayed()
             val left = compose.onNodeWithTag("reading_source_transcript").fetchSemanticsNode().boundsInRoot
             val right = compose.onNodeWithTag("reading_source_epub").fetchSemanticsNode().boundsInRoot

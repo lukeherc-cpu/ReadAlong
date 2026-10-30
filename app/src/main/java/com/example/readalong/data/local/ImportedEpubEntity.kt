@@ -38,7 +38,7 @@ interface ImportedEpubDao {
     suspend fun indexAt(bookId: String, position: Long): Int?
     @Query("SELECT * FROM imported_epub_blocks WHERE bookId = :bookId AND editionId = :editionId AND ordinal = :ordinal")
     suspend fun block(bookId: String, editionId: String, ordinal: Int): ImportedEpubBlockEntity?
-    @Query("SELECT b.* FROM imported_epub_blocks b INNER JOIN imported_epubs e ON e.bookId = b.bookId AND e.editionId = b.editionId WHERE b.bookId = :bookId AND b.ordinal >= MAX(0, COALESCE((SELECT p.ordinal FROM imported_epub_blocks p WHERE p.bookId = b.bookId AND p.editionId = b.editionId AND p.startMs >= 0 AND p.startMs <= :position ORDER BY p.startMs DESC, CASE WHEN p.manualStartMs >= 0 THEN 0 ELSE 1 END, p.ordinal LIMIT 1), 0) - 3) ORDER BY b.ordinal LIMIT 24")
+    @Query("SELECT b.* FROM imported_epub_blocks b INNER JOIN imported_epubs e ON e.bookId = b.bookId AND e.editionId = b.editionId WHERE b.bookId = :bookId AND b.ordinal >= MAX(0, COALESCE((SELECT p.ordinal FROM imported_epub_blocks p WHERE p.bookId = b.bookId AND p.editionId = b.editionId AND p.startMs >= 0 AND p.startMs <= :position ORDER BY p.startMs DESC, CASE WHEN p.manualStartMs >= 0 THEN 0 ELSE 1 END, p.ordinal LIMIT 1) - 3, (SELECT f.ordinal FROM imported_epub_blocks f WHERE f.bookId = b.bookId AND f.editionId = b.editionId AND f.startMs >= 0 ORDER BY f.startMs, f.ordinal LIMIT 1), 0)) ORDER BY b.ordinal LIMIT 24")
     fun window(bookId: String, position: Long): Flow<List<ImportedEpubBlockEntity>>
     @Query("SELECT b.ordinal FROM imported_epub_blocks b INNER JOIN imported_epubs e ON e.bookId = b.bookId AND e.editionId = b.editionId WHERE b.bookId = :bookId AND b.startMs >= 0 AND b.startMs <= :position ORDER BY b.startMs DESC, b.ordinal LIMIT 1")
     suspend fun indexBefore(bookId: String, position: Long): Int?
@@ -56,12 +56,12 @@ interface ImportedEpubDao {
     /** New text for the same verified audio: preserve manual timing and allow alignment immediately. */
     @Transaction suspend fun resetTranscriptMapping(bookId: String) {
         find(bookId)?.let { put(it.copy(state = "QUEUED", alignedRevision = -1, matchedSegments = 0, totalSegments = 0,
-            matchedTokens = 0, totalTokens = 0, message = "Syncing EPUB with the imported transcript…")) }
+            matchedTokens = 0, totalTokens = 0, message = "Matching your EPUB to the audio…")) }
         clearAutomaticAlignment(bookId)
     }
     @Transaction suspend fun invalidateAudioMapping(bookId: String) {
         find(bookId)?.let { put(it.copy(state = "AUDIO_CHANGED", alignedRevision = -1, matchedSegments = 0, totalSegments = 0,
-            matchedTokens = 0, totalTokens = 0, manualCount = 0, message = "Audio layout changed. EPUB text is kept; audio matching will update from the new transcript.")) }
+            matchedTokens = 0, totalTokens = 0, manualCount = 0, message = "The audio files changed. Your EPUB is kept and will be matched to the audio again.")) }
         clearAlignment(bookId)
     }
 }
