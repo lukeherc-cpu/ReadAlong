@@ -27,6 +27,7 @@ import com.example.readalong.domain.model.LibrarySection
 import com.example.readalong.domain.model.LibrarySort
 import com.example.readalong.domain.model.libraryGroups
 import com.example.readalong.ui.theme.ReadAlongTheme
+import com.example.readalong.ui.components.smoothWheelScroll
 
 @Composable
 fun LibraryScreen(
@@ -87,9 +88,11 @@ fun LibraryScreen(
         },
         bottomBar = miniPlayer,
     ) { insets ->
+        val libraryGrid = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
         LazyVerticalGrid(
             columns = if (settings.listLibrary) GridCells.Fixed(1) else if (width >= 600) GridCells.Adaptive(180.dp) else GridCells.Fixed(2),
-            modifier = Modifier.fillMaxSize().padding(insets).testTag("library_grid"),
+            state = libraryGrid,
+            modifier = Modifier.fillMaxSize().padding(insets).smoothWheelScroll(libraryGrid).testTag("library_grid"),
             contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),

@@ -56,6 +56,7 @@ import com.example.readalong.ui.components.SearchCountLabel
 import com.example.readalong.ui.components.SearchProgressLine
 import com.example.readalong.ui.components.SearchResultCard
 import com.example.readalong.ui.components.highlightMatches
+import com.example.readalong.ui.components.smoothWheelScroll
 
 /** One reading surface, sharing the service-owned audio player in both modes. */
 @Composable
@@ -471,7 +472,7 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
             Column(Modifier.fillMaxSize()) {
                 if (items.loadState.refresh is LoadState.Error) TextButton(onClick = items::retry) { Text("Retry loading text") }
                 else if (renderedCount == 0 && items.loadState.refresh !is LoadState.Loading) Text(version?.message ?: "Your ReadAlong is being made. Text appears here as it's ready; you can keep listening.", Modifier.padding(24.dp))
-                LazyColumn(Modifier.weight(1f).nestedScroll(scroll).testTag("follow_passages"), state = list,
+                LazyColumn(Modifier.weight(1f).nestedScroll(scroll).smoothWheelScroll(list) { following = false; userScrolled = true }.testTag("follow_passages"), state = list,
                     contentPadding = PaddingValues(start = preferences.margin.dp + columnInset, end = preferences.margin.dp + columnInset,
                         top = 64.dp + cutoutTop, bottom = if (readingOnly) 24.dp else 100.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
                     if (renderedCount == 0 && items.loadState.refresh is LoadState.Loading) item { PassageSkeleton() }
