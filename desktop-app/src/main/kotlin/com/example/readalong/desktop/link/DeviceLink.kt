@@ -119,7 +119,8 @@ class DeviceLink(private val scope: CoroutineScope, private val library: Library
         try {
             val hello = channel.receiveJson()
             require(hello.optString("op") == "hello")
-            device = welcome(keyId, hello.getString("device"), hello.optString("name").ifBlank { "Phone" })
+            val phone = welcome(keyId, hello.getString("device"), hello.optString("name").ifBlank { "Phone" })
+            device = phone
             channel.sendJson(JSONObject().put("device", mutableState.value.deviceId).put("name", mutableState.value.name).put("platform", AppPaths.platformName))
             while (true) {
                 val request = try { channel.receiveJson() } catch (_: EOFException) { break }
@@ -127,8 +128,8 @@ class DeviceLink(private val scope: CoroutineScope, private val library: Library
                     when (request.optString("op")) {
                         "folders" -> channel.sendJson(JSONObject().put("folders", JSONArray(folders())))
                         "list" -> list(channel, shared(request))
-                        "get" -> send(channel, device.name, shared(request), request.getString("path"))
-                        "put" -> { receive(channel, device.name, shared(request), request.getString("path"), request.getLong("size")); changed = true }
+                        "get" -> send(channel, phone.name, shared(request), request.getString("path"))
+                        "put" -> { receive(channel, phone.name, shared(request), request.getString("path"), request.getLong("size")); changed = true }
                         "create" -> channel.sendJson(create(request.getString("name")))
                         "done" -> { channel.sendJson(JSONObject().put("ok", true)); break }
                         else -> channel.sendJson(JSONObject().put("error", "This version of ReadAlong Desktop doesn't know how to do that. Update it to sync."))
@@ -138,7 +139,7 @@ class DeviceLink(private val scope: CoroutineScope, private val library: Library
         } catch (_: Exception) { /* The phone went away or the network dropped; it tries again next time. */ }
         finally {
             mutableActivity.value = null
-            if (device != null) change { s -> s.copy(devices = s.devices.map { if (it.id == device.id) it.copy(lastSeen = System.currentTimeMillis()) else it }) }
+            device?.let { seen -> change { s -> s.copy(devices = s.devices.map { if (it.id == seen.id) it.copy(lastSeen = System.currentTimeMillis()) else it }) } }
             if (changed) scope.launch { runCatching { onSynced() } }
         }
     }

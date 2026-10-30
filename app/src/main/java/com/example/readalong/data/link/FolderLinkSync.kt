@@ -112,8 +112,8 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
                 when (action) {
                     is SyncAction.Download -> {
                         mutableProgress.value = SyncProgress("Copying from computer $label", 0f)
-                        val (received, local) = download(client, pair, tree, rootId, action.path) { done, size -> mutableProgress.value = SyncProgress("Copying from computer $label", fraction(done, size)) }
-                        remoteNow[action.path] = received; localNow[action.path] = local
+                        val (received, stored) = download(client, pair, tree, rootId, action.path) { done, size -> mutableProgress.value = SyncProgress("Copying from computer $label", fraction(done, size)) }
+                        remoteNow[action.path] = received; localNow[action.path] = stored
                     }
                     is SyncAction.Upload -> {
                         val source = local.getValue(action.path)
