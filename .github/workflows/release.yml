@@ -74,3 +74,11 @@ jobs:
         with:
           name: ReadAlong-${{ env.VERSION }}
           path: ReadAlong-${{ env.VERSION }}.apk*
+
+  windows:
+    name: Windows installer
+    needs: release
+    if: startsWith(github.ref, 'refs/heads/release/')
+    uses: ./.github/workflows/desktop-windows.yml
+    with:
+      release: true

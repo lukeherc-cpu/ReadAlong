@@ -142,7 +142,7 @@ fun SettingsScreen(app: AppState) {
                     }
                 }
                 Spacer(Modifier.height(24.dp))
-                Text("ReadAlong for Windows ${System.getProperty("jpackage.app-version") ?: "1.0.0"} · Data in ${AppPaths.data}", style = MaterialTheme.typography.labelMedium,
+                Text("ReadAlong for Windows ${System.getProperty("readalong.version") ?: "dev"} · Data in ${AppPaths.data}", style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(40.dp))
             }
