@@ -18,6 +18,7 @@ import androidx.compose.ui.draganddrop.awtTransferable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.unit.dp
+import com.example.readalong.desktop.core.AppPaths
 import java.awt.datatransfer.DataFlavor
 import java.io.File
 
@@ -90,12 +91,14 @@ fun ReadAlongApp(app: AppState) {
 fun handleKey(app: AppState, event: KeyEvent): Boolean {
     if (event.type != KeyEventType.KeyDown) return false
     val settings = app.settingsStore.value
+    // Ctrl, or Command on a Mac.
+    val shortcut = event.isCtrlPressed || (AppPaths.isMac && event.isMetaPressed)
     return when {
-        event.key == Key.F && event.isCtrlPressed && app.screen is Screen.Reader -> { app.searchRequests++; true }
+        event.key == Key.F && shortcut && app.screen is Screen.Reader -> { app.searchRequests++; true }
         event.key == Key.Escape && app.screen != Screen.Library -> { app.back(); true }
-        event.key == Key.Spacebar && !event.isCtrlPressed && app.player.state.value.bookId != null -> { app.player.toggle(); true }
-        event.key == Key.DirectionLeft && event.isCtrlPressed -> { app.player.skip(-settings.skipBackSeconds * 1000L); true }
-        event.key == Key.DirectionRight && event.isCtrlPressed -> { app.player.skip(settings.skipForwardSeconds * 1000L); true }
+        event.key == Key.Spacebar && !shortcut && app.player.state.value.bookId != null -> { app.player.toggle(); true }
+        event.key == Key.DirectionLeft && shortcut -> { app.player.skip(-settings.skipBackSeconds * 1000L); true }
+        event.key == Key.DirectionRight && shortcut -> { app.player.skip(settings.skipForwardSeconds * 1000L); true }
         event.key == Key.DirectionLeft && app.screen !is Screen.Library -> { app.player.skip(-settings.skipBackSeconds * 1000L); true }
         event.key == Key.DirectionRight && app.screen !is Screen.Library -> { app.player.skip(settings.skipForwardSeconds * 1000L); true }
         else -> false

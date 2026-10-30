@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=ReadAlong
+GenericName=Audiobook Player
+Comment=Audiobook player that highlights the text as the narrator reads
+Exec=readalong
+Icon=io.github.lukeherc_cpu.ReadAlong
+Terminal=false
+Categories=AudioVideo;Audio;Player;Education;
+Keywords=audiobook;epub;transcript;whisper;reader;
+StartupWMClass=com-example-readalong-desktop-MainKt

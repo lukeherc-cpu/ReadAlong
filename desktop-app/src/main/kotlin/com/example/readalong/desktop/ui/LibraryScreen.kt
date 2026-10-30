@@ -75,7 +75,7 @@ fun LibraryScreen(app: AppState) {
         if (books.isEmpty()) { EmptyLibrary(app, scan.running); return@Column }
         val grid = rememberLazyGridState()
         Box(Modifier.weight(1f)) {
-            LazyVerticalGrid(GridCells.Adaptive(176.dp), state = grid, contentPadding = PaddingValues(start = 28.dp, end = 28.dp, bottom = 32.dp),
+            LazyVerticalGrid(GridCells.Adaptive(176.dp), Modifier.smoothWheelScroll(grid), state = grid, contentPadding = PaddingValues(start = 28.dp, end = 28.dp, bottom = 32.dp),
                 horizontalArrangement = Arrangement.spacedBy(22.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
                 if (groups.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
                     Text("No books match “$query”.", Modifier.padding(top = 40.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)

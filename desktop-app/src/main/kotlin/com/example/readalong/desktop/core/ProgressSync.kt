@@ -60,7 +60,7 @@ class ProgressSync(private val library: LibraryStore) {
         fun encode(book: LibraryBook): String {
             val index = book.partAt(book.positionMs)
             val part = book.parts[index]
-            return JSONObject().put("format", FORMAT).put("version", 1).put("device", "Windows").put("updatedAt", book.lastPlayedAt ?: 0L)
+            return JSONObject().put("format", FORMAT).put("version", 1).put("device", AppPaths.platformName).put("updatedAt", book.lastPlayedAt ?: 0L)
                 .put("positionMs", book.positionMs).put("durationMs", book.durationMs).put("finished", book.finished)
                 .put("file", part.name).put("fileIndex", index).put("fileCount", book.parts.size).put("filePositionMs", (book.positionMs - part.offsetMs).coerceAtLeast(0)).toString(2)
         }

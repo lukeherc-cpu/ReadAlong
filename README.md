@@ -75,6 +75,20 @@ ReadAlong for Windows 10 and 11 plays the same books and makes the same read-alo
 
 Transcripts made on Windows are saved as a `.readalong` file beside the audiobook. Copy it next to the same book on your phone and ReadAlong uses it instead of transcribing again. See [desktop-app/README.md](desktop-app/README.md) for details.
 
+### Linux
+
+The same app as on Windows, as a Flatpak. Transcription uses your graphics card through Vulkan when it can.
+
+1. [Download the Flatpak](https://github.com/lukeherc-cpu/ReadAlong/releases/latest/download/ReadAlong-Linux.flatpak) and install it with your software centre, or run `flatpak install --user ReadAlong-Linux.flatpak`. It needs Flathub set up for the GNOME runtime it uses. A [portable tarball](https://github.com/lukeherc-cpu/ReadAlong/releases/latest/download/ReadAlong-Linux-x86_64.tar.gz) is also available: unpack it and run `ReadAlong/bin/ReadAlong`.
+2. Choose **Add books** and pick your audiobook folder, then **Make ReadAlong** on a book.
+
+### macOS
+
+The same app as on Windows, for macOS 12 or later. Transcription uses the Mac's graphics through Metal.
+
+1. Download the disk image for [Apple silicon (M1 and later)](https://github.com/lukeherc-cpu/ReadAlong/releases/latest/download/ReadAlong-macOS-AppleSilicon.dmg) or [Intel](https://github.com/lukeherc-cpu/ReadAlong/releases/latest/download/ReadAlong-macOS-Intel.dmg), open it and drag ReadAlong to Applications.
+2. The app isn't notarized by Apple, so the first time macOS says it can't check it. Close that message, open **System Settings → Privacy & Security**, scroll down and choose **Open Anyway** next to ReadAlong, then confirm. (Or run `xattr -dr com.apple.quarantine /Applications/ReadAlong.app` in Terminal.) After that it opens normally.
+
 ## Your first book
 
 Tap **+** in the library to add an audiobook. Choose a single audio file, select several files that belong to one book, or choose the book's folder.

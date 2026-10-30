@@ -6,8 +6,12 @@ import java.io.File
 object WhisperNative {
     /** Loads whisper.cpp from [directory] and every backend this computer can run (Vulkan GPUs, the best CPU variant). */
     fun load(directory: File, verbose: Boolean = false) {
-        val windows = System.getProperty("os.name").lowercase().contains("win")
-        fun library(name: String) = File(directory, if (windows) "$name.dll" else "lib$name.so")
+        val os = System.getProperty("os.name").lowercase()
+        fun library(name: String) = File(directory, when {
+            "win" in os -> "$name.dll"
+            "mac" in os -> "lib$name.dylib"
+            else -> "lib$name.so"
+        })
         // Dependencies first: Windows doesn't search the folder of the library that needs them.
         listOf("ggml-base", "ggml", "whisper", "readalong_whisper").forEach { System.load(library(it).absolutePath) }
         loadBackends(directory.absolutePath, verbose)

@@ -1,0 +1,127 @@
+name: ReadAlong for Linux
+
+# Builds the Linux app (desktop-app/): whisper.cpp with its Vulkan GPU backend and CPU variants, the Compose
+# app image, a Flatpak bundle and a portable tarball. It then transcribes synthesized speech with the
+# packaged app and inside the installed Flatpak on the CPU, and on Mesa's software Vulkan (the runner has no GPU).
+on:
+  push:
+    paths: ["desktop-app/**", ".github/workflows/desktop-linux.yml", "app/src/main/java/com/example/readalong/domain/**"]
+  workflow_dispatch:
+  # release.yml calls this after publishing the APK, to add the Flatpak to the same release.
+  workflow_call:
+    inputs:
+      release:
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+env:
+  WHISPER_CPP_VERSION: v1.8.7
+  APP_ID: io.github.lukeherc_cpu.ReadAlong
+
+jobs:
+  linux:
+    name: Linux Flatpak
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build whisper.cpp (Vulkan + CPU) and the JNI bridge
+        run: |
+          set -o pipefail
+          mkdir -p ci-results
+          sudo apt-get update -q > /dev/null
+          sudo apt-get install -y -q libvulkan-dev glslc spirv-headers espeak-ng mesa-vulkan-drivers flatpak flatpak-builder > /dev/null
+          git clone -q --depth 1 --branch "$WHISPER_CPP_VERSION" https://github.com/ggml-org/whisper.cpp ../whisper.cpp
+          cmake -S desktop-app/native -B desktop-app/native/build -DCMAKE_BUILD_TYPE=Release -DWHISPER_CPP="$(cd ../whisper.cpp && pwd)" 2>&1 | tee ci-results/native.log
+          cmake --build desktop-app/native/build -j 4 2>&1 | tail -40 | tee -a ci-results/native.log
+          ls -la desktop-app/native/build/resources/linux/whisper | tee -a ci-results/native.log
+
+      - name: Build the app and portable tarball
+        run: |
+          set -o pipefail
+          ./gradlew -p desktop-app --console=plain test createReleaseDistributable 2>&1 | tee ci-results/gradle.log
+          mkdir -p dist
+          tar -C desktop-app/build/compose/binaries/main-release/app -czf dist/ReadAlong-Linux-x86_64.tar.gz ReadAlong
+          ls -la dist | tee -a ci-results/gradle.log
+
+      - name: Build the Flatpak
+        run: |
+          set -o pipefail
+          # Ubuntu 24.04 stops unprivileged user namespaces, which Flatpak's sandbox (bubblewrap) needs.
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak-builder --user --install-deps-from=flathub --disable-rofiles-fuse --force-clean --repo=../flatpak-repo ../flatpak-build \
+            "desktop-app/packaging/linux/$APP_ID.yml" 2>&1 | tail -60 | tee ci-results/flatpak.log
+          flatpak build-bundle ../flatpak-repo dist/ReadAlong-Linux.flatpak "$APP_ID" --runtime-repo=https://dl.flathub.org/repo/flathub.flatpakrepo
+          ls -la dist | tee -a ci-results/flatpak.log
+
+      - name: Speech test with the packaged app (CPU)
+        run: |
+          set -o pipefail
+          mkdir -p "smoke/Test Book" models
+          text="The quick brown fox jumps over the lazy dog. ReadAlong turns audiobooks into text you can read while you listen."
+          espeak-ng -w "smoke/Test Book/speech.wav" "$text $text $text"
+          curl -sSL -o models/ggml-tiny.en.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.en.bin
+          app=desktop-app/build/compose/binaries/main-release/app/ReadAlong/bin/ReadAlong
+          "$app" --self-test "smoke/Test Book" --model models/ggml-tiny.en.bin --device cpu --expect fox --out ci-results/self-test-cpu.txt || true
+          cat ci-results/self-test-cpu.txt
+          grep -q "^PASS" ci-results/self-test-cpu.txt
+
+      - name: Speech test inside the installed Flatpak (CPU)
+        run: |
+          set -o pipefail
+          flatpak install --user -y --noninteractive dist/ReadAlong-Linux.flatpak 2>&1 | tail -5
+          flatpak run "$APP_ID" --self-test "$PWD/smoke/Test Book" --model "$PWD/models/ggml-tiny.en.bin" --device cpu --expect fox \
+            --out "$PWD/ci-results/self-test-flatpak.txt" || true
+          cat ci-results/self-test-flatpak.txt
+          grep -q "^PASS" ci-results/self-test-flatpak.txt
+
+      - name: Speech test on the GPU path (Mesa's software Vulkan driver)
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          # ggml-vulkan skips CPU-type Vulkan devices (lavapipe) unless they are listed explicitly.
+          export VK_DRIVER_FILES=$(ls /usr/share/vulkan/icd.d/lvp_icd*.json | head -1)
+          export GGML_VK_VISIBLE_DEVICES=0
+          export READALONG_VERBOSE=1
+          app=desktop-app/build/compose/binaries/main-release/app/ReadAlong/bin/ReadAlong
+          "$app" --self-test "smoke/Test Book" --model models/ggml-tiny.en.bin --device gpu --expect fox --out ci-results/self-test-gpu.txt || true
+          cat ci-results/self-test-gpu.txt
+          grep -q "^PASS" ci-results/self-test-gpu.txt
+
+      - name: Screenshots (packaged app)
+        if: always()
+        continue-on-error: true
+        run: |
+          app=desktop-app/build/compose/binaries/main-release/app/ReadAlong/bin/ReadAlong
+          "$app" --screenshots "$PWD/ci-results/screenshots-linux" || true
+          ls ci-results/screenshots-linux || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ReadAlong-Linux
+          path: dist/*
+          compression-level: 0
+
+      - name: Add the Flatpak to the release
+        if: inputs.release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)
+          gh release upload "v$version" dist/ReadAlong-Linux.flatpak dist/ReadAlong-Linux-x86_64.tar.gz --clobber
+
+      - name: Keep the results
+        if: always()
+        uses: ./.github/actions/ci-results
+        with:
+          job: linux-flatpak

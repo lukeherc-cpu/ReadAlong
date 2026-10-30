@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.lukeherc_cpu.ReadAlong</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-only</project_license>
+  <name>ReadAlong</name>
+  <summary>Audiobook player that highlights the text as the narrator reads</summary>
+  <description>
+    <p>
+      ReadAlong plays your audiobooks and shows the words as they are spoken. It makes the text itself with
+      whisper.cpp, on the graphics card when there is one, and matches it to an EPUB of the same book when
+      you have one.
+    </p>
+    <p>
+      Transcripts are saved beside each audiobook in the format the ReadAlong phone app reads, and listening
+      positions sync with the phone the same way.
+    </p>
+  </description>
+  <launchable type="desktop-id">io.github.lukeherc_cpu.ReadAlong.desktop</launchable>
+  <url type="homepage">https://github.com/lukeherc-cpu/ReadAlong</url>
+  <developer id="io.github.lukeherc_cpu">
+    <name>ReadAlong</name>
+  </developer>
+  <content_rating type="oars-1.1"/>
+</component>

@@ -28,7 +28,7 @@ fun SettingsScreen(app: AppState) {
     val scope = rememberCoroutineScope()
     val scroll = rememberScrollState()
     Box(Modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(horizontal = 28.dp)) {
+        Column(Modifier.fillMaxSize().smoothWheelScroll(scroll).verticalScroll(scroll).padding(horizontal = 28.dp)) {
             Row(Modifier.padding(vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                 AppIconButton("ic_back", "Back (Esc)", { app.back() })
                 Spacer(Modifier.width(10.dp))
@@ -131,7 +131,7 @@ fun SettingsScreen(app: AppState) {
                 Card {
                     Stepper("Skip back", settings.skipBackSeconds, { v -> app.settingsStore.update { it.copy(skipBackSeconds = v) } })
                     Stepper("Skip forward", settings.skipForwardSeconds, { v -> app.settingsStore.update { it.copy(skipForwardSeconds = v) } })
-                    Text("Keyboard: Space plays and pauses, ← and → skip, Esc goes back, Ctrl+F searches the text.", style = MaterialTheme.typography.bodySmall,
+                    Text("Keyboard: Space plays and pauses, ← and → skip, Esc goes back, ${AppPaths.shortcutKey}F searches the text.", style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
 
@@ -143,7 +143,7 @@ fun SettingsScreen(app: AppState) {
                     }
                 }
                 Spacer(Modifier.height(24.dp))
-                Text("ReadAlong for Windows ${System.getProperty("readalong.version") ?: "dev"} · Data in ${AppPaths.data}", style = MaterialTheme.typography.labelMedium,
+                Text("ReadAlong for ${AppPaths.platformName} ${System.getProperty("readalong.version") ?: "dev"} · Data in ${AppPaths.data}", style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(40.dp))
             }
