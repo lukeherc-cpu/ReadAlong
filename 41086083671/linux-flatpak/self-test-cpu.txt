@@ -1,0 +1,14 @@
+FAIL
+book: Test Book · 1 file(s) · 19819 ms · 0 chapter(s)
+ERROR TranscriberException: The transcriber stopped unexpectedly (exit 1).
+    at com.example.readalong.desktop.transcription.TranscriberProcess.next(TranscriberProcess.kt:48)
+    at com.example.readalong.desktop.transcription.TranscriberProcess$next$1.invokeSuspend(TranscriberProcess.kt)
+    at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:33)
+    at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:100)
+    at kotlinx.coroutines.internal.LimitedDispatcher$Worker.run(LimitedDispatcher.kt:124)
+    at kotlinx.coroutines.scheduling.TaskImpl.run(Tasks.kt:89)
+    at kotlinx.coroutines.scheduling.CoroutineScheduler.runSafely(CoroutineScheduler.kt:586)
+    at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.executeTask(CoroutineScheduler.kt:820)
+    at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.runWorker(CoroutineScheduler.kt:717)
+    at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.run(CoroutineScheduler.kt:704)
+FAIL
