@@ -1,0 +1,14 @@
+PASS
+book: Test Book · 1 file(s) · 23605 ms · 0 chapter(s)
+devices: cpu:AMD EPYC 9V74 80-Core Processor                 (CPU)
+system: WHISPER : COREML = 0 | OPENVINO = 0 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | REPACK = 1 |
+loaded on: CPU (gpu=false)
+unit 0-23605 ms in 1502 ms: The Quick Brown Fox jumps over the Lazy Dog. Read along turns audiobooks into text you can read while you listen. The Qu
+transcribed 23605 ms of audio in 2245 ms
+segments: 6, words: 63, paragraphs: 1
+timed sentences: 6 of 6
+text: The Quick Brown Fox jumps over the Lazy Dog. Read along turns audiobooks into text you can read while you listen. The Quick Brown Fox jumps over the Lazy Dog. Read along turns audiobooks into text you can read while you listen. The Quick Brown Fox jumps over the Lazy Dog. Read along turns audiobooks into text you can read while you listen.
+package: 1871 bytes, round trip identical
+manifest: { "sources": [{ "size": 1041052, "sha256": "3f3ed91358842ddb1f8eb54fd87e9108669cb2fa8872f9863e57eb2ade03296d", "name": "speech.wav", "durationMs": 23605 }], "engine": "Whisper", "chunks": 1, "format": "readalong-transcript", "model": "desktop:whisper.cpp:tiny.en", "complete": true, "version": 1 }
+speed 1.5×: 180192 frames in, 117411 out, ratio 1.53
+PASS
