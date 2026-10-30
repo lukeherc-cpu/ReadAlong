@@ -1,0 +1,40 @@
+Starting a Gradle Daemon (subsequent builds will be faster)
+> Task :checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :convertXmlValueResourcesForMain NO-SOURCE
+> Task :copyNonXmlValueResourcesForMain NO-SOURCE
+> Task :prepareComposeResourcesTaskForMain NO-SOURCE
+> Task :generateResourceAccessorsForMain SKIPPED
+> Task :generateActualResourceCollectorsForMain SKIPPED
+> Task :generateComposeResClass SKIPPED
+> Task :sharedSources
+> Task :assembleMainResources
+> Task :sharedResources
+> Task :processResources
+> Task :convertXmlValueResourcesForTest NO-SOURCE
+> Task :copyNonXmlValueResourcesForTest NO-SOURCE
+> Task :prepareComposeResourcesTaskForTest NO-SOURCE
+> Task :generateResourceAccessorsForTest SKIPPED
+> Task :assembleTestResources
+> Task :processTestResources
+> Task :compileKotlin
+> Task :checkRuntime
+> Task :createRuntimeImage
+> Task :prepareAppResources
+> Task :unpackDefaultComposeDesktopJvmApplicationResources
+
+> Task :downloadWix
+Download https://github.com/wixtoolset/wix3/releases/download/wix3112rtm/wix311-binaries.zip
+
+> Task :unzipWix
+
+> Task :compileKotlin
+w: file:///D:/a/ReadAlong/ReadAlong/desktop-app/src/main/kotlin/com/example/readalong/desktop/Main.kt:33:44 'fun painterResource(resourcePath: String): Painter' is deprecated. Migrate to the Compose resources library. See https://www.jetbrains.com/help/kotlin-multiplatform-dev/compose-images-resources.html If you need to load resources specificly from Java classpath, you should still use the new resource library and use a snippet from https://github.com/JetBrains/compose-multiplatform-core/pull/1457.
+w: file:///D:/a/ReadAlong/ReadAlong/desktop-app/src/main/kotlin/com/example/readalong/desktop/ui/MiniPlayer.kt:76:88 'val Icons.Rounded.VolumeOff: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.VolumeOff.
+w: file:///D:/a/ReadAlong/ReadAlong/desktop-app/src/main/kotlin/com/example/readalong/desktop/ui/MiniPlayer.kt:76:149 'val Icons.Rounded.VolumeUp: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.VolumeUp.
+w: file:///D:/a/ReadAlong/ReadAlong/desktop-app/src/main/kotlin/com/example/readalong/desktop/ui/PlayerScreen.kt:240:21 'fun TabRow(selectedTabIndex: Int, modifier: Modifier = ..., containerColor: Color = ..., contentColor: Color = ..., indicator: @Composable() ComposableFunction1<@ParameterName(...) List<TabPosition>, Unit> = ..., divider: @Composable() ComposableFunction0<Unit> = ..., tabs: @Composable() ComposableFunction0<Unit>): Unit' is deprecated. Replaced with PrimaryTabRow and SecondaryTabRow.
+
+> Task :compileJava NO-SOURCE
+> Task :classes
+> Task :jar
+> Task :compileTestKotlin
+> Task :packageReleaseMsi
