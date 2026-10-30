@@ -76,8 +76,8 @@ class ReferenceDialogsTest {
             }
             compose.onNodeWithContentDescription("Add audiobook").performClick()
             capture("add-audiobook")
-            compose.onNodeWithText("Audiobook folder").assertIsDisplayed()
-            compose.onNodeWithText("Audio file").assertIsDisplayed()
+            compose.onNodeWithText("Choose audiobook folder").assertIsDisplayed()
+            compose.onNodeWithText("Add audio file").assertIsDisplayed()
             compose.onNodeWithText("Cancel").performClick()
             compose.runOnIdle { model.files(listOf(uri)) }
             compose.waitUntil(10000) { model.priority.value.isNotEmpty() || model.message.value?.contains("cannot keep access") == true }

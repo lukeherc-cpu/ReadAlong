@@ -15,7 +15,11 @@ class ReadAlongApplication : Application() {
         com.example.readalong.data.transcription.DesktopTranscriptImporter(this, database, processing, generatedEpub).import(id, uri)
         if (database.importedEpubDao().find(id) != null) importedEpub.preference(id, "EPUB")
         importedEpub.requestAlignment(id)
-    }) }
+    }, onProgressFound = { id, location -> folderProgress.sync(id, location) }) }
+    /** Listening progress shared with ReadAlong for Windows through the audiobook folder. */
+    val folderProgress by lazy { com.example.readalong.data.importing.FolderProgressSync(this, database,
+        playing = { id -> playbackStore.state.value.let { it.bookId == id && it.isPlaying } },
+        moved = { id, position -> if (playbackStore.state.value.bookId == id) withContext(Dispatchers.Main) { playback.seek(position) } }) }
     val bookRepository: BookRepository by lazy {
         RoomBookRepository(database)
     }
@@ -80,6 +84,20 @@ class ReadAlongApplication : Application() {
                 catch (cancelled: CancellationException) { throw cancelled }
                 catch (failure: Exception) { android.util.Log.w("ReadAlong", "Transcription notifications restarting after ${failure.javaClass.simpleName}.") }
                 delay(5_000)
+            }
+        }
+        applicationScope.launch {
+            // Each pause writes the book's progress beside it, for ReadAlong for Windows to pick up.
+            var wasPlaying: String? = null
+            playbackStore.state.collect { state ->
+                val stopped = wasPlaying?.takeIf { state.bookId != it || !state.isPlaying }
+                wasPlaying = state.bookId?.takeIf { state.isPlaying }
+                if (stopped != null) launch {
+                    delay(1_500) // Let the player save its position first.
+                    try { folderProgress.push(stopped) }
+                    catch (cancelled: CancellationException) { throw cancelled }
+                    catch (_: Exception) { }
+                }
             }
         }
         applicationScope.launch {

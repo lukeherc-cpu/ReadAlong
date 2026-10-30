@@ -38,8 +38,10 @@ fun ImportControls(model: ImportViewModel, onFolders: () -> Unit, onBook: (Strin
     if (choosing) com.example.readalong.ui.components.IllustratedDialog("Add a new audiobook", { choosing = false }, actions = {
         TextButton(onClick = { choosing = false }) { Text("Cancel") }
     }) {
-        IllustratedOption("Audiobook folder", "A folder with one audiobook's files.", com.example.readalong.R.drawable.art_folder, true) { choosing = false; folder.launch(null) }
-        IllustratedOption("Audio file", "One file that holds a whole audiobook.", com.example.readalong.R.drawable.art_audio_file, false) {
+        // The same buttons, icons and shades as the welcome page's choices.
+        val shades = sourceShades()
+        SourceButton(shades[1], com.example.readalong.R.drawable.ic_folder, "Choose audiobook folder", "A folder with one audiobook's files", true, large = true) { choosing = false; folder.launch(null) }
+        SourceButton(shades[2], com.example.readalong.R.drawable.ic_play, "Add audio file", "One file that holds a whole audiobook", true, large = true) {
             choosing = false; files.launch(arrayOf("audio/*", "application/octet-stream", "video/mp4"))
         }
         // Library folders live on their own page (the shelf icon on the home page), not here.
@@ -128,22 +130,6 @@ fun ImportPriorityPrompt(model: ImportViewModel) {
             val full by remember(book.id) { app?.bookRepository?.observeBook(book.id) ?: kotlinx.coroutines.flow.flowOf(null) }.collectAsStateWithLifecycle(null)
             ReadAlongSourceDialog(busy, message, hasEpub = book.folderEpub, onDismiss = { if (!busy) model.skipPriority() },
                 onStart = model::startPriority, bookTitle = book.title, durationMs = book.durationMs, book = full)
-        }
-    }
-}
-
-@Composable
-private fun IllustratedOption(title: String, subtitle: String, art: Int, prominent: Boolean, onClick: () -> Unit) {
-    Surface(onClick = onClick, shape = androidx.compose.foundation.shape.RoundedCornerShape(com.example.readalong.ui.theme.Corners.large),
-        color = if (prominent) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = .25f))) {
-        Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            com.example.readalong.ui.components.ReadAlongArtwork(art, Modifier.size(80.dp))
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(title, style = MaterialTheme.typography.titleMedium)
-                Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Text("›", style = MaterialTheme.typography.headlineMedium)
         }
     }
 }
