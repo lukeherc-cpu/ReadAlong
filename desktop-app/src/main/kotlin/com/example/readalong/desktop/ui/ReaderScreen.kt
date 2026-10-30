@@ -86,7 +86,7 @@ fun ReaderScreen(app: AppState, bookId: String) {
             if (t == null) CircularProgressIndicator(Modifier.align(Alignment.Center))
             else if (t.isEmpty) ReadAlongCard(app, b, Modifier.align(Alignment.Center).widthIn(max = 560.dp), ink)
             else FollowText(t, clock, follow, { seekBook(app, bookId, it) }, Modifier.fillMaxSize(), Fonts.reading(settings.readerFont), settings.readerSize, ink,
-                contentPadding = PaddingValues(horizontal = 48.dp, vertical = 200.dp), maxWidth = 760.dp, anchor = .38f)
+                contentPadding = PaddingValues(horizontal = 64.dp, vertical = 200.dp), maxWidth = 1240.dp, anchor = .2f)
 
             // Top: back, title, appearance, search, contents.
             Row(Modifier.fillMaxWidth().align(Alignment.TopCenter).alpha(chrome).background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(page, page.copy(alpha = 0f))))
@@ -100,7 +100,7 @@ fun ReaderScreen(app: AppState, bookId: String) {
                     }
                     AppIconButton("ic_search", "Search (${AppPaths.shortcutKey}F)", { if (searchOpen) searchOpen = false else app.searchRequests++ })
                     if (t?.contents?.isNotEmpty() == true) AppIconButton("ic_chapters", "Contents", { contentsOpen = !contentsOpen })
-                    AppearanceMenu(app, ink)
+                    AppearanceMenu(app)
                 }
             }
 
@@ -186,14 +186,15 @@ private fun SearchPanel(text: ReadingText, colors: ReaderColors, focus: FocusReq
     }
 }
 
+/** Text size and font, shared by the full-screen reader and the player's text panel; [themes] adds the page colours. */
 @Composable
-private fun AppearanceMenu(app: AppState, ink: Color) {
+fun AppearanceMenu(app: AppState, themes: Boolean = true) {
     var open by remember { mutableStateOf(false) }
     val settings by app.settingsStore.settings.collectAsState()
     Box {
         AppIconButton("ic_font", "Text appearance", { open = true })
         DropdownMenu(open, { open = false }) {
-            Row(Modifier.padding(horizontal = 12.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (themes) Row(Modifier.padding(horizontal = 12.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf("DARK" to "Dark", "SEPIA" to "Sepia", "LIGHT" to "Light").forEach { (key, label) ->
                     FilterChip(settings.readerTheme == key, { app.settingsStore.update { it.copy(readerTheme = key) } }, { Text(label) })
                 }

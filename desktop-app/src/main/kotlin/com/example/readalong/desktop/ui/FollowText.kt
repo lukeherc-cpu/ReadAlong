@@ -103,11 +103,14 @@ fun FollowText(
             }
         }
     }
+    // False until the spoken line has been placed at [anchor] since following (re)started.
+    var placed by remember(follow, text) { mutableStateOf(false) }
     LaunchedEffect(active, follow.following, text) {
-        if (!follow.following) return@LaunchedEffect
+        if (!follow.following) { placed = false; return@LaunchedEffect }
         val (index, sentence) = active ?: return@LaunchedEffect
         val info = follow.list.layoutInfo
-        val target = (info.viewportSize.height * anchor)
+        val height = info.viewportSize.height
+        val target = height * anchor
         val item = info.visibleItemsInfo.firstOrNull { it.index == index }
         val layout = layouts[index]
         val cue = text.paragraphs[index].cues.getOrNull(sentence)
@@ -115,10 +118,19 @@ fun FollowText(
             // Far away (opening the book, a chapter jump): place it at once, then glide from there.
             follow.list.scrollToItem(index)
             follow.list.scrollBy(-target)
+            placed = true
             return@LaunchedEffect
         }
-        val lineTop = if (cue != null && cue.start <= layout.layoutInput.text.length) layout.getLineTop(layout.getLineForOffset(cue.start.coerceAtMost(layout.layoutInput.text.length))) else 0f
-        smooth.scrollBy(item.offset + lineTop - target)
+        val offset = cue?.start?.coerceAtMost(layout.layoutInput.text.length)
+        val line = offset?.let { layout.getLineForOffset(it) }
+        val top = item.offset + (line?.let { layout.getLineTop(it) } ?: 0f)
+        val bottom = item.offset + (line?.let { layout.getLineBottom(it) } ?: 0f)
+        // Like turning a page, the way the phone's reader follows: the text stays still while the narration
+        // reads down the screen, and only when it nears the bottom does it glide back up to [anchor].
+        if (!placed || top < height * FOLLOW_TOP || bottom > height * FOLLOW_BOTTOM) {
+            smooth.scrollBy(top - target)
+            placed = true
+        }
     }
     val style = TextStyle(fontFamily = family, fontSize = fontSize.sp, lineHeight = (fontSize * 1.6f).sp, textAlign = textAlign)
     LazyColumn(modifier.nestedScroll(userScroll).smoothWheelScroll(follow.list) { follow.following = false }, state = follow.list, contentPadding = contentPadding, horizontalAlignment = Alignment.CenterHorizontally) {
@@ -183,3 +195,7 @@ fun ReturnToPosition(follow: FollowState, modifier: Modifier = Modifier) {
         }
     }
 }
+
+/** The spoken line stays put between these fractions of the page; past them, the page glides. */
+private const val FOLLOW_TOP = .06f
+private const val FOLLOW_BOTTOM = .78f
