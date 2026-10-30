@@ -40,12 +40,12 @@ import kotlinx.coroutines.withContext
 @Composable
 fun AudibleImportEntry(onChooseFolder: () -> Unit, onDismiss: () -> Unit) {
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) { AudibleImportScreen(onDismiss) }
+        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) { AudibleImportScreen(onDismiss, onChooseFolder) }
     }
 }
 
 @Composable
-private fun AudibleImportScreen(onClose: () -> Unit) {
+private fun AudibleImportScreen(onClose: () -> Unit, onChooseFolder: () -> Unit) {
     val context = LocalContext.current
     val store = remember { AudibleStore.get(context) }
     val account by store.account.collectAsStateWithLifecycle()
@@ -76,7 +76,7 @@ private fun AudibleImportScreen(onClose: () -> Unit) {
                 }
             }
             current == null -> SignInIntro(error) { locale -> error = null; login = AudibleAuth.startLogin(locale) }
-            else -> AudibleLibrary(store, current)
+            else -> AudibleLibrary(store, current, onChooseFolder)
         }
     }
     BackHandler(enabled = login != null) { login = null }
@@ -135,7 +135,7 @@ private fun AmazonSignIn(login: AudibleAuth.Login, onFinished: (String) -> Unit)
 }
 
 @Composable
-private fun AudibleLibrary(store: AudibleStore, account: AudibleAccount) {
+private fun AudibleLibrary(store: AudibleStore, account: AudibleAccount, onChooseFolder: () -> Unit) {
     val library by store.library.collectAsStateWithLifecycle()
     val downloads by store.downloads.collectAsStateWithLifecycle()
     var syncing by remember { mutableStateOf(false) }
@@ -163,6 +163,8 @@ private fun AudibleLibrary(store: AudibleStore, account: AudibleAccount) {
                 OutlinedButton(onClick = ::sync, enabled = !syncing) { Text(if (syncing) "Refreshing…" else "Refresh library") }
                 TextButton(onClick = { signingOut = true }) { Text("Sign out") }
             }
+            // Books already downloaded elsewhere (LibriSync, Libation, a computer) come in as a library folder.
+            OutlinedButton(onClick = onChooseFolder) { Text("Add audiobook folder") }
             OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth(), placeholder = { Text("Search your Audible library") }, singleLine = true)
             if (syncing) LinearProgressIndicator(Modifier.fillMaxWidth())
             message?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant) }

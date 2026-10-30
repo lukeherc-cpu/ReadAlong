@@ -5,7 +5,7 @@ name: ReadAlong for macOS
 # transcribes synthesized speech with the packaged app on the CPU and, where the runner allows, on Metal.
 on:
   push:
-    paths: ["desktop-app/**", ".github/workflows/desktop-macos.yml", "app/src/main/java/com/example/readalong/domain/**"]
+    paths: ["desktop-app/**", ".github/workflows/desktop-macos.yml", "app/src/main/java/com/example/readalong/domain/**", "app/src/github/java/com/example/readalong/audible/**"]
   workflow_dispatch:
   # release.yml calls this after publishing the APK, to add the disk images to the same release.
   workflow_call:
