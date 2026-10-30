@@ -108,6 +108,7 @@ fun SettingsScreen(app: AppState) {
                         Switch(settings.savePackages, { v -> app.settingsStore.update { it.copy(savePackages = v) } })
                     }
                 }
+                PhoneLinkCard(app)
 
                 SectionTitle("Library folders")
                 Card {

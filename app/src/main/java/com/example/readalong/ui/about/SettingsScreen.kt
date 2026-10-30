@@ -21,7 +21,7 @@ import com.example.readalong.R
 import kotlinx.coroutines.launch
 
 @Composable
-fun SettingsScreen(app: ReadAlongApplication, onBack: () -> Unit, onModel: () -> Unit, onAbout: () -> Unit) {
+fun SettingsScreen(app: ReadAlongApplication, onBack: () -> Unit, onModel: () -> Unit, onAbout: () -> Unit, onLink: () -> Unit = {}) {
     val scope = rememberCoroutineScope()
     val preferences by app.appPreferences.preferences.collectAsStateWithLifecycle(com.example.readalong.data.preferences.AppPreferences())
     val reader by app.readerPreferences.preferences.collectAsStateWithLifecycle(com.example.readalong.data.preferences.ReaderPreferences())
@@ -76,6 +76,7 @@ fun SettingsScreen(app: ReadAlongApplication, onBack: () -> Unit, onModel: () ->
         }
         SectionLabel("Other")
         SettingsGroup {
+                SettingsRow("Link a computer", R.drawable.ic_devices, onClick = onLink)
                 SettingsRow("Offline speech models", R.drawable.ic_waveform, onClick = onModel)
                 SettingsRow("About ReadAlong", R.drawable.ic_info, onClick = onAbout)
         }

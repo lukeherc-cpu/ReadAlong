@@ -10,6 +10,8 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROCESSING" />
+    <!-- Syncing folders with ReadAlong Desktop over the home network (asked for on Android 17 and later). -->
+    <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
     <!-- "Import from Audible" checks whether LibriSync is installed so it can offer to open it. -->
     <queries>
         <package android:name="tech.henning.librisync" />
