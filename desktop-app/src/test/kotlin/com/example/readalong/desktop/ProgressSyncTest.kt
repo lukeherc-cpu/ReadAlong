@@ -1,5 +1,6 @@
 package com.example.readalong.desktop
 
+import com.example.readalong.desktop.core.AppPaths
 import com.example.readalong.desktop.core.AudioPart
 import com.example.readalong.desktop.core.LibraryBook
 import com.example.readalong.desktop.core.LibraryStore
@@ -48,7 +49,7 @@ class ProgressSyncTest {
         local.companionFile(ProgressSync.EXTENSION).writeText(phoneFile(updatedAt = 2_000_000))
         assertFalse(ProgressSync(library).sync(local))
         val written = JSONObject(File(folder, "${folder.name}.readalong-progress").readText())
-        assertEquals("Windows", written.getString("device"))
+        assertEquals(AppPaths.platformName, written.getString("device"))
         assertEquals(5_000_000, written.getLong("updatedAt"))
         assertEquals("02.mp3", written.getString("file"))
         assertEquals(1, written.getInt("fileIndex"))

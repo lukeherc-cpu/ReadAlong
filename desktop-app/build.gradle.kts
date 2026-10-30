@@ -6,8 +6,8 @@ plugins {
     id("org.jetbrains.compose") version "1.9.3"
 }
 
-// One version for the phone and Windows apps: the phone's versionName. MSI versions need a major
-// version above 0, so the installer of 0.41.0 is numbered 1.41.0.
+// One version for the phone and desktop apps: the phone's versionName. MSI and macOS bundle versions need
+// a major version above 0, so the installer of 0.41.0 is numbered 1.41.0.
 val appVersion = Regex("versionName = \"([^\"]+)\"").find(file("../app/build.gradle.kts").readText())!!.groupValues[1]
 val installerVersion = appVersion.substringBefore('-').split('.').let { (major, minor, patch) -> "${major.toInt() + 1}.$minor.$patch" }
 group = "com.example.readalong"
@@ -94,6 +94,18 @@ compose.desktop {
                 perUserInstall = true
                 upgradeUuid = "7f4c1d1e-3b8a-4f0e-9a51-5c2b7d9e4a10"
                 iconFile.set(project.file("src/main/resources/icon/readalong.ico"))
+            }
+            // Linux ships as a Flatpak built from the app image (packaging/linux), macOS as an unsigned .app in a
+            // .dmg (desktop-macos.yml); both start from createReleaseDistributable.
+            linux {
+                iconFile.set(project.file("packaging/linux/readalong-512.png"))
+            }
+            macOS {
+                bundleID = "io.github.lukeherc_cpu.ReadAlong"
+                dockName = "ReadAlong"
+                appCategory = "public.app-category.books"
+                minimumSystemVersion = "12.0"
+                iconFile.set(project.file("packaging/macos/ReadAlong.icns"))
             }
         }
         buildTypes.release.proguard { isEnabled.set(false) }

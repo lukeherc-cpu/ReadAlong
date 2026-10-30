@@ -1,7 +1,8 @@
-# ReadAlong for Windows
+# ReadAlong for Windows, Linux and macOS
 
-The ReadAlong library, player and read-along reader as a Windows app, with transcription that runs on the
-graphics card when there is one.
+The ReadAlong library, player and read-along reader as a desktop app, with transcription that runs on the
+graphics card when there is one: Vulkan on Windows and Linux, Metal on a Mac. One codebase, one design;
+Windows ships as an MSI, Linux as a Flatpak, macOS as a `.dmg` for Apple silicon and Intel.
 
 ## What it does
 
@@ -37,9 +38,14 @@ each finished book gets `<book>.readalong` next to its audio, where the phone's 
 `.readalong` found beside a book (from the phone, PR #18's command-line transcriber, or another PC) is
 imported when the library is scanned. The phone accepts `desktop:` model ids once the `DesktopTranscriptImporter` change in this branch ships in an Android release.
 
+## Scrolling
+
+The mouse wheel glides like a web browser's (`ui/SmoothWheel.kt`): a notch moves a fixed distance and eases
+out over about 200 ms, and notches during a glide add to it. Mac touchpads move without easing.
+
 ## Build
 
-Needs JDK 21, CMake, Visual Studio 2022 (C++), and the Vulkan SDK for the GPU backend.
+Windows needs JDK 21, CMake, Visual Studio 2022 (C++), and the Vulkan SDK for the GPU backend.
 
 ```
 git clone --branch v1.8.7 https://github.com/ggml-org/whisper.cpp ../whisper.cpp
@@ -54,3 +60,13 @@ synthesized speech with the packaged app (on the CPU, and on Mesa's software Vul
 and uploads the MSI and a portable zip as the run's **ReadAlong-Windows** artifact.
 
 `ReadAlong.exe --self-test <book folder> --model <ggml model> --device cpu|gpu` runs that check by hand.
+
+**Linux** (`desktop-linux.yml`): `libvulkan-dev glslc spirv-headers`, then the same cmake commands with
+`-DCMAKE_BUILD_TYPE=Release`, `./gradlew -p desktop-app createReleaseDistributable`, and
+`flatpak-builder` on `packaging/linux/io.github.lukeherc_cpu.ReadAlong.yml`, which wraps that app image on the
+GNOME runtime. Data lives in `~/.var/app/io.github.lukeherc_cpu.ReadAlong/data/ReadAlong` in the Flatpak
+(`~/.local/share/ReadAlong` outside it).
+
+**macOS** (`desktop-macos.yml`): Xcode's command line tools and CMake; whisper.cpp builds with Metal instead of
+Vulkan. The `.app` is signed ad hoc, not notarized, so it must be opened once with **Open Anyway** in
+System Settings → Privacy & Security. Data lives in `~/Library/Application Support/ReadAlong`.

@@ -1,0 +1,44 @@
+# ReadAlong as a Flatpak. Wraps the Compose app image (bundled Java runtime, FFmpeg, whisper.cpp with its
+# Vulkan and CPU backends) that `./gradlew -p desktop-app createReleaseDistributable` builds after
+# native/ is built; .github/workflows/desktop-linux.yml does both and then runs flatpak-builder on this file.
+app-id: io.github.lukeherc_cpu.ReadAlong
+# The GNOME runtime rather than the plain freedesktop one: Java's GTK file chooser needs GTK 3.
+runtime: org.gnome.Platform
+runtime-version: '50'
+sdk: org.gnome.Sdk
+command: readalong
+finish-args:
+  # Java draws through X11 (XWayland on a Wayland desktop).
+  - --share=ipc
+  - --socket=x11
+  # Playback goes through ALSA, which the runtime routes to PulseAudio or PipeWire.
+  - --socket=pulseaudio
+  # Speech models download from Hugging Face the first time.
+  - --share=network
+  # The graphics card, for transcription with Vulkan.
+  - --device=dri
+  # Audiobooks can be anywhere, and each book's .readalong and progress file are written beside it.
+  - --filesystem=home
+  - --filesystem=/media
+  - --filesystem=/run/media
+  - --filesystem=/mnt
+modules:
+  - name: readalong
+    buildsystem: simple
+    build-commands:
+      - mkdir -p /app/lib /app/bin
+      - cp -a ReadAlong /app/lib/ReadAlong
+      - ln -s /app/lib/ReadAlong/bin/ReadAlong /app/bin/readalong
+      - install -Dm644 readalong-512.png /app/share/icons/hicolor/512x512/apps/${FLATPAK_ID}.png
+      - install -Dm644 ${FLATPAK_ID}.desktop /app/share/applications/${FLATPAK_ID}.desktop
+      - install -Dm644 ${FLATPAK_ID}.metainfo.xml /app/share/metainfo/${FLATPAK_ID}.metainfo.xml
+    sources:
+      - type: dir
+        path: ../../build/compose/binaries/main-release/app/ReadAlong
+        dest: ReadAlong
+      - type: file
+        path: readalong-512.png
+      - type: file
+        path: io.github.lukeherc_cpu.ReadAlong.desktop
+      - type: file
+        path: io.github.lukeherc_cpu.ReadAlong.metainfo.xml

@@ -72,7 +72,7 @@ fun PlayerScreen(app: AppState, bookId: String) {
                         }
                     }
                     Row(Modifier.weight(1f).fillMaxWidth().padding(horizontal = if (wide) 40.dp else 24.dp), horizontalArrangement = Arrangement.spacedBy(40.dp)) {
-                        Column(Modifier.then(if (wide) Modifier.width(440.dp) else Modifier.fillMaxWidth()).fillMaxHeight().verticalScroll(rememberScrollState()),
+                        Column(Modifier.then(if (wide) Modifier.width(440.dp) else Modifier.fillMaxWidth()).fillMaxHeight().let { m -> val scroll = rememberScrollState(); m.smoothWheelScroll(scroll).verticalScroll(scroll) },
                             horizontalAlignment = Alignment.CenterHorizontally) {
                             FlipCover(app, b, palette, text, clock, flippable = !wide, settings.readerFont)
                             Spacer(Modifier.height(22.dp))
@@ -240,7 +240,7 @@ private fun ContentsDialog(app: AppState, book: LibraryBook, position: Long, onD
                     }
                     val current = book.chapterAt(position)
                     val list = rememberLazyListState(if (tab == 0) current.coerceAtLeast(0) else 0)
-                    LazyColumn(state = list, contentPadding = PaddingValues(vertical = 8.dp)) {
+                    LazyColumn(Modifier.smoothWheelScroll(list), state = list, contentPadding = PaddingValues(vertical = 8.dp)) {
                         if (tab == 0) {
                             if (book.chapters.isEmpty()) item { Text("This audiobook has no chapter marks.", Modifier.padding(24.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
                             itemsIndexed(book.chapters) { i, chapter ->
