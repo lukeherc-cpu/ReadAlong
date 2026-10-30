@@ -1,0 +1,69 @@
+Starting a Gradle Daemon (subsequent builds will be faster)
+
+> Configure project :
+w: file:///Users/runner/work/ReadAlong/ReadAlong/desktop-app/build.gradle.kts:21:28: 'fun <U : Task> RegisteringDomainObjectDelegateProviderWithTypeAndAction<out TaskContainer, U>.provideDelegate(receiver: Any?, property: KProperty<*>): ExistingDomainObjectDelegate<TaskProvider<U>>' is deprecated. Use 'val task = tasks.register<Type>(name) { }' instead. See the Gradle 9.6 upgrading guide.
+w: file:///Users/runner/work/ReadAlong/ReadAlong/desktop-app/build.gradle.kts:21:28: 'fun <T : Any, C : PolymorphicDomainObjectContainer<T>, U : T> C.registering(type: KClass<U>, action: U.() -> Unit): RegisteringDomainObjectDelegateProviderWithTypeAndAction<out C, U>' is deprecated. Use 'val element = register<Type>(name) { }' instead. See the Gradle 9.6 upgrading guide.
+w: file:///Users/runner/work/ReadAlong/ReadAlong/desktop-app/build.gradle.kts:21:28: 'fun <T> ExistingDomainObjectDelegate<out T>.getValue(receiver: Any?, property: KProperty<*>): T' is deprecated. Use the named() API instead. See the Gradle 9.6 upgrading guide.
+w: file:///Users/runner/work/ReadAlong/ReadAlong/desktop-app/build.gradle.kts:34:30: 'fun <U : Task> RegisteringDomainObjectDelegateProviderWithTypeAndAction<out TaskContainer, U>.provideDelegate(receiver: Any?, property: KProperty<*>): ExistingDomainObjectDelegate<TaskProvider<U>>' is deprecated. Use 'val task = tasks.register<Type>(name) { }' instead. See the Gradle 9.6 upgrading guide.
+w: file:///Users/runner/work/ReadAlong/ReadAlong/desktop-app/build.gradle.kts:34:30: 'fun <T : Any, C : PolymorphicDomainObjectContainer<T>, U : T> C.registering(type: KClass<U>, action: U.() -> Unit): RegisteringDomainObjectDelegateProviderWithTypeAndAction<out C, U>' is deprecated. Use 'val element = register<Type>(name) { }' instead. See the Gradle 9.6 upgrading guide.
+w: file:///Users/runner/work/ReadAlong/ReadAlong/desktop-app/build.gradle.kts:34:30: 'fun <T> ExistingDomainObjectDelegate<out T>.getValue(receiver: Any?, property: KProperty<*>): T' is deprecated. Use the named() API instead. See the Gradle 9.6 upgrading guide.
+
+> Task :checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :convertXmlValueResourcesForMain NO-SOURCE
+> Task :copyNonXmlValueResourcesForMain NO-SOURCE
+> Task :prepareComposeResourcesTaskForMain NO-SOURCE
+> Task :generateResourceAccessorsForMain SKIPPED
+> Task :generateActualResourceCollectorsForMain SKIPPED
+> Task :generateComposeResClass SKIPPED
+> Task :sharedSources
+> Task :assembleMainResources
+> Task :sharedResources
+> Task :processResources
+> Task :convertXmlValueResourcesForTest NO-SOURCE
+> Task :copyNonXmlValueResourcesForTest NO-SOURCE
+> Task :prepareComposeResourcesTaskForTest NO-SOURCE
+> Task :generateResourceAccessorsForTest SKIPPED
+> Task :assembleTestResources
+> Task :processTestResources
+> Task :checkRuntime
+> Task :createRuntimeImage
+> Task :prepareAppResources
+> Task :unpackDefaultComposeDesktopJvmApplicationResources
+> Task :compileKotlin
+w: file:///Users/runner/work/ReadAlong/ReadAlong/desktop-app/build/shared/com/example/readalong/audible/AudibleDownloader.kt:56:26 'constructor(p0: String!): URL' is deprecated. Deprecated in Java.
+w: file:///Users/runner/work/ReadAlong/ReadAlong/desktop-app/build/shared/com/example/readalong/audible/AudibleHttp.kt:23:26 'constructor(p0: String!): URL' is deprecated. Deprecated in Java.
+w: file:///Users/runner/work/ReadAlong/ReadAlong/desktop-app/build/shared/com/example/readalong/audible/AudibleHttp.kt:39:88 Condition is always 'true'.
+w: file:///Users/runner/work/ReadAlong/ReadAlong/desktop-app/src/main/kotlin/com/example/readalong/desktop/Main.kt:33:44 'fun painterResource(resourcePath: String): Painter' is deprecated. Migrate to the Compose resources library. See https://www.jetbrains.com/help/kotlin-multiplatform-dev/compose-images-resources.html If you need to load resources specificly from Java classpath, you should still use the new resource library and use a snippet from https://github.com/JetBrains/compose-multiplatform-core/pull/1457.
+w: file:///Users/runner/work/ReadAlong/ReadAlong/desktop-app/src/main/kotlin/com/example/readalong/desktop/ui/AudibleScreen.kt:50:21 'val LocalClipboardManager: ProvidableCompositionLocal<ClipboardManager>' is deprecated. Use LocalClipboard instead which supports suspend functions.
+w: file:///Users/runner/work/ReadAlong/ReadAlong/desktop-app/src/main/kotlin/com/example/readalong/desktop/ui/MiniPlayer.kt:76:88 'val Icons.Rounded.VolumeOff: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.VolumeOff.
+w: file:///Users/runner/work/ReadAlong/ReadAlong/desktop-app/src/main/kotlin/com/example/readalong/desktop/ui/MiniPlayer.kt:76:149 'val Icons.Rounded.VolumeUp: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.VolumeUp.
+w: file:///Users/runner/work/ReadAlong/ReadAlong/desktop-app/src/main/kotlin/com/example/readalong/desktop/ui/PlayerScreen.kt:240:21 'fun TabRow(selectedTabIndex: Int, modifier: Modifier = ..., containerColor: Color = ..., contentColor: Color = ..., indicator: @Composable() ComposableFunction1<@ParameterName(...) List<TabPosition>, Unit> = ..., divider: @Composable() ComposableFunction0<Unit> = ..., tabs: @Composable() ComposableFunction0<Unit>): Unit' is deprecated. Replaced with PrimaryTabRow and SecondaryTabRow.
+
+> Task :compileJava NO-SOURCE
+> Task :classes
+> Task :jar
+> Task :compileTestKotlin
+
+> Task :createReleaseDistributable
+The distribution is written to /Users/runner/work/ReadAlong/ReadAlong/desktop-app/build/compose/binaries/main-release/app
+
+> Task :compileTestJava NO-SOURCE
+> Task :testClasses
+> Task :test
+gradle/actions: Writing build results to /Users/runner/work/_temp/.gradle-actions/build-results/__run_2-1793404056043.json
+
+[Incubating] Problems report is available at: file:///Users/runner/work/ReadAlong/ReadAlong/desktop-app/build/reports/problems/problems-report.html
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/9.6.0/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD SUCCESSFUL in 1m 53s
+15 actionable tasks: 15 executed
+Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.6.0/userguide/configuration_cache_enabling.html
+total 304840
+drwxr-xr-x   3 runner  staff         96 Oct 30 23:49 .
+drwxr-xr-x  22 runner  staff        704 Oct 30 23:49 ..
+-rw-r--r--@  1 runner  staff  156075050 Oct 30 23:49 ReadAlong-macOS-Intel.dmg
