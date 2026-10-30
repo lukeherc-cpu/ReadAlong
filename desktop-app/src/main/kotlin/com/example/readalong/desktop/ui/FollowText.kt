@@ -121,7 +121,7 @@ fun FollowText(
         smooth.scrollBy(item.offset + lineTop - target)
     }
     val style = TextStyle(fontFamily = family, fontSize = fontSize.sp, lineHeight = (fontSize * 1.6f).sp, textAlign = textAlign)
-    LazyColumn(modifier.nestedScroll(userScroll), state = follow.list, contentPadding = contentPadding, horizontalAlignment = Alignment.CenterHorizontally) {
+    LazyColumn(modifier.nestedScroll(userScroll).smoothWheelScroll(follow.list) { follow.following = false }, state = follow.list, contentPadding = contentPadding, horizontalAlignment = Alignment.CenterHorizontally) {
         itemsIndexed(text.paragraphs, key = { _, p -> p.segment.id }) { index, paragraph ->
             val isActive = active?.first == index
             Box(Modifier.then(if (maxWidth != Dp.Unspecified) Modifier.widthIn(max = maxWidth) else Modifier).fillMaxWidth()) {

@@ -22,6 +22,9 @@ fun main(args: Array<String>) {
         "--screenshots" in args -> { Screenshots.run(args[args.indexOf("--screenshots") + 1]); kotlin.system.exitProcess(0) }
     }
     System.setProperty("skiko.vsync.enabled", "true")
+    // macOS: a dark title bar to match the app, and "ReadAlong" in the menu bar rather than the launcher's name.
+    System.setProperty("apple.awt.application.appearance", "NSAppearanceNameDarkAqua")
+    System.setProperty("apple.awt.application.name", "ReadAlong")
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     val app = AppState(scope)
     application(exitProcessOnExit = true) {

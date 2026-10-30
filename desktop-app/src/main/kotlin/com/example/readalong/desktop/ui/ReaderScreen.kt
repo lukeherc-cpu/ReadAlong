@@ -7,6 +7,7 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -28,6 +29,7 @@ import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.example.readalong.desktop.core.AppPaths
 import com.example.readalong.desktop.reading.ReadingText
 import com.example.readalong.domain.reading.PassageSearch
 import com.example.readalong.domain.reading.SearchPassage
@@ -96,7 +98,7 @@ fun ReaderScreen(app: AppState, bookId: String) {
                         Text(b.title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = ink)
                         b.chapters.getOrNull(b.chapterAt(clock.value))?.let { Text(it.title, style = MaterialTheme.typography.labelMedium, color = ink.copy(alpha = .6f), maxLines = 1) }
                     }
-                    AppIconButton("ic_search", "Search (Ctrl+F)", { if (searchOpen) searchOpen = false else app.searchRequests++ })
+                    AppIconButton("ic_search", "Search (${AppPaths.shortcutKey}F)", { if (searchOpen) searchOpen = false else app.searchRequests++ })
                     if (t?.contents?.isNotEmpty() == true) AppIconButton("ic_chapters", "Contents", { contentsOpen = !contentsOpen })
                     AppearanceMenu(app, ink)
                 }
@@ -127,7 +129,8 @@ fun ReaderScreen(app: AppState, bookId: String) {
             AnimatedVisibility(contentsOpen && t != null, Modifier.align(Alignment.TopEnd).padding(top = 64.dp, end = 16.dp),
                 enter = fadeIn() + slideInHorizontally { it / 3 }, exit = fadeOut() + slideOutHorizontally { it / 3 }) {
                 Surface(Modifier.width(360.dp).heightIn(max = 560.dp), shape = RoundedCornerShape(Corners.large), color = colors.chrome, contentColor = colors.ink, shadowElevation = 12.dp) {
-                    LazyColumn(contentPadding = PaddingValues(vertical = 8.dp)) {
+                    val list = rememberLazyListState()
+                    LazyColumn(Modifier.smoothWheelScroll(list), state = list, contentPadding = PaddingValues(vertical = 8.dp)) {
                         items(t?.contents.orEmpty()) { entry ->
                             Text(entry.title, Modifier.fillMaxWidth().clickable {
                                 contentsOpen = false
@@ -168,7 +171,8 @@ private fun SearchPanel(text: ReadingText, colors: ReaderColors, focus: FocusReq
             }
             if (query.trim().length >= 2) Text(if (results.isEmpty()) "No matches in this book." else "${results.size}${if (results.size == 50) "+" else ""} matches",
                 Modifier.padding(horizontal = 6.dp, vertical = 10.dp), style = MaterialTheme.typography.labelMedium, color = colors.ink.copy(alpha = .6f))
-            LazyColumn {
+            val list = rememberLazyListState()
+            LazyColumn(Modifier.smoothWheelScroll(list), state = list) {
                 items(results) { hit ->
                     val paragraph = text.paragraphs[hit.passage.index]
                     val startMs = paragraph.cues.firstOrNull { hit.offset in it.start until it.end }?.audioStartMs ?: paragraph.startMs
