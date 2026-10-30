@@ -198,7 +198,13 @@ fun ReadAlongApp(libraryViewModel: LibraryViewModel, app: com.example.readalong.
         } }
         composable("queue") { entry ->
             val queueModel: com.example.readalong.ui.transcription.QueueViewModel = viewModel(factory = com.example.readalong.ui.transcription.QueueViewModel.factory(app))
-            com.example.readalong.ui.transcription.QueueScreen(queueModel) { if (navController.currentBackStackEntry?.id == entry.id) navController.popBackStack() }
+            com.example.readalong.ui.transcription.QueueScreen(queueModel, onBack = { if (navController.currentBackStackEntry?.id == entry.id) navController.popBackStack() },
+                onOpen = { bookId ->
+                    // Opened from that book's player: just go back to it instead of stacking another.
+                    if (navController.currentBackStackEntry?.id != entry.id) Unit
+                    else if (navController.previousBackStackEntry?.arguments?.getString("bookId") == bookId) navController.popBackStack()
+                    else navController.navigate("book/${Uri.encode(bookId)}") { launchSingleTop = true }
+                })
         }
         composable(Routes.About) {
             AboutScreen(onBack = { navController.popBackStack() }, onSpeechModel = { navController.navigate("speech-model") })
