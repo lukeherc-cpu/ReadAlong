@@ -70,6 +70,8 @@ fun LibraryScreen(app: AppState) {
                 { sort = if (sort == LibrarySort.RECENT) LibrarySort.TITLE else LibrarySort.RECENT })
             AppIconButton("ic_settings", "Settings", { app.open(Screen.Settings) })
             Spacer(Modifier.width(8.dp))
+            PillButton("Audible", { app.open(Screen.Audible) }, icon = "ic_book_add", filled = false)
+            Spacer(Modifier.width(8.dp))
             PillButton("Add books", { chooseFolder()?.let { app.addPaths(listOf(it)) } }, icon = "ic_add")
         }
         if (books.isEmpty()) { EmptyLibrary(app, scan.running); return@Column }
@@ -191,6 +193,8 @@ private fun EmptyLibrary(app: AppState, scanning: Boolean) {
                 style = MaterialTheme.typography.bodyMedium, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
             Spacer(Modifier.height(24.dp))
             PillButton("Choose audiobook folder", { chooseFolder()?.let { app.addPaths(listOf(it)) } }, icon = "ic_folder")
+            Spacer(Modifier.height(10.dp))
+            PillButton("Import from Audible", { app.open(Screen.Audible) }, icon = "ic_book_add", filled = false)
         }
     }
 }

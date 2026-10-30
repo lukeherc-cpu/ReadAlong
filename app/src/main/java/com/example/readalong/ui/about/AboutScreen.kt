@@ -32,9 +32,10 @@ fun AboutScreen(onBack: () -> Unit, onSpeechModel: () -> Unit) {
     var showLicenses by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     val context = androidx.compose.ui.platform.LocalContext.current
     val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
-    val notices = androidx.compose.runtime.remember { listOf("readalong-notice.txt", "readalong-GPL-3.0.txt", "NOTICE.txt", "cactus-whistle.txt", "jsoup-LICENSE.txt").joinToString("\n\n") { name ->
-        context.assets.open("licenses/$name").bufferedReader().use { it.readText() }
-    } }
+    val notices = androidx.compose.runtime.remember { listOf("readalong-notice.txt", "readalong-GPL-3.0.txt", "NOTICE.txt", "cactus-whistle.txt", "jsoup-LICENSE.txt", "audible-import.txt").mapNotNull { name ->
+        // audible-import.txt is only in the GitHub build.
+        runCatching { context.assets.open("licenses/$name").bufferedReader().use { it.readText() } }.getOrNull()
+    }.joinToString("\n\n") }
     Scaffold { insets ->
         Column(Modifier.fillMaxSize().padding(insets).verticalScroll(rememberScrollState())) {
             Row(

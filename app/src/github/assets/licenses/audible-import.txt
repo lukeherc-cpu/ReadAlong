@@ -1,0 +1,11 @@
+Audible import
+
+ReadAlong's Audible sign-in, library, download and decryption code is ported
+from LibriSync, Copyright (C) 2025 Henning Berge, licensed under the GNU
+General Public License version 3 or later (https://github.com/Promises/LibriSync).
+LibriSync is a port of Libation, Copyright Libation contributors, licensed
+under the GNU General Public License version 3
+(https://github.com/rmcrackan/Libation).
+
+This code is distributed under the GNU General Public License version 3.
+The Needle Runtime Linking Exception does not extend to it.

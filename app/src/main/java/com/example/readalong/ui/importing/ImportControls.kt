@@ -94,7 +94,7 @@ fun FoldersScreen(model: ImportViewModel, onBack: () -> Unit) {
     pendingUri?.let { uri ->
         LaunchedEffect(uri) { model.folder(Uri.parse(uri), FolderMode.LIBRARY); pendingUri = null }
     }
-    if (audible) AudibleImportDialog(onChooseFolder = { audible = false; picker.launch(null) }, onDismiss = { audible = false })
+    if (audible) com.example.readalong.ui.audible.AudibleImportEntry(onChooseFolder = { audible = false; picker.launch(null) }, onDismiss = { audible = false })
     removing?.let { folder ->
         AlertDialog(onDismissRequest = { removing = null }, title = { Text("Remove this folder?") },
             text = { Text("Are you sure? Its books leave your library, along with their ReadAlongs and listening progress. The audio files stay on your phone.") },

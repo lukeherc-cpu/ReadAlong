@@ -105,6 +105,18 @@ A book can be one long recording or a folder of chapter files. ReadAlong groups 
 
 For a collection, open **Library folders** from the bookshelf icon and add the folder containing your books. ReadAlong scans the saved folders when you return to the library, so newly added books can appear without selecting every file again. The folder screen also lets you rescan a folder or remove it from the library.
 
+### Import your Audible books
+
+The GitHub download can bring in the audiobooks you own on Audible. Open **Library folders** from the bookshelf icon and tap **Import from Audible**.
+
+1. Choose your Audible store and tap **Sign in with Amazon**. Amazon's own sign-in page opens inside ReadAlong; your password goes only to Amazon.
+2. Your Audible library appears. Tap **Download** on the books you want.
+3. Each book downloads in the background, is turned into an ordinary M4B file on your phone, and joins your library and the transcription queue.
+
+ReadAlong signs in as a device on your Amazon account, the same way [LibriSync](https://github.com/Promises/LibriSync) and [Libation](https://github.com/rmcrackan/Libation) do; their GPL-3.0 sign-in, download and decryption engine is ported into ReadAlong. Signing out removes ReadAlong from your Amazon devices; books already imported stay. If Audible limits downloads for your account for a while, ReadAlong stops and says so rather than retrying. The Windows, Linux and macOS apps have the same **Audible** button in the library; there the sign-in page opens in your web browser, and you paste the address of Amazon's final page back into ReadAlong.
+
+Only books you own can be downloaded. The Google Play edition does not include Audible sign-in.
+
 Supported file extensions include **MP3, M4A, M4B, AAC, OGG, Opus, FLAC, WAV and MP4 audio**. Playback depends on the audio codec in the file and your device's decoder support. Use local, DRM-free files that Android can read.
 
 ### Find a book
@@ -278,7 +290,7 @@ No. Deleting a book removes its data from ReadAlong. Your original audio and EPU
 
 ### Does ReadAlong work with books from an audiobook subscription service?
 
-ReadAlong opens local, DRM-free files. It does not sign in to audiobook services or remove copy protection from their downloads.
+ReadAlong opens local, DRM-free files. The GitHub download and the desktop apps can also sign in to Audible and import the audiobooks you own as M4B files; see [Import your Audible books](#import-your-audible-books). Other services aren't supported.
 
 ## Source code and license
 
