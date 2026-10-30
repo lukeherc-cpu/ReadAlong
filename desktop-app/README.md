@@ -18,7 +18,8 @@ Windows ships as an MSI, Linux as a Flatpak, macOS as a `.dmg` for Apple silicon
 - **Transcription.** whisper.cpp in a separate process. Its Vulkan backend runs on NVIDIA, AMD and Intel
   graphics cards; without one (or if the driver fails) it uses the best CPU code for the processor. A GPU
   that stops responding switches the book to the CPU and keeps the progress. Models (tiny.en to
-  large-v3-turbo) download from Hugging Face the first time; the recommended one depends on the hardware.
+  large-v3-turbo) download from Hugging Face the first time. Tiny is the default, the smallest and quickest;
+  pick a bigger one in Settings for fewer mistakes.
 
 ## Transcripts move between the phone and the PC
 
