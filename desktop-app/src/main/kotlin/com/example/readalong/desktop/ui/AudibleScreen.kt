@@ -108,6 +108,8 @@ private fun AudibleLibrary(app: AppState, name: String, store: String) {
         PillButton(if (syncing) "Refreshing…" else "Refresh library", audible::sync, filled = false, enabled = !syncing)
         PillButton("Sign out", { signingOut = true }, filled = false)
     }
+    // Books already downloaded elsewhere (Libation, LibriSync, another computer) come in as a library folder.
+    PillButton("Add audiobook folder", { chooseFolder()?.let { app.addPaths(listOf(it)) } }, Modifier.padding(top = 12.dp), icon = "ic_folder", filled = false)
     OutlinedTextField(query, { query = it }, Modifier.widthIn(max = 860.dp).fillMaxWidth().padding(vertical = 12.dp), singleLine = true,
         placeholder = { Text("Search your Audible library") })
     if (syncing) LinearProgressIndicator(Modifier.widthIn(max = 860.dp).fillMaxWidth())

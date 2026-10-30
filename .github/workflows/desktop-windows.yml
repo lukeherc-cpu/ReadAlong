@@ -5,7 +5,7 @@ name: ReadAlong for Windows
 # the packaged app, on the CPU and on software Vulkan (the runner has no GPU), and renders screenshots.
 on:
   push:
-    paths: ["desktop-app/**", ".github/workflows/desktop-windows.yml", "app/src/main/java/com/example/readalong/domain/**"]
+    paths: ["desktop-app/**", ".github/workflows/desktop-windows.yml", "app/src/main/java/com/example/readalong/domain/**", "app/src/github/java/com/example/readalong/audible/**"]
   workflow_dispatch:
   # release.yml calls this after publishing the APK, to add the installer to the same release.
   workflow_call:
