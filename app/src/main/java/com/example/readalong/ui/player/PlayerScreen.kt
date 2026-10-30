@@ -6,7 +6,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -91,15 +91,24 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                 .padding(insets).verticalScroll(pageScroll, enabled = !barHidden),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            // A grab handle, like the pop-up sheets: tap it or pull down to close the player.
-            Box(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
-                val pull = remember { floatArrayOf(0f) }
-                val threshold = with(androidx.compose.ui.platform.LocalDensity.current) { 56.dp.toPx() }
-                Box(Modifier.align(Alignment.Center).size(width = 120.dp, height = 48.dp)
+            // A grab handle, like the pop-up sheets: tap it or pull down to close the player. The touch
+            // area is the whole top bar's height and most of its width, and any pull that is mostly
+            // downward counts (a diagonal thumb swipe too), as does a short quick flick.
+            Box(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                val density = androidx.compose.ui.platform.LocalDensity.current
+                val threshold = with(density) { 40.dp.toPx() }
+                val flick = with(density) { 16.dp.toPx() }
+                val flickSpeed = with(density) { 700.dp.toPx() }
+                Box(Modifier.align(Alignment.Center).size(width = 220.dp, height = 56.dp)
                     .pointerInput(Unit) {
-                        detectVerticalDragGestures(onDragStart = { pull[0] = 0f }, onDragEnd = { if (pull[0] > threshold) onCollapse() }) { change, amount ->
-                            change.consume(); pull[0] += amount
-                            if (pull[0] > threshold) { pull[0] = Float.NEGATIVE_INFINITY; onCollapse() }
+                        val tracker = androidx.compose.ui.input.pointer.util.VelocityTracker()
+                        var x = 0f; var y = 0f; var closed = false
+                        fun downward() = y > 0f && y >= kotlin.math.abs(x) * .6f
+                        detectDragGestures(onDragStart = { x = 0f; y = 0f; closed = false; tracker.resetTracking() },
+                            onDragEnd = { if (!closed && downward() && (y > threshold || (y > flick && tracker.calculateVelocity().y > flickSpeed))) { closed = true; onCollapse() } }) { change, amount ->
+                            change.consume(); tracker.addPosition(change.uptimeMillis, change.position)
+                            x += amount.x; y += amount.y
+                            if (!closed && downward() && y > threshold) { closed = true; onCollapse() }
                         }
                     }
                     .clickable(onClickLabel = "Close player", onClick = onCollapse)
