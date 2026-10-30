@@ -3,6 +3,7 @@ package com.example.readalong.desktop.ui
 import androidx.compose.runtime.*
 import com.example.readalong.desktop.audio.AudioPlayer
 import com.example.readalong.desktop.core.*
+import com.example.readalong.desktop.link.DeviceLink
 import com.example.readalong.desktop.reading.BookTextBuilder
 import com.example.readalong.desktop.reading.ReadingText
 import com.example.readalong.desktop.transcription.ModelStore
@@ -41,6 +42,8 @@ class AppState(val scope: CoroutineScope, private val background: Boolean = true
     val messages = MutableSharedFlow<String>(extraBufferCapacity = 8)
     /** Ctrl+F in the reader. */
     var searchRequests by mutableStateOf(0)
+    /** Linked phones and the folders they sync over the home network; a sync from the phone rescans the library. */
+    val link = DeviceLink(scope, library, onSynced = { runCatching { importer.rescan() }; syncProgressNow() })
 
     fun open(next: Screen) { if (next != screen) { history.addLast(screen); screen = next } }
     fun back() { screen = history.removeLastOrNull() ?: Screen.Library }
@@ -63,6 +66,8 @@ class AppState(val scope: CoroutineScope, private val background: Boolean = true
             }
         }
     }
+
+    init { if (background) link.start() }
 
     /** Picks up positions from the phone; run when the window comes to the front. */
     fun syncProgress() { if (background) scope.launch(Dispatchers.IO) { syncProgressNow() } }
@@ -88,7 +93,7 @@ class AppState(val scope: CoroutineScope, private val background: Boolean = true
 
     fun shutdown() {
         val current = player.state.value.bookId
-        player.close(); transcription.shutdown()
+        player.close(); transcription.shutdown(); link.stop()
         current?.let { id -> library.book(id)?.let { runCatching { progress.write(it) } } }
         library.flush()
     }
