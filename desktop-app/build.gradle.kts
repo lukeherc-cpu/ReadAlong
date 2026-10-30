@@ -64,6 +64,7 @@ dependencies {
     implementation("org.bytedeco:ffmpeg:$ffmpeg")
     implementation("org.bytedeco:ffmpeg:$ffmpeg:$nativePlatform")
     implementation("net.java.dev.jna:jna-platform:5.18.1")
+    implementation("com.google.zxing:core:3.5.3") // the phone-linking QR code
     testImplementation(kotlin("test"))
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
 }
