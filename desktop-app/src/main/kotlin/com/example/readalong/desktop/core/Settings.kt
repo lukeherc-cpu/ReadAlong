@@ -6,7 +6,7 @@ import kotlinx.coroutines.flow.update
 import org.json.JSONObject
 
 data class AppSettings(
-    /** A [com.example.readalong.desktop.transcription.SpeechModels] id, or null to use the recommended one. */
+    /** A [com.example.readalong.desktop.transcription.SpeechModels] id, or null for the default (the smallest, quickest one). */
     val modelId: String? = null,
     /** "auto" (the best GPU, else the CPU), "gpu" or "cpu". */
     val device: String = "auto",

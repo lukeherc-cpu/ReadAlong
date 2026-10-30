@@ -61,7 +61,7 @@ fun SettingsScreen(app: AppState) {
                     }
                 }
                 SectionTitle("Speech model")
-                val recommended = SpeechModels.recommended(devices.orEmpty(), settings.language)
+                val default = SpeechModels.default(settings.language)
                 val chosen = app.transcription.model()
                 SpeechModels.all.filter { settings.language == "en" || !it.englishOnly }.forEach { model ->
                     val progress = downloads[model.id]
@@ -77,9 +77,9 @@ fun SettingsScreen(app: AppState) {
                             Column(Modifier.weight(1f)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(model.name, style = MaterialTheme.typography.titleSmall)
-                                    if (model.id == recommended.id) {
+                                    if (model.id == default.id) {
                                         Spacer(Modifier.width(8.dp))
-                                        Text("Recommended", Modifier.background(MaterialTheme.colorScheme.primary, CircleShape).padding(horizontal = 8.dp, vertical = 2.dp),
+                                        Text("Default", Modifier.background(MaterialTheme.colorScheme.primary, CircleShape).padding(horizontal = 8.dp, vertical = 2.dp),
                                             style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimary)
                                     }
                                 }

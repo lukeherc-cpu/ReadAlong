@@ -80,7 +80,7 @@ class TranscriptionService(private val scope: CoroutineScope, private val librar
     }
 
     fun model(): SpeechModel = SpeechModels.find(settings.value.modelId)
-        ?: SpeechModels.recommended(mutableDevices.value.orEmpty(), settings.value.language)
+        ?: SpeechModels.default(settings.value.language)
 
     private suspend fun probeDevices() {
         val cache = File(AppPaths.data, "devices.json")
