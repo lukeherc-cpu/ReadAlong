@@ -17,6 +17,10 @@ class TranscriberProcess private constructor(private val process: Process) : Aut
     var systemInfo = ""
         private set
 
+    private val recentLog = ArrayDeque<String>()
+    /** The transcriber's last lines of stderr (whisper.cpp and ggml log there), for diagnosing a failed load. */
+    fun recentLog(): List<String> = synchronized(recentLog) { recentLog.toList() }
+
     init {
         Thread({
             try {
@@ -25,7 +29,12 @@ class TranscriberProcess private constructor(private val process: Process) : Aut
                 }
             } finally { messages.close() }
         }, "transcriber-reader").apply { isDaemon = true }.start()
-        Thread({ process.errorStream.bufferedReader().forEachLine { if (System.getenv("READALONG_VERBOSE") != null) System.err.println("[transcriber] $it") } },
+        Thread({
+            process.errorStream.bufferedReader().forEachLine { line ->
+                synchronized(recentLog) { recentLog.addLast(line); while (recentLog.size > 80) recentLog.removeFirst() }
+                if (System.getenv("READALONG_VERBOSE") != null) System.err.println("[transcriber] $line")
+            }
+        },
             "transcriber-log").apply { isDaemon = true }.start()
     }
 
