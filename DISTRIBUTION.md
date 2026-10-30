@@ -28,6 +28,12 @@ GitHub Releases distribute the `github` APK only. Never upload a `play` APK, sto
 
 Publish a tagged source revision, upload the matching GitHub APK, and verify the remote file's digest against the local build. Keep the README and About download links pointed at that APK. Release titles should identify the app and version; descriptions should explain its features for readers. Keep local historical binaries outside source control for recovery.
 
+## Audible import
+
+Audible sign-in and import (`app/src/github/.../audible`, `data/audible`, `ui/audible`) ship in the `github` flavor and the desktop apps only. The `play` flavor keeps the LibriSync instructions dialog and contains no Audible sign-in code. The desktop build compiles the same engine from the `github` source set.
+
+The engine is GPL-3.0 code ported from LibriSync and Libation, whose authors have not granted the Needle Runtime Linking Exception. A GitHub release therefore needs the Needle runtime's source available as part of its Corresponding Source: link the runtime's published Apache-2.0 source and version in the release notes, or attach it.
+
 ## Support and store distribution
 
 The GitHub download is free. Its optional tip jar opens https://ko-fi.com/readalong in the device's browser. The card and jar artwork live only in `app/src/github`. The `play` source set supplies an empty section and contains no Ko-fi URL or tipping UI.

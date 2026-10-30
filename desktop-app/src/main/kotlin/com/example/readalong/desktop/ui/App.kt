@@ -68,9 +68,10 @@ fun ReadAlongApp(app: AppState) {
                         is Screen.Reader -> ReaderScreen(app, screen.bookId)
                         Screen.Queue -> QueueScreen(app)
                         Screen.Settings -> SettingsScreen(app)
+                        Screen.Audible -> AudibleScreen(app)
                     }
                 }
-                AnimatedVisibility(app.screen == Screen.Library || app.screen == Screen.Queue || app.screen == Screen.Settings,
+                AnimatedVisibility(app.screen == Screen.Library || app.screen == Screen.Queue || app.screen == Screen.Settings || app.screen == Screen.Audible,
                     enter = slideInVertically { it } + fadeIn(), exit = slideOutVertically { it } + fadeOut()) {
                     MiniPlayer(app)
                 }

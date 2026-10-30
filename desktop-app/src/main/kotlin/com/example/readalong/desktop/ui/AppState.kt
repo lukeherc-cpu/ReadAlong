@@ -18,6 +18,7 @@ sealed interface Screen {
     data class Reader(val bookId: String) : Screen
     data object Queue : Screen
     data object Settings : Screen
+    data object Audible : Screen
 }
 
 /** Everything the window shows, wired together once. */
@@ -31,6 +32,8 @@ class AppState(val scope: CoroutineScope, private val background: Boolean = true
     val transcription = TranscriptionService(scope, library, settingsStore, transcripts, models, probe = background)
     /** Shares listening positions with the phone through a file beside each book. */
     val progress = ProgressSync(library)
+    /** Signing in to Audible and importing its books (the engine is shared with the phone's GitHub build). */
+    val audible = AudibleService(scope, importer, transcription)
 
     var screen by mutableStateOf<Screen>(Screen.Library)
         private set
@@ -45,6 +48,7 @@ class AppState(val scope: CoroutineScope, private val background: Boolean = true
 
     init {
         scope.launch { transcription.messages.collect { messages.emit(it) } }
+        scope.launch { audible.messages.collect { messages.emit(it) } }
         if (background) scope.launch(Dispatchers.IO) { runCatching { importer.rescan() }; syncProgressNow() }
         // Pausing hands the position to the phone.
         if (background) scope.launch {
