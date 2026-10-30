@@ -27,9 +27,22 @@ class BookActionsViewModel(private val app: ReadAlongApplication) : ViewModel() 
     fun edit(book: Book, title: String? = null, author: String? = null, cover: Uri? = null) = action { repository.edit(book.id, title, author, cover) }
     fun finished(book: Book) = action { app.bookRepository.setFinished(book.id, true) }
     fun notStarted(book: Book) = action { app.playback.releaseBook(book.id); repository.notStarted(book.id) }
+    /** Leaves nothing behind that a re-added copy of the book would pick up. The sheet is closed by
+     * then, so a failure is shown as a toast instead of the sheet's error line. */
     fun delete(book: Book) = action {
-        app.processing.cancel(book.id); app.playback.releaseBook(book.id)
-        app.importedEpub.remove(book.id); repository.delete(book.id)
+        try {
+            // Stopping work and playback is best effort: if either fails, the book must still be deleted.
+            // A failure here used to end the delete silently, leaving the book and its progress in place.
+            runCatching { app.processing.cancel(book.id) }.onFailure { android.util.Log.w("ReadAlong", "Delete: pausing the ReadAlong failed", it) }
+            runCatching { app.playback.releaseBook(book.id) }.onFailure { android.util.Log.w("ReadAlong", "Delete: releasing playback failed", it) }
+            app.processing.forgetAudioCaches(book.id)
+            app.importedEpub.remove(book.id); repository.delete(book.id)
+            app.processing.clearStoppedNotification(book.id)
+        } catch (cancelled: CancellationException) { throw cancelled }
+        catch (failure: Exception) {
+            android.widget.Toast.makeText(app, "Couldn't delete ${book.title}. ${failure.message.orEmpty()}".trim(), android.widget.Toast.LENGTH_LONG).show()
+            throw failure
+        }
     }
     fun dismissError() { error.value = null }
     private fun action(work: suspend () -> Unit) { viewModelScope.launch {
@@ -84,7 +97,7 @@ fun BookActions(book: Book, model: BookActionsViewModel, onDismiss: () -> Unit) 
             edit = null
         }) { Text("Save") } }, dismissButton = { TextButton(onClick = { edit = null }) { Text("Cancel") } }) }
     if (delete) AlertDialog(onDismissRequest = { delete = false }, title = { Text("Delete this book?") },
-        text = { Text("Remove the book, saved positions and its prepared text from ReadAlong. Original audio and EPUB files stay in your folders.") },
+        text = { Text("This removes the book, its ReadAlong and its listening position from ReadAlong. The audio and EPUB files stay in your folders.") },
         confirmButton = { TextButton(onClick = { model.delete(book); onDismiss() }) { Text("Delete book") } },
         dismissButton = { TextButton(onClick = { delete = false }) { Text("Cancel") } })
 }

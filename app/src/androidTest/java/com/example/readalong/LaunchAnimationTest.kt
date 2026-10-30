@@ -30,15 +30,12 @@ class LaunchAnimationTest {
         runBlocking { app.appPreferences.update { it.copy(batteryWarningSeen = false, setupStage = 0) } }
         val scenario = ActivityScenario.launch(MainActivity::class.java)
         try {
-            compose.waitUntil(5000) { compose.onAllNodesWithText("Your audiobook library").fetchSemanticsNodes().isNotEmpty() }
+            compose.waitUntil(5000) { compose.onAllNodesWithTag("welcome").fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithTag("launch_logo").assertDoesNotExist()
-            compose.onNodeWithText("Later").performClick()
-            compose.onNodeWithText("Offline Follow Along").assertIsDisplayed()
-            if (!runBlocking { app.speechModel.available() }) compose.onNodeWithText("Continue ›").assertIsNotEnabled()
-            compose.onNodeWithText("Later").performClick()
-            compose.onNodeWithText("Offline transcription uses battery").assertIsDisplayed()
-            compose.onNodeWithText("Continue →").performClick()
-            compose.onNodeWithText("Your audiobook library").assertDoesNotExist()
+            compose.onNodeWithTag("welcome_next").performClick()
+            compose.onNodeWithText("Where are your audiobooks?").assertIsDisplayed()
+            compose.onNodeWithText("Skip for now").performClick()
+            compose.onNodeWithTag("welcome").assertDoesNotExist()
             scenario.recreate()
             compose.waitForIdle()
             compose.onNodeWithTag("launch_logo").assertDoesNotExist()

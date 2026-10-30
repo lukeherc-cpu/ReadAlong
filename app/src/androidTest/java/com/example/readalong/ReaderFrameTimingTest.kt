@@ -84,18 +84,18 @@ class ReaderFrameTimingTest {
             SystemClock.sleep(1500)
             scenario.onActivity { it.window.addOnFrameMetricsAvailableListener(listener, Handler(thread.looper)) }
             repeat(7) { iteration ->
-                val expand = waitNode { it.contentDescription?.toString() == "Full screen Follow Along" }
+                val expand = waitNode { it.contentDescription?.toString() == "Read in full screen" }
                 recording.set(iteration > 0)
                 click(expand)
                 waitNode { it.contentDescription?.toString() == "Settings" }
                 SystemClock.sleep(150)
                 instrumentation.sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
-                waitNode { it.contentDescription?.toString() == "Full screen Follow Along" }
+                waitNode { it.contentDescription?.toString() == "Read in full screen" }
                 SystemClock.sleep(150)
                 recording.set(false)
                 org.junit.Assert.assertEquals(20_000L, app.playback.state.value.positionMs)
             }
-            click(waitNode { it.contentDescription?.toString() == "Full screen Follow Along" })
+            click(waitNode { it.contentDescription?.toString() == "Read in full screen" })
             waitNode { it.contentDescription?.toString() == "Settings" }
             // Semantics exists during the cached transform; capture the settled reader.
             SystemClock.sleep(1000)

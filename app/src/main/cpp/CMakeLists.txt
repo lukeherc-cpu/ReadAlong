@@ -13,3 +13,5 @@ target_include_directories(readalong_whistle PRIVATE ${NEEDLE_DIR})
 target_compile_options(readalong_whistle PRIVATE -O3)
 target_link_libraries(readalong_whistle PRIVATE needle android log)
 target_link_options(readalong_whistle PRIVATE "-Wl,-z,max-page-size=16384")
+# Answer Whistle's CPU-topology reads from the CPUs actually allowed (see whistle_jni.cpp).
+target_link_options(readalong_whistle PRIVATE "-Wl,--wrap=fopen" "-Wl,--wrap=_ZNSt6__ndk16thread20hardware_concurrencyEv")

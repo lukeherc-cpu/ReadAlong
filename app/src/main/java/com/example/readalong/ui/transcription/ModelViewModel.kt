@@ -46,13 +46,13 @@ class ModelViewModel(private val context: Context, private val store: SpeechMode
         val running = manager.getWorkInfosForUniqueWork(ModelInstallWorker.WORK_NAME).get().any { it.state == WorkInfo.State.RUNNING }
         if (running && spec.id == old.id) return@withContext
         val request = ModelInstallWorker.request(uri, automatic, spec.id)
-        store.report("QUEUED", 0, if (automatic) "Whistle setup is queued. Connect to Wi-Fi to download ${spec.size / 1_000_000 + 1} MB, or choose Download now." else "Model installation queued. The download is about ${spec.size / 1_000_000 + 1} MB.")
+        store.report("QUEUED", 0, if (automatic) "The speech model will download on Wi-Fi (${spec.size / 1_000_000 + 1} MB), or tap Download now." else "Download starting (${spec.size / 1_000_000 + 1} MB)…")
         manager.enqueueUniqueWork(ModelInstallWorker.WORK_NAME, if (automatic) ExistingWorkPolicy.KEEP else ExistingWorkPolicy.REPLACE, request).result.get()
     } }
     fun cancel() = action {
         store.automaticDownloads(false)
         withContext(Dispatchers.IO) { manager.cancelUniqueWork(ModelInstallWorker.WORK_NAME).result.get() }
-        store.report("CANCELLED", 0, "Model installation cancelled. You can retry.")
+        store.report("CANCELLED", 0, "Download cancelled.")
     }
     fun remove() = action {
         store.automaticDownloads(false)
@@ -64,7 +64,7 @@ class ModelViewModel(private val context: Context, private val store: SpeechMode
         viewModelScope.launch {
             try { mutableError.value = null; block() }
             catch (cancelled: CancellationException) { throw cancelled }
-            catch (failure: Exception) { mutableError.value = failure.message ?: "Couldn't change the model. Check file access and free storage, then retry." }
+            catch (failure: Exception) { mutableError.value = failure.message ?: "Couldn't change the speech model. Check free space and try again." }
         }
     }
     companion object {

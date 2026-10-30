@@ -1,5 +1,8 @@
 package com.example.readalong.ui.components
 
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.lerp
+
 import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.compose.runtime.*
@@ -48,10 +51,50 @@ fun rememberCoverPalette(book: Book): CoverPalette {
             }.getOrDefault(fallback)
         }
     }
-    return if (settings.alwaysBasicColor || book.coverUri == null) basic else result
+    if (settings.alwaysBasicColor) return basic
+    // No artwork: the generated cover's own colours, so the cover, player and dialogs agree.
+    return if (book.coverUri == null) remember(book.title) { placeholderPalette(book) } else result
+}
+
+/** A stable colour per title for books without cover art. */
+internal fun placeholderPalette(book: Book): CoverPalette {
+    val hues = listOf(212f, 168f, 24f, 340f, 262f, 42f, 196f, 8f, 140f, 288f)
+    return palette(hues[Math.floorMod((book.title.lowercase() + (book.author ?: "")).hashCode(), hues.size)], .40f)
 }
 
 private fun palette(hue: Float, saturation: Float) = CoverPalette(
     Color(android.graphics.Color.HSVToColor(floatArrayOf(hue, saturation, .25f))),
     Color(android.graphics.Color.HSVToColor(floatArrayOf(hue, saturation, .38f))),
     Color(android.graphics.Color.HSVToColor(floatArrayOf(hue, .20f, .95f))))
+
+/**
+ * A Material scheme tinted with the book's cover colours (or the accent color when "Use accent color
+ * instead of cover colors" is on), for dialogs about one book. Replaces Material's default purples
+ * that would otherwise show through the player's dark scheme.
+ */
+@Composable
+fun rememberBookColorScheme(book: Book?): androidx.compose.material3.ColorScheme {
+    val base = androidx.compose.material3.MaterialTheme.colorScheme
+    val settings = com.example.readalong.ui.theme.LocalAppSettings.current
+    val palette = book?.let { rememberCoverPalette(it) } ?: com.example.readalong.ui.theme.basicPalette(settings.basicColor)
+    val dark = base.background.luminance() < .5f
+    return remember(palette, dark, base) {
+        if (dark) {
+            val surface = lerp(Color(0xFF131619), palette.background, .6f)
+            base.copy(primary = palette.accent, onPrimary = palette.background,
+                primaryContainer = lerp(palette.preview, surface, .25f), onPrimaryContainer = Color.White,
+                surface = surface, background = surface, surfaceVariant = lerp(surface, palette.preview, .5f),
+                onSurface = Color.White, onSurfaceVariant = lerp(palette.accent, Color.White, .25f),
+                outline = palette.accent.copy(alpha = .55f), outlineVariant = palette.accent.copy(alpha = .25f),
+                surfaceContainerLow = surface, surfaceContainer = surface, surfaceContainerHigh = lerp(surface, palette.preview, .3f))
+        } else {
+            val surface = lerp(Color.White, palette.accent, .35f)
+            base.copy(primary = palette.preview, onPrimary = Color.White,
+                primaryContainer = lerp(palette.accent, palette.preview, .18f), onPrimaryContainer = palette.background,
+                surface = surface, background = surface, surfaceVariant = lerp(Color.White, palette.accent, .8f),
+                onSurface = Color(0xFF1B2024), onSurfaceVariant = palette.preview,
+                outline = palette.preview.copy(alpha = .5f), outlineVariant = palette.preview.copy(alpha = .22f),
+                surfaceContainerLow = surface, surfaceContainer = surface, surfaceContainerHigh = lerp(surface, palette.accent, .5f))
+        }
+    }
+}

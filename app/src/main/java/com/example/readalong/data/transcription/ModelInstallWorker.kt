@@ -36,7 +36,7 @@ class ModelInstallWorker(context: Context, parameters: WorkerParameters) : Corou
                 store.report("FAILED", 0, "Couldn't read the selected model file. Choose it again from Offline speech models.", spec.id)
                 Result.failure()
             } else {
-                store.report("QUEUED", 0, "Whistle download will retry when the connection is available.", spec.id)
+                store.report("QUEUED", 0, "The speech model download will try again when you're online.", spec.id)
                 Result.retry()
             }
         } catch (failure: Exception) {

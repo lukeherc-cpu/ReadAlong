@@ -50,7 +50,7 @@ internal class Mp4PacketSource(context: Context, private val uri: Uri) : Closeab
             capacity(length); data.readBytes(pending, pendingSize, length); pendingSize += length
         }
         override fun sampleMetadata(timeUs: Long, flags: Int, size: Int, offset: Int, cryptoData: TrackOutput.CryptoData?) {
-            require(cryptoData == null) { "Encrypted audio cannot be transcribed." }
+            require(cryptoData == null) { "This audio is copy-protected (DRM), so ReadAlong can't make text from it. Import it with LibriSync instead." }
             check(size <= pendingSize && offset <= pendingSize - size)
             val start = pendingSize - offset - size
             packet = Packet(pending.copyOfRange(start, start + size), timeUs)
@@ -73,7 +73,7 @@ internal class Mp4PacketSource(context: Context, private val uri: Uri) : Closeab
             check(read() != Extractor.RESULT_END_OF_INPUT) { "No supported MP4 audio track was found." }
         }
         val source = requireNotNull(sourceFormat)
-        require(source.drmInitData == null) { "Encrypted audio cannot be transcribed." }
+        require(source.drmInitData == null) { "This audio is copy-protected (DRM), so ReadAlong can't make text from it. Import it with LibriSync instead." }
         val format = MediaFormat.createAudioFormat(requireNotNull(source.sampleMimeType), source.sampleRate, source.channelCount)
         source.initializationData.forEachIndexed { index, bytes -> format.setByteBuffer("csd-$index", ByteBuffer.wrap(bytes)) }
         format.setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, maxOf(64 * 1024, source.maxInputSize))

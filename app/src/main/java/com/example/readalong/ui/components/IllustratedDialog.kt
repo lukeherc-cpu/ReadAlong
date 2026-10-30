@@ -14,20 +14,23 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 
-/** Reference-style rounded card; all copy and controls remain native, accessible elements. */
+/**
+ * The app's pop-up, as a bottom sheet: slides up from the bottom with a grab handle, swipes down to
+ * dismiss, and keeps its buttons within thumb reach. All copy and controls stay native.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun IllustratedDialog(title: String, onDismiss: () -> Unit, artwork: (@Composable () -> Unit)? = null, centered: Boolean = false,
     actions: @Composable RowScope.() -> Unit, content: @Composable ColumnScope.() -> Unit) {
-    Dialog(onDismissRequest = onDismiss) {
-        val colors = MaterialTheme.colorScheme
-        Surface(shape = RoundedCornerShape(28.dp), border = BorderStroke(1.dp, colors.outline.copy(alpha = .15f))) {
-            Column(Modifier.background(Brush.linearGradient(listOf(colors.surfaceVariant, colors.surface))).padding(22.dp).verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(16.dp), horizontalAlignment = if (centered) Alignment.CenterHorizontally else Alignment.Start) {
-                artwork?.invoke()
-                Text(title, modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.headlineSmall, textAlign = if (centered) androidx.compose.ui.text.style.TextAlign.Center else androidx.compose.ui.text.style.TextAlign.Start)
-                content()
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End), verticalAlignment = Alignment.CenterVertically, content = actions)
-            }
+    val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = state, containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)) {
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 24.dp, end = 24.dp, bottom = 24.dp).navigationBarsPadding(),
+            verticalArrangement = Arrangement.spacedBy(16.dp), horizontalAlignment = if (centered) Alignment.CenterHorizontally else Alignment.Start) {
+            artwork?.invoke()
+            Text(title, modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.headlineSmall, textAlign = if (centered) androidx.compose.ui.text.style.TextAlign.Center else androidx.compose.ui.text.style.TextAlign.Start)
+            content()
+            Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End), verticalAlignment = Alignment.CenterVertically, content = actions)
         }
     }
 }

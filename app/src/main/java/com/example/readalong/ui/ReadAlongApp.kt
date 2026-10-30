@@ -6,6 +6,9 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -38,7 +41,6 @@ private object Routes {
 fun ReadAlongApp(libraryViewModel: LibraryViewModel, app: com.example.readalong.ReadAlongApplication, importModel: com.example.readalong.ui.importing.ImportViewModel, showPrompts: Boolean = true) {
     val readerSettings by app.readerPreferences.preferences.collectAsStateWithLifecycle(com.example.readalong.data.preferences.ReaderPreferences())
     val appSettings = com.example.readalong.ui.theme.LocalAppSettings.current
-    if (showPrompts && appSettings.setupStage == 2) com.example.readalong.ui.transcription.TranscriptionBatteryWarning(app)
     val bookRepository = app.bookRepository
     val playback = app.playback
     val navController = rememberNavController()
@@ -64,7 +66,7 @@ fun ReadAlongApp(libraryViewModel: LibraryViewModel, app: com.example.readalong.
         app.database.bookDao().observeMetadata("battery_prompt_v1").collect { value = it != null }
     }
     val power = app.getSystemService(android.os.PowerManager::class.java)
-    val backgroundPromptPending = batteryPromptAnswered == false && !power.isIgnoringBatteryOptimizations(app.packageName) &&
+    val backgroundPromptPending = (!appSettings.batteryWarningSeen || batteryPromptAnswered == false && !power.isIgnoringBatteryOptimizations(app.packageName)) &&
         preparingBooks.any { it.state in setOf("PROCESSING", "PARTIAL_READY", "GENERATING_EPUB") }
     val importPromptPending = pendingImports.isNotEmpty() || addingBook != null
     val normalPrompts = showPrompts && appSettings.setupStage == 3
@@ -73,23 +75,33 @@ fun ReadAlongApp(libraryViewModel: LibraryViewModel, app: com.example.readalong.
     if (normalPrompts && !importPromptPending) com.example.readalong.ui.transcription.BackgroundPreparationPrompt(app)
     val speechSetup: com.example.readalong.ui.transcription.ModelViewModel = viewModel(factory = com.example.readalong.ui.transcription.ModelViewModel.factory(app, app.speechModel, app.processing))
     val setupScope = androidx.compose.runtime.rememberCoroutineScope()
+    // The book whose player the mini-player transform is opening or closing (outlives the library screen).
+    var transformBook by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<com.example.readalong.domain.model.Book?>(null) }
     fun setupStage(stage: Int) { setupScope.launch { app.appPreferences.update { it.copy(setupStage = stage) } } }
     androidx.compose.runtime.LaunchedEffect(appSettings.setupStage) {
-        if (appSettings.setupStage == 1) setupStage(2) // Upgrade an unfinished older setup.
+        // Older setups stopped at the battery step; that now shows before the first ReadAlong instead.
+        if (appSettings.setupStage in 1..2) setupStage(3)
     }
-    if (showPrompts && appSettings.setupStage == 0) {
-        com.example.readalong.ui.importing.LibrarySetupPrompt(importModel, { setupStage(2) })
+    if (appSettings.setupStage == 0) {
+        com.example.readalong.ui.importing.WelcomeScreen(importModel) { setupStage(3) }
+        return
     }
+    androidx.compose.animation.SharedTransitionLayout {
+    androidx.compose.runtime.CompositionLocalProvider(com.example.readalong.ui.components.LocalNavSharedScope provides this) {
     NavHost(navController = navController, startDestination = Routes.Library) {
+        // From the mini player the player slides up over the library like a sheet, and slides back
+        // down on close: translation only, so it stays smooth even while the player composes.
         composable(Routes.Library,
-            exitTransition = { androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(180)) },
-            popEnterTransition = { androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(180)) }) { libraryEntry ->
+            exitTransition = { if (targetState.openedFromMini()) androidx.compose.animation.ExitTransition.KeepUntilTransitionsFinished else androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(180)) },
+            popEnterTransition = { if (initialState.openedFromMini()) androidx.compose.animation.EnterTransition.None else androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(180)) }) { libraryEntry ->
+            androidx.compose.runtime.CompositionLocalProvider(com.example.readalong.ui.components.LocalNavVisibilityScope provides this) {
             // Ignore callbacks from outgoing destinations after their entry has been popped.
             fun open(route: String) { if (navController.currentBackStackEntry?.id == libraryEntry.id) navController.navigate(route) { launchSingleTop = true } }
             val jobs by app.processing.queue.collectAsStateWithLifecycle(emptyList())
             androidx.lifecycle.compose.LifecycleEventEffect(androidx.lifecycle.Lifecycle.Event.ON_RESUME) { importModel.refreshLibrary() }
             val state by libraryViewModel.state.collectAsStateWithLifecycle()
             val scanningFolder by importModel.scanningFolder.collectAsStateWithLifecycle()
+            val readingFolder by importModel.readingFolder.collectAsStateWithLifecycle()
             val playbackState by playback.state.collectAsStateWithLifecycle()
             val activeBookFlow = androidx.compose.runtime.remember(playbackState.bookId) {
                 playbackState.bookId?.let(bookRepository::observeBook) ?: kotlinx.coroutines.flow.flowOf(null)
@@ -102,9 +114,37 @@ fun ReadAlongApp(libraryViewModel: LibraryViewModel, app: com.example.readalong.
                 onDismissRequest = actions::dismissError, title = { androidx.compose.material3.Text("Couldn't update book") },
                 text = { androidx.compose.material3.Text(actionError!!) },
                 confirmButton = { androidx.compose.material3.TextButton(onClick = actions::dismissError) { androidx.compose.material3.Text("Close") } })
+            // Mini player <-> player: the library grows a container from the mini player's bounds to the
+            // full screen (tap, or follow a drag), then the real player fades in on top of it. Closing
+            // a player opened this way plays it in reverse. See PlayerTransform.
+            val returning = androidx.compose.runtime.remember { com.example.readalong.ui.player.PlayerSheetHandoff.closing }
+            val sheet = androidx.compose.runtime.remember { androidx.compose.animation.core.Animatable(if (returning != null) 1f else 0f) }
+            var sheetBook by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(if (returning != null) transformBook else null) }
+            androidx.compose.runtime.LaunchedEffect(Unit) {
+                if (returning != null) {
+                    com.example.readalong.ui.player.PlayerSheetHandoff.closing = null
+                    sheet.animateTo(0f, androidx.compose.animation.core.tween(220, easing = com.example.readalong.ui.reading.ReaderMotionEasing))
+                    sheetBook = null
+                }
+            }
+            val sheetTravel = (com.example.readalong.ui.player.PlayerSheetHandoff.miniBounds?.top ?: with(androidx.compose.ui.platform.LocalDensity.current) { 600.dp.toPx() }).coerceAtLeast(1f)
+            var opening by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+            val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
+            fun openPlayer(book: com.example.readalong.domain.model.Book) {
+                if (opening) return
+                opening = true; sheetBook = book; transformBook = book
+                setupScope.launch {
+                    val left = 1f - sheet.value
+                    sheet.animateTo(1f, androidx.compose.animation.core.tween((220 * left).toInt().coerceAtLeast(70), easing = if (sheet.value > 0f) androidx.compose.animation.core.LinearOutSlowInEasing else com.example.readalong.ui.reading.ReaderMotionEasing))
+                    if (navController.currentBackStackEntry?.id == libraryEntry.id) navController.navigate("book/${Uri.encode(book.id)}?fromMini=true") { launchSingleTop = true }
+                    opening = false
+                }
+            }
+            androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.fillMaxSize()) {
             LibraryScreen(
                 state = state,
                 scanningFolder = scanningFolder,
+                readingFolder = readingFolder,
                 transcribing = jobs.any { it.state in setOf("QUEUED", "PROCESSING", "PARTIAL_READY", "GENERATING_EPUB") },
                 onQueue = { open("queue") },
                 selectedBookId = playbackState.bookId,
@@ -117,12 +157,34 @@ fun ReadAlongApp(libraryViewModel: LibraryViewModel, app: com.example.readalong.
                     onFolders = { open("folders") },
                     onBook = { navController.navigate("book/${Uri.encode(it)}") { launchSingleTop = true } }) },
                 importStatus = { com.example.readalong.ui.importing.ImportStatus(importModel) },
+                emptyActions = {
+                    // The same choices as the welcome page, then the folder example folded under Help.
+                    androidx.compose.foundation.layout.Column(verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
+                        com.example.readalong.ui.importing.AudiobookSourceButtons(importModel, large = true)
+                        com.example.readalong.ui.importing.FolderHelp()
+                    }
+                },
                 miniPlayer = {
-                    activeBook?.let { book -> MiniPlayer(book, playbackState, { navController.navigate("book/${Uri.encode(book.id)}?fromMini=true") { launchSingleTop = true } }, playback::toggle, readerTheme = readerSettings.theme, onDismiss = { setupScope.launch { playback.releaseBook(book.id) } }) }
+                    activeBook?.let { book -> MiniPlayer(book, playbackState, { openPlayer(book) }, playback::toggle, readerTheme = readerSettings.theme,
+                        onDismiss = { setupScope.launch { playback.releaseBook(book.id) } },
+                        onDrag = { dy -> if (!opening) { sheetBook = book; setupScope.launch {
+                            val before = sheet.value
+                            sheet.snapTo((sheet.value - dy / sheetTravel).coerceIn(0f, 1f))
+                            if ((before < .3f) != (sheet.value < .3f)) haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.GestureThresholdActivate)
+                        } } },
+                        onDragEnd = { velocity ->
+                            if (opening) Unit
+                            else if (sheet.value > .3f || velocity < -900f) openPlayer(book)
+                            else setupScope.launch { sheet.animateTo(0f, androidx.compose.animation.core.tween(160, easing = com.example.readalong.ui.reading.ReaderMotionEasing)); sheetBook = null }
+                        }) }
                 },
             )
+            sheetBook?.let { book -> if (sheet.value > 0f) com.example.readalong.ui.player.PlayerTransform(book, readerSettings.theme, { sheet.value },
+                chapterTitle = if (playbackState.bookId == book.id) playbackState.chapterTitle else "") }
+            }
             com.example.readalong.ui.components.FirstVisitGuide(app, com.example.readalong.ui.components.GuidePage.HOME,
                 guideEligible && selected == null && actionError == null && state is com.example.readalong.ui.library.LibraryUiState.Ready)
+            }
         }
         composable("settings") { entry ->
             com.example.readalong.ui.about.SettingsScreen(app, { if (navController.currentBackStackEntry?.id == entry.id) navController.popBackStack() },
@@ -142,10 +204,12 @@ fun ReadAlongApp(libraryViewModel: LibraryViewModel, app: com.example.readalong.
             AboutScreen(onBack = { navController.popBackStack() }, onSpeechModel = { navController.navigate("speech-model") })
         }
         composable(Routes.Book, arguments = listOf(navArgument("bookId") { type = NavType.StringType }, navArgument("fromMini") { type = NavType.BoolType; defaultValue = false }),
-            enterTransition = { androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(180)) },
-            popExitTransition = { androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(180)) }) { entry ->
+            enterTransition = { if (targetState.openedFromMini()) androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(110)) else androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(180)) },
+            popExitTransition = { if (initialState.openedFromMini()) androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(90)) else androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(180)) }) { entry ->
+            androidx.compose.runtime.CompositionLocalProvider(com.example.readalong.ui.components.LocalNavVisibilityScope provides this) {
             val bookId = requireNotNull(entry.arguments?.getString("bookId"))
             val fromMini = entry.arguments?.getBoolean("fromMini") == true
+            fun closeFromMini() { if (fromMini) com.example.readalong.ui.player.PlayerSheetHandoff.closing = bookId }
             val model: BookViewModel = viewModel(factory = BookViewModel.factory(bookId, bookRepository))
             val reading: com.example.readalong.ui.reading.ReadingViewModel = viewModel(factory = com.example.readalong.ui.reading.ReadingViewModel.factory(bookId, app.database, app.transcriptRepository, app.readerPreferences, app.generatedEpub, app.processing, app.importedEpub, app.bookReaderPreferences, !fromMini && appSettings.openingView == "READ_ONLY"))
             val frameLayer = androidx.compose.ui.graphics.rememberGraphicsLayer()
@@ -155,6 +219,7 @@ fun ReadAlongApp(libraryViewModel: LibraryViewModel, app: com.example.readalong.
                 if (value != mode) { readerFrame.frozen = android.animation.ValueAnimator.areAnimatorsEnabled(); mode = value }
             }
             androidx.activity.compose.BackHandler(enabled = mode != "player") { setReaderMode("player") }
+            androidx.activity.compose.BackHandler(enabled = mode == "player" && fromMini) { closeFromMini(); navController.popBackStack() }
             val state by model.state.collectAsStateWithLifecycle()
             val busy by model.busy.collectAsStateWithLifecycle()
             val updateFailed by model.updateFailed.collectAsStateWithLifecycle()
@@ -163,39 +228,34 @@ fun ReadAlongApp(libraryViewModel: LibraryViewModel, app: com.example.readalong.
                 (state as? com.example.readalong.ui.book.BookUiState.Ready)?.book?.let { book ->
                     playback.select(book)
                     if (reading.readOnly.value) playback.pause()
-                    reading.checkMissingEpub(book.isDemo)
                 }
             }
             if (state is com.example.readalong.ui.book.BookUiState.Ready) {
                 val book = (state as com.example.readalong.ui.book.BookUiState.Ready).book
                 val displayState = if (playbackState.bookId == book.id) playbackState else com.example.readalong.playback.PlaybackState(book.id, book.positionMs, book.durationMs ?: 0, isLoading = true)
-                val missingEpub by reading.missingEpub.collectAsStateWithLifecycle()
-                var dontAsk by androidx.compose.runtime.remember(book.id) { androidx.compose.runtime.mutableStateOf(false) }
-                val epubPicker = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri ->
-                    uri?.let(reading::addEpub)
-                }
-                if (missingEpub) com.example.readalong.ui.components.IllustratedDialog("No EPUB added", { reading.dismissMissingEpub(dontAsk) }, actions = {
-                    androidx.compose.material3.FilledTonalButton(onClick = { reading.dismissMissingEpub(dontAsk) }) { androidx.compose.material3.Text("Later") }
-                    androidx.compose.material3.Button(onClick = { reading.dismissMissingEpub(dontAsk); epubPicker.launch(arrayOf("application/epub+zip", "application/octet-stream")) }) { androidx.compose.material3.Text("Add EPUB") }
-                }) {
-                    androidx.compose.material3.Text("Add an EPUB to use the original book text and formatting with your audio. You can also add one later in the player details.")
-                    androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                        androidx.compose.material3.Checkbox(dontAsk, { dontAsk = it })
-                        androidx.compose.material3.Text("Don’t show this message again")
-                    }
-                }
                 com.example.readalong.ui.components.FirstVisitGuide(app,
                     if (mode == "follow") com.example.readalong.ui.components.GuidePage.READER else com.example.readalong.ui.components.GuidePage.PLAYER,
-                    guideEligible && !missingEpub)
+                    guideEligible)
                 val readerPalette = com.example.readalong.ui.components.rememberCoverPalette(book)
                 val surfaceState = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
+                // Opened from the mini player: the mini player grows into this screen. Opened from the
+                // library: the cover flies from its tile into the player.
+                androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.fillMaxSize()) {
+                androidx.compose.runtime.CompositionLocalProvider(com.example.readalong.ui.components.LocalPlayerCoverKey provides
+                    if (fromMini) null else com.example.readalong.ui.components.coverKey(bookId)) {
                 androidx.compose.animation.SharedTransitionLayout {
                 val shared = this
                 val bookReading by reading.readOnly.collectAsStateWithLifecycle()
                 val plainPreferences by reading.bookPreferences.collectAsStateWithLifecycle()
-                val readerBackground = if (bookReading) { if (plainPreferences.theme == "DARK") androidx.compose.ui.graphics.Color.Black else androidx.compose.ui.graphics.Color.White } else when (readerSettings.theme) { "LIGHT" -> androidx.compose.ui.graphics.Color(0xFFFAF9F5); "SEPIA" -> androidx.compose.ui.graphics.Color(0xFFF0E6D2); else -> readerPalette.background }
-                val transformColor by animateColorAsState(if (mode == "follow") readerBackground else readerPalette.preview, androidx.compose.animation.core.tween(300), label = "Reader color")
-                val radius by animateDpAsState(if (mode == "follow") 0.dp else 24.dp, androidx.compose.animation.core.tween(300), label = "Reader corners")
+                val readerBackground = if (bookReading) { when (plainPreferences.theme) { "DARK" -> androidx.compose.ui.graphics.Color.Black; "SEPIA" -> com.example.readalong.ui.reading.SepiaPaper; else -> androidx.compose.ui.graphics.Color.White } } else when (readerSettings.theme) { "LIGHT" -> androidx.compose.ui.graphics.Color(0xFFFAF9F5); "SEPIA" -> com.example.readalong.ui.reading.SepiaPaper; "BLACK" -> androidx.compose.ui.graphics.Color.Black; else -> readerPalette.background }
+                // Color and corners share the bounds' duration and curve, and are only read at draw time:
+                // reading them here recomposed the entire player or reader on every transition frame.
+                val transformColor = animateColorAsState(if (mode == "follow") readerBackground else com.example.readalong.ui.reading.minimizedReadAlongColor(readerSettings.theme, readerPalette.preview),
+                    androidx.compose.animation.core.tween(com.example.readalong.ui.reading.ReaderMotionMillis, easing = com.example.readalong.ui.reading.ReaderMotionEasing), label = "Reader color")
+                val radius = animateDpAsState(if (mode == "follow") 0.dp else 24.dp,
+                    androidx.compose.animation.core.tween(com.example.readalong.ui.reading.ReaderMotionMillis, easing = com.example.readalong.ui.reading.ReaderMotionEasing), label = "Reader corners")
+                val surfaceColorOf = androidx.compose.runtime.remember(transformColor) { { transformColor.value } }
+                val clipShape = androidx.compose.runtime.remember(radius) { com.example.readalong.ui.reading.AnimatedCornerShape { radius.value } }
                 androidx.compose.animation.AnimatedContent(
                     targetState = mode,
                     transitionSpec = {
@@ -210,30 +270,42 @@ fun ReadAlongApp(libraryViewModel: LibraryViewModel, app: com.example.readalong.
                         enter = androidx.compose.animation.EnterTransition.None, exit = androidx.compose.animation.ExitTransition.None,
                         resizeMode = androidx.compose.animation.SharedTransitionScope.ResizeMode.RemeasureToBounds,
                         zIndexInOverlay = if (visibleMode == mode) 1f else 0f,
-                        boundsTransform = { _, _ -> androidx.compose.animation.core.tween(300, easing = androidx.compose.animation.core.CubicBezierEasing(.2f, 0f, .1f, 1f)) },
-                        clipInOverlayDuringTransition = OverlayClip(androidx.compose.foundation.shape.RoundedCornerShape(radius)))
+                        boundsTransform = { _, _ -> androidx.compose.animation.core.tween(com.example.readalong.ui.reading.ReaderMotionMillis, easing = com.example.readalong.ui.reading.ReaderMotionEasing) },
+                        clipInOverlayDuringTransition = OverlayClip(clipShape))
                 }
                 androidx.compose.runtime.CompositionLocalProvider(
                     com.example.readalong.ui.reading.LocalReaderDrawFrame provides (visibleMode == mode),
                     com.example.readalong.ui.reading.LocalReaderFrame provides readerFrame,
                     com.example.readalong.ui.reading.LocalReaderSurface provides surface,
-                    com.example.readalong.ui.reading.LocalReaderSurfaceColor provides transformColor,
+                    com.example.readalong.ui.reading.LocalReaderSurfaceColor provides surfaceColorOf,
                     com.example.readalong.ui.reading.LocalReaderInsets provides com.example.readalong.ui.reading.ReaderInsets(24.dp, 56.dp, 24.dp),
                     com.example.readalong.ui.reading.LocalReaderTransforming provides moving) {
                 surfaceState.SaveableStateProvider(visibleMode) {
                 if (visibleMode == "follow") {
                     com.example.readalong.ui.reading.FollowScreen(book, displayState, playback, reading, { setReaderMode("player") })
                 } else {
-                    PlayerScreen(book, displayState, playback, { navController.popBackStack() }, model::setFinished, reading,
-                        { navController.navigate("speech-model") }, { reading.preloadReader(displayState.positionMs); setReaderMode("follow") })
+                    PlayerScreen(book, displayState, playback, { closeFromMini(); navController.popBackStack() }, model::setFinished, reading,
+                        { navController.navigate("speech-model") }, { reading.preloadReader(displayState.positionMs); setReaderMode("follow") },
+                        onFolders = { navController.navigate("folders") { launchSingleTop = true } },
+                        onQueue = { navController.navigate("queue") { launchSingleTop = true } })
                 }
                 }
                 }
                 }
                 }
+                }
+                }
+            } else if (fromMini && state is com.example.readalong.ui.book.BookUiState.Loading) {
+                // The book is already playing; it loads within a frame or two. Keep the sliding sheet plain.
+                androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.fillMaxSize().background(androidx.compose.material3.MaterialTheme.colorScheme.background))
             } else {
                 BookScreen(state, busy, updateFailed, { navController.popBackStack() }, model::retry, model::setFinished)
             }
+            }
         }
     }
+    }
+    }
 }
+
+private fun androidx.navigation.NavBackStackEntry.openedFromMini() = arguments?.getBoolean("fromMini") == true
