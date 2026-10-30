@@ -7,7 +7,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.sync.withLock
 import java.io.File
 
-data class ScanState(val running: Boolean, val label: String, val found: Int = 0)
+/** [adding]: books are being added from a newly chosen folder or file, rather than a library rescan. */
+data class ScanState(val running: Boolean, val label: String, val found: Int = 0, val adding: Boolean = false)
 
 /** Adds books from folders and files, and keeps saved library folders up to date. */
 class LibraryImporter(private val library: LibraryStore, private val transcripts: TranscriptStore) {
@@ -18,22 +19,22 @@ class LibraryImporter(private val library: LibraryStore, private val transcripts
     /** Adds [paths]: library folders are remembered and rescanned; single books are added once. Returns the added book ids. */
     suspend fun add(paths: List<File>, remember: Boolean = true): List<String> = locked {
         if (remember) library.setFolders(library.folders.value + paths.filter { it.isDirectory }.map { it.absolutePath })
-        importFound(paths.flatMap { Scanner.scan(it) }, scannedRoots = emptyList())
+        importFound(paths.flatMap { Scanner.scan(it) }, scannedRoots = emptyList(), adding = true)
     }
 
     /** Rescans every saved library folder: new books appear, books whose files are gone are removed. */
     suspend fun rescan(): List<String> = locked {
         val roots = library.folders.value.map(::File).filter { it.isDirectory }
-        importFound(roots.flatMap { Scanner.scan(it) }, roots)
+        importFound(roots.flatMap { Scanner.scan(it) }, roots, adding = false)
     }
 
     private suspend fun <T> locked(block: suspend () -> T): T = withContext(Dispatchers.IO) {
         lock.withLock { try { block() } finally { mutableState.value = ScanState(false, "") } }
     }
 
-    private suspend fun importFound(found: List<FoundBook>, scannedRoots: List<File>): List<String> {
+    private suspend fun importFound(found: List<FoundBook>, scannedRoots: List<File>, adding: Boolean): List<String> {
         val added = mutableListOf<String>()
-        mutableState.value = ScanState(true, "Looking for audiobooks…", found.size)
+        mutableState.value = ScanState(true, "Looking for audiobooks…", found.size, adding)
         val keys = found.map { it.key }.toSet()
         // Books under a rescanned folder whose files are gone leave the library.
         library.replaceAll { list -> list.filterNot { book -> scannedRoots.any { root -> book.parts.firstOrNull()?.path?.startsWith(root.path) == true } && book.key !in keys && book.parts.none { File(it.path).isFile } } }
@@ -44,7 +45,7 @@ class LibraryImporter(private val library: LibraryStore, private val transcripts
             val unchanged = existing != null && existing.parts.map { it.path } == item.audio.map { it.path } &&
                 existing.parts.zip(item.audio).all { (part, file) -> part.size == file.length() && part.modified == file.lastModified() }
             if (unchanged) { adoptCompanions(existing!!, item); continue }
-            mutableState.value = ScanState(true, "Adding ${item.name} (${index + 1} of ${found.size})", found.size)
+            mutableState.value = ScanState(true, "Adding ${item.name} (${index + 1} of ${found.size})", found.size, adding)
             val book = runCatching { build(id, item, existing) }.getOrElse {
                 System.err.println("ReadAlong: skipped ${item.name}: ${it.message}"); null
             } ?: continue

@@ -50,8 +50,10 @@ fun LibraryScreen(app: AppState) {
     Column(Modifier.fillMaxSize()) {
         // Header: the phone's layout, spread across a window.
         Row(Modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = 18.dp), verticalAlignment = Alignment.CenterVertically) {
-            Image(androidx.compose.ui.res.painterResource("icon/readalong.png"), null, Modifier.size(34.dp).clip(RoundedCornerShape(9.dp)))
-            Spacer(Modifier.width(12.dp))
+            // As on the phone, the logo is the queue button and turns its pages while there is work.
+            QueueLogo(scanning = scan.running && !scan.adding, readingFolder = scan.running && scan.adding,
+                transcribing = job?.phase == "Transcribing", queued = queue.size, onClick = { app.open(Screen.Queue) })
+            Spacer(Modifier.width(6.dp))
             Text("ReadAlong", style = MaterialTheme.typography.headlineSmall)
             Spacer(Modifier.width(28.dp))
             SearchField(query, { query = it }, searching, { searching = it }, Modifier.weight(1f).widthIn(max = 520.dp))
@@ -66,9 +68,6 @@ fun LibraryScreen(app: AppState) {
             }
             AppIconButton("ic_sort", if (sort == LibrarySort.RECENT) "Sorted by recent. Sort by title" else "Sorted by title. Sort by recent",
                 { sort = if (sort == LibrarySort.RECENT) LibrarySort.TITLE else LibrarySort.RECENT })
-            BadgedBox(badge = { if (queue.isNotEmpty()) Badge { Text("${queue.size}") } }) {
-                AppIconButton("ic_waveform", "ReadAlong queue", { app.open(Screen.Queue) })
-            }
             AppIconButton("ic_settings", "Settings", { app.open(Screen.Settings) })
             Spacer(Modifier.width(8.dp))
             PillButton("Add books", { chooseFolder()?.let { app.addPaths(listOf(it)) } }, icon = "ic_add")
