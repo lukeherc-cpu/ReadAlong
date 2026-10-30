@@ -55,7 +55,11 @@ object SelfTest {
             val heads = SpeechModels.all.firstOrNull { model.name == it.fileName }?.heads ?: 3
             val (name, onGpu) = process.load(model, heads, if (device == "gpu") "gpu" else "cpu")
             log("loaded on: $name (gpu=$onGpu)")
-            if (device == "gpu" && !onGpu) { log("expected the GPU but whisper.cpp is on the CPU"); return false }
+            if (device == "gpu" && !onGpu) {
+                log("expected the GPU but whisper.cpp is on the CPU")
+                process.recentLog().forEach { log("  | $it") }
+                return false
+            }
             transcripts.begin(book.id, "desktop:whisper.cpp:${model.nameWithoutExtension.removePrefix("ggml-")}", "Whisper", plan.size)
             val started = System.nanoTime()
             for (file in plan.map { it.file }.distinct()) {

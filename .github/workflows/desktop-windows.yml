@@ -114,6 +114,10 @@ jobs:
           7z x -y -omesa mesa.7z > /dev/null
           export VK_DRIVER_FILES="$(cygpath -w "$PWD/mesa/x64/lvp_icd.x86_64.json")"
           export VK_ICD_FILENAMES="$VK_DRIVER_FILES"
+          # ggml-vulkan skips CPU-type Vulkan devices (lavapipe) unless they are listed explicitly.
+          export GGML_VK_VISIBLE_DEVICES=0
+          export READALONG_VERBOSE=1
+          ls mesa/x64 || true
           app="desktop-app/build/compose/binaries/main-release/app/ReadAlong/ReadAlong.exe"
           "$app" --self-test "smoke/Test Book" --model models/ggml-tiny.en.bin --device gpu --expect fox --out ci-results/self-test-gpu.txt || true
           cat ci-results/self-test-gpu.txt
