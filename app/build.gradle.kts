@@ -89,6 +89,8 @@ dependencies {
     implementation(libs.androidx.paging.compose)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.work.runtime)
+    // Scans the computer's linking QR code (Google's scanner UI, no camera permission needed).
+    implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
     testImplementation(libs.junit)
     testImplementation("org.json:json:20240303") // real JSON for plan-codec unit tests (android.jar ships stubs)
     testImplementation(libs.kotlinx.coroutines.test)

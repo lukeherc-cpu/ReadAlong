@@ -188,7 +188,10 @@ fun ReadAlongApp(libraryViewModel: LibraryViewModel, app: com.example.readalong.
         }
         composable("settings") { entry ->
             com.example.readalong.ui.about.SettingsScreen(app, { if (navController.currentBackStackEntry?.id == entry.id) navController.popBackStack() },
-                { navController.navigate("speech-model") }, { navController.navigate(Routes.About) })
+                { navController.navigate("speech-model") }, { navController.navigate(Routes.About) }, { navController.navigate("link") })
+        }
+        composable("link") { entry ->
+            com.example.readalong.ui.link.LinkScreen(app) { if (navController.currentBackStackEntry?.id == entry.id) navController.popBackStack() }
         }
         composable("speech-model") {
             com.example.readalong.ui.transcription.ModelScreen(speechSetup) { navController.popBackStack() }
