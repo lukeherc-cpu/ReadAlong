@@ -12,6 +12,9 @@ import androidx.compose.foundation.lazy.grid.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -120,7 +123,7 @@ private fun SearchField(query: String, onQuery: (String) -> Unit, onClose: () ->
                 textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurface), cursorBrush = SolidColor(MaterialTheme.colorScheme.primary))
         }
         IconButton(onClose, Modifier.size(40.dp).pointerHoverIcon(PointerIcon.Hand)) {
-            Icon(androidx.compose.material.icons.Icons.Rounded.Close, "Close search", Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Icon(Icons.Rounded.Close, "Close search", Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -174,7 +177,7 @@ private fun SortButton(sort: LibrarySort, onSort: (LibrarySort) -> Unit) {
         DropdownMenu(open, { open = false }) {
             listOf(LibrarySort.RECENT to "Recently played", LibrarySort.TITLE to "Title").forEach { (choice, label) ->
                 DropdownMenuItem({ Text(label) }, { onSort(choice); open = false },
-                    trailingIcon = { if (choice == sort) Icon(androidx.compose.material.icons.Icons.Rounded.Check, "Selected", Modifier.size(18.dp)) })
+                    trailingIcon = { if (choice == sort) Icon(Icons.Rounded.Check, "Selected", Modifier.size(18.dp)) })
             }
         }
     }
