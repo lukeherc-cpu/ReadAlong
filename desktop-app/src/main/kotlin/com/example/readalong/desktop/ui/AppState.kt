@@ -20,7 +20,11 @@ sealed interface Screen {
     data object Queue : Screen
     data object Settings : Screen
     data object Audible : Screen
+    data object Folders : Screen
 }
+
+/** A folder chosen with Add audiobooks, and the books a library scan found in it. */
+data class FolderFound(val folder: File, val books: List<com.example.readalong.desktop.core.FoundBook>)
 
 /** Everything the window shows, wired together once. */
 class AppState(val scope: CoroutineScope, private val background: Boolean = true) {
@@ -76,6 +80,30 @@ class AppState(val scope: CoroutineScope, private val background: Boolean = true
         val changed = progress.syncAll(playing = state.bookId.takeIf { state.playing })
         // A book that is loaded but paused moves to the phone's place too.
         if (!state.playing && state.bookId in changed) library.book(state.bookId!!)?.let { player.seekTo(it.positionMs) }
+    }
+
+    /** A chosen folder and what was found in it, shown by [FoundDialog] before anything is added. */
+    var found by mutableStateOf<FolderFound?>(null)
+
+    /** Looks inside [folder] first, so a library can't be added as one giant book by mistake (or the other way round). */
+    fun chooseFolder(folder: File) = scope.launch {
+        val books = runCatching { importer.preview(folder) }.getOrElse { messages.emit(it.message ?: "That folder couldn't be read."); return@launch }
+        if (books.isEmpty()) messages.emit("No audiobooks found in ${folder.name}.") else found = FolderFound(folder, books)
+    }
+
+    fun confirmFound(asOneBook: Boolean) {
+        val chosen = found ?: return
+        found = null
+        if (!asOneBook) { addPaths(listOf(chosen.folder)); return }
+        scope.launch {
+            val added = runCatching { importer.addOneBook(chosen.folder) }.getOrElse { messages.emit(it.message ?: "That folder couldn't be added."); return@launch }
+            messages.emit(if (added.isEmpty()) "That audiobook is already in your library." else "Added ${library.book(added[0])?.title}.")
+        }
+    }
+
+    fun removeFolder(folder: String) = scope.launch {
+        val removed = runCatching { importer.removeFolder(folder) }.getOrElse { messages.emit(it.message ?: "That folder couldn't be removed."); return@launch }
+        messages.emit(if (removed == 1) "Folder removed, with its 1 book." else "Folder removed, with its $removed books.")
     }
 
     fun addPaths(paths: List<File>) = scope.launch {
