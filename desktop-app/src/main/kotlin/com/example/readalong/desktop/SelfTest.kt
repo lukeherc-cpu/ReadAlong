@@ -109,19 +109,24 @@ object SelfTest {
             val settings = SettingsStore().apply { update { it.copy(modelId = speechModel.id, device = if (device == "gpu") "auto" else "cpu", aggressive = true, savePackages = false) } }
             val models = ModelStore()
             model.copyTo(models.file(speechModel).apply { parentFile.mkdirs() }, overwrite = true)
-            transcripts.remove(book.id)
+            // A book of four copies of the test audio, so the lanes really share it (each file is a unit of its own).
+            val audio = folder.listFiles().orEmpty().filter { it.extension.lowercase() in Scanner.AUDIO }.minBy { it.name }
+            val parts = File(System.getProperty("readalong.home"), "Parallel Book").apply { mkdirs() }
+            (1..4).forEach { audio.copyTo(File(parts, "Part $it.${audio.extension}"), overwrite = true) }
+            val long = library.book(LibraryImporter(library, transcripts).add(listOf(parts), remember = false).single()) ?: error("Parallel book missing")
+            val longPlan = transcriptionPlan(long)
             val service = TranscriptionService(scope, library, settings, transcripts, models, probe = false)
             val started = System.nanoTime()
             try {
-                service.enqueue(book.id)
+                service.enqueue(long.id)
                 kotlinx.coroutines.withTimeout(20 * 60_000L) { service.queue.first { it.isEmpty() } }
             } finally { service.shutdown() }
-            val saved = transcripts.chunks(book.id).map { Triple(it.file, it.startMs, it.endMs) }
-            val parallelText = transcripts.segments(book).joinToString(" ") { it.text }
-            log("3 lanes: ${saved.size} of ${plan.size} units in ${(System.nanoTime() - started) / 1_000_000} ms, complete=${transcripts.info(book.id)?.complete}" +
-                (service.errors.value[book.id]?.let { " error: $it" } ?: ""))
-            if (saved != plan.map { Triple(it.file, it.startMs, it.endMs) } || transcripts.info(book.id)?.complete != true) { log("parallel run saved the wrong units"); pass = false }
-            if (expect != null && !parallelText.contains(expect, ignoreCase = true)) { log("expected \"$expect\" in the parallel text"); pass = false }
+            val saved = transcripts.chunks(long.id).map { Triple(it.file, it.startMs, it.endMs) }
+            val parallelText = transcripts.segments(long).joinToString(" ") { it.text }
+            log("3 lanes: ${saved.size} of ${longPlan.size} units (${long.parts.size} files) in ${(System.nanoTime() - started) / 1_000_000} ms, complete=${transcripts.info(long.id)?.complete}" +
+                (service.errors.value[long.id]?.let { " error: $it" } ?: ""))
+            if (long.parts.size != 4 || saved != longPlan.map { Triple(it.file, it.startMs, it.endMs) } || transcripts.info(long.id)?.complete != true) { log("parallel run saved the wrong units"); pass = false }
+            if (expect != null && Regex(Regex.escape(expect), RegexOption.IGNORE_CASE).findAll(parallelText).count() < 4) { log("expected \"$expect\" once per file in the parallel text"); pass = false }
             System.clearProperty("readalong.lanes")
         }
 
