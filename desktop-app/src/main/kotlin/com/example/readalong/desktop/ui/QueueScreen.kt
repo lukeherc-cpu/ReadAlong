@@ -12,6 +12,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
@@ -61,6 +62,7 @@ fun QueueScreen(app: AppState) {
                             Text(current.title, style = MaterialTheme.typography.titleLarge, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Spacer(Modifier.height(12.dp))
                             MakingProgress(job!!, Color.White, compact = true)
+                            QueueDetails(app, job!!, current)
                         }
                         Spacer(Modifier.width(12.dp))
                         AppIconButton("ic_trash", "Stop and remove from queue", { app.transcription.remove(current.id) }, tint = Color.White)
@@ -110,6 +112,38 @@ fun QueueScreen(app: AppState) {
         }
     }
     if (adding) AddToQueueDialog(app, untranscribed) { adding = false }
+}
+
+/** A faint "Details" under the book being transcribed; clicking it opens what the transcriber is doing. */
+@Composable
+private fun QueueDetails(app: AppState, job: com.example.readalong.desktop.transcription.JobState, book: com.example.readalong.desktop.core.LibraryBook) {
+    var open by remember(book.id) { mutableStateOf(false) }
+    val turn by androidx.compose.animation.core.animateFloatAsState(if (open) 180f else 0f, androidx.compose.animation.core.spring(dampingRatio = .8f, stiffness = 400f))
+    val faint = Color.White.copy(alpha = .6f)
+    Column {
+        Row(Modifier.padding(top = 6.dp).clip(RoundedCornerShape(8.dp)).clickable(onClickLabel = if (open) "Hide details" else "Show details") { open = !open }
+                .pointerHoverIcon(PointerIcon.Hand).padding(vertical = 4.dp, horizontal = 2.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text("Details", style = MaterialTheme.typography.labelLarge, color = faint)
+            Icon(AppIcons.get("ic_chevron_right"), null, Modifier.size(16.dp).rotate(90f + turn), tint = faint)
+        }
+        AnimatedVisibility(open,
+            enter = expandVertically(androidx.compose.animation.core.spring(dampingRatio = .9f, stiffness = 380f), expandFrom = Alignment.Top) + fadeIn(androidx.compose.animation.core.tween(220, 60)),
+            exit = shrinkVertically(androidx.compose.animation.core.tween(220, easing = androidx.compose.animation.core.FastOutSlowInEasing), shrinkTowards = Alignment.Top) + fadeOut(androidx.compose.animation.core.tween(120))) {
+            val model = remember { runCatching { app.transcription.model().name }.getOrNull() }
+            val lines = listOfNotNull(
+                "Step: ${job.phase}",
+                if (job.total > 0) "Pieces done: ${job.done} of ${job.total}" else null,
+                job.device?.let { "Running on: " + (if (job.onGpu) "GPU · " else "") + it },
+                job.speed?.let { "Speed: %.1f× real time".format(it) },
+                model?.let { "Speech model: $it" },
+                "Book length: ${hoursMinutes(book.durationMs)}",
+            )
+            Column(Modifier.padding(top = 4.dp, start = 2.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                lines.forEach { Text(it, style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = .75f)) }
+            }
+        }
+    }
 }
 
 /** A book without a ReadAlong: add it to the end of the queue, or transcribe it now. */
