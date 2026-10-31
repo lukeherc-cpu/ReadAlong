@@ -46,7 +46,7 @@ class ReferenceDialogsTest {
                 }
             }
             compose.onNodeWithTag("welcome_next").performClick()
-            compose.onNodeWithText("Choose audiobook folder").assertIsDisplayed()
+            compose.onNodeWithText("Add audiobooks").assertIsDisplayed()
             compose.onNodeWithText("Skip for now").performClick()
             compose.waitForIdle()
             capture("background")
@@ -76,7 +76,7 @@ class ReferenceDialogsTest {
             }
             compose.onNodeWithContentDescription("Add audiobook").performClick()
             capture("add-audiobook")
-            compose.onNodeWithText("Choose audiobook folder").assertIsDisplayed()
+            compose.onNodeWithText("Add audiobooks").assertIsDisplayed()
             compose.onNodeWithText("Add audio file").assertIsDisplayed()
             compose.onNodeWithText("Cancel").performClick()
             compose.runOnIdle { model.files(listOf(uri)) }

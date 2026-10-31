@@ -91,7 +91,7 @@ The same app as on Windows, for macOS 12 or later. Transcription uses the Mac's 
 
 ## Your first book
 
-Tap **+** in the library to add an audiobook. Choose a single audio file, select several files that belong to one book, or choose the book's folder.
+Tap **+** in the library and choose **Add audiobooks** to pick a folder. It can hold one book or your whole library: ReadAlong looks inside first and shows what it found, such as "14 audiobooks found", and you can switch between separate books and one book before anything is added. Choose **Add audio file** for a single file that holds a whole audiobook.
 
 Open the book to start listening. To read along, choose **Create ReadAlong**. You can use the generated transcript on its own, or pair the recording with a matching EPUB. If the book's folder already contains an EPUB, ReadAlong picks it up for you.
 
@@ -135,7 +135,7 @@ Hold a book cover to open its menu. From there you can:
 - Mark the book as not started or finished.
 - Delete the book from ReadAlong.
 
-Deleting a book removes its saved app data, including prepared text and listening positions. It leaves the original audio and EPUB files in your folders. Removing a saved library folder asks for confirmation before removing its books and their app data.
+Deleting a book removes its saved app data, including prepared text and listening positions. Folder rescans don't bring a deleted book back, but adding its folder again with **Add audiobooks** offers to. It leaves the original audio and EPUB files in your folders. Removing a saved library folder asks for confirmation before removing its books and their app data.
 
 ## Listen
 
