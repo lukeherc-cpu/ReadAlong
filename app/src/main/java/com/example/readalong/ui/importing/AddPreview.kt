@@ -16,6 +16,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.graphics.graphicsLayer
+import kotlinx.coroutines.sync.withPermit
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
@@ -103,16 +105,16 @@ fun AddPreviewDialog(model: ImportViewModel, origin: String, onAdded: () -> Unit
     }
 }
 
-/** Up to 12 square tiles: 5 at first and a "+N" tile that opens out to the rest (11 books and "+N more, added too"). */
+/** Square tiles: 5 at first and a "+N" tile that opens out to every book, which pop in row by row; "Less" folds them back. */
 @Composable
 private fun PreviewGrid(books: List<PreviewBook>) {
     var open by rememberSaveable { mutableStateOf(false) }
     val first = if (books.size <= 6) books.size else 5
-    val shown = if (open) books.take(if (books.size <= 12) books.size else 11) else books.take(first)
-    val rest = books.size - shown.size
+    val shown = if (open) books else books.take(first)
+    val rest = books.size - first
     val tiles: List<Pair<String, (() -> Unit)?>> = shown.map { (it.name + if (it.deleted) " (deleted earlier)" else "") to null } +
-        (if (rest > 0) listOf((if (open) "more, added too" else "more") to (if (open) null else ({ open = true }))) else emptyList())
-    Column(Modifier.fillMaxWidth().animateContentSize(androidx.compose.animation.core.tween(560, easing = androidx.compose.animation.core.CubicBezierEasing(.2f, .8f, .2f, 1f))),
+        (if (rest > 0) listOf((if (open) "Show less" else "more") to { open = !open }) else emptyList())
+    Column(Modifier.fillMaxWidth().animateContentSize(androidx.compose.animation.core.spring(dampingRatio = .9f, stiffness = 300f)),
         verticalArrangement = Arrangement.spacedBy(10.dp)) {
         tiles.chunked(3).forEachIndexed { row, items ->
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -120,13 +122,27 @@ private fun PreviewGrid(books: List<PreviewBook>) {
                     val index = row * 3 + col
                     val more = index >= shown.size
                     val deleted = !more && shown[index].deleted
-                    Column(Modifier.weight(1f).then(if (onClick != null) Modifier.clickable(onClickLabel = "Show all ${books.size} books", onClick = onClick) else Modifier),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        if (more) Box(Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(10.dp)).background(MaterialTheme.colorScheme.primaryContainer), contentAlignment = Alignment.Center) {
-                            Text("+$rest", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                        } else PreviewTile(shown[index].name, index, Modifier.fillMaxWidth().alpha(if (deleted) .45f else 1f), book = shown[index])
-                        Text(label, style = MaterialTheme.typography.labelMedium, maxLines = 2, overflow = TextOverflow.Ellipsis,
-                            color = if (deleted) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface)
+                    key(if (more) "more-tile" else "book-$index") {
+                        // Books revealed by "+N" pop in a row at a time; the first five are already there.
+                        val appear = remember { androidx.compose.animation.core.Animatable(if (more || index < first) 1f else 0f) }
+                        LaunchedEffect(Unit) {
+                            if (appear.value < 1f) {
+                                kotlinx.coroutines.delay(60L + 45L * ((index - first) / 3).coerceAtMost(12))
+                                appear.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = .7f, stiffness = 420f))
+                            }
+                        }
+                        Column(Modifier.weight(1f).graphicsLayer { alpha = appear.value.coerceIn(0f, 1f); val sc = .8f + .2f * appear.value; scaleX = sc; scaleY = sc }
+                                .then(if (onClick != null) Modifier.clickable(onClickLabel = if (open) "Show fewer books" else "Show all ${books.size} books", onClick = onClick) else Modifier)
+                                .then(if (more) Modifier.testTag("preview_more") else Modifier),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            if (more) Box(Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(10.dp)).background(MaterialTheme.colorScheme.primaryContainer), contentAlignment = Alignment.Center) {
+                                androidx.compose.animation.AnimatedContent(open, label = "More tile") { isOpen ->
+                                    Text(if (isOpen) "Less" else "+$rest", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                                }
+                            } else PreviewTile(shown[index].name, index, Modifier.fillMaxWidth().alpha(if (deleted) .45f else 1f), book = shown[index])
+                            Text(label, style = MaterialTheme.typography.labelMedium, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                                color = if (deleted) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface)
+                        }
                     }
                 }
                 repeat(3 - items.size) { Spacer(Modifier.weight(1f)) }
@@ -134,6 +150,9 @@ private fun PreviewGrid(books: List<PreviewBook>) {
         }
     }
 }
+
+/** At most two covers are read out of audio files at once, so opening a big folder doesn't stall the sheet. */
+private val coverReads = kotlinx.coroutines.sync.Semaphore(2)
 
 /** A square placeholder cover in one of the accent's shades, with the title's first letter. */
 @Composable
@@ -144,7 +163,7 @@ private fun PreviewTile(name: String, index: Int, modifier: Modifier, large: Boo
     // The book's own cover: an image in its folder, else the art inside its first audio file.
     val embedded by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, book?.firstAudio, book?.cover) {
         val audio = book?.firstAudio
-        if (book?.cover == null && audio != null) value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        if (book?.cover == null && audio != null) value = coverReads.withPermit { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             runCatching {
                 val retriever = android.media.MediaMetadataRetriever()
                 try {
@@ -155,7 +174,7 @@ private fun PreviewTile(name: String, index: Int, modifier: Modifier, large: Boo
                     }
                 } finally { retriever.release() }
             }.getOrNull()
-        }
+        } }
     }
     Box(modifier.aspectRatio(1f).clip(RoundedCornerShape(if (large) 14.dp else 10.dp)).background(shade), contentAlignment = Alignment.Center) {
         Text(name.trim().take(1).uppercase(), color = colors.onPrimary, style = if (large) MaterialTheme.typography.displayMedium else MaterialTheme.typography.titleLarge)

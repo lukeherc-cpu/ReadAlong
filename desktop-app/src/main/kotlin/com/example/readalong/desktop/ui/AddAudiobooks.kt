@@ -109,25 +109,30 @@ fun FoundDialog(app: AppState) {
 @Composable
 private fun ManyBooksFound(found: FolderFound, onAdd: () -> Unit, onOneBook: () -> Unit) {
     val books = found.books
-    val shownBooks = if (books.size <= 12) books else books.take(11)
-    val rest = books.size - shownBooks.size
+    // Clicking "+N" opens out to every book (they pop in row by row); "Less" folds them back.
+    var open by remember(found) { mutableStateOf(false) }
+    val first = if (books.size <= 12) books.size else 11
+    val shownBooks = if (open) books else books.take(first)
+    val rest = books.size - first
     Column(Modifier.width(640.dp).padding(28.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("${books.size} audiobooks found", style = MaterialTheme.typography.headlineSmall)
             Text("in your “${found.folder.name}” folder", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        val tiles = shownBooks.map { it.name to it.images.firstOrNull()?.path } + if (rest > 0) listOf("more, added too" to null) else emptyList()
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        val tiles = shownBooks.map { it.name to it.images.firstOrNull()?.path } + if (rest > 0) listOf((if (open) "Show less" else "more, added too") to null) else emptyList()
+        Column(Modifier.animateContentSize(spring(dampingRatio = .9f, stiffness = 300f)).heightIn(max = 460.dp).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp)) {
             tiles.chunked(6).forEachIndexed { row, items ->
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     items.forEachIndexed { col, (name, image) ->
                         val index = row * 6 + col
-                        val delayMs = 160 + index * 40
-                        val visible = remember { MutableTransitionState(false).apply { targetState = true } }
+                        val delayMs = if (index < first) 160 + index * 40 else 40 + 45 * ((index - first) / 6).coerceAtMost(12)
+                        val visible = remember(index >= shownBooks.size) { MutableTransitionState(index >= shownBooks.size && open).apply { targetState = true } }
                         AnimatedVisibility(visible, Modifier.weight(1f), enter = fadeIn(tween(240, delayMs)) + scaleIn(tween(320, delayMs, FastOutSlowInEasing), initialScale = .9f)) {
                             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                if (index >= shownBooks.size) Box(Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(10.dp)).background(MaterialTheme.colorScheme.primaryContainer), contentAlignment = Alignment.Center) {
-                                    Text("+$rest", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                                if (index >= shownBooks.size) Box(Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(10.dp)).background(MaterialTheme.colorScheme.primaryContainer)
+                                    .clickable(onClickLabel = if (open) "Show fewer books" else "Show all ${books.size} books") { open = !open }.pointerHoverIcon(PointerIcon.Hand), contentAlignment = Alignment.Center) {
+                                    Text(if (open) "Less" else "+$rest", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
                                 } else FoundCover(name, image, index, Modifier.fillMaxWidth())
                                 Text(name, style = MaterialTheme.typography.labelMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
                             }
