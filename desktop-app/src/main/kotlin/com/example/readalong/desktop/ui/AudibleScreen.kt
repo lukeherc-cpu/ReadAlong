@@ -55,10 +55,8 @@ private fun AudibleSignIn(app: AppState) {
     var working by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     Column(Modifier.widthIn(max = 720.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Text("Bring your Audible audiobooks into ReadAlong", style = MaterialTheme.typography.titleLarge)
-        Text("ReadAlong signs in as a device on your Amazon account, the way Libation does. The books you pick are downloaded, " +
-            "turned into ordinary M4B files on this computer, and added to your library and the queue.")
-        Text("1. Choose your Audible store and open Amazon's sign-in page in your browser.", style = MaterialTheme.typography.titleSmall)
+        Text("Import from Audible", style = MaterialTheme.typography.titleLarge)
+        Text("1. Choose your store and open Amazon's sign-in page.", style = MaterialTheme.typography.titleSmall)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
             Box {
                 PillButton("Store: ${locale.label}", { choosing = true }, filled = false)
@@ -73,7 +71,7 @@ private fun AudibleSignIn(app: AppState) {
             })
             url?.let { address -> PillButton("Copy link", { clipboard.setText(AnnotatedString(address)) }, filled = false) }
         }
-        Text("2. Sign in. Amazon ends on a page that says it can't be found. That's expected: copy that page's whole address from the address bar and paste it here.",
+        Text("2. Sign in, then paste the address of the \"not found\" page Amazon ends on.",
             style = MaterialTheme.typography.titleSmall)
         OutlinedTextField(redirect, { redirect = it }, Modifier.fillMaxWidth(), singleLine = true, enabled = url != null && !working,
             placeholder = { Text("https://www.amazon…/ap/maplanding?…") })
