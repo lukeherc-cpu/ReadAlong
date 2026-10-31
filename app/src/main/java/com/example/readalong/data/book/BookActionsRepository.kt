@@ -63,7 +63,15 @@ class BookActionsRepository(private val context: Context, private val database: 
         val cover = database.bookDao().findBook(bookId)?.coverUri
         val edition = database.importedEpubDao().find(bookId)?.editionId
         database.withTransaction {
-        if (excludeFromScans) com.example.readalong.data.importing.LibraryExclusions.exclude(database, bookId)
+        if (excludeFromScans) {
+            // A book added with "one book" mode owns its saved folder. Forget that folder too, so it
+            // isn't left behind (hidden from the Folders page) and the folder can be added again cleanly.
+            database.mediaDao().audioFiles(bookId).mapNotNull { it.folderUri }.distinct().forEach { uri ->
+                if (database.mediaDao().folder(uri)?.mode == com.example.readalong.data.importing.FolderMode.ONE_BOOK.name &&
+                    database.mediaDao().folderBooks(uri).all { it == bookId }) database.mediaDao().removeFolder(uri)
+            }
+            com.example.readalong.data.importing.LibraryExclusions.exclude(database, bookId)
+        }
         database.bookDao().removeBook(bookId)
         database.bookDao().removeMetadata("epub_alignment_version:$bookId")
         database.bookDao().removeMetadata("preparation_retry:$bookId")

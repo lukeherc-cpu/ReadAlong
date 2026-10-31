@@ -75,7 +75,7 @@ class FoundationNavigationTest {
         compose.onNodeWithText("Transcription queue").assertDoesNotExist()
         compose.onNodeWithContentDescription("Audiobook folders").assertIsDisplayed()
         compose.onNodeWithContentDescription("Add audiobook").performClick()
-        compose.onNodeWithText("Choose audiobook folder").assertIsDisplayed()
+        compose.onNodeWithText("Add audiobooks").assertIsDisplayed()
         compose.onNodeWithText("Add audio file").assertIsDisplayed()
         compose.onNodeWithText("Cancel").performClick()
         compose.onNodeWithTag("library_grid").performScrollToNode(hasTestTag("book:demo-night-orchard"))
