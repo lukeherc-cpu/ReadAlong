@@ -115,7 +115,7 @@ fun QueueScreen(app: AppState) {
 /** A book without a ReadAlong: add it to the end of the queue, or transcribe it now. */
 @Composable
 private fun UntranscribedRow(app: AppState, book: com.example.readalong.desktop.core.LibraryBook, modifier: Modifier = Modifier) {
-    val partial = remember(book.id) { app.transcripts.info(book.id)?.let { if (it.totalChunks > 0) it.chunks * 100 / it.totalChunks else 0 } ?: 0 }
+    val partial = remember(book.id) { app.transcripts.info(book.id)?.let { if (it.totalChunks > 0) (it.chunks * 100 / it.totalChunks).coerceAtMost(99) else 0 } ?: 0 }
     ListItem({ Text(book.title, maxLines = 1, overflow = TextOverflow.Ellipsis) }, modifier.clickable { app.open(Screen.Player(book.id)) }.pointerHoverIcon(PointerIcon.Hand),
         supportingContent = { Text(listOfNotNull(book.author, hoursMinutes(book.durationMs), if (partial > 0) "$partial% done" else null).joinToString(" · "), maxLines = 1, overflow = TextOverflow.Ellipsis) },
         leadingContent = { BookCover(book, Modifier.size(52.dp), RoundedCornerShape(Corners.small), size = 120) },
