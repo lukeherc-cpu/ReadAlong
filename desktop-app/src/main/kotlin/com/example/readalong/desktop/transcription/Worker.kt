@@ -73,7 +73,11 @@ object Worker {
         val threads = command.optInt("threads", Runtime.getRuntime().availableProcessors().coerceIn(2, 8))
         val beams = command.optInt("beams", 1)
         val rate = 16_000
-        AudioReader(File(command.getString("path")), rate, 1, floats = true).use { reader ->
+        // Where it got to, on stderr, so a crash log says whether reading the audio or recognizing it stopped the
+        // transcriber. File type and times only: never the book's name or words.
+        val path = File(command.getString("path"))
+        System.err.println("readalong: opening .${path.extension} audio, ${units.size} parts from ${units.first().first} ms"); System.err.flush()
+        AudioReader(path, rate, 1, floats = true).use { reader ->
             if (units.first().first > 0) reader.seek(units.first().first)
             var buffer = FloatArray(0)
             var buffered = 0
@@ -90,6 +94,7 @@ object Worker {
                     samples.copyInto(buffer, buffered); buffered += samples.size
                 }
                 val take = minOf(need, buffered)
+                System.err.println("readalong: recognizing $start-$end ms (${take / rate} s read, $threads threads, beams $beams)"); System.err.flush()
                 val audio = buffer.copyOf(take)
                 val began = System.nanoTime()
                 val reporter = thread(isDaemon = true) {

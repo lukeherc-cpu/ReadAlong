@@ -295,7 +295,7 @@ class TranscriptionService(private val scope: CoroutineScope, private val librar
         val entry = buildString {
             appendLine("== ${java.time.LocalDateTime.now()} · ${book.title} · ${model.id} · device $preference · ${AppPaths.platformName}")
             worker.devices.forEach { appendLine("device: ${it.type} ${it.label} ${it.memoryTotal / (1 shl 20)} MB") }
-            worker.recentLog().forEach { appendLine(it) }
+            worker.drainLog().forEach { appendLine(it) }
         }
         // Keep the latest few crashes only.
         val previous = if (log.isFile) log.readText().takeLast(60_000) else ""
