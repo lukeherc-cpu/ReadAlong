@@ -15,6 +15,9 @@ import androidx.compose.foundation.background
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
@@ -66,23 +69,26 @@ fun LibraryScreen(
                         .windowInsetsPadding(ScaffoldDefaults.contentWindowInsets.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
                         .padding(horizontal = 20.dp, vertical = 8.dp)
                         .testTag("library_header"),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
+                    // Where the search icon sits relative to the search bar, so the bar can spring out of it.
+                    var iconCenter by remember { mutableStateOf<androidx.compose.ui.geometry.Offset?>(null) }
+                    var barOrigin by remember { mutableStateOf<androidx.compose.ui.geometry.Offset?>(null) }
                     CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.primary) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = onAbout) { Icon(painterResource(R.drawable.ic_settings), "Settings") }
                         IconButton(onClick = onFolders) { Icon(painterResource(R.drawable.ic_bookshelf), "Audiobook folders") }
                         Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { com.example.readalong.ui.launch.LibraryLogo(scanningFolder, transcribing, settings.animateTranscriptionLogo, readingFolder = readingFolder, onClick = onQueue) }
-                        IconButton(onClick = { searchVisible = !searchVisible; if (!searchVisible) query = "" }) { Icon(painterResource(R.drawable.ic_search), "Search library") }
+                        IconButton(onClick = { searchVisible = !searchVisible; if (!searchVisible) query = "" },
+                            modifier = Modifier.onGloballyPositioned { val b = it.boundsInRoot(); iconCenter = b.center }) { Icon(painterResource(R.drawable.ic_search), "Search library") }
                         importControls()
                     }
                     }
-                    if (state is LibraryUiState.Ready && searchVisible) {
-                        // Same search look as the reader: accent outline, grows in, count of matching books below.
-                        com.example.readalong.ui.components.ReadAlongSearchField(query, { query = it },
-                            onClose = { searchVisible = false; query = "" }, accent = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.fillMaxWidth(), placeholder = stringResource(R.string.search_books), testTag = "library_search")
-                    }
+                    // Springs out of the search icon with a small bounce, and glides back into it without one.
+                    com.example.readalong.ui.components.SpringSearchBar(state is LibraryUiState.Ready && searchVisible,
+                        anchor = iconCenter?.let { c -> barOrigin?.let { c - it } }, query = query, onQuery = { query = it },
+                        onClose = { searchVisible = false; query = "" }, accent = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.fillMaxWidth().onGloballyPositioned { barOrigin = it.positionInRoot() },
+                        placeholder = stringResource(R.string.search_books), testTag = "library_search", topGap = 16.dp)
                 }
             }
         },

@@ -363,7 +363,7 @@ private fun QueueBook.status(bookPercent: Int) = when {
     else -> "Paused · $bookPercent% done"
 }
 
-/** The book being transcribed: cover, title and chapter, then one progress line and the pause button. Tap it to open the book; hold it for details. */
+/** The book being transcribed: cover, title and chapter, then one progress line and the pause button. Tap it to open the book; a faint "Details" under it opens what it's doing now. */
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun TranscribingCard(entry: QueueBook, onOpen: () -> Unit, onPause: () -> Unit) {
@@ -381,8 +381,7 @@ private fun TranscribingCard(entry: QueueBook, onOpen: () -> Unit, onPause: () -
         else -> "Transcribing"
     }
     Surface(modifier = Modifier.testTag("queue:${entry.item.bookId}").clip(RoundedCornerShape(com.example.readalong.ui.theme.Corners.large))
-            .combinedClickable(onClickLabel = "Open ${entry.item.title}", onLongClickLabel = if (details) "Hide details" else "Show details", onLongClick = { details = !details }, onClick = onOpen)
-            .semantics { stateDescription = if (details) "Details shown" else "Details hidden" },
+            .clickable(onClickLabel = "Open ${entry.item.title}", onClick = onOpen),
         shape = RoundedCornerShape(com.example.readalong.ui.theme.Corners.large), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .7f)) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -405,7 +404,23 @@ private fun TranscribingCard(entry: QueueBook, onOpen: () -> Unit, onPause: () -
                 }
                 FilledIconButton(onClick = onPause, modifier = Modifier.size(46.dp)) { Icon(painterResource(R.drawable.ic_pause), "Pause ${entry.item.title}", Modifier.size(20.dp)) }
             }
-            if (details && !entry.item.message.isNullOrBlank()) Text(entry.item.message.orEmpty(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            val message = entry.item.message.orEmpty()
+            if (message.isNotBlank()) Column(Modifier.offset(y = (-6).dp)) {
+                val turn by androidx.compose.animation.core.animateFloatAsState(if (details) 180f else 0f, androidx.compose.animation.core.spring(dampingRatio = .8f, stiffness = 400f), label = "Details chevron")
+                val faint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .6f)
+                Row(Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClickLabel = if (details) "Hide details" else "Show details") { details = !details }
+                        .semantics { stateDescription = if (details) "Details shown" else "Details hidden" }.testTag("queue_details")
+                        .padding(vertical = 4.dp, horizontal = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text("Details", style = MaterialTheme.typography.labelLarge, color = faint)
+                    Icon(painterResource(R.drawable.ic_chevron_right), null, Modifier.size(16.dp).graphicsLayer { rotationZ = 90f + turn }, tint = faint)
+                }
+                androidx.compose.animation.AnimatedVisibility(details,
+                    enter = androidx.compose.animation.expandVertically(androidx.compose.animation.core.spring(dampingRatio = .9f, stiffness = 380f), expandFrom = Alignment.Top) + androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(220, 60)),
+                    exit = androidx.compose.animation.shrinkVertically(androidx.compose.animation.core.tween(220, easing = androidx.compose.animation.core.FastOutSlowInEasing), shrinkTowards = Alignment.Top) + androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(120))) {
+                    Text(message, Modifier.padding(top = 4.dp, start = 2.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
         }
     }
 }
