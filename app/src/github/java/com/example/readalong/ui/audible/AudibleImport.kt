@@ -87,10 +87,7 @@ private fun SignInIntro(error: String?, onSignIn: (AudibleLocale) -> Unit) {
     var locale by remember { mutableStateOf(AudibleLocale.of(java.util.Locale.getDefault().country.lowercase().let { if (it == "gb") "uk" else it })) }
     var choosing by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text("Bring your Audible audiobooks into ReadAlong", style = MaterialTheme.typography.headlineSmall)
-        Text("Sign in on Amazon's page. ReadAlong is added to your Amazon account as a device, then shows the books you own. " +
-            "The books you pick are downloaded, turned into ordinary M4B files on this phone, and added to your library, ready for their ReadAlong.")
-        Text("Your password goes only to Amazon. Nothing is uploaded anywhere else.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("Import from Audible", style = MaterialTheme.typography.headlineSmall)
         Box {
             OutlinedButton(onClick = { choosing = true }) { Text("Audible store: ${locale.label}") }
             DropdownMenu(expanded = choosing, onDismissRequest = { choosing = false }) {
