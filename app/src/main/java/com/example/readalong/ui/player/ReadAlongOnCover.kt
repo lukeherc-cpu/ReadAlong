@@ -3,6 +3,9 @@ package com.example.readalong.ui.player
 import android.net.Uri
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.animation.animateContentSize
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -115,13 +118,24 @@ internal fun ReadAlongStatusPill(book: Book, job: ProcessingJobEntity?, estimate
         onRetry = { stoppedChoices = false; reading.prepareReadable() },
         onRebuild = { stoppedChoices = false; reading.rebuildTranscription() },
         onDismiss = { stoppedChoices = false })
+    // It shows in full, then folds smoothly into just its progress ring; tapping the ring opens it again
+    // (and it folds away again after a few seconds). Tapping the open pill does what it says.
+    var open by remember(book.id, job?.state) { mutableStateOf(true) }
+    LaunchedEffect(open) { if (open) { kotlinx.coroutines.delay(3_500); open = false } }
     Surface(modifier.testTag("readalong_status"), shape = RoundedCornerShape(50), color = Color.Black.copy(alpha = .62f), contentColor = Color.White) {
-        Row(Modifier.clickable(onClickLabel = label, onClick = tap).padding(horizontal = 14.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (active && !waitingForCharging) CircularProgressIndicator(progress = { percent / 100f }, modifier = Modifier.size(16.dp), strokeWidth = 2.dp,
+        Row(Modifier.clickable(onClickLabel = if (open) label else "Show ReadAlong progress", onClick = { if (open) tap() else open = true })
+            .animateContentSize(androidx.compose.animation.core.spring(dampingRatio = .9f, stiffness = 380f))
+            .padding(horizontal = if (open) 14.dp else 10.dp, vertical = if (open) 8.dp else 10.dp)
+            .semantics { contentDescription = label },
+            verticalAlignment = Alignment.CenterVertically) {
+            if (active && !waitingForCharging) CircularProgressIndicator(progress = { percent / 100f }, modifier = Modifier.size(if (open) 16.dp else 20.dp), strokeWidth = 2.dp,
                 color = Color.White, trackColor = Color.White.copy(alpha = .25f))
-            else Icon(painterResource(R.drawable.ic_highlighted_book), null, Modifier.size(16.dp))
-            Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            else Icon(painterResource(R.drawable.ic_highlighted_book), null, Modifier.size(if (open) 16.dp else 20.dp))
+            androidx.compose.animation.AnimatedVisibility(open,
+                enter = androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(220, delayMillis = 80)) + androidx.compose.animation.expandHorizontally(androidx.compose.animation.core.tween(320), expandFrom = Alignment.Start),
+                exit = androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(140)) + androidx.compose.animation.shrinkHorizontally(androidx.compose.animation.core.tween(340), shrinkTowards = Alignment.Start)) {
+                Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 8.dp))
+            }
         }
     }
 }
