@@ -29,9 +29,10 @@ data class SyncProgress(val text: String, val fraction: Float? = null)
  *
  * Each sync lists both sides of every [FolderPair], copies what [FolderSyncPlan] says, and rescans the
  * phone folder, so new books, `.readalong` transcripts and `.readalong-progress` positions are picked up
- * exactly as if the folder had been synced any other way. Nothing is ever deleted on either side.
+ * exactly as if the folder had been synced any other way. Nothing is ever deleted on either side. Before each sync,
+ * [beforeSync] writes the `.readalong` of each book transcribed on the phone into its folder (TranscriptPackageWriter).
  */
-class FolderLinkSync(private val context: Context, val store: LinkStore, private val rescan: suspend (Uri) -> Unit) {
+class FolderLinkSync(private val context: Context, val store: LinkStore, private val beforeSync: suspend () -> Unit = {}, private val rescan: suspend (Uri) -> Unit) {
     private val resolver = context.contentResolver
     private val lock = Mutex()
     private val mutableProgress = MutableStateFlow<SyncProgress?>(null)
@@ -60,6 +61,11 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
         withContext(Dispatchers.IO) {
             val pairs = store.value.pairs
             if (store.value.computer == null || pairs.isEmpty()) return@withContext "Nothing to sync yet."
+            // Books transcribed here get their .readalong beside them first, so this sync carries them to the computer.
+            mutableProgress.value = SyncProgress("Saving ReadAlong files…")
+            try { beforeSync() } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled } catch (failure: Exception) {
+                android.util.Log.i("ReadAlong", "ReadAlong files not saved before sync: ${failure.javaClass.simpleName}")
+            }
             mutableProgress.value = SyncProgress("Connecting to ${store.value.computer?.name}…")
             try {
                 var copied = 0; var failed = 0
