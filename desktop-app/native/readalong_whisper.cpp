@@ -5,6 +5,7 @@
 #include <ggml-backend.h>
 #include <atomic>
 #include <cmath>
+#include <cstdio>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -14,7 +15,10 @@ static std::atomic<bool> cancelled{false};
 static std::atomic<int> recognition_progress{-1};
 static void report_progress(whisper_context *, whisper_state *, int value, void *) { recognition_progress.store(value); }
 static bool abort_inference(void *) { return cancelled.load(); }
-static void quiet_log(enum ggml_log_level, const char *, void *) {} // Never log audiobook text.
+// Never log audiobook text: only warnings and errors (what failed and why) reach stderr, for the crash log.
+static void quiet_log(enum ggml_log_level level, const char * text, void *) {
+    if ((level == GGML_LOG_LEVEL_ERROR || level == GGML_LOG_LEVEL_WARN) && text) { fputs(text, stderr); fflush(stderr); }
+}
 
 static std::string quoted(const char * text) {
     std::ostringstream out; out << '"';
