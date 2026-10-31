@@ -28,7 +28,6 @@ class FirstVisitNavigationTest {
                 app.appPreferences.update { AppPreferences(setupStage = 0) }
             }
             compose.waitUntil(10_000) { compose.onAllNodesWithTag("welcome").fetchSemanticsNodes().isNotEmpty() }
-            compose.onNodeWithTag("welcome_next").performClick()
             compose.onNodeWithText("Skip for now").performClick()
             compose.waitUntil(5000) { compose.onAllNodesWithText("Your library").fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithTag("guide_dont_show").assertIsOn()

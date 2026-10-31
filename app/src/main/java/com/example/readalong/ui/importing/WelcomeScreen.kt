@@ -33,6 +33,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -41,95 +42,164 @@ import com.example.readalong.data.importing.FolderMode
 import kotlinx.coroutines.delay
 
 /**
- * First launch: what ReadAlong does, then where the audiobooks are. Replaces the old "Set folder"
- * pop-up. [onDone] runs once a folder or files were picked, or the person skips.
+ * First launch: how to set up the library (local files or Audible), then that source's page. Each page
+ * is centered; the title inks in word by word, like a ReadAlong, and the line under it all at once.
+ * [onDone] runs once a folder or file was added, or the person skips.
  */
 @Composable
 fun WelcomeScreen(model: ImportViewModel, onDone: () -> Unit) {
     var step by rememberSaveable { mutableIntStateOf(0) }
-    BackHandler(enabled = step == 1) { step = 0 }
+    BackHandler(enabled = step != 0) { step = 0 }
     Surface(Modifier.fillMaxSize().testTag("welcome"), color = MaterialTheme.colorScheme.background) {
-        AnimatedContent(step, transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(160)) }, label = "Welcome step") { shown ->
-            if (shown == 0) Column(Modifier.fillMaxSize().systemBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 28.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp)) { WelcomeIntro { step = 1 } }
-            // The sources step fills the screen without scrolling: the buttons share the spare height.
-            // If the text doesn't fit (small screens, large fonts), the page scrolls instead.
-            else BoxWithConstraints(Modifier.fillMaxSize().systemBarsPadding()) {
-                val viewport = maxHeight
-                Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) { WelcomeSources(model, onDone, onSkip = onDone, viewport) }
+        AnimatedContent(step, transitionSpec = {
+            val forward = targetState > initialState
+            (androidx.compose.animation.slideInHorizontally(tween(460, easing = WelcomeEasing)) { if (forward) it else -it / 4 } + fadeIn(tween(320))) togetherWith
+                (androidx.compose.animation.slideOutHorizontally(tween(460, easing = WelcomeEasing)) { if (forward) -it / 4 else it } + fadeOut(tween(240)))
+        }, label = "Welcome step") { shown ->
+            Box(Modifier.fillMaxSize().systemBarsPadding()) {
+                when (shown) {
+                    0 -> WelcomeChoose(onLocal = { step = 1 }, onAudible = { step = 2 }, onSkip = onDone)
+                    1 -> WelcomeLocal(model, onDone, onBack = { step = 0 })
+                    else -> WelcomeAudible(model, onDone, onBack = { step = 0 })
+                }
             }
         }
     }
 }
 
+private val WelcomeEasing = androidx.compose.animation.core.CubicBezierEasing(.2f, .8f, .2f, 1f)
+
+/** A centered page that scrolls only when it doesn't fit (small screens, large fonts). */
 @Composable
-private fun ColumnScope.WelcomeIntro(onNext: () -> Unit) {
-    Spacer(Modifier.height(8.dp))
-    ReadAlongDemo(Modifier.fillMaxWidth())
-    Text("Listen to your audiobooks and read along", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.semantics { heading() })
-    WelcomePoint(R.drawable.ic_play, "Your audiobooks, with the words on screen as they're read to you.")
-    WelcomePoint(R.drawable.ic_highlighted_book, "ReadAlong makes the text on your phone. Nothing is uploaded.")
-    WelcomePoint(R.drawable.ic_book, "Have the ebook (EPUB) too? Add it to get the book's exact text.")
-    Spacer(Modifier.height(4.dp))
-    Button(onClick = onNext, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).testTag("welcome_next")) { Text("Get started") }
+private fun CenteredPage(onBack: (() -> Unit)?, content: @Composable ColumnScope.() -> Unit) {
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val height = maxHeight
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+            if (onBack != null) IconButton(onClick = onBack, modifier = Modifier.padding(start = 12.dp, top = 8.dp)) { Icon(painterResource(R.drawable.ic_back), "Back") }
+            Column(Modifier.fillMaxWidth().heightIn(min = height - if (onBack != null) 56.dp else 0.dp).padding(horizontal = 24.dp, vertical = 24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically), content = content)
+        }
+    }
 }
 
 @Composable
-private fun WelcomeSources(model: ImportViewModel, onAdded: () -> Unit, onSkip: () -> Unit, viewport: Dp) {
-    val busy by model.busy.collectAsStateWithLifecycle()
-    val message by model.message.collectAsStateWithLifecycle()
-    FillingColumn(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp), viewport - 32.dp, 12.dp) {
-        Text("Where are your audiobooks?", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.semantics { heading() })
-        Text("ReadAlong checks there for new books each time you come back.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        AudiobookSourceButtons(model, onAdded, large = true, stacked = true)
-        if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-        message?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
-        Box(Modifier.fillMaxWidth().layoutId(BottomOfPage), contentAlignment = Alignment.Center) {
-            TextButton(onClick = onSkip, enabled = !busy) { Text("Skip for now") }
+private fun WelcomeLogo(size: Dp = 104.dp) =
+    androidx.compose.foundation.Image(painterResource(R.drawable.ic_readalong), "ReadAlong", Modifier.size(size))
+
+/** Words go from grey to ink one after another, then the line under them all at once: the full-screen ReadAlong's look. */
+@Composable
+private fun InkTitle(title: String, subtitle: String) {
+    val words = remember(title) { title.split(" ") }
+    val ink = MaterialTheme.colorScheme.onBackground
+    val grey = androidx.compose.ui.graphics.lerp(ink, MaterialTheme.colorScheme.background, .45f)
+    val animate = remember { ValueAnimator.areAnimatorsEnabled() }
+    val spoken = remember { androidx.compose.animation.core.Animatable(if (animate) 0f else words.size + 1.5f) }
+    LaunchedEffect(Unit) {
+        if (!animate) return@LaunchedEffect
+        delay(650)
+        spoken.animateTo(words.size + 1.5f, tween(320 * (words.size + 2), easing = androidx.compose.animation.core.LinearEasing))
+    }
+    fun shade(at: Float) = androidx.compose.ui.graphics.lerp(grey, ink, (spoken.value - at).coerceIn(0f, 1f))
+    val text = androidx.compose.ui.text.buildAnnotatedString {
+        words.forEachIndexed { i, word ->
+            if (i > 0) append(" ")
+            withStyle(androidx.compose.ui.text.SpanStyle(color = shade(i.toFloat()))) { append(word) }
         }
     }
+    Text(text, style = MaterialTheme.typography.headlineMedium, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        modifier = Modifier.semantics { heading() })
+    Text(subtitle, style = MaterialTheme.typography.bodyLarge, color = shade(words.size + .5f), textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        modifier = Modifier.widthIn(max = 320.dp).padding(bottom = 12.dp))
+}
+
+/** One of the two set-up choices: a tall rounded button with an icon tile, title, line and chevron. */
+@Composable
+private fun SetupChoice(shade: Pair<androidx.compose.ui.graphics.Color, androidx.compose.ui.graphics.Color>, icon: Int, title: String, subtitle: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Button(onClick = onClick, modifier = modifier.fillMaxWidth().heightIn(min = 84.dp), shape = RoundedCornerShape(24.dp),
+        colors = ButtonDefaults.buttonColors(containerColor = shade.first, contentColor = shade.second), contentPadding = PaddingValues(horizontal = 20.dp, vertical = 18.dp)) {
+        Box(Modifier.size(48.dp).clip(RoundedCornerShape(16.dp)).background(shade.second.copy(alpha = .16f)), contentAlignment = Alignment.Center) {
+            Icon(painterResource(icon), null, Modifier.size(26.dp))
+        }
+        Spacer(Modifier.width(16.dp))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(title, style = MaterialTheme.typography.titleMedium)
+            Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = shade.second.copy(alpha = .85f))
+        }
+        Icon(painterResource(R.drawable.ic_chevron_right), null, Modifier.size(22.dp))
+    }
+}
+
+@Composable
+private fun WelcomeChoose(onLocal: () -> Unit, onAudible: () -> Unit, onSkip: () -> Unit) {
+    val shades = sourceShades()
+    CenteredPage(onBack = null) {
+        WelcomeLogo(112.dp)
+        InkTitle("Listen and read along", "Your audiobooks, with the words on screen as they're read to you.")
+        Text("How would you like to set up your library?", style = MaterialTheme.typography.titleMedium, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        SetupChoice(shades[0], R.drawable.ic_folder, "Local files", "Audiobooks already on this phone", Modifier.testTag("welcome_next"), onLocal)
+        SetupChoice(shades[1], R.drawable.ic_headphones, "Import from Audible", "Books you own on Audible", onClick = onAudible)
+        TextButton(onClick = onSkip, modifier = Modifier.padding(top = 4.dp).heightIn(min = 44.dp)) { Text("Skip for now") }
+    }
+}
+
+@Composable
+private fun WelcomeStatus(model: ImportViewModel) {
+    val busy by model.busy.collectAsStateWithLifecycle()
+    val message by model.message.collectAsStateWithLifecycle()
+    if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
+    message?.let { Text(it, style = MaterialTheme.typography.bodyMedium, textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
+}
+
+@Composable
+private fun WelcomeLocal(model: ImportViewModel, onDone: () -> Unit, onBack: () -> Unit) {
+    val busy by model.busy.collectAsStateWithLifecycle()
+    val add = rememberAddAudiobooks(model, "sources", onDone)
+    val file = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) { model.files(listOf(uri)); onDone() }
+    }
+    CenteredPage(onBack) {
+        WelcomeLogo()
+        Text("Add your audiobooks", style = MaterialTheme.typography.headlineSmall, textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.semantics { heading() })
+        Text("Pick a folder. It can hold one book or your whole library. ReadAlong works out which and shows you before adding.",
+            style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            modifier = Modifier.widthIn(max = 320.dp).padding(bottom = 12.dp))
+        Button(onClick = add, enabled = !busy, modifier = Modifier.fillMaxWidth().heightIn(min = 60.dp).testTag("choose_folder"), shape = RoundedCornerShape(30.dp)) {
+            Text("Choose folder", style = MaterialTheme.typography.titleMedium)
+        }
+        TextButton(onClick = { file.launch(arrayOf("audio/*", "application/octet-stream", "video/mp4")) }, enabled = !busy, modifier = Modifier.heightIn(min = 44.dp),
+            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onBackground)) {
+            Icon(painterResource(R.drawable.ic_play), null, Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("Or add a single audio file")
+        }
+        WelcomeStatus(model)
+    }
+}
+
+@Composable
+private fun WelcomeAudible(model: ImportViewModel, onDone: () -> Unit, onBack: () -> Unit) {
+    val busy by model.busy.collectAsStateWithLifecycle()
+    var steps by rememberSaveable { mutableStateOf(false) }
+    val add = rememberAddAudiobooks(model, "sources", onDone)
+    CenteredPage(onBack) {
+        WelcomeLogo()
+        Text("Import from Audible", style = MaterialTheme.typography.headlineSmall, textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.semantics { heading() })
+        Text("Audible books need converting before ReadAlong can play them. We'll walk you through it, then you pick the folder they were saved to.",
+            style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            modifier = Modifier.widthIn(max = 320.dp).padding(bottom = 12.dp))
+        Button(onClick = { steps = true }, enabled = !busy, modifier = Modifier.fillMaxWidth().heightIn(min = 60.dp), shape = RoundedCornerShape(30.dp)) {
+            Text("Show me how", style = MaterialTheme.typography.titleMedium)
+        }
+        FilledTonalButton(onClick = add, enabled = !busy, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp), shape = RoundedCornerShape(28.dp)) {
+            Text("I've converted them, choose folder")
+        }
+        WelcomeStatus(model)
+    }
+    if (steps) com.example.readalong.ui.audible.AudibleImportEntry(onChooseFolder = { steps = false; add() }, onDismiss = { steps = false })
 }
 
 /** A child of [FillingColumn] that grows into spare height, by [weight], up to [max]. */
 private data class Grow(val weight: Float, val min: Dp, val max: Dp)
-private const val BottomOfPage = "bottom"
-
-/**
- * A column that fills [viewport]: children marked [Grow] start at the height their content needs and
- * share the spare height (up to their maximum); anything left goes above the [BottomOfPage] child.
- * When the content needs more than the viewport, it is simply taller (the caller scrolls).
- */
-@Composable
-private fun FillingColumn(modifier: Modifier, viewport: Dp, gap: Dp, content: @Composable () -> Unit) {
-    androidx.compose.ui.layout.Layout(content, modifier) { measurables, constraints ->
-        val width = constraints.maxWidth
-        val gapPx = gap.roundToPx()
-        val grows = measurables.map { it.layoutId as? Grow }
-        val loose = androidx.compose.ui.unit.Constraints(maxWidth = width)
-        val fixed = measurables.mapIndexed { i, m -> if (grows[i] == null) m.measure(loose) else null }
-        val natural = measurables.mapIndexed { i, m ->
-            grows[i]?.let { g -> m.maxIntrinsicHeight(width).coerceAtLeast(g.min.roundToPx()) } ?: fixed[i]!!.height
-        }
-        val used = natural.sum() + gapPx * (measurables.size - 1).coerceAtLeast(0)
-        val spare = (viewport.roundToPx() - used).coerceAtLeast(0)
-        val totalWeight = grows.sumOf { (it?.weight ?: 0f).toDouble() }.toFloat()
-        val heights = natural.mapIndexed { i, h ->
-            val g = grows[i] ?: return@mapIndexed h
-            (h + (spare * g.weight / totalWeight).toInt()).coerceAtMost(g.max.roundToPx().coerceAtLeast(h))
-        }
-        val placeables = measurables.mapIndexed { i, m -> fixed[i] ?: m.measure(androidx.compose.ui.unit.Constraints.fixed(width, heights[i])) }
-        val content = heights.sum() + gapPx * (measurables.size - 1).coerceAtLeast(0)
-        val height = maxOf(content, viewport.roundToPx(), constraints.minHeight)
-        layout(width, height) {
-            var y = 0
-            placeables.forEachIndexed { i, p ->
-                if (measurables[i].layoutId == BottomOfPage) y = maxOf(y, height - p.height)
-                p.place(0, y); y += p.height + gapPx
-            }
-        }
-    }
-}
-
 /**
  * The three kinds of source, each with its own shade of the accent, used by both the example and the
  * buttons so they read as a key: library folder (strongest), audiobook folder, audio file (lightest).
@@ -265,16 +335,6 @@ private fun TreeLine(depth: Int, shade: Pair<androidx.compose.ui.graphics.Color,
         Spacer(Modifier.width(6.dp))
         Text(name, Modifier.clip(RoundedCornerShape(com.example.readalong.ui.theme.Corners.small)).background(shade.first).padding(horizontal = if (compact) 8.dp else 10.dp, vertical = if (compact) 1.dp else 2.dp),
             style = if (compact) MaterialTheme.typography.bodySmall else MaterialTheme.typography.bodyMedium, color = shade.second, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-    }
-}
-
-@Composable
-private fun WelcomePoint(icon: Int, text: String) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-        Surface(shape = RoundedCornerShape(com.example.readalong.ui.theme.Corners.medium), color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.size(44.dp)) {
-            Box(contentAlignment = Alignment.Center) { Icon(painterResource(icon), null, Modifier.size(22.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer) }
-        }
-        Text(text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
     }
 }
 

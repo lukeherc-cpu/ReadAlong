@@ -33,7 +33,8 @@ class LaunchAnimationTest {
             compose.waitUntil(5000) { compose.onAllNodesWithTag("welcome").fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithTag("launch_logo").assertDoesNotExist()
             compose.onNodeWithTag("welcome_next").performClick()
-            compose.onNodeWithText("Where are your audiobooks?").assertIsDisplayed()
+            compose.onNodeWithText("Add your audiobooks").assertIsDisplayed()
+            compose.onNodeWithContentDescription("Back").performClick()
             compose.onNodeWithText("Skip for now").performClick()
             compose.onNodeWithTag("welcome").assertDoesNotExist()
             scenario.recreate()
