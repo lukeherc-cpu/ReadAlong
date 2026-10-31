@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -88,6 +89,13 @@ fun LinkScreen(app: ReadAlongApplication, onBack: () -> Unit) {
             finally { busy = null }
         }
     }
+    // Shown once, when folder sync is first turned on: the phone starts writing files into the user's folders.
+    var transcriptNotice by rememberSaveable { mutableStateOf(false) }
+    if (transcriptNotice) AlertDialog(onDismissRequest = { transcriptNotice = false },
+        title = { Text("ReadAlong files will be in your audiobook folders") },
+        text = { Text("So ${state.computer?.name ?: "your computer"} doesn't have to transcribe them again, each book this phone has transcribed now gets a small " +
+            ".readalong file beside its audio in the folders you sync. They're copied to the computer with each sync. Your audio isn't changed.") },
+        confirmButton = { TextButton(onClick = { transcriptNotice = false }) { Text("OK") } })
     // Linked earlier but "Sync your audiobook folders?" was never answered: ask now.
     LaunchedEffect(state.computer != null && !state.foldersAsked) { if (state.computer != null && !state.foldersAsked && offered == null && busy == null) loadFolders() }
 
@@ -119,8 +127,10 @@ fun LinkScreen(app: ReadAlongApplication, onBack: () -> Unit) {
                         busy = "Setting up…"; error = null
                         try {
                             val created = sendHere.map { (uri, name) -> sync.createRemote(name).let { FolderPair(it.id, it.name, uri, name) } }
+                            val firstTime = state.pairs.isEmpty()
                             sync.store.update { it.copy(pairs = pairs + created, foldersAsked = true) }
                             choosing = false
+                            if (firstTime && (pairs + created).isNotEmpty()) transcriptNotice = true
                             LinkSyncWorker.schedule(context); LinkSyncWorker.syncNow(context)
                         } catch (failure: Exception) { error = failure.message }
                         finally { busy = null }
@@ -143,6 +153,8 @@ fun LinkScreen(app: ReadAlongApplication, onBack: () -> Unit) {
                 if (state.pairs.isEmpty()) Text("None yet.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 state.pairs.forEach { pair -> Text("${pair.localName}  ⇄  ${pair.remoteName} on ${computer.name}", style = MaterialTheme.typography.bodyLarge) }
                 Text("Syncs when this phone is on Wi-Fi and ReadAlong is open on the computer. Books one side doesn't have are copied over; nothing is ever deleted.",
+                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (state.pairs.isNotEmpty()) Text("Books this phone transcribes get a .readalong file beside them in these folders, so ${computer.name} reads them without transcribing again.",
                     style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Button(onClick = { withNetwork { LinkSyncWorker.syncNow(context) } }, enabled = state.pairs.isNotEmpty() && progress == null) { Text("Sync now") }

@@ -52,6 +52,17 @@ fun SettingsScreen(app: AppState) {
                         }
                     }
                     Spacer(Modifier.height(16.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Aggressive transcription", style = MaterialTheme.typography.labelLarge)
+                            Text("Uses the graphics card and the processor together, several parts of the book at once, with quicker decoding. " +
+                                "Books finish several times sooner; the fans will spin up while it works.",
+                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Switch(settings.aggressive, { v -> app.settingsStore.update { it.copy(aggressive = v) } })
+                    }
+                    Spacer(Modifier.height(16.dp))
                     Text("Language of your audiobooks", style = MaterialTheme.typography.labelLarge)
                     Spacer(Modifier.height(8.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

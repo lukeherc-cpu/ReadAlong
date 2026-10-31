@@ -45,3 +45,13 @@ fun chooseSave(title: String, suggested: File): File? {
     val name = dialog.file ?: return null
     return File(dialog.directory, if (name.endsWith(".readalong", true)) name else "$name.readalong")
 }
+
+/** One audio file that holds a whole audiobook. */
+fun chooseAudioFile(title: String = "Choose an audiobook file"): File? {
+    val audio = com.example.readalong.desktop.core.Scanner.AUDIO
+    val dialog = FileDialog(null as Frame?, title, FileDialog.LOAD).apply {
+        setFilenameFilter { _, name -> name.substringAfterLast('.', "").lowercase() in audio }
+        isVisible = true
+    }
+    return dialog.files.firstOrNull()
+}
