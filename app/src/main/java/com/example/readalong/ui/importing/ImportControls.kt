@@ -48,53 +48,6 @@ fun ImportControls(model: ImportViewModel, onFolders: () -> Unit, onBook: (Strin
 }
 
 @Composable
-fun FoldersScreen(model: ImportViewModel, onBack: () -> Unit) {
-    val folders by model.folders.collectAsStateWithLifecycle()
-    val busy by model.busy.collectAsStateWithLifecycle()
-    val message by model.message.collectAsStateWithLifecycle()
-    var removing by remember { mutableStateOf<com.example.readalong.data.local.FolderEntity?>(null) }
-    var audible by rememberSaveable { mutableStateOf(false) }
-    val add = rememberAddAudiobooks(model, "folders")
-    Scaffold { insets ->
-        LazyColumn(Modifier.fillMaxSize().padding(insets), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            item { TextButton(onClick = onBack) { Text("Back to library") } }
-            item { Text("Library folders", style = MaterialTheme.typography.headlineLarge) }
-            item { Text("ReadAlong checks these folders for new books each time you come back. Your audio stays where it is.", style = MaterialTheme.typography.bodyLarge) }
-            item {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Button(onClick = add, enabled = !busy) { Text("Add folder") }
-                    OutlinedButton(onClick = { audible = true }, enabled = !busy) { Text("Import from Audible") }
-                }
-            }
-            item { if (busy) LinearProgressIndicator(Modifier.fillMaxWidth()); message?.let { Text(it, style = MaterialTheme.typography.bodyMedium) } }
-            if (folders.none { it.mode == FolderMode.LIBRARY.name }) item { Text("No folders added yet.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
-            items(folders.filter { it.mode == FolderMode.LIBRARY.name }, key = { it.uri }) { folder ->
-                Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceVariant) {
-                    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(folder.name, style = MaterialTheme.typography.titleLarge)
-                        Text(if (folder.mode == FolderMode.ONE_BOOK.name) "One audiobook" else "Each folder inside is one book", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        // A folder still being read is marked incomplete until its scan finishes: that's progress, not an error.
-                        if (folder.error == com.example.readalong.data.importing.SCAN_INCOMPLETE) Text("Scanning…", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        else folder.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-                        Row {
-                            TextButton(onClick = { model.rescan(folder) }, enabled = !busy) { Text("Check for new books") }
-                            TextButton(onClick = { removing = folder }, enabled = !busy) { Text("Remove folder") }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    if (audible) com.example.readalong.ui.audible.AudibleImportEntry(onChooseFolder = { audible = false; add() }, onDismiss = { audible = false })
-    removing?.let { folder ->
-        AlertDialog(onDismissRequest = { removing = null }, title = { Text("Remove this folder?") },
-            text = { Text("Are you sure? Its books leave your library, along with their ReadAlongs and listening progress. The audio files stay on your phone.") },
-            confirmButton = { TextButton(onClick = { model.remove(folder); removing = null }) { Text("Remove folder", color = MaterialTheme.colorScheme.error) } },
-            dismissButton = { TextButton(onClick = { removing = null }) { Text("Cancel") } })
-    }
-}
-
-@Composable
 fun ImportStatus(model: ImportViewModel) {
     val busy by model.busy.collectAsStateWithLifecycle()
     val message by model.message.collectAsStateWithLifecycle()
