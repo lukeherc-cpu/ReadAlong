@@ -38,6 +38,11 @@ class ReadingViewModel(val bookId: String, val database: ReadAlongDatabase, priv
     fun hidePreparation(hidden: Boolean) = action {
         database.bookDao().putMetadata(com.example.readalong.data.local.LibraryMetadataEntity("hide_readalong_bar:$bookId", hidden.toString()))
     }
+    /** Whether this book has already flipped its cover over once to offer a ReadAlong (null until loaded). */
+    val textIntroShown = database.bookDao().observeMetadata("text_intro_shown:$bookId").map<String?, Boolean?> { it == "true" }
+    fun markTextIntroShown() = action {
+        database.bookDao().putMetadata(com.example.readalong.data.local.LibraryMetadataEntity("text_intro_shown:$bookId", "true"))
+    }
     val processingJob = processing.observe(bookId).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
     val timeRemaining = processingJob.distinctUntilChangedBy { Triple(it?.completedUnits, it?.state, it?.workId) }
         .map { com.example.readalong.data.processing.TranscriptionEstimate.label(database, it) }.flowOn(Dispatchers.IO)
