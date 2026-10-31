@@ -22,6 +22,24 @@ class LibraryImporter(private val library: LibraryStore, private val transcripts
         importFound(paths.flatMap { Scanner.scan(it) }, scannedRoots = emptyList(), adding = true)
     }
 
+    /** What [folder] holds, before anything is added: the books a library scan would find there. */
+    suspend fun preview(folder: File): List<FoundBook> = withContext(Dispatchers.IO) { Scanner.scan(folder) }
+
+    /** All of [folder]'s audio as one audiobook. It isn't saved as a library folder, so rescans leave it whole. */
+    suspend fun addOneBook(folder: File): List<String> = locked {
+        library.setFolders(library.folders.value - folder.absolutePath)
+        importFound(listOfNotNull(Scanner.whole(folder)), scannedRoots = emptyList(), adding = true)
+    }
+
+    /** Forgets a library folder and takes its books out of the library. The files stay where they are. */
+    suspend fun removeFolder(folder: String): Int = locked {
+        library.setFolders(library.folders.value - folder)
+        val root = File(folder).absolutePath + File.separator
+        val gone = library.books.value.filter { book -> book.parts.firstOrNull()?.path?.startsWith(root) == true }
+        gone.forEach { library.remove(it.id) }
+        gone.size
+    }
+
     /** Rescans every saved library folder: new books appear, books whose files are gone are removed. */
     suspend fun rescan(): List<String> = locked {
         val roots = library.folders.value.map(::File).filter { it.isDirectory }
