@@ -36,7 +36,7 @@ class ReadingNavigationTest {
     }
 
     private fun flipToPreview() {
-        compose.onNodeWithTag("flip_cover", useUnmergedTree = true).performScrollTo().performClick()
+        compose.onNodeWithTag("flip_cover", useUnmergedTree = true).performClick()
         compose.waitUntil(5000) { compose.onAllNodesWithTag("follow_card", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
         compose.waitForIdle()
     }
