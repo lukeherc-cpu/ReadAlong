@@ -48,7 +48,7 @@ fun ReadAlongApp(app: AppState) {
                 if (epub != null && screen is Screen.Player) {
                     app.library.update(screen.bookId) { it.copy(epubPath = epub.path, textSource = "EPUB") }
                     app.messages.tryEmit("Matching ${epub.name} to the audio.")
-                } else app.addPaths(files)
+                } else files.singleOrNull()?.takeIf { it.isDirectory }?.let(app::chooseFolder) ?: app.addPaths(files)
                 return true
             }
         }
@@ -69,13 +69,15 @@ fun ReadAlongApp(app: AppState) {
                         Screen.Queue -> QueueScreen(app)
                         Screen.Settings -> SettingsScreen(app)
                         Screen.Audible -> AudibleScreen(app)
+                        Screen.Folders -> FoldersScreen(app)
                     }
                 }
-                AnimatedVisibility(app.screen == Screen.Library || app.screen == Screen.Queue || app.screen == Screen.Settings || app.screen == Screen.Audible,
+                AnimatedVisibility(app.screen == Screen.Library || app.screen == Screen.Queue || app.screen == Screen.Settings || app.screen == Screen.Audible || app.screen == Screen.Folders,
                     enter = slideInVertically { it } + fadeIn(), exit = slideOutVertically { it } + fadeOut()) {
                     MiniPlayer(app)
                 }
             }
+            FoundDialog(app)
             SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(bottom = 96.dp))
             AnimatedVisibility(dropping, enter = fadeIn(), exit = fadeOut()) {
                 Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .55f)).padding(24.dp), contentAlignment = Alignment.Center) {

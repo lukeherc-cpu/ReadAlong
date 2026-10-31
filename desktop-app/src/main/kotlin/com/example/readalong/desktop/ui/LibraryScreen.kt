@@ -128,45 +128,9 @@ private fun SearchField(query: String, onQuery: (String) -> Unit, onClose: () ->
     }
 }
 
-/** The phone's shelf button: the library folders, with adding one, Audible and a rescan underneath. */
+/** The phone's shelf button: opens the library folders page. */
 @Composable
-private fun FoldersButton(app: AppState) {
-    val folders by app.library.folders.collectAsState()
-    var open by remember { mutableStateOf(false) }
-    Box {
-        AppIconButton("ic_bookshelf", "Audiobook folders", { open = true })
-        DropdownMenu(open, { open = false }) {
-            Text("Library folders", Modifier.padding(horizontal = 16.dp, vertical = 8.dp), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (folders.isEmpty()) Text("No folders yet.", Modifier.padding(horizontal = 16.dp, vertical = 6.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            folders.forEach { folder ->
-                DropdownMenuItem({ Text(File(folder).name.ifEmpty { folder }, maxLines = 1, overflow = TextOverflow.Ellipsis) }, { open = false; runCatching { Desktop.getDesktop().open(File(folder)) } },
-                    leadingIcon = { Icon(AppIcons.get("ic_folder"), null, Modifier.size(18.dp)) })
-            }
-            HorizontalDivider(Modifier.padding(vertical = 4.dp))
-            DropdownMenuItem({ Text("Add library folder") }, { open = false; chooseFolder("Choose a folder of audiobooks")?.let { app.addPaths(listOf(it)) } },
-                leadingIcon = { Icon(AppIcons.get("ic_add"), null, Modifier.size(18.dp)) })
-            DropdownMenuItem({ Text("Import from Audible") }, { open = false; app.open(Screen.Audible) },
-                leadingIcon = { Icon(AppIcons.get("ic_book_add"), null, Modifier.size(18.dp)) })
-            DropdownMenuItem({ Text("Check for new books") }, { open = false; app.scope.launch { runCatching { app.importer.rescan() } } },
-                leadingIcon = { Icon(AppIcons.get("ic_redo"), null, Modifier.size(18.dp)) })
-        }
-    }
-}
-
-/** The phone's + button: one audiobook from a folder or a single file. */
-@Composable
-private fun AddBookButton(app: AppState) {
-    var open by remember { mutableStateOf(false) }
-    Box {
-        AppIconButton("ic_add", "Add a new audiobook", { open = true })
-        DropdownMenu(open, { open = false }) {
-            DropdownMenuItem({ Text("Choose audiobook folder") }, { open = false; chooseFolder("Choose a folder with one audiobook's files")?.let { app.addPaths(listOf(it)) } },
-                leadingIcon = { Icon(AppIcons.get("ic_folder"), null, Modifier.size(18.dp)) })
-            DropdownMenuItem({ Text("Add audio file") }, { open = false; chooseAudioFile()?.let { app.addPaths(listOf(it)) } },
-                leadingIcon = { Icon(AppIcons.get("ic_play"), null, Modifier.size(18.dp)) })
-        }
-    }
-}
+private fun FoldersButton(app: AppState) = AppIconButton("ic_bookshelf", "Library folders", { app.open(Screen.Folders) })
 
 /** The phone's sort button, at the end of the first section's heading. */
 @Composable
@@ -245,20 +209,4 @@ fun bookMenu(app: AppState, book: LibraryBook): List<ContextMenuItem> = listOfNo
 )
 
 @Composable
-private fun EmptyLibrary(app: AppState, scanning: Boolean) {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.widthIn(max = 460.dp)) {
-            Icon(AppIcons.get("ic_bookshelf"), null, Modifier.size(72.dp), tint = MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.height(20.dp))
-            Text(if (scanning) "Looking for audiobooks…" else "Add your audiobooks", style = MaterialTheme.typography.headlineSmall)
-            Spacer(Modifier.height(10.dp))
-            Text("Choose the folder with your audiobooks, or drop files and folders anywhere in this window. ReadAlong finds each book, " +
-                "its chapters and cover, and any EPUB beside it.", color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodyMedium, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-            Spacer(Modifier.height(24.dp))
-            PillButton("Choose audiobook folder", { chooseFolder()?.let { app.addPaths(listOf(it)) } }, icon = "ic_folder")
-            Spacer(Modifier.height(10.dp))
-            PillButton("Import from Audible", { app.open(Screen.Audible) }, icon = "ic_book_add", filled = false)
-        }
-    }
-}
+private fun EmptyLibrary(app: AppState, scanning: Boolean) = LibrarySetup(app, scanning)
