@@ -30,7 +30,33 @@ static std::string string_of(JNIEnv * env, jstring value) {
     const char * chars = env->GetStringUTFChars(value, nullptr);
     std::string result(chars); env->ReleaseStringUTFChars(value, chars); return result;
 }
-static jstring java_string(JNIEnv * env, const std::string & value) { return env->NewStringUTF(value.c_str()); }
+/**
+ * Real UTF-8 into a Java string. NewStringUTF wants Java's "modified UTF-8": a stray byte (a token that ends half way
+ * through a character like ’ or —) makes it swallow the quote after it, and the JSON can't be read. Decoding the
+ * bytes with String(byte[], "UTF-8") turns anything malformed into U+FFFD and never touches the bytes around it.
+ */
+static jstring java_string(JNIEnv * env, const std::string & value) {
+    jbyteArray bytes = env->NewByteArray(static_cast<jsize>(value.size()));
+    env->SetByteArrayRegion(bytes, 0, static_cast<jsize>(value.size()), reinterpret_cast<const jbyte *>(value.data()));
+    jclass string_class = env->FindClass("java/lang/String");
+    jmethodID init = env->GetMethodID(string_class, "<init>", "([BLjava/lang/String;)V");
+    jstring charset = env->NewStringUTF("UTF-8");
+    auto result = static_cast<jstring>(env->NewObject(string_class, init, bytes, charset));
+    env->DeleteLocalRef(charset); env->DeleteLocalRef(bytes); env->DeleteLocalRef(string_class);
+    return result;
+}
+
+/** How many bytes at the end of [text] start a UTF-8 character that isn't finished yet (0 when it ends cleanly). */
+static size_t unfinished_tail(const std::string & text) {
+    const size_t n = text.size();
+    for (size_t back = 1; back <= 3 && back <= n; ++back) {
+        const unsigned char c = static_cast<unsigned char>(text[n - back]);
+        if ((c & 0xC0) == 0x80) continue;                 // continuation byte: keep looking for the lead
+        const size_t need = c >= 0xF0 ? 4 : c >= 0xE0 ? 3 : c >= 0xC0 ? 2 : 1;
+        return need > back ? back : 0;
+    }
+    return 0;
+}
 static void throw_io(JNIEnv * env, const char * message) { env->ThrowNew(env->FindClass("java/io/IOException"), message); }
 
 #define NATIVE(name) Java_com_example_readalong_desktop_transcription_WhisperNative_##name
@@ -118,11 +144,18 @@ extern "C" JNIEXPORT jstring JNICALL NATIVE(transcribe)(JNIEnv * env, jobject, j
                << ",\"text\":" << quoted(whisper_full_get_segment_text(context, s))
                << ",\"noSpeech\":" << whisper_full_get_segment_no_speech_prob(context, s) << ",\"tokens\":[";
         bool first = true;
+        // Whisper's tokens can split one character across two tokens; carry the unfinished bytes to the next one.
+        std::string carry;
         for (int t = 0; t < whisper_full_n_tokens(context, s); ++t) {
             if (whisper_full_get_token_id(context, s, t) >= whisper_token_eot(context)) continue;
             auto token = whisper_full_get_token_data(context, s, t);
+            const char * piece = whisper_full_get_token_text(context, s, t);
+            std::string text = carry + (piece ? piece : "");
+            const size_t tail = unfinished_tail(text);
+            carry = text.substr(text.size() - tail); text.resize(text.size() - tail);
+            if (text.empty()) continue;
             if (!first) output << ','; first = false;
-            output << "{\"text\":" << quoted(whisper_full_get_token_text(context, s, t))
+            output << "{\"text\":" << quoted(text.c_str())
                    << ",\"startMs\":" << token.t0 * 10
                    << ",\"endMs\":" << token.t1 * 10
                    << ",\"dtwMs\":" << (token.t_dtw >= 0 ? token.t_dtw * 10 : -1)
