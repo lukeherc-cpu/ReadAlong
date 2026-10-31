@@ -27,6 +27,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.*
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.style.TextOverflow
@@ -54,7 +58,10 @@ fun LibraryScreen(app: AppState) {
     Column(Modifier.fillMaxSize()) {
         // Header: the phone's top bar, icon for icon. Settings and library folders on the left, the logo (which is
         // the queue button and turns its pages while there is work) in the middle, search and add on the right.
-        Column(Modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = 12.dp)) {
+            // Where the search icon sits relative to the search bar, so the bar can spring out of it.
+            var iconCenter by remember { mutableStateOf<androidx.compose.ui.geometry.Offset?>(null) }
+            var barOrigin by remember { mutableStateOf<androidx.compose.ui.geometry.Offset?>(null) }
             CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.primary) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     AppIconButton("ic_settings", "Settings", { app.open(Screen.Settings) })
@@ -63,15 +70,15 @@ fun LibraryScreen(app: AppState) {
                         QueueLogo(scanning = scan.running && !scan.adding, readingFolder = scan.running && scan.adding,
                             transcribing = job?.phase == "Transcribing", queued = queue.size, onClick = { app.open(Screen.Queue) }, size = 52.dp)
                     }
-                    AppIconButton("ic_search", "Search library", { searching = !searching; if (!searching) query = "" })
+                    AppIconButton("ic_search", "Search library", { searching = !searching; if (!searching) query = "" },
+                        Modifier.onGloballyPositioned { iconCenter = it.boundsInRoot().center })
                     AddBookButton(app)
                 }
             }
-            AnimatedVisibility(searching && books.isNotEmpty(), enter = expandVertically(tween(220)) + fadeIn(tween(220)), exit = shrinkVertically(tween(180)) + fadeOut(tween(140))) {
-                SearchField(query, { query = it }, onClose = { searching = false; query = "" }, Modifier.fillMaxWidth())
-            }
+            SpringSearchBar(searching && books.isNotEmpty(), iconCenter?.let { c -> barOrigin?.let { c - it } }, query, { query = it },
+                onClose = { searching = false; query = "" }, Modifier.fillMaxWidth().onGloballyPositioned { barOrigin = it.positionInRoot() })
             AnimatedVisibility(scan.running, enter = fadeIn(), exit = fadeOut()) {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Column(Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     LinearProgressIndicator(Modifier.fillMaxWidth())
                     Text(scan.label, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
@@ -105,25 +112,82 @@ fun LibraryScreen(app: AppState) {
     }
 }
 
-/** The phone's search field: accent outline, focused as soon as it opens, closed with its X or Esc. */
+/**
+ * The phone's search bar: a pill the size of the search icon springs out leftwards from under the icon with a small
+ * bounce. Closing is one quick move with no bounce: the bar shrinks back towards the icon and fades as it goes. Focused as soon as it opens, closed with its X or Esc.
+ * [anchor] is the icon's centre in this bar's coordinates (null until measured).
+ */
 @Composable
-private fun SearchField(query: String, onQuery: (String) -> Unit, onClose: () -> Unit, modifier: Modifier) {
+private fun SpringSearchBar(visible: Boolean, anchor: androidx.compose.ui.geometry.Offset?, query: String, onQuery: (String) -> Unit, onClose: () -> Unit, modifier: Modifier) {
+    val stretch = remember { Animatable(0f) }
+    val lift = remember { Animatable(1f) }
+    val fade = remember { Animatable(0f) }
+    val text = remember { Animatable(0f) }
+    val space = remember { Animatable(0f) }
+    var shown by remember { mutableStateOf(false) }
+    var closing by remember { mutableStateOf(false) }
     val focus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
-    Row(modifier.height(48.dp).clip(CircleShape).border(1.5.dp, MaterialTheme.colorScheme.primary, CircleShape)
-        .background(MaterialTheme.colorScheme.surfaceContainerHigh).padding(start = 16.dp, end = 4.dp),
-        verticalAlignment = Alignment.CenterVertically) {
-        Icon(AppIcons.get("ic_search"), null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
-        Spacer(Modifier.width(10.dp))
-        Box(Modifier.weight(1f)) {
-            if (query.isEmpty()) Text("Search by title or author", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .7f), style = MaterialTheme.typography.bodyMedium)
-            BasicTextField(query, onQuery, Modifier.fillMaxWidth().focusRequester(focus).onPreviewKeyEvent { event ->
-                    if (event.key == Key.Escape && event.type == KeyEventType.KeyDown) { onClose(); true } else false
-                }, singleLine = true,
-                textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurface), cursorBrush = SolidColor(MaterialTheme.colorScheme.primary))
+    val ease = CubicBezierEasing(.2f, 0f, .1f, 1f)
+    LaunchedEffect(visible) {
+        if (visible) {
+            closing = false
+            if (!shown) { stretch.snapTo(0f); lift.snapTo(1f); fade.snapTo(0f); text.snapTo(0f); space.snapTo(0f) }
+            shown = true
+            kotlinx.coroutines.coroutineScope {
+                launch { space.animateTo(1f, tween(420, easing = ease)) }
+                launch { fade.animateTo(1f, tween(60)) }
+                launch { lift.animateTo(0f, tween(230, easing = ease)) }
+                launch { stretch.animateTo(1f, spring(dampingRatio = .58f, stiffness = 360f)) }
+                launch { kotlinx.coroutines.delay(300); text.animateTo(1f, tween(260, easing = ease)) }
+                launch { kotlinx.coroutines.delay(60); runCatching { focus.requestFocus() } }
+            }
+        } else if (shown) {
+            closing = true
+            // One quick move, no second step: the bar shrinks back towards the icon and fades as it goes,
+            // while the text vanishes first and the list closes the gap in step.
+            kotlinx.coroutines.coroutineScope {
+                val quick = CubicBezierEasing(.3f, 0f, .1f, 1f)
+                launch { text.animateTo(0f, tween(80)) }
+                launch { stretch.animateTo(0f, tween(190, easing = quick)) }
+                launch { kotlinx.coroutines.delay(50); fade.animateTo(0f, tween(140, easing = LinearEasing)) }
+                launch { space.animateTo(0f, tween(190, easing = quick)) }
+            }
+            shown = false; closing = false
         }
-        IconButton(onClose, Modifier.size(40.dp).pointerHoverIcon(PointerIcon.Hand)) {
-            Icon(Icons.Rounded.Close, "Close search", Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+    if (!shown) return
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val barH = with(density) { 48.dp.toPx() }
+    val gap = with(density) { 12.dp.toPx() }
+    Box(modifier.layout { m, c ->
+        val w = c.maxWidth.toFloat()
+        val ax = anchor?.x ?: (w - barH / 2)
+        val ay = (anchor?.y ?: -barH * .7f) - gap
+        val l0 = ax - barH / 2; val r0 = ax + barH / 2
+        val st = stretch.value
+        val left = l0 * (1f - st); val right = r0 + (w - r0) * st
+        val p = m.measure(androidx.compose.ui.unit.Constraints.fixed((right - left).toInt().coerceAtLeast(1), barH.toInt()))
+        layout(c.maxWidth, ((barH + gap) * space.value).toInt()) {
+            p.placeWithLayer(left.toInt(), gap.toInt()) {
+                translationY = (ay - barH / 2) * lift.value * lift.value
+                alpha = fade.value
+            }
+        }
+    }.clip(CircleShape).border(1.5.dp, MaterialTheme.colorScheme.primary, CircleShape)
+        .background(MaterialTheme.colorScheme.surfaceContainerHigh).padding(start = 16.dp, end = 4.dp)) {
+        Row(Modifier.fillMaxSize().graphicsLayer { alpha = text.value }, verticalAlignment = Alignment.CenterVertically) {
+            Icon(AppIcons.get("ic_search"), null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.width(10.dp))
+            Box(Modifier.weight(1f)) {
+                if (query.isEmpty()) Text("Search by title or author", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .7f), style = MaterialTheme.typography.bodyMedium, maxLines = 1, softWrap = false)
+                BasicTextField(query, onQuery, Modifier.fillMaxWidth().focusRequester(focus).onPreviewKeyEvent { event ->
+                        if (event.key == Key.Escape && event.type == KeyEventType.KeyDown) { onClose(); true } else false
+                    }, singleLine = true,
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurface), cursorBrush = SolidColor(MaterialTheme.colorScheme.primary))
+            }
+            IconButton(onClose, Modifier.size(40.dp).pointerHoverIcon(PointerIcon.Hand)) {
+                Icon(Icons.Rounded.Close, "Close search", Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
     }
 }

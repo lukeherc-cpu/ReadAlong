@@ -9,6 +9,9 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.layout.layout
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.scaleIn
 import androidx.compose.foundation.BorderStroke
@@ -163,26 +166,57 @@ private fun FolderMenu(name: String, enabled: Boolean, onCheck: () -> Unit, onRe
     }
 }
 
-/** Overlapping square covers; each new one pops in as a scan finds it. */
+/**
+ * Overlapping square covers; each new one pops in as a scan finds it. Tapping "+N" spreads the covers apart
+ * and the rest pop in after them, row by row, while the card grows; "Less" folds them back.
+ */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 private fun CoverStrip(covers: List<Book>, count: Int) {
     val surface = MaterialTheme.colorScheme.surface
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    val canExpand = covers.size > STRIP
+    LaunchedEffect(canExpand) { if (!canExpand) expanded = false }
+    val spread by animateFloatAsState(if (expanded) 1f else 0f, spring(dampingRatio = .85f, stiffness = 380f), label = "Spread covers")
+    val shown = if (expanded) covers else covers.take(STRIP)
     val extra = count - covers.take(STRIP).size
-    Row(Modifier.semantics { contentDescription = "$count books" }) {
-        covers.take(STRIP).forEachIndexed { index, book ->
+    val tile = Modifier.size(56.dp)
+    // Each cover reports itself 20dp narrower when folded, so the next one sits over it (12dp overlap after the 8dp gap).
+    fun Modifier.overlap(): Modifier = layout { m, c ->
+        val p = m.measure(c)
+        val w = (p.width - 20.dp.toPx() * (1f - spread)).toInt()
+        layout(w, p.height) { p.place(0, 0) }
+    }
+    androidx.compose.foundation.layout.FlowRow(
+        Modifier.fillMaxWidth().animateContentSize(spring(dampingRatio = .9f, stiffness = 320f))
+            .semantics { contentDescription = "$count books" },
+        horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        shown.forEachIndexed { index, book ->
             key(book.id) {
-                // Starts hidden and shows on the first frame, so a cover found by a running scan pops in.
+                // Starts hidden and shows on the first frame, so a cover found by a scan, or revealed by "+N", pops in.
                 val seen = remember { MutableTransitionState(false).apply { targetState = true } }
-                AnimatedVisibility(seen, enter = fadeIn() + scaleIn(spring(dampingRatio = Spring.DampingRatioMediumBouncy), initialScale = .6f),
-                    modifier = Modifier.offset(x = (-12 * index).dp)) {
+                val delay = if (index < STRIP) 0 else 40 + 22 * (index - STRIP).coerceAtMost(20)
+                AnimatedVisibility(seen, Modifier.overlap(),
+                    enter = fadeIn(tween(200, delay)) + scaleIn(spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = 500f), initialScale = .6f)) {
                     Surface(shape = RoundedCornerShape(12.dp), border = BorderStroke(2.dp, surface)) {
                         BookCover(book, Modifier.size(52.dp), showTitle = false)
                     }
                 }
             }
         }
-        if (extra > 0) Surface(Modifier.offset(x = (-12 * covers.take(STRIP).size).dp).size(56.dp), shape = RoundedCornerShape(12.dp),
-            color = MaterialTheme.colorScheme.primaryContainer, border = BorderStroke(2.dp, surface)) {
+        if (extra > 0 && canExpand || expanded) key(if (expanded) "less" else "more") {
+            val seen = remember { MutableTransitionState(false).apply { targetState = true } }
+            AnimatedVisibility(seen, enter = fadeIn(tween(180, if (expanded) 40 + 22 * (covers.size - STRIP).coerceAtMost(20) else 0)) + scaleIn(initialScale = .8f)) {
+                Surface(onClick = { expanded = !expanded }, modifier = tile.testTag(if (expanded) "folder_covers_less" else "folder_covers_more"),
+                    shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.primaryContainer, border = BorderStroke(2.dp, surface)) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(if (expanded) "Less" else "+$extra", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.semantics { contentDescription = if (expanded) "Show fewer books" else "Show all $count books" })
+                    }
+                }
+            }
+        } else if (extra > 0) Surface(tile, shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.primaryContainer, border = BorderStroke(2.dp, surface)) {
             Box(contentAlignment = Alignment.Center) {
                 Text("+$extra", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
             }
