@@ -3,17 +3,27 @@ package com.example.readalong.ui.importing
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.readalong.data.importing.FolderMode
+import com.example.readalong.data.importing.PreviewBook
 
 /**
  * Add audiobooks: one folder picker for a single book or a whole library. The folder is looked at
@@ -49,39 +59,87 @@ fun AddPreviewDialog(model: ImportViewModel, origin: String, onAdded: () -> Unit
         return
     }
     val count = shown.books.size
-    val title = if (mode == FolderMode.LIBRARY) "$count audiobooks found" else "1 audiobook found"
-    com.example.readalong.ui.components.IllustratedDialog(title, model::dismissPreview, actions = {
-        TextButton(onClick = model::dismissPreview) { Text("Cancel") }
-        Button(onClick = { model.confirmPreview(mode, restore); onAdded() }, enabled = deleted == 0 || restore || !everythingDeleted,
-            modifier = Modifier.testTag("confirm_add")) {
-            Text(if (mode == FolderMode.LIBRARY) "Add $count books" else "Add book")
+    val library = mode == FolderMode.LIBRARY
+    val title = if (library) "$count audiobooks found" else "1 audiobook found"
+    com.example.readalong.ui.components.IllustratedDialog(title, model::dismissPreview, centered = true, actions = {}) {
+        Text("in your \u201c${shown.name}\u201d folder", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.offset(y = (-10).dp))
+        if (library) PreviewGrid(shown.books)
+        else {
+            // One book: a square cover placeholder with its name, like the library's covers.
+            val name = if (count == 1) shown.books.first().name else shown.name
+            PreviewTile(name, 0, Modifier.size(176.dp), large = true)
+            Text(name, style = MaterialTheme.typography.titleLarge, textAlign = TextAlign.Center)
+            if (count >= 2) Text("All $count folders' audio is played as one audiobook, in order.", style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
         }
-    }) {
-        Text("In \"${shown.name}\"", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        if (count >= 2) SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-            SegmentedButton(mode == FolderMode.LIBRARY, { mode = FolderMode.LIBRARY }, SegmentedButtonDefaults.itemShape(0, 2), Modifier.testTag("as_library")) { Text("$count separate books") }
-            SegmentedButton(mode == FolderMode.ONE_BOOK, { mode = FolderMode.ONE_BOOK }, SegmentedButtonDefaults.itemShape(1, 2), Modifier.testTag("as_one_book")) { Text("One book") }
-        }
-        if (mode == FolderMode.LIBRARY) {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                shown.books.take(6).forEach { book ->
-                    Text("• ${book.name}" + if (book.deleted) " (deleted earlier)" else "", style = MaterialTheme.typography.bodyLarge,
-                        color = if (book.deleted) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface)
-                }
-                if (count > 6) Text("and ${count - 6} more", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        // Only when something here was deleted earlier, naming what comes back.
+        if (deleted > 0) {
+            val names = if (library) shown.books.filter { it.deleted }.map { it.name } else listOf(if (count == 1) shown.books.first().name else shown.name)
+            val label = when {
+                names.size == 1 -> "Bring back ${names[0]} (you deleted it earlier)"
+                names.size <= 3 -> "Bring back ${names.dropLast(1).joinToString(", ")} and ${names.last()} (you deleted them earlier)"
+                else -> "Bring back the ${names.size} books you deleted earlier"
             }
-            Text("ReadAlong will also check this folder for new books each time you come back.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        } else {
-            Text(if (count >= 2) "All $count folders' audio is played as one audiobook, in order." else "Its audio files are played as one audiobook, in order.",
-                style = MaterialTheme.typography.bodyLarge)
+            Row(Modifier.fillMaxWidth().heightIn(min = 44.dp).toggleable(restore, role = Role.Checkbox) { restore = it }.testTag("restore_deleted"),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+                Checkbox(restore, null)
+                Spacer(Modifier.width(8.dp))
+                Text(label, style = MaterialTheme.typography.bodyLarge)
+            }
         }
-        if (deleted > 0) Row(Modifier.fillMaxWidth().toggleable(restore, role = Role.Checkbox) { restore = it }.testTag("restore_deleted"),
-            verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(restore, null)
-            Spacer(Modifier.width(8.dp))
-            Text(if (mode == FolderMode.LIBRARY) "Bring back the $deleted you deleted earlier" else "Bring back this book you deleted earlier",
-                style = MaterialTheme.typography.bodyLarge)
+        Button(onClick = { model.confirmPreview(mode, restore); onAdded() }, enabled = deleted == 0 || restore || !everythingDeleted,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).testTag("confirm_add"), shape = RoundedCornerShape(28.dp)) {
+            Text(if (library) "Add $count books" else "Add book", style = MaterialTheme.typography.titleMedium)
+        }
+        when {
+            library -> TextButton(onClick = { mode = FolderMode.ONE_BOOK }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("as_one_book")) { Text("It's really one book") }
+            count >= 2 -> TextButton(onClick = { mode = FolderMode.LIBRARY }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("as_library")) { Text("They're $count separate books") }
+            else -> TextButton(onClick = model::dismissPreview, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("Cancel") }
+        }
+        if (library) Text("ReadAlong will keep checking this folder for new books.", style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+    }
+}
+
+/** Up to 12 square tiles: 5 at first and a "+N" tile that opens out to the rest (11 books and "+N more, added too"). */
+@Composable
+private fun PreviewGrid(books: List<PreviewBook>) {
+    var open by rememberSaveable { mutableStateOf(false) }
+    val first = if (books.size <= 6) books.size else 5
+    val shown = if (open) books.take(if (books.size <= 12) books.size else 11) else books.take(first)
+    val rest = books.size - shown.size
+    val tiles: List<Pair<String, (() -> Unit)?>> = shown.map { (it.name + if (it.deleted) " (deleted earlier)" else "") to null } +
+        (if (rest > 0) listOf((if (open) "more, added too" else "more") to (if (open) null else ({ open = true }))) else emptyList())
+    Column(Modifier.fillMaxWidth().animateContentSize(androidx.compose.animation.core.tween(560, easing = androidx.compose.animation.core.CubicBezierEasing(.2f, .8f, .2f, 1f))),
+        verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        tiles.chunked(3).forEachIndexed { row, items ->
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                items.forEachIndexed { col, (label, onClick) ->
+                    val index = row * 3 + col
+                    val more = index >= shown.size
+                    val deleted = !more && shown[index].deleted
+                    Column(Modifier.weight(1f).then(if (onClick != null) Modifier.clickable(onClickLabel = "Show all ${books.size} books", onClick = onClick) else Modifier),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        if (more) Box(Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(10.dp)).background(MaterialTheme.colorScheme.primaryContainer), contentAlignment = Alignment.Center) {
+                            Text("+$rest", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                        } else PreviewTile(shown[index].name, index, Modifier.fillMaxWidth().alpha(if (deleted) .45f else 1f))
+                        Text(label, style = MaterialTheme.typography.labelMedium, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                            color = if (deleted) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface)
+                    }
+                }
+                repeat(3 - items.size) { Spacer(Modifier.weight(1f)) }
+            }
         }
     }
 }
 
+/** A square placeholder cover in one of the accent's shades, with the title's first letter. */
+@Composable
+private fun PreviewTile(name: String, index: Int, modifier: Modifier, large: Boolean = false) {
+    val colors = MaterialTheme.colorScheme
+    val shade = androidx.compose.ui.graphics.lerp(colors.primary, colors.background, listOf(0f, .3f, .15f, .5f, .22f)[index % 5])
+    Box(modifier.aspectRatio(1f).clip(RoundedCornerShape(if (large) 14.dp else 10.dp)).background(shade), contentAlignment = Alignment.Center) {
+        Text(name.trim().take(1).uppercase(), color = colors.onPrimary, style = if (large) MaterialTheme.typography.displayMedium else MaterialTheme.typography.titleLarge)
+    }
+}

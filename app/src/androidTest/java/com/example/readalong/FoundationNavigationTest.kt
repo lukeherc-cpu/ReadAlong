@@ -75,9 +75,14 @@ class FoundationNavigationTest {
         compose.onNodeWithText("Transcription queue").assertDoesNotExist()
         compose.onNodeWithContentDescription("Audiobook folders").assertIsDisplayed()
         compose.onNodeWithContentDescription("Add audiobook").performClick()
-        compose.onNodeWithText("Add audiobooks").assertIsDisplayed()
+        compose.onNodeWithText("Add audiobook").assertIsDisplayed()
+        compose.onNodeWithText("Add one book").assertIsDisplayed()
         compose.onNodeWithText("Add audio file").assertIsDisplayed()
-        compose.onNodeWithText("Cancel").performClick()
+        compose.onNodeWithText("Import from Audible").assertIsDisplayed()
+        compose.onNodeWithText("Manage library folders").assertIsDisplayed()
+        // The sheet has no Cancel: Back (or a tap outside) closes it.
+        androidx.test.espresso.Espresso.pressBack()
+        compose.waitUntil(5000) { compose.onAllNodesWithText("Add one book").fetchSemanticsNodes().isEmpty() }
         compose.onNodeWithTag("library_grid").performScrollToNode(hasTestTag("book:demo-night-orchard"))
         compose.onNodeWithTag("book:demo-night-orchard").performTouchInput { longClick() }
         val order = listOf("Title", "Author", "Cover from file system", "Cover from internet", "Mark as not started", "Mark as finished", "Delete book")
