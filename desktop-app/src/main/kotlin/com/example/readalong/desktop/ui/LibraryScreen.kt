@@ -23,6 +23,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.key.*
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.style.TextOverflow
@@ -48,31 +49,30 @@ fun LibraryScreen(app: AppState) {
     val groups = remember(books, query, sort) { libraryGroups(books.map { it.asBook() }, query, sort) }
 
     Column(Modifier.fillMaxSize()) {
-        // Header: the phone's layout, spread across a window.
-        Row(Modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = 18.dp), verticalAlignment = Alignment.CenterVertically) {
-            // As on the phone, the logo is the queue button and turns its pages while there is work.
-            QueueLogo(scanning = scan.running && !scan.adding, readingFolder = scan.running && scan.adding,
-                transcribing = job?.phase == "Transcribing", queued = queue.size, onClick = { app.open(Screen.Queue) })
-            Spacer(Modifier.width(6.dp))
-            Text("ReadAlong", style = MaterialTheme.typography.headlineSmall)
-            Spacer(Modifier.width(28.dp))
-            SearchField(query, { query = it }, searching, { searching = it }, Modifier.weight(1f).widthIn(max = 520.dp))
-            Spacer(Modifier.weight(.01f))
-            AnimatedVisibility(scan.running, enter = fadeIn(), exit = fadeOut()) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(end = 12.dp)) {
-                    CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-                    Spacer(Modifier.width(8.dp))
-                    Text(scan.label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1,
-                        overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 260.dp))
+        // Header: the phone's top bar, icon for icon. Settings and library folders on the left, the logo (which is
+        // the queue button and turns its pages while there is work) in the middle, search and add on the right.
+        Column(Modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.primary) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    AppIconButton("ic_settings", "Settings", { app.open(Screen.Settings) })
+                    FoldersButton(app)
+                    Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                        QueueLogo(scanning = scan.running && !scan.adding, readingFolder = scan.running && scan.adding,
+                            transcribing = job?.phase == "Transcribing", queued = queue.size, onClick = { app.open(Screen.Queue) }, size = 52.dp)
+                    }
+                    AppIconButton("ic_search", "Search library", { searching = !searching; if (!searching) query = "" })
+                    AddBookButton(app)
                 }
             }
-            AppIconButton("ic_sort", if (sort == LibrarySort.RECENT) "Sorted by recent. Sort by title" else "Sorted by title. Sort by recent",
-                { sort = if (sort == LibrarySort.RECENT) LibrarySort.TITLE else LibrarySort.RECENT })
-            AppIconButton("ic_settings", "Settings", { app.open(Screen.Settings) })
-            Spacer(Modifier.width(8.dp))
-            PillButton("Audible", { app.open(Screen.Audible) }, icon = "ic_book_add", filled = false)
-            Spacer(Modifier.width(8.dp))
-            PillButton("Add books", { chooseFolder()?.let { app.addPaths(listOf(it)) } }, icon = "ic_add")
+            AnimatedVisibility(searching && books.isNotEmpty(), enter = expandVertically(tween(220)) + fadeIn(tween(220)), exit = shrinkVertically(tween(180)) + fadeOut(tween(140))) {
+                SearchField(query, { query = it }, onClose = { searching = false; query = "" }, Modifier.fillMaxWidth())
+            }
+            AnimatedVisibility(scan.running, enter = fadeIn(), exit = fadeOut()) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    LinearProgressIndicator(Modifier.fillMaxWidth())
+                    Text(scan.label, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
         }
         if (books.isEmpty()) { EmptyLibrary(app, scan.running); return@Column }
         val grid = rememberLazyGridState()
@@ -85,7 +85,10 @@ fun LibraryScreen(app: AppState) {
                 groups.forEach { group ->
                     item(key = "section:${group.section}", span = { GridItemSpan(maxLineSpan) }) {
                         SectionTitle(when (group.section) { LibrarySection.CURRENT -> "Current"; LibrarySection.NOT_STARTED -> "Not started"; LibrarySection.FINISHED -> "Finished" },
-                            Modifier.animateItem())
+                            Modifier.animateItem()) {
+                            if (group == groups.first()) SortButton(sort) { sort = it }
+                            else Text(group.books.size.toString(), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
+                        }
                     }
                     items(group.books, key = { it.id }) { item ->
                         val book = byId[item.id] ?: return@items
@@ -99,23 +102,81 @@ fun LibraryScreen(app: AppState) {
     }
 }
 
+/** The phone's search field: accent outline, focused as soon as it opens, closed with its X or Esc. */
 @Composable
-private fun SearchField(query: String, onQuery: (String) -> Unit, expanded: Boolean, onExpanded: (Boolean) -> Unit, modifier: Modifier) {
+private fun SearchField(query: String, onQuery: (String) -> Unit, onClose: () -> Unit, modifier: Modifier) {
     val focus = remember { FocusRequester() }
-    val interaction = remember { MutableInteractionSource() }
-    val hovered by interaction.collectIsHoveredAsState()
-    val background by animateColorAsState(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = if (hovered || expanded || query.isNotEmpty()) 1f else .6f))
-    Row(modifier.height(44.dp).clip(CircleShape).background(background).hoverable(interaction)
-        .clickable(interaction, null) { onExpanded(true); runCatching { focus.requestFocus() } }.padding(horizontal = 16.dp),
+    LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
+    Row(modifier.height(48.dp).clip(CircleShape).border(1.5.dp, MaterialTheme.colorScheme.primary, CircleShape)
+        .background(MaterialTheme.colorScheme.surfaceContainerHigh).padding(start = 16.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically) {
-        Icon(AppIcons.get("ic_search"), null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        Icon(AppIcons.get("ic_search"), null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
         Spacer(Modifier.width(10.dp))
         Box(Modifier.weight(1f)) {
             if (query.isEmpty()) Text("Search by title or author", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .7f), style = MaterialTheme.typography.bodyMedium)
-            BasicTextField(query, onQuery, Modifier.fillMaxWidth().focusRequester(focus), singleLine = true,
+            BasicTextField(query, onQuery, Modifier.fillMaxWidth().focusRequester(focus).onPreviewKeyEvent { event ->
+                    if (event.key == Key.Escape && event.type == KeyEventType.KeyDown) { onClose(); true } else false
+                }, singleLine = true,
                 textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurface), cursorBrush = SolidColor(MaterialTheme.colorScheme.primary))
         }
-        if (query.isNotEmpty()) AppIconButton("ic_back", "Clear search", { onQuery(""); onExpanded(false) }, size = 28.dp, iconSize = 16.dp)
+        IconButton(onClose, Modifier.size(40.dp).pointerHoverIcon(PointerIcon.Hand)) {
+            Icon(androidx.compose.material.icons.Icons.Rounded.Close, "Close search", Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+/** The phone's shelf button: the library folders, with adding one, Audible and a rescan underneath. */
+@Composable
+private fun FoldersButton(app: AppState) {
+    val folders by app.library.folders.collectAsState()
+    var open by remember { mutableStateOf(false) }
+    Box {
+        AppIconButton("ic_bookshelf", "Audiobook folders", { open = true })
+        DropdownMenu(open, { open = false }) {
+            Text("Library folders", Modifier.padding(horizontal = 16.dp, vertical = 8.dp), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (folders.isEmpty()) Text("No folders yet.", Modifier.padding(horizontal = 16.dp, vertical = 6.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            folders.forEach { folder ->
+                DropdownMenuItem({ Text(File(folder).name.ifEmpty { folder }, maxLines = 1, overflow = TextOverflow.Ellipsis) }, { open = false; runCatching { Desktop.getDesktop().open(File(folder)) } },
+                    leadingIcon = { Icon(AppIcons.get("ic_folder"), null, Modifier.size(18.dp)) })
+            }
+            HorizontalDivider(Modifier.padding(vertical = 4.dp))
+            DropdownMenuItem({ Text("Add library folder") }, { open = false; chooseFolder("Choose a folder of audiobooks")?.let { app.addPaths(listOf(it)) } },
+                leadingIcon = { Icon(AppIcons.get("ic_add"), null, Modifier.size(18.dp)) })
+            DropdownMenuItem({ Text("Import from Audible") }, { open = false; app.open(Screen.Audible) },
+                leadingIcon = { Icon(AppIcons.get("ic_book_add"), null, Modifier.size(18.dp)) })
+            DropdownMenuItem({ Text("Check for new books") }, { open = false; app.scope.launch { runCatching { app.importer.rescan() } } },
+                leadingIcon = { Icon(AppIcons.get("ic_redo"), null, Modifier.size(18.dp)) })
+        }
+    }
+}
+
+/** The phone's + button: one audiobook from a folder or a single file. */
+@Composable
+private fun AddBookButton(app: AppState) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        AppIconButton("ic_add", "Add a new audiobook", { open = true })
+        DropdownMenu(open, { open = false }) {
+            DropdownMenuItem({ Text("Choose audiobook folder") }, { open = false; chooseFolder("Choose a folder with one audiobook's files")?.let { app.addPaths(listOf(it)) } },
+                leadingIcon = { Icon(AppIcons.get("ic_folder"), null, Modifier.size(18.dp)) })
+            DropdownMenuItem({ Text("Add audio file") }, { open = false; chooseAudioFile()?.let { app.addPaths(listOf(it)) } },
+                leadingIcon = { Icon(AppIcons.get("ic_play"), null, Modifier.size(18.dp)) })
+        }
+    }
+}
+
+/** The phone's sort button, at the end of the first section's heading. */
+@Composable
+private fun SortButton(sort: LibrarySort, onSort: (LibrarySort) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        AppIconButton("ic_sort", "Sort", { open = true }, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        DropdownMenu(open, { open = false }) {
+            listOf(LibrarySort.RECENT to "Recently played", LibrarySort.TITLE to "Title").forEach { (choice, label) ->
+                DropdownMenuItem({ Text(label) }, { onSort(choice); open = false },
+                    trailingIcon = { if (choice == sort) Icon(androidx.compose.material.icons.Icons.Rounded.Check, "Selected", Modifier.size(18.dp)) })
+            }
+        }
     }
 }
 
