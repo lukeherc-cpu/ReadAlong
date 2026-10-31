@@ -49,6 +49,9 @@ import kotlinx.coroutines.delay
 @Composable
 fun WelcomeScreen(model: ImportViewModel, onDone: () -> Unit) {
     var step by rememberSaveable { mutableIntStateOf(0) }
+    // Import from Audible goes straight to its sign-in, with no page in between.
+    var audible by rememberSaveable { mutableStateOf(false) }
+    val addFromAudible = rememberAddAudiobooks(model, "welcome_audible", onDone)
     BackHandler(enabled = step != 0) { step = 0 }
     Surface(Modifier.fillMaxSize().testTag("welcome"), color = MaterialTheme.colorScheme.background) {
         AnimatedContent(step, transitionSpec = {
@@ -58,13 +61,13 @@ fun WelcomeScreen(model: ImportViewModel, onDone: () -> Unit) {
         }, label = "Welcome step") { shown ->
             Box(Modifier.fillMaxSize().systemBarsPadding()) {
                 when (shown) {
-                    0 -> WelcomeChoose(onLocal = { step = 1 }, onAudible = { step = 2 }, onSkip = onDone)
-                    1 -> WelcomeLocal(model, onDone, onBack = { step = 0 })
-                    else -> WelcomeAudible(model, onDone, onBack = { step = 0 })
+                    0 -> WelcomeChoose(onLocal = { step = 1 }, onAudible = { audible = true }, onSkip = onDone)
+                    else -> WelcomeLocal(model, onDone, onBack = { step = 0 })
                 }
             }
         }
     }
+    if (audible) com.example.readalong.ui.audible.AudibleImportEntry(onChooseFolder = { audible = false; addFromAudible() }, onDismiss = { audible = false })
 }
 
 private val WelcomeEasing = androidx.compose.animation.core.CubicBezierEasing(.2f, .8f, .2f, 1f)
@@ -174,28 +177,6 @@ private fun WelcomeLocal(model: ImportViewModel, onDone: () -> Unit, onBack: () 
         }
         WelcomeStatus(model)
     }
-}
-
-@Composable
-private fun WelcomeAudible(model: ImportViewModel, onDone: () -> Unit, onBack: () -> Unit) {
-    val busy by model.busy.collectAsStateWithLifecycle()
-    var steps by rememberSaveable { mutableStateOf(false) }
-    val add = rememberAddAudiobooks(model, "sources", onDone)
-    CenteredPage(onBack) {
-        WelcomeLogo()
-        Text("Import from Audible", style = MaterialTheme.typography.headlineSmall, textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.semantics { heading() })
-        Text("Audible books need converting before ReadAlong can play them. We'll walk you through it, then you pick the folder they were saved to.",
-            style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-            modifier = Modifier.widthIn(max = 320.dp).padding(bottom = 12.dp))
-        Button(onClick = { steps = true }, enabled = !busy, modifier = Modifier.fillMaxWidth().heightIn(min = 60.dp), shape = RoundedCornerShape(30.dp)) {
-            Text("Show me how", style = MaterialTheme.typography.titleMedium)
-        }
-        FilledTonalButton(onClick = add, enabled = !busy, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp), shape = RoundedCornerShape(28.dp)) {
-            Text("I've converted them, choose folder")
-        }
-        WelcomeStatus(model)
-    }
-    if (steps) com.example.readalong.ui.audible.AudibleImportEntry(onChooseFolder = { steps = false; add() }, onDismiss = { steps = false })
 }
 
 /** A child of [FillingColumn] that grows into spare height, by [weight], up to [max]. */
