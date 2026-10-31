@@ -23,6 +23,12 @@ import java.security.MessageDigest
 import kotlin.coroutines.coroutineContext
 
 enum class FolderMode { ONE_BOOK, LIBRARY }
+/** One book found by [AudioImporter.preview]; [deleted] when it was deleted from ReadAlong earlier. */
+data class PreviewBook(val name: String, val deleted: Boolean)
+/** What a chosen folder holds, shown before it is added. */
+data class FolderPreview(val uri: Uri, val name: String, val books: List<PreviewBook>, val suggested: FolderMode, val deletedAsOneBook: Boolean, val emptyMessage: String?) {
+    val deletedBooks get() = books.count { it.deleted }
+}
 data class ImportResult(val bookIds: List<String>, val message: String, val newBookIds: List<String> = emptyList())
 
 /** Saved on a folder while it is scanned; it stays only if the scan was cut short. */
@@ -68,11 +74,43 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
         ImportResult(listOf(id), "Audiobook added. Open it to listen.", if (added) listOf(id) else emptyList())
     }
 
-    suspend fun addFolder(uri: Uri, mode: FolderMode, persistAccess: Boolean = true): ImportResult = withContext(Dispatchers.IO) {
+    /**
+     * [restoreDeleted]: the person chose this folder themselves, so books in it they deleted earlier
+     * come back. Choosing a folder in the other mode than it was saved with replaces its books, e.g.
+     * a whole library that was added by mistake as one book is split into its books.
+     */
+    suspend fun addFolder(uri: Uri, mode: FolderMode, persistAccess: Boolean = true, restoreDeleted: Boolean = mode == FolderMode.ONE_BOOK): ImportResult = withContext(Dispatchers.IO) {
         if (persistAccess) persist(uri)
         val root = requireNotNull(DocumentFile.fromTreeUri(context, uri)) { "Couldn't open this folder." }
-        media.putFolder(FolderEntity(uri.toString(), root.name ?: "Audiobooks", mode.name, null, SCAN_INCOMPLETE))
-        folderLock.withLock { scanLocked(uri, explicit = mode == FolderMode.ONE_BOOK) }
+        folderLock.withLock {
+            media.folder(uri.toString())?.takeIf { it.mode != mode.name }?.let { dropFolderBooks(it.uri) }
+            media.putFolder(FolderEntity(uri.toString(), root.name ?: "Audiobooks", mode.name, null, SCAN_INCOMPLETE))
+            scanLocked(uri, explicit = restoreDeleted)
+        }
+    }
+
+    /**
+     * Looks inside a folder before it is added, for the Add audiobooks preview: the books a library
+     * scan would find, whether it looks like one book or a library, and which books were deleted earlier.
+     */
+    suspend fun preview(uri: Uri): FolderPreview = withContext(Dispatchers.IO) {
+        val root = requireNotNull(DocumentFile.fromTreeUri(context, uri)) { "Couldn't open this folder." }
+        check(root.exists() && root.canRead()) { "Couldn't read this folder. Choose it again." }
+        val walk = Walk()
+        val groups = libraryGroups(root, walk).filter { it.found.audio.isNotEmpty() }
+        val name = root.name ?: "Audiobooks"
+        val children = walk.list(root)
+        val looseAudio = children.any { it.isFile && supported(it.name.orEmpty()) }
+        val directories = children.filter { it.isDirectory }
+        // "CD1", "CD2" folders straight inside: one book in parts. "Chapter 01", "Chapter 02" (names
+        // that differ only by their numbers) too. Either guess can be switched in the preview.
+        val discs = !looseAudio && directories.isNotEmpty() && directories.all { DISC.matches(it.name.orEmpty()) }
+        val numbered = groups.size >= 2 && groups.map { it.name.orEmpty().replace(Regex("\\d+"), "").trim().lowercase() }.distinct().size == 1
+        val suggested = if (groups.size >= 2 && !discs && !numbered) FolderMode.LIBRARY else FolderMode.ONE_BOOK
+        val found = groups.map { group -> PreviewBook(group.name ?: "Audiobook", LibraryExclusions.excluded(books, group.key, group.found.audio.map { it.uri })) }
+        FolderPreview(uri, name, found, suggested,
+            deletedAsOneBook = groups.isNotEmpty() && LibraryExclusions.excluded(books, "folder:${root.uri}", groups.flatMap { g -> g.found.audio.map { it.uri } }),
+            emptyMessage = if (groups.isEmpty()) walk.nothingFound(name) + walk.problemNote() else null)
     }
 
     suspend fun rescanSavedFolders(onFolder: (FolderEntity?) -> Unit = {}) = withContext(Dispatchers.IO) {
@@ -146,7 +184,12 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
             }
             // Missing or unreadable groups retain their metadata, progress, and future reading data.
             media.folderBooks(uri.toString()).filter { it !in ids }.forEach { media.mediaState(it, "MISSING") }
-            val message = (if (ids.isEmpty() && failures == 0 && deleted > 0) "No new audiobooks: the $deleted here were deleted from ReadAlong earlier. Add one again with Choose audiobook folder."
+            // A one-book folder whose book was deleted (saved before deleting a book also forgot its folder): forget it now.
+            if (!explicit && saved.mode == FolderMode.ONE_BOOK.name && ids.isEmpty() && failures == 0 && deleted > 0 && media.folderBooks(uri.toString()).isEmpty()) {
+                media.removeFolder(uri.toString())
+                return@withContext ImportResult(emptyList(), "This audiobook was deleted from ReadAlong earlier.")
+            }
+            val message = (if (ids.isEmpty() && failures == 0 && deleted > 0) "No new audiobooks: the $deleted here were deleted from ReadAlong earlier. To bring them back, add this folder again with Add audiobooks."
                 else if (ids.isEmpty() && failures == 0) walk.nothingFound(root.name ?: "this folder") else "${ids.size} audiobook(s) scanned.") + walk.problemNote() +
                 (if (transcriptFailures > 0) " $transcriptFailures companion transcript(s) couldn't be imported. Check that the audio files match." else "")
             // An empty result stays on the folders screen too: the status line only shows for a few seconds.
@@ -164,19 +207,24 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
     suspend fun removeFolder(folder: FolderEntity) = withContext(Dispatchers.IO) {
         folderLock.lock()
         try {
-            val app = (context.applicationContext as? com.example.readalong.ReadAlongApplication)?.takeIf { it.database === database }
-            val actions = com.example.readalong.data.book.BookActionsRepository(context, database)
-            for (id in media.folderBooks(folder.uri)) {
-                app?.processing?.cancel(id)
-                app?.playback?.releaseBook(id)
-                app?.importedEpub?.remove(id)
-                actions.delete(id, excludeFromScans = false)
-                context.getSystemService(android.app.NotificationManager::class.java).cancel(com.example.readalong.data.transcription.TranscriptionNotifications.notificationId(id))
-            }
+            dropFolderBooks(folder.uri)
             media.removeFolder(folder.uri)
             try { resolver.releasePersistableUriPermission(Uri.parse(folder.uri), Intent.FLAG_GRANT_READ_URI_PERMISSION) }
             catch (_: SecurityException) { /* Access may already be revoked. */ }
         } finally { folderLock.unlock() }
+    }
+
+    /** Takes a folder's books out of the library without marking them deleted. Hold [folderLock]. */
+    private suspend fun dropFolderBooks(folderUri: String) {
+        val app = (context.applicationContext as? com.example.readalong.ReadAlongApplication)?.takeIf { it.database === database }
+        val actions = com.example.readalong.data.book.BookActionsRepository(context, database)
+        for (id in media.folderBooks(folderUri)) {
+            app?.processing?.cancel(id)
+            app?.playback?.releaseBook(id)
+            app?.importedEpub?.remove(id)
+            actions.delete(id, excludeFromScans = false)
+            context.getSystemService(android.app.NotificationManager::class.java).cancel(com.example.readalong.data.transcription.TranscriptionNotifications.notificationId(id))
+        }
     }
 
     private data class Source(val uri: Uri, val name: String, val orderingName: String = name)

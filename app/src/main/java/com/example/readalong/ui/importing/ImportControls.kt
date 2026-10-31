@@ -28,7 +28,7 @@ fun ImportControls(model: ImportViewModel, onFolders: () -> Unit, onBook: (Strin
     val addedBook by model.addedBook.collectAsStateWithLifecycle()
     val priority by model.priority.collectAsStateWithLifecycle()
     val epubUploaded by model.epubUploaded.collectAsStateWithLifecycle()
-    val folder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { it?.let { uri -> model.folder(uri, FolderMode.ONE_BOOK) } }
+    val add = rememberAddAudiobooks(model, "add_button")
     val epub = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let(model::addEpub) }
     val files = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let { uri -> model.files(listOf(uri)) } }
     IconButton(onClick = { choosing = true }, enabled = !busy) {
@@ -40,14 +40,9 @@ fun ImportControls(model: ImportViewModel, onFolders: () -> Unit, onBook: (Strin
     }) {
         // The same buttons, icons and shades as the welcome page's choices.
         val shades = sourceShades()
-        SourceButton(shades[1], com.example.readalong.R.drawable.ic_folder, "Choose audiobook folder", "A folder with one audiobook's files", true, large = true) { choosing = false; folder.launch(null) }
+        SourceButton(shades[0], com.example.readalong.R.drawable.ic_bookshelf, "Add audiobooks", "Choose a folder with one book or your whole library", true, large = true) { choosing = false; add() }
         SourceButton(shades[2], com.example.readalong.R.drawable.ic_play, "Add audio file", "One file that holds a whole audiobook", true, large = true) {
             choosing = false; files.launch(arrayOf("audio/*", "application/octet-stream", "video/mp4"))
-        }
-        // Library folders live on their own page (the shelf icon on the home page), not here.
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Icon(androidx.compose.ui.res.painterResource(com.example.readalong.R.drawable.ic_bookshelf), null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("To add a new library folder, tap the library icon at the top of the home page.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -57,10 +52,9 @@ fun FoldersScreen(model: ImportViewModel, onBack: () -> Unit) {
     val folders by model.folders.collectAsStateWithLifecycle()
     val busy by model.busy.collectAsStateWithLifecycle()
     val message by model.message.collectAsStateWithLifecycle()
-    var pendingUri by rememberSaveable { mutableStateOf<String?>(null) }
     var removing by remember { mutableStateOf<com.example.readalong.data.local.FolderEntity?>(null) }
     var audible by rememberSaveable { mutableStateOf(false) }
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri -> pendingUri = uri?.toString() }
+    val add = rememberAddAudiobooks(model, "folders")
     Scaffold { insets ->
         LazyColumn(Modifier.fillMaxSize().padding(insets), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             item { TextButton(onClick = onBack) { Text("Back to library") } }
@@ -68,7 +62,7 @@ fun FoldersScreen(model: ImportViewModel, onBack: () -> Unit) {
             item { Text("ReadAlong checks these folders for new books each time you come back. Your audio stays where it is.", style = MaterialTheme.typography.bodyLarge) }
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Button(onClick = { picker.launch(null) }, enabled = !busy) { Text("Add folder") }
+                    Button(onClick = add, enabled = !busy) { Text("Add folder") }
                     OutlinedButton(onClick = { audible = true }, enabled = !busy) { Text("Import from Audible") }
                 }
             }
@@ -91,10 +85,7 @@ fun FoldersScreen(model: ImportViewModel, onBack: () -> Unit) {
             }
         }
     }
-    pendingUri?.let { uri ->
-        LaunchedEffect(uri) { model.folder(Uri.parse(uri), FolderMode.LIBRARY); pendingUri = null }
-    }
-    if (audible) com.example.readalong.ui.audible.AudibleImportEntry(onChooseFolder = { audible = false; picker.launch(null) }, onDismiss = { audible = false })
+    if (audible) com.example.readalong.ui.audible.AudibleImportEntry(onChooseFolder = { audible = false; add() }, onDismiss = { audible = false })
     removing?.let { folder ->
         AlertDialog(onDismissRequest = { removing = null }, title = { Text("Remove this folder?") },
             text = { Text("Are you sure? Its books leave your library, along with their ReadAlongs and listening progress. The audio files stay on your phone.") },
