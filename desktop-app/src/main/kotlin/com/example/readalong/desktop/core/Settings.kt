@@ -22,6 +22,8 @@ data class AppSettings(
     val skipForwardSeconds: Int = 30,
     val volume: Float = 1f,
     val gridCovers: Boolean = true,
+    /** Run several transcribers at once (on the graphics card and the processor together) with quicker decoding, so books finish sooner. */
+    val aggressive: Boolean = true,
 )
 
 class SettingsStore(private val file: java.io.File = AppPaths.settings) {
@@ -36,7 +38,7 @@ class SettingsStore(private val file: java.io.File = AppPaths.settings) {
             file.writeAtomically(JSONObject().put("modelId", s.modelId).put("device", s.device).put("language", s.language)
                 .put("savePackages", s.savePackages).put("accent", s.accent).put("readerFont", s.readerFont).put("readerSize", s.readerSize.toDouble())
                 .put("readerTheme", s.readerTheme).put("skipBack", s.skipBackSeconds).put("skipForward", s.skipForwardSeconds)
-                .put("volume", s.volume.toDouble()).put("gridCovers", s.gridCovers).toString(1))
+                .put("volume", s.volume.toDouble()).put("gridCovers", s.gridCovers).put("aggressive", s.aggressive).toString(1))
         }
     }
 
@@ -48,7 +50,7 @@ class SettingsStore(private val file: java.io.File = AppPaths.settings) {
                 o.optString("language", d.language), o.optBoolean("savePackages", d.savePackages), o.optLong("accent", d.accent),
                 o.optString("readerFont", d.readerFont), o.optDouble("readerSize", d.readerSize.toDouble()).toFloat(),
                 o.optString("readerTheme", d.readerTheme), o.optInt("skipBack", d.skipBackSeconds), o.optInt("skipForward", d.skipForwardSeconds),
-                o.optDouble("volume", 1.0).toFloat(), o.optBoolean("gridCovers", true))
+                o.optDouble("volume", 1.0).toFloat(), o.optBoolean("gridCovers", true), o.optBoolean("aggressive", d.aggressive))
         }.getOrDefault(AppSettings())
     }
 }

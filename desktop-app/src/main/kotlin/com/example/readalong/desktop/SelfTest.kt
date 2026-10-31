@@ -5,6 +5,7 @@ import com.example.readalong.desktop.audio.AudioReader
 import com.example.readalong.desktop.core.*
 import com.example.readalong.desktop.reading.BookTextBuilder
 import com.example.readalong.desktop.transcription.*
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.bytedeco.ffmpeg.global.avutil
 import org.bytedeco.javacv.FFmpegFrameFilter
@@ -98,6 +99,35 @@ object SelfTest {
             val names = zip.entries().toList().map { it.name }
             if (names != listOf("manifest.json", "chunks.jsonl")) { log("package entries: $names"); pass = false }
             log("manifest: " + zip.getInputStream(zip.getEntry("manifest.json")).bufferedReader().readText().replace(Regex("\\s+"), " ").take(400))
+        }
+
+        // The app's own queue with aggressive transcription: three transcribers share the book, and every unit must be
+        // saved once, in book order, with the same text the single run produced.
+        val speechModel = SpeechModels.all.firstOrNull { model.name == it.fileName }
+        if (speechModel != null) {
+            System.setProperty("readalong.lanes", "3")
+            val settings = SettingsStore().apply { update { it.copy(modelId = speechModel.id, device = if (device == "gpu") "auto" else "cpu", aggressive = true, savePackages = false) } }
+            val models = ModelStore()
+            model.copyTo(models.file(speechModel).apply { parentFile.mkdirs() }, overwrite = true)
+            // A book of four copies of the test audio, so the lanes really share it (each file is a unit of its own).
+            val audio = folder.listFiles().orEmpty().filter { it.extension.lowercase() in Scanner.AUDIO }.minBy { it.name }
+            val parts = File(System.getProperty("readalong.home"), "Parallel Book").apply { mkdirs() }
+            (1..4).forEach { audio.copyTo(File(parts, "Part $it.${audio.extension}"), overwrite = true) }
+            val long = library.book(LibraryImporter(library, transcripts).add(listOf(parts), remember = false).single()) ?: error("Parallel book missing")
+            val longPlan = transcriptionPlan(long)
+            val service = TranscriptionService(scope, library, settings, transcripts, models, probe = false)
+            val started = System.nanoTime()
+            try {
+                service.enqueue(long.id)
+                kotlinx.coroutines.withTimeout(20 * 60_000L) { service.queue.first { it.isEmpty() } }
+            } finally { service.shutdown() }
+            val saved = transcripts.chunks(long.id).map { Triple(it.file, it.startMs, it.endMs) }
+            val parallelText = transcripts.segments(long).joinToString(" ") { it.text }
+            log("3 lanes: ${saved.size} of ${longPlan.size} units (${long.parts.size} files) in ${(System.nanoTime() - started) / 1_000_000} ms, complete=${transcripts.info(long.id)?.complete}" +
+                (service.errors.value[long.id]?.let { " error: $it" } ?: ""))
+            if (long.parts.size != 4 || saved != longPlan.map { Triple(it.file, it.startMs, it.endMs) } || transcripts.info(long.id)?.complete != true) { log("parallel run saved the wrong units"); pass = false }
+            if (expect != null && Regex(Regex.escape(expect), RegexOption.IGNORE_CASE).findAll(parallelText).count() < 4) { log("expected \"$expect\" once per file in the parallel text"); pass = false }
+            System.clearProperty("readalong.lanes")
         }
 
         // The player's speed change: 1.5× should turn 4 s of audio into about 2.67 s, at the same pitch.

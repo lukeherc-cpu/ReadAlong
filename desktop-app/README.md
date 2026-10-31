@@ -20,6 +20,11 @@ Windows ships as an MSI, Linux as a Flatpak, macOS as a `.dmg` for Apple silicon
   that stops responding switches the book to the CPU and keeps the progress. Models (tiny.en to
   large-v3-turbo) download from Hugging Face the first time. Tiny is the default, the smallest and quickest;
   pick a bigger one in Settings for fewer mistakes.
+- **Aggressive transcription** (Settings, on by default). Several transcriber processes share one book: two
+  on the graphics card (one computes while the other decodes text, so the card stays busy) and one on the
+  spare processor cores, or several of about six threads each without a card. Each takes about two minutes
+  of audio at a time, with greedy decoding, and results are saved in book order so stopping and resuming
+  work as before. Turned off, one transcriber runs with beam search on the GPU.
 
 ## Transcripts move between the phone and the PC
 
