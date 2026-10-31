@@ -150,6 +150,7 @@ internal fun ReadingChoice(title: String, subtitle: String, art: Int, selected: 
 /** Latest LibriSync release, the app that downloads a person's own Audible purchases to a folder. */
 private const val LIBRISYNC_RELEASES = "https://github.com/Promises/LibriSync/releases/latest"
 
+/** The LibriSync instructions. Screens open [com.example.readalong.ui.audible.AudibleImportEntry], which shows this in the Play build only. */
 @Composable
 internal fun AudibleImportDialog(onChooseFolder: () -> Unit, onDismiss: () -> Unit) {
     val links = androidx.compose.ui.platform.LocalUriHandler.current

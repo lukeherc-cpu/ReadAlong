@@ -174,7 +174,7 @@ fun AudiobookSourceButtons(model: ImportViewModel, onAdded: () -> Unit = {}, lar
     }
     if (stacked) buttons()
     else Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(if (large) 10.dp else 8.dp)) { buttons() }
-    if (audible) AudibleImportDialog(onChooseFolder = { audible = false; library.launch(null) }, onDismiss = { audible = false })
+    if (audible) com.example.readalong.ui.audible.AudibleImportEntry(onChooseFolder = { audible = false; library.launch(null) }, onDismiss = { audible = false })
 }
 
 @Composable
