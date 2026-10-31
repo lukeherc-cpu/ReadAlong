@@ -27,7 +27,7 @@ import com.example.readalong.domain.reading.sentenceCues
 import com.example.readalong.domain.reading.activeSentenceIndex
 import com.example.readalong.playback.PlaybackState
 
-internal const val NotStartedMessage = "Text isn't available at this position yet. You can begin transcribing the text by pressing the Make a ReadAlong button at the bottom of the player. You can check on the progress of the transcript by tapping the book logo on the home page.\n\nYou can keep listening."
+internal const val NotStartedMessage = "Text isn't available at this position yet. You can make one from the back of the book's cover in the player. You can check on the progress of the transcript by tapping the book logo on the home page.\n\nYou can keep listening."
 
 internal fun displayedPassages(passages: List<TranscriptSegment>): List<TranscriptSegment> = when {
     passages.any { it.imported } -> passages.filter { it.imported }
