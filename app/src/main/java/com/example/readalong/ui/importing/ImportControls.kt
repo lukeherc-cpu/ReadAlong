@@ -10,6 +10,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.role
@@ -31,20 +32,30 @@ fun ImportControls(model: ImportViewModel, onFolders: () -> Unit, onBook: (Strin
     val add = rememberAddAudiobooks(model, "add_button")
     val epub = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let(model::addEpub) }
     val files = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let { uri -> model.files(listOf(uri)) } }
+    var audible by rememberSaveable { mutableStateOf(false) }
     IconButton(onClick = { choosing = true }, enabled = !busy) {
-        Icon(androidx.compose.ui.res.painterResource(com.example.readalong.R.drawable.ic_add), "Add a new audiobook")
+        Icon(androidx.compose.ui.res.painterResource(com.example.readalong.R.drawable.ic_add), "Add audiobook")
     }
 
-    if (choosing) com.example.readalong.ui.components.IllustratedDialog("Add a new audiobook", { choosing = false }, actions = {
-        TextButton(onClick = { choosing = false }) { Text("Cancel") }
-    }) {
-        // The same buttons, icons and shades as the welcome page's choices.
+    // Closed by tapping outside or swiping down: no Cancel button.
+    if (choosing) com.example.readalong.ui.components.IllustratedDialog("Add audiobook", { choosing = false }, centered = true, actions = {}) {
+        // The same shades as the welcome page's choices, darkest first.
         val shades = sourceShades()
-        SourceButton(shades[0], com.example.readalong.R.drawable.ic_bookshelf, "Add audiobooks", "Choose a folder with one book or your whole library", true, large = true) { choosing = false; add() }
-        SourceButton(shades[2], com.example.readalong.R.drawable.ic_play, "Add audio file", "One file that holds a whole audiobook", true, large = true) {
+        SourceButton(shades[0], com.example.readalong.R.drawable.ic_bookshelf, "Add one book", null, true,
+            Modifier.heightIn(min = 96.dp).testTag("add_one_book"), large = true, hero = true) { choosing = false; add() }
+        SourceButton(shades[1], com.example.readalong.R.drawable.ic_play, "Add audio file", null, true, Modifier.heightIn(min = 64.dp), large = true) {
             choosing = false; files.launch(arrayOf("audio/*", "application/octet-stream", "video/mp4"))
         }
+        SourceButton(shades[2], com.example.readalong.R.drawable.ic_headphones, "Import from Audible", null, true, Modifier.heightIn(min = 64.dp), large = true) {
+            choosing = false; audible = true
+        }
+        TextButton(onClick = { choosing = false; onFolders() }, modifier = Modifier.heightIn(min = 44.dp)) {
+            Icon(androidx.compose.ui.res.painterResource(com.example.readalong.R.drawable.ic_bookshelf), null, Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("Manage library folders")
+        }
     }
+    if (audible) com.example.readalong.ui.audible.AudibleImportEntry(onChooseFolder = { audible = false; add() }, onDismiss = { audible = false })
 }
 
 @Composable
