@@ -145,28 +145,22 @@ internal fun sourceShades(): List<Pair<androidx.compose.ui.graphics.Color, andro
     }
 }
 
-/** Library folder, audiobook folder, files and Audible: shared by the welcome screen and the empty library. */
+/** Add audiobooks (a book or library folder), files and Audible: shared by the welcome screen and the empty library. */
 @Composable
 fun AudiobookSourceButtons(model: ImportViewModel, onAdded: () -> Unit = {}, large: Boolean = false, stacked: Boolean = false, modifier: Modifier = Modifier) {
     val busy by model.busy.collectAsStateWithLifecycle()
     var audible by rememberSaveable { mutableStateOf(false) }
     val shades = sourceShades()
-    // Reading a folder can take a while: go on to the library at once, which shows placeholders
-    // (and "Reading folder" under the logo) until the books arrive.
-    val library = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
-        uri?.let { model.folder(it, FolderMode.LIBRARY); onAdded() }
-    }
-    val book = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
-        uri?.let { model.folder(it, FolderMode.ONE_BOOK); onAdded() }
-    }
+    // One folder picker for a book or a whole library: the preview says which it found. After adding,
+    // go on to the library at once, which shows placeholders (and "Reading folder" under the logo).
+    val add = rememberAddAudiobooks(model, "sources", onAdded)
     val file = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) { model.files(listOf(uri)); onAdded() }
     }
     // Stacked: the buttons are placed straight into the welcome page's FillingColumn, which grows them.
     val grow = if (stacked) Modifier.layoutId(Grow(1f, 72.dp, 150.dp)) else Modifier
     val buttons = @Composable {
-        SourceButton(shades[0], R.drawable.ic_bookshelf, "Choose library folder", "A folder with all your audiobook folders", !busy, grow.testTag("choose_folder"), large) { library.launch(null) }
-        SourceButton(shades[1], R.drawable.ic_folder, "Choose audiobook folder", "A folder with one audiobook's files", !busy, grow, large) { book.launch(null) }
+        SourceButton(shades[0], R.drawable.ic_bookshelf, "Add audiobooks", "Choose a folder with one book or your whole library", !busy, grow.testTag("choose_folder"), large) { add() }
         SourceButton(shades[2], R.drawable.ic_play, "Add audio file", "One file that holds a whole audiobook", !busy, grow, large) { file.launch(arrayOf("audio/*", "application/octet-stream", "video/mp4")) }
         OutlinedButton(onClick = { audible = true }, enabled = !busy, modifier = (if (stacked) Modifier.layoutId(Grow(.5f, 56.dp, 92.dp)) else Modifier).fillMaxWidth().heightIn(min = if (large) 56.dp else 48.dp)) {
             Text("Import from Audible", style = if (large) MaterialTheme.typography.titleMedium else LocalTextStyle.current)
@@ -174,7 +168,7 @@ fun AudiobookSourceButtons(model: ImportViewModel, onAdded: () -> Unit = {}, lar
     }
     if (stacked) buttons()
     else Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(if (large) 10.dp else 8.dp)) { buttons() }
-    if (audible) com.example.readalong.ui.audible.AudibleImportEntry(onChooseFolder = { audible = false; library.launch(null) }, onDismiss = { audible = false })
+    if (audible) com.example.readalong.ui.audible.AudibleImportEntry(onChooseFolder = { audible = false; add() }, onDismiss = { audible = false })
 }
 
 @Composable

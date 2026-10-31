@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.readalong.data.importing.AudioImporter
 import com.example.readalong.data.importing.FolderMode
+import com.example.readalong.data.importing.FolderPreview
 import com.example.readalong.data.local.FolderEntity
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.*
@@ -57,13 +58,27 @@ class ImportViewModel(private val importer: AudioImporter, private val epubs: co
     private val mutableReadingFolder = MutableStateFlow(false)
     /** True while a newly chosen library folder is read for the first time (the library shows placeholders). */
     val readingFolder = mutableReadingFolder.asStateFlow()
-    fun folder(uri: Uri, mode: FolderMode, onAdded: () -> Unit = {}) = action {
+    fun folder(uri: Uri, mode: FolderMode, onAdded: () -> Unit = {}, restoreDeleted: Boolean = mode == FolderMode.ONE_BOOK) = action {
         if (mode == FolderMode.LIBRARY) mutableReadingFolder.value = true
-        val result = try { importer.addFolder(uri, mode) } finally { mutableReadingFolder.value = false }
+        val result = try { importer.addFolder(uri, mode, restoreDeleted = restoreDeleted) } finally { mutableReadingFolder.value = false }
         if (mode == FolderMode.ONE_BOOK) offerPriority(result.newBookIds)
 
         onAdded()
         result.message
+    }
+    /** Add audiobooks: a chosen folder is looked at first; [AddPreviewDialog] shows what was found. [origin] names the screen that asked. */
+    data class Preview(val origin: String, val folder: FolderPreview)
+    private val mutablePreview = MutableStateFlow<Preview?>(null)
+    val preview = mutablePreview.asStateFlow()
+    fun previewFolder(uri: Uri, origin: String) = action("Looking inside the folder…") {
+        mutablePreview.value = Preview(origin, importer.preview(uri))
+        null
+    }
+    fun dismissPreview() { mutablePreview.value = null }
+    fun confirmPreview(mode: FolderMode, restoreDeleted: Boolean) {
+        val chosen = mutablePreview.value ?: return
+        mutablePreview.value = null
+        folder(chosen.folder.uri, mode, restoreDeleted = restoreDeleted)
     }
     fun addEpub(uri: Uri) = action("Uploading EPUB…") {
         val book = requireNotNull(mutableAddedBook.value)
@@ -95,7 +110,7 @@ class ImportViewModel(private val importer: AudioImporter, private val epubs: co
         }
     }
     fun clearMessage() { showMessage(null) }
-    private fun action(pendingMessage: String = "Reading audio metadata…", work: suspend () -> String) {
+    private fun action(pendingMessage: String = "Reading audio metadata…", work: suspend () -> String?) {
         if (busy.value) return
         viewModelScope.launch {
             mutableBusy.value = true
