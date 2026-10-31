@@ -114,8 +114,7 @@ fun LibraryScreen(app: AppState) {
 
 /**
  * The phone's search bar: a pill the size of the search icon springs out leftwards from under the icon with a small
- * bounce. Closing has no bounce: the text fades, the bar glides back into a circle under the icon, then the circle
- * lifts into the icon and fades while the space closes up. Focused as soon as it opens, closed with its X or Esc.
+ * bounce. Closing is one quick move with no bounce: the bar shrinks back towards the icon and fades as it goes. Focused as soon as it opens, closed with its X or Esc.
  * [anchor] is the icon's centre in this bar's coordinates (null until measured).
  */
 @Composable
@@ -144,13 +143,14 @@ private fun SpringSearchBar(visible: Boolean, anchor: androidx.compose.ui.geomet
             }
         } else if (shown) {
             closing = true
+            // One quick move, no second step: the bar shrinks back towards the icon and fades as it goes,
+            // while the text vanishes first and the list closes the gap in step.
             kotlinx.coroutines.coroutineScope {
-                launch { text.animateTo(0f, tween(140)) }
-                stretch.animateTo(0f, tween(250, easing = CubicBezierEasing(.45f, 0f, .2f, 1f)))
-                val out = CubicBezierEasing(.4f, 0f, .6f, 1f)
-                launch { lift.animateTo(1f, tween(210, easing = out)) }
-                launch { fade.animateTo(0f, tween(210, easing = out)) }
-                launch { space.animateTo(0f, tween(230, easing = ease)) }
+                val quick = CubicBezierEasing(.3f, 0f, .1f, 1f)
+                launch { text.animateTo(0f, tween(80)) }
+                launch { stretch.animateTo(0f, tween(190, easing = quick)) }
+                launch { kotlinx.coroutines.delay(50); fade.animateTo(0f, tween(140, easing = LinearEasing)) }
+                launch { space.animateTo(0f, tween(190, easing = quick)) }
             }
             shown = false; closing = false
         }
@@ -169,9 +169,8 @@ private fun SpringSearchBar(visible: Boolean, anchor: androidx.compose.ui.geomet
         val p = m.measure(androidx.compose.ui.unit.Constraints.fixed((right - left).toInt().coerceAtLeast(1), barH.toInt()))
         layout(c.maxWidth, ((barH + gap) * space.value).toInt()) {
             p.placeWithLayer(left.toInt(), gap.toInt()) {
-                translationY = (ay - barH / 2) * lift.value * (if (closing) 1f else lift.value)
-                val sc = if (closing) 1f - .3f * lift.value else 1f
-                scaleX = sc; scaleY = sc; alpha = fade.value
+                translationY = (ay - barH / 2) * lift.value * lift.value
+                alpha = fade.value
             }
         }
     }.clip(CircleShape).border(1.5.dp, MaterialTheme.colorScheme.primary, CircleShape)
