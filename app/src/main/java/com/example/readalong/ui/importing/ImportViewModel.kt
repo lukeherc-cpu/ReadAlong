@@ -18,6 +18,7 @@ class ImportViewModel(private val importer: AudioImporter, private val epubs: co
     private val mutableMessage = MutableStateFlow<String?>(null)
     val message = mutableMessage.asStateFlow()
     val folders = importer.folders.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val folderBooks = importer.folderBooks.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     private val mutablePriority = MutableStateFlow(emptyList<ImportPriorityBook>())
     val priority = mutablePriority.asStateFlow()
@@ -88,6 +89,11 @@ class ImportViewModel(private val importer: AudioImporter, private val epubs: co
     }
     suspend fun bookCount(folder: FolderEntity) = importer.bookCount(folder.uri)
     fun rescan(folder: FolderEntity) = action { val result = importer.scan(Uri.parse(folder.uri)); result.message }
+    /** The person chose a folder again after ReadAlong lost access: the same folder is rescanned, another one is previewed like a new add. */
+    fun reconnect(folder: FolderEntity, uri: Uri) {
+        if (uri.toString() == folder.uri) folder(uri, FolderMode.valueOf(folder.mode), restoreDeleted = false)
+        else previewFolder(uri, "folders")
+    }
     fun remove(folder: FolderEntity) = action { importer.removeFolder(folder); "Folder removed from your library." }
     private val mutableScanningFolder = MutableStateFlow<String?>(null)
     val scanningFolder = mutableScanningFolder.asStateFlow()

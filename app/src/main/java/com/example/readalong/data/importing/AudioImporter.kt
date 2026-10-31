@@ -18,6 +18,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.map
 import java.io.File
 import java.security.MessageDigest
 import kotlin.coroutines.coroutineContext
@@ -42,6 +43,8 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
     private val folderLock = kotlinx.coroutines.sync.Mutex()
     private val importLock = kotlinx.coroutines.sync.Mutex()
     val folders = media.observeFolders()
+    /** Book ids by saved folder uri. */
+    val folderBooks = media.observeFolderBooks().map { rows -> rows.groupBy({ it.folderUri }, { it.bookId }) }
 
     suspend fun matchedEpub(bookId: String): Boolean {
         if (database.importedEpubDao().find(bookId) != null) return true
