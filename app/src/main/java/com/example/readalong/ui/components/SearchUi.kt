@@ -139,8 +139,7 @@ fun CloseGlyph(color: Color, description: String? = null) {
 
 /**
  * The library search bar. Opening: a pill the size of the search icon springs out leftwards from under the icon
- * with a small bounce. Closing has no bounce: the text fades, the bar glides back into a circle under the icon,
- * then the circle lifts into the icon and fades while the space it took closes up.
+ * with a small bounce. Closing is one quick move with no bounce: the bar shrinks back towards the icon and fades as it goes.
  * [anchor] is the search icon's centre in this bar's coordinates (null until measured).
  */
 @Composable
@@ -169,13 +168,14 @@ fun SpringSearchBar(visible: Boolean, anchor: androidx.compose.ui.geometry.Offse
             }
         } else if (shown) {
             closing = true
+            // One quick move, no second step: the bar shrinks back towards the icon and fades as it goes,
+            // while the text vanishes first and the list closes the gap in step.
             kotlinx.coroutines.coroutineScope {
-                launch { text.animateTo(0f, tween(140)) }
-                stretch.animateTo(0f, tween(250, easing = CubicBezierEasing(.45f, 0f, .2f, 1f)))
-                val out = CubicBezierEasing(.4f, 0f, .6f, 1f)
-                launch { lift.animateTo(1f, tween(210, easing = out)) }
-                launch { fade.animateTo(0f, tween(210, easing = out)) }
-                launch { space.animateTo(0f, tween(230, easing = SearchEasing)) }
+                val quick = CubicBezierEasing(.3f, 0f, .1f, 1f)
+                launch { text.animateTo(0f, tween(80)) }
+                launch { stretch.animateTo(0f, tween(190, easing = quick)) }
+                launch { kotlinx.coroutines.delay(50); fade.animateTo(0f, tween(140, easing = LinearEasing)) }
+                launch { space.animateTo(0f, tween(190, easing = quick)) }
             }
             shown = false; closing = false
         }
@@ -196,9 +196,8 @@ fun SpringSearchBar(visible: Boolean, anchor: androidx.compose.ui.geometry.Offse
         val p = m.measure(androidx.compose.ui.unit.Constraints.fixed((right - left).toInt().coerceAtLeast(1), barH.toInt()))
         layout(c.maxWidth, ((barH + gap) * space.value).toInt()) {
             p.placeWithLayer(left.toInt(), gap.toInt()) {
-                translationY = (ay - barH / 2) * lift.value * (if (closing) 1f else lift.value)
-                val sc = if (closing) 1f - .3f * lift.value else 1f
-                scaleX = sc; scaleY = sc; alpha = fade.value
+                translationY = (ay - barH / 2) * lift.value * lift.value
+                alpha = fade.value
             }
         }
     }.clip(shape).background(MaterialTheme.colorScheme.surface).border(2.dp, accent, shape).padding(start = 18.dp)) {
