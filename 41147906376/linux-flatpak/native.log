@@ -1,0 +1,135 @@
+-- The C compiler identification is GNU 13.3.0
+-- The CXX compiler identification is GNU 13.3.0
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /usr/bin/cc - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+CMake Deprecation Warning at /home/runner/work/ReadAlong/whisper.cpp/CMakeLists.txt:1 (cmake_minimum_required):
+  Compatibility with CMake < 3.10 will be removed from a future version of
+  CMake.
+
+  Update the VERSION argument <min> value.  Or, use the <min>...<max> syntax
+  to tell CMake that the project requires at least <min> but has been updated
+  to work with policies introduced by <max> or earlier.
+
+
+-- Found Git: /usr/bin/git (found version "2.56.0")
+-- The ASM compiler identification is GNU
+-- Found assembler: /usr/bin/cc
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+-- Found Threads: TRUE
+-- Warning: ccache not found - consider installing it for faster compilation or disable this warning with GGML_CCACHE=OFF
+-- CMAKE_SYSTEM_PROCESSOR: x86_64
+-- GGML_SYSTEM_ARCH: x86
+-- Including CPU backend
+-- x86 detected
+-- Adding CPU backend variant ggml-cpu-x64:  
+-- x86 detected
+-- Adding CPU backend variant ggml-cpu-sse42: -msse4.2 GGML_SSE42
+-- x86 detected
+-- Adding CPU backend variant ggml-cpu-sandybridge: -msse4.2;-mavx GGML_SSE42;GGML_AVX
+-- x86 detected
+-- Adding CPU backend variant ggml-cpu-ivybridge: -msse4.2;-mf16c;-mavx GGML_SSE42;GGML_F16C;GGML_AVX
+-- x86 detected
+-- Adding CPU backend variant ggml-cpu-piledriver: -msse4.2;-mf16c;-mfma;-mavx GGML_SSE42;GGML_F16C;GGML_FMA;GGML_AVX
+-- x86 detected
+-- Adding CPU backend variant ggml-cpu-haswell: -msse4.2;-mf16c;-mfma;-mbmi2;-mavx;-mavx2 GGML_SSE42;GGML_F16C;GGML_FMA;GGML_BMI2;GGML_AVX;GGML_AVX2
+-- x86 detected
+-- Adding CPU backend variant ggml-cpu-skylakex: -msse4.2;-mf16c;-mfma;-mbmi2;-mavx;-mavx2;-mavx512f;-mavx512cd;-mavx512vl;-mavx512dq;-mavx512bw GGML_SSE42;GGML_F16C;GGML_FMA;GGML_BMI2;GGML_AVX;GGML_AVX2;GGML_AVX512
+-- x86 detected
+-- Adding CPU backend variant ggml-cpu-cannonlake: -msse4.2;-mf16c;-mfma;-mbmi2;-mavx;-mavx2;-mavx512f;-mavx512cd;-mavx512vl;-mavx512dq;-mavx512bw;-mavx512vbmi GGML_SSE42;GGML_F16C;GGML_FMA;GGML_BMI2;GGML_AVX;GGML_AVX2;GGML_AVX512;GGML_AVX512_VBMI
+-- x86 detected
+-- Adding CPU backend variant ggml-cpu-cascadelake: -msse4.2;-mf16c;-mfma;-mbmi2;-mavx;-mavx2;-mavx512f;-mavx512cd;-mavx512vl;-mavx512dq;-mavx512bw;-mavx512vnni GGML_SSE42;GGML_F16C;GGML_FMA;GGML_BMI2;GGML_AVX;GGML_AVX2;GGML_AVX512;GGML_AVX512_VNNI
+-- x86 detected
+-- Adding CPU backend variant ggml-cpu-icelake: -msse4.2;-mf16c;-mfma;-mbmi2;-mavx;-mavx2;-mavx512f;-mavx512cd;-mavx512vl;-mavx512dq;-mavx512bw;-mavx512vbmi;-mavx512vnni GGML_SSE42;GGML_F16C;GGML_FMA;GGML_BMI2;GGML_AVX;GGML_AVX2;GGML_AVX512;GGML_AVX512_VBMI;GGML_AVX512_VNNI
+-- x86 detected
+-- Adding CPU backend variant ggml-cpu-cooperlake: -msse4.2;-mf16c;-mfma;-mbmi2;-mavx;-mavx2;-mavx512f;-mavx512cd;-mavx512vl;-mavx512dq;-mavx512bw;-mavx512vnni;-mavx512bf16 GGML_SSE42;GGML_F16C;GGML_FMA;GGML_BMI2;GGML_AVX;GGML_AVX2;GGML_AVX512;GGML_AVX512_VNNI;GGML_AVX512_BF16
+-- x86 detected
+-- Adding CPU backend variant ggml-cpu-zen4: -msse4.2;-mf16c;-mfma;-mbmi2;-mavx;-mavx2;-mavx512f;-mavx512cd;-mavx512vl;-mavx512dq;-mavx512bw;-mavx512vbmi;-mavx512vnni;-mavx512bf16 GGML_SSE42;GGML_F16C;GGML_FMA;GGML_BMI2;GGML_AVX;GGML_AVX2;GGML_AVX512;GGML_AVX512_VBMI;GGML_AVX512_VNNI;GGML_AVX512_BF16
+-- x86 detected
+-- Adding CPU backend variant ggml-cpu-alderlake: -msse4.2;-mf16c;-mfma;-mbmi2;-mavx;-mavx2;-mavxvnni GGML_SSE42;GGML_F16C;GGML_FMA;GGML_BMI2;GGML_AVX;GGML_AVX2;GGML_AVX_VNNI
+-- x86 detected
+-- Adding CPU backend variant ggml-cpu-sapphirerapids: -msse4.2;-mf16c;-mfma;-mbmi2;-mavx;-mavx2;-mavx512f;-mavx512cd;-mavx512vl;-mavx512dq;-mavx512bw;-mavx512vbmi;-mavx512vnni;-mavx512bf16;-mamx-tile;-mamx-int8 GGML_SSE42;GGML_F16C;GGML_FMA;GGML_BMI2;GGML_AVX;GGML_AVX2;GGML_AVX512;GGML_AVX512_VBMI;GGML_AVX512_VNNI;GGML_AVX512_BF16;GGML_AMX_TILE;GGML_AMX_INT8
+-- Found Vulkan: /usr/lib/x86_64-linux-gnu/libvulkan.so (found version "1.3.275") found components: glslc missing components: glslangValidator
+-- Vulkan found
+-- GL_KHR_cooperative_matrix supported by glslc
+-- GL_NV_cooperative_matrix2 not supported by glslc
+-- GL_NV_cooperative_matrix_decode_vector not supported by glslc
+-- GL_EXT_integer_dot_product not supported by glslc
+-- GL_EXT_bfloat16 not supported by glslc
+-- Including Vulkan backend
+-- ggml version: 0.15.1
+-- ggml commit:  48f628a
+-- Found JNI: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/21.0.13-9/x64/include  found components: JVM
+-- Configuring done (2.3s)
+-- Generating done (0.1s)
+-- Build files have been written to: /home/runner/work/ReadAlong/ReadAlong/desktop-app/native/build
+[ 94%] Building CXX object whisper.cpp/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/soft_max_large1.comp.cpp.o
+[ 94%] Building CXX object whisper.cpp/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/soft_max_large2.comp.cpp.o
+[ 94%] Building CXX object whisper.cpp/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/soft_max_large3.comp.cpp.o
+[ 94%] Building CXX object whisper.cpp/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/softplus.comp.cpp.o
+[ 95%] Building CXX object whisper.cpp/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/solve_tri.comp.cpp.o
+[ 95%] Building CXX object whisper.cpp/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/sqrt.comp.cpp.o
+[ 95%] Building CXX object whisper.cpp/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/square.comp.cpp.o
+[ 95%] Building CXX object whisper.cpp/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/ssm_conv.comp.cpp.o
+[ 96%] Building CXX object whisper.cpp/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/step.comp.cpp.o
+[ 96%] Building CXX object whisper.cpp/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/ssm_scan.comp.cpp.o
+[ 96%] Building CXX object whisper.cpp/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/sub.comp.cpp.o
+[ 96%] Building CXX object whisper.cpp/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/sum_rows.comp.cpp.o
+[ 96%] Building CXX object whisper.cpp/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/swiglu.comp.cpp.o
+[ 96%] Building CXX object whisper.cpp/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/swiglu_oai.comp.cpp.o
+[ 96%] Building CXX object whisper.cpp/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/tanh.comp.cpp.o
+[ 97%] Building CXX object whisper.cpp/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/timestep_embedding.comp.cpp.o
+[ 97%] Building CXX object whisper.cpp/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/topk_argsort.comp.cpp.o
+[ 97%] Building CXX object whisper.cpp/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/topk_moe.comp.cpp.o
+[ 97%] Building CXX object whisper.cpp/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/topk_nary_search.comp.cpp.o
+[ 97%] Building CXX object whisper.cpp/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/tri.comp.cpp.o
+[ 97%] Building CXX object whisper.cpp/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/trunc.comp.cpp.o
+[ 98%] Building CXX object whisper.cpp/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/upscale.comp.cpp.o
+[ 98%] Building CXX object whisper.cpp/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/wkv6.comp.cpp.o
+[ 98%] Building CXX object whisper.cpp/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/wkv7.comp.cpp.o
+[ 98%] Building CXX object whisper.cpp/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/xielu.comp.cpp.o
+[ 98%] Linking CXX shared module ../../../bin/libggml-cpu-sapphirerapids.so
+[ 98%] Built target ggml-cpu-sapphirerapids
+[ 98%] Linking CXX shared module ../../../../bin/libggml-vulkan.so
+[ 98%] Built target ggml-vulkan
+[ 98%] Building CXX object whisper.cpp/ggml/src/CMakeFiles/ggml.dir/ggml-backend-dl.cpp.o
+[ 98%] Building CXX object whisper.cpp/ggml/src/CMakeFiles/ggml.dir/ggml-backend-reg.cpp.o
+[ 98%] Linking CXX shared library libggml.so
+[ 98%] Built target ggml
+[ 98%] Building CXX object whisper.cpp/src/CMakeFiles/whisper.dir/whisper.cpp.o
+[ 99%] Linking CXX shared library libwhisper.so
+[ 99%] Built target whisper
+[100%] Building CXX object CMakeFiles/readalong_whisper.dir/readalong_whisper.cpp.o
+[100%] Linking CXX shared library libreadalong_whisper.so
+[100%] Built target readalong_whisper
+[100%] Built target readalong_bundle
+total 77668
+drwxr-xr-x 2 runner runner     4096 Oct 31 00:13 .
+drwxr-xr-x 3 runner runner     4096 Oct 31 00:13 ..
+-rwxr-xr-x 1 runner runner   900592 Oct 31 00:13 libggml-base.so
+-rwxr-xr-x 1 runner runner  1016440 Oct 31 00:13 libggml-cpu-alderlake.so
+-rwxr-xr-x 1 runner runner  1159912 Oct 31 00:13 libggml-cpu-cannonlake.so
+-rwxr-xr-x 1 runner runner  1155816 Oct 31 00:13 libggml-cpu-cascadelake.so
+-rwxr-xr-x 1 runner runner  1155816 Oct 31 00:13 libggml-cpu-cooperlake.so
+-rwxr-xr-x 1 runner runner  1016440 Oct 31 00:13 libggml-cpu-haswell.so
+-rwxr-xr-x 1 runner runner  1155816 Oct 31 00:13 libggml-cpu-icelake.so
+-rwxr-xr-x 1 runner runner   950696 Oct 31 00:13 libggml-cpu-ivybridge.so
+-rwxr-xr-x 1 runner runner   946600 Oct 31 00:13 libggml-cpu-piledriver.so
+-rwxr-xr-x 1 runner runner   954792 Oct 31 00:13 libggml-cpu-sandybridge.so
+-rwxr-xr-x 1 runner runner  1435632 Oct 31 00:13 libggml-cpu-sapphirerapids.so
+-rwxr-xr-x 1 runner runner  1159912 Oct 31 00:13 libggml-cpu-skylakex.so
+-rwxr-xr-x 1 runner runner   880936 Oct 31 00:13 libggml-cpu-sse42.so
+-rwxr-xr-x 1 runner runner   872856 Oct 31 00:13 libggml-cpu-x64.so
+-rwxr-xr-x 1 runner runner  1155816 Oct 31 00:13 libggml-cpu-zen4.so
+-rwxr-xr-x 1 runner runner 62835200 Oct 31 00:13 libggml-vulkan.so
+-rwxr-xr-x 1 runner runner    55768 Oct 31 00:13 libggml.so
+-rwxr-xr-x 1 runner runner    33512 Oct 31 00:13 libreadalong_whisper.so
+-rwxr-xr-x 1 runner runner   626464 Oct 31 00:13 libwhisper.so
