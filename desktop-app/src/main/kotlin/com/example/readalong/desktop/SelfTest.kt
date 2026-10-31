@@ -5,6 +5,7 @@ import com.example.readalong.desktop.audio.AudioReader
 import com.example.readalong.desktop.core.*
 import com.example.readalong.desktop.reading.BookTextBuilder
 import com.example.readalong.desktop.transcription.*
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.bytedeco.ffmpeg.global.avutil
 import org.bytedeco.javacv.FFmpegFrameFilter
@@ -98,6 +99,30 @@ object SelfTest {
             val names = zip.entries().toList().map { it.name }
             if (names != listOf("manifest.json", "chunks.jsonl")) { log("package entries: $names"); pass = false }
             log("manifest: " + zip.getInputStream(zip.getEntry("manifest.json")).bufferedReader().readText().replace(Regex("\\s+"), " ").take(400))
+        }
+
+        // The app's own queue with aggressive transcription: three transcribers share the book, and every unit must be
+        // saved once, in book order, with the same text the single run produced.
+        val speechModel = SpeechModels.all.firstOrNull { model.name == it.fileName }
+        if (speechModel != null) {
+            System.setProperty("readalong.lanes", "3")
+            val settings = SettingsStore().apply { update { it.copy(modelId = speechModel.id, device = if (device == "gpu") "auto" else "cpu", aggressive = true, savePackages = false) } }
+            val models = ModelStore()
+            model.copyTo(models.file(speechModel).apply { parentFile.mkdirs() }, overwrite = true)
+            transcripts.remove(book.id)
+            val service = TranscriptionService(scope, library, settings, transcripts, models, probe = false)
+            val started = System.nanoTime()
+            try {
+                service.enqueue(book.id)
+                kotlinx.coroutines.withTimeout(20 * 60_000L) { service.queue.first { it.isEmpty() } }
+            } finally { service.shutdown() }
+            val saved = transcripts.chunks(book.id).map { Triple(it.file, it.startMs, it.endMs) }
+            val parallelText = transcripts.segments(book).joinToString(" ") { it.text }
+            log("3 lanes: ${saved.size} of ${plan.size} units in ${(System.nanoTime() - started) / 1_000_000} ms, complete=${transcripts.info(book.id)?.complete}" +
+                (service.errors.value[book.id]?.let { " error: $it" } ?: ""))
+            if (saved != plan.map { Triple(it.file, it.startMs, it.endMs) } || transcripts.info(book.id)?.complete != true) { log("parallel run saved the wrong units"); pass = false }
+            if (expect != null && !parallelText.contains(expect, ignoreCase = true)) { log("expected \"$expect\" in the parallel text"); pass = false }
+            System.clearProperty("readalong.lanes")
         }
 
         // The player's speed change: 1.5× should turn 4 s of audio into about 2.67 s, at the same pitch.
