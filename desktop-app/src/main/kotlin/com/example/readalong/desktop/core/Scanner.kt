@@ -47,6 +47,9 @@ object Scanner {
         return books
     }
 
+    /** Every audio file under [folder] as one book, in path order: for "It's really one book". */
+    fun whole(folder: File): FoundBook? = collect(folder.absoluteFile)
+
     private fun single(file: File, folder: File): FoundBook {
         val stem = file.nameWithoutExtension
         val siblings = children(folder)
