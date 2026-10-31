@@ -43,6 +43,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.layout.layout
+import kotlinx.coroutines.launch
 
 /** One search look for the library, ReadAlong and read-only pages. Motion follows the reader transition curve. */
 internal val SearchEasing = CubicBezierEasing(.2f, 0f, .1f, 1f)
@@ -132,5 +134,82 @@ fun CloseGlyph(color: Color, description: String? = null) {
         val w = 2.dp.toPx()
         drawLine(color, androidx.compose.ui.geometry.Offset.Zero, androidx.compose.ui.geometry.Offset(size.width, size.height), w, androidx.compose.ui.graphics.StrokeCap.Round)
         drawLine(color, androidx.compose.ui.geometry.Offset(size.width, 0f), androidx.compose.ui.geometry.Offset(0f, size.height), w, androidx.compose.ui.graphics.StrokeCap.Round)
+    }
+}
+
+/**
+ * The library search bar. Opening: a pill the size of the search icon springs out leftwards from under the icon
+ * with a small bounce. Closing has no bounce: the text fades, the bar glides back into a circle under the icon,
+ * then the circle lifts into the icon and fades while the space it took closes up.
+ * [anchor] is the search icon's centre in this bar's coordinates (null until measured).
+ */
+@Composable
+fun SpringSearchBar(visible: Boolean, anchor: androidx.compose.ui.geometry.Offset?, query: String, onQuery: (String) -> Unit, onClose: () -> Unit,
+    accent: Color, modifier: Modifier = Modifier, placeholder: String = "Search", testTag: String = "search_field", topGap: androidx.compose.ui.unit.Dp = 0.dp) {
+    val stretch = remember { Animatable(if (visible) 1f else 0f) }
+    val lift = remember { Animatable(if (visible) 0f else 1f) }   // 1 = sitting on the icon
+    val fade = remember { Animatable(if (visible) 1f else 0f) }   // the bar itself
+    val text = remember { Animatable(if (visible) 1f else 0f) }
+    val space = remember { Animatable(if (visible) 1f else 0f) }  // fraction of the bar's height the layout gives it
+    var shown by remember { mutableStateOf(visible) }
+    var closing by remember { mutableStateOf(false) }
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(visible) {
+        if (visible) {
+            closing = false
+            if (!shown) { stretch.snapTo(0f); lift.snapTo(1f); fade.snapTo(0f); text.snapTo(0f); space.snapTo(0f) }
+            shown = true
+            kotlinx.coroutines.coroutineScope {
+                launch { space.animateTo(1f, tween(420, easing = SearchEasing)) }
+                launch { fade.animateTo(1f, tween(60)) }
+                launch { lift.animateTo(0f, tween(230, easing = SearchEasing)) }
+                launch { stretch.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = .58f, stiffness = 360f)) }
+                launch { kotlinx.coroutines.delay(300); text.animateTo(1f, tween(260, easing = SearchEasing)) }
+                launch { kotlinx.coroutines.delay(120); runCatching { focus.requestFocus() } }
+            }
+        } else if (shown) {
+            closing = true
+            kotlinx.coroutines.coroutineScope {
+                launch { text.animateTo(0f, tween(140)) }
+                stretch.animateTo(0f, tween(250, easing = CubicBezierEasing(.45f, 0f, .2f, 1f)))
+                val out = CubicBezierEasing(.4f, 0f, .6f, 1f)
+                launch { lift.animateTo(1f, tween(210, easing = out)) }
+                launch { fade.animateTo(0f, tween(210, easing = out)) }
+                launch { space.animateTo(0f, tween(230, easing = SearchEasing)) }
+            }
+            shown = false; closing = false
+        }
+    }
+    if (!shown) return
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val barH = with(density) { 56.dp.toPx() }
+    val gap = with(density) { topGap.toPx() }
+    val content = MaterialTheme.colorScheme.onSurface
+    val shape = RoundedCornerShape(50)
+    Box(modifier.fillMaxWidth().layout { m, c ->
+        val w = c.maxWidth.toFloat()
+        val ax = anchor?.x ?: (w - barH / 2)
+        val ay = (anchor?.y ?: -barH * .7f) - gap
+        val l0 = ax - barH / 2; val r0 = ax + barH / 2
+        val s = stretch.value
+        val left = l0 * (1f - s); val right = r0 + (w - r0) * s
+        val p = m.measure(androidx.compose.ui.unit.Constraints.fixed((right - left).toInt().coerceAtLeast(1), barH.toInt()))
+        layout(c.maxWidth, ((barH + gap) * space.value).toInt()) {
+            p.placeWithLayer(left.toInt(), gap.toInt()) {
+                translationY = (ay - barH / 2) * lift.value * (if (closing) 1f else lift.value)
+                val sc = if (closing) 1f - .3f * lift.value else 1f
+                scaleX = sc; scaleY = sc; alpha = fade.value
+            }
+        }
+    }.clip(shape).background(MaterialTheme.colorScheme.surface).border(2.dp, accent, shape).padding(start = 18.dp)) {
+        Row(Modifier.fillMaxSize().graphicsLayer { alpha = text.value }, verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                if (query.isEmpty()) Text(placeholder, color = content.copy(alpha = .5f), style = MaterialTheme.typography.bodyLarge.copy(fontSize = 18.sp), maxLines = 1, softWrap = false)
+                BasicTextField(query, onQuery, Modifier.fillMaxWidth().focusRequester(focus).testTag(testTag), singleLine = true,
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(color = content, fontSize = 18.sp), cursorBrush = SolidColor(accent),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search))
+            }
+            IconButton(onClick = onClose, modifier = Modifier.semantics { contentDescription = "Close search" }) { CloseGlyph(content.copy(alpha = .75f)) }
+        }
     }
 }
