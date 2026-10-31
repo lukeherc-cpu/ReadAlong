@@ -80,12 +80,14 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
     }
     if (appSettings.blurredPlayer && !appSettings.alwaysBasicColor) com.example.readalong.ui.components.BlurredCover(book.coverUri, Modifier.fillMaxSize())
     // A book with no text yet flips its cover over once, the first time it's opened, to offer a ReadAlong.
-    val notStarted = job == null || job?.state == "WAITING_SELECTION"
+    val passages by reading.passages.collectAsStateWithLifecycle()
+    // (A sample book, or one whose text came another way, already has text without a ReadAlong job.)
+    val notStarted = !book.isDemo && (job == null || job?.state == "WAITING_SELECTION") && passages.isEmpty()
     val introShown by reading.textIntroShown.collectAsStateWithLifecycle(null)
     LaunchedEffect(book.id, introShown) {
         if (introShown == false && !book.isDemo) {
             kotlinx.coroutines.delay(900)
-            if (reading.processingJob.value.let { it == null || it.state == "WAITING_SELECTION" }) showText = true
+            if (reading.processingJob.value.let { it == null || it.state == "WAITING_SELECTION" } && reading.passages.value.isEmpty()) showText = true
             reading.markTextIntroShown()
         }
     }
