@@ -46,7 +46,8 @@ class ReferenceDialogsTest {
                 }
             }
             compose.onNodeWithTag("welcome_next").performClick()
-            compose.onNodeWithText("Add audiobooks").assertIsDisplayed()
+            compose.onNodeWithText("Choose folder").assertIsDisplayed()
+            compose.onNodeWithContentDescription("Back").performClick()
             compose.onNodeWithText("Skip for now").performClick()
             compose.waitForIdle()
             capture("background")
