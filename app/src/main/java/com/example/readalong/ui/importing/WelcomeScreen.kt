@@ -173,14 +173,14 @@ fun AudiobookSourceButtons(model: ImportViewModel, onAdded: () -> Unit = {}, lar
 
 @Composable
 internal fun SourceButton(shade: Pair<androidx.compose.ui.graphics.Color, androidx.compose.ui.graphics.Color>, icon: Int, title: String, subtitle: String?, enabled: Boolean,
-    modifier: Modifier = Modifier, large: Boolean = false, onClick: () -> Unit) {
+    modifier: Modifier = Modifier, large: Boolean = false, hero: Boolean = false, onClick: () -> Unit) {
     Button(onClick = onClick, enabled = enabled, modifier = modifier.fillMaxWidth().heightIn(min = 52.dp),
         shape = if (large) RoundedCornerShape(com.example.readalong.ui.theme.Corners.large) else ButtonDefaults.shape,
         colors = ButtonDefaults.buttonColors(containerColor = shade.first, contentColor = shade.second),
         contentPadding = PaddingValues(horizontal = if (large) 22.dp else 20.dp, vertical = 8.dp)) {
-        Icon(painterResource(icon), null, Modifier.size(if (large) 28.dp else 20.dp)); Spacer(Modifier.width(if (large) 18.dp else 14.dp))
+        Icon(painterResource(icon), null, Modifier.size(if (hero) 36.dp else if (large) 28.dp else 20.dp)); Spacer(Modifier.width(if (large) 18.dp else 14.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(if (large) 2.dp else 0.dp)) {
-            Text(title, style = if (large) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleSmall)
+            Text(title, style = if (hero) MaterialTheme.typography.titleLarge else if (large) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleSmall)
             subtitle?.let { Text(it, style = if (large) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.bodySmall, color = shade.second.copy(alpha = .8f)) }
         }
     }

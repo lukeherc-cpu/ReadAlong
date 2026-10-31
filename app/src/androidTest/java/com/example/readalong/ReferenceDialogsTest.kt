@@ -76,9 +76,14 @@ class ReferenceDialogsTest {
             }
             compose.onNodeWithContentDescription("Add audiobook").performClick()
             capture("add-audiobook")
-            compose.onNodeWithText("Add audiobooks").assertIsDisplayed()
+            compose.onNodeWithText("Add audiobook").assertIsDisplayed()
+            compose.onNodeWithText("Add one book").assertIsDisplayed()
             compose.onNodeWithText("Add audio file").assertIsDisplayed()
-            compose.onNodeWithText("Cancel").performClick()
+            compose.onNodeWithText("Import from Audible").assertIsDisplayed()
+            compose.onNodeWithText("Manage library folders").assertIsDisplayed()
+            // The sheet has no Cancel: Back (or a tap outside) closes it.
+            androidx.test.espresso.Espresso.pressBack()
+            compose.waitUntil(5000) { compose.onAllNodesWithText("Add one book").fetchSemanticsNodes().isEmpty() }
             compose.runOnIdle { model.files(listOf(uri)) }
             compose.waitUntil(10000) { model.priority.value.isNotEmpty() || model.message.value?.contains("cannot keep access") == true }
             assertTrue(model.message.value, model.priority.value.isNotEmpty())
