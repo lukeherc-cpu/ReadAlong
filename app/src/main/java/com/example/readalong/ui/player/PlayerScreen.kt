@@ -5,6 +5,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.ui.input.pointer.pointerInput
@@ -103,6 +104,12 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
             // area is the whole top bar's height and most of its width, and any pull that is mostly
             // downward counts (a diagonal thumb swipe too), as does a short quick flick.
             Box(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                // No pressed highlight on the bar: the handle itself turns white while it's held or pulled.
+                val handlePress = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+                val handlePressed by handlePress.collectIsPressedAsState()
+                var handleDragging by remember { mutableStateOf(false) }
+                val handleColor by androidx.compose.animation.animateColorAsState(
+                    if (handlePressed || handleDragging) Color.White else colors.onSurface.copy(alpha = .45f), tween(150), label = "Handle color")
                 val density = androidx.compose.ui.platform.LocalDensity.current
                 val threshold = with(density) { 40.dp.toPx() }
                 val flick = with(density) { 16.dp.toPx() }
@@ -112,16 +119,17 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                         val tracker = androidx.compose.ui.input.pointer.util.VelocityTracker()
                         var x = 0f; var y = 0f; var closed = false
                         fun downward() = y > 0f && y >= kotlin.math.abs(x) * .6f
-                        detectDragGestures(onDragStart = { x = 0f; y = 0f; closed = false; tracker.resetTracking() },
-                            onDragEnd = { if (!closed && downward() && (y > threshold || (y > flick && tracker.calculateVelocity().y > flickSpeed))) { closed = true; onCollapse() } }) { change, amount ->
+                        detectDragGestures(onDragStart = { x = 0f; y = 0f; closed = false; tracker.resetTracking(); handleDragging = true },
+                            onDragCancel = { handleDragging = false },
+                            onDragEnd = { handleDragging = false; if (!closed && downward() && (y > threshold || (y > flick && tracker.calculateVelocity().y > flickSpeed))) { closed = true; onCollapse() } }) { change, amount ->
                             change.consume(); tracker.addPosition(change.uptimeMillis, change.position)
                             x += amount.x; y += amount.y
                             if (!closed && downward() && y > threshold) { closed = true; onCollapse() }
                         }
                     }
-                    .clickable(onClickLabel = "Close player", onClick = onCollapse)
+                    .clickable(interactionSource = handlePress, indication = null, onClickLabel = "Close player", onClick = onCollapse)
                     .semantics { contentDescription = "Close player" }, contentAlignment = Alignment.Center) {
-                    Box(Modifier.size(width = 36.dp, height = 4.dp).background(colors.onSurface.copy(alpha = .45f), RoundedCornerShape(2.dp)))
+                    Box(Modifier.size(width = 36.dp, height = 4.dp).background(handleColor, RoundedCornerShape(2.dp)))
                 }
                 Box(Modifier.align(Alignment.CenterEnd)) {
                     IconButton(onClick = { menu = true }) { Icon(painterResource(R.drawable.ic_more), "More options") }
@@ -144,8 +152,10 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                     }
                 }
             }
-            BoxWithConstraints(Modifier.widthIn(max = 960.dp).fillMaxWidth().padding(horizontal = 24.dp)) {
+            BoxWithConstraints(Modifier.weight(1f).widthIn(max = 960.dp).fillMaxWidth().padding(horizontal = 24.dp)) {
                 val wide = maxWidth >= 640.dp
+                // Sideways, the cover fits the height it has and sits in the middle of its half.
+                val wideCover = minOf(360.dp, maxHeight - 16.dp).coerceAtLeast(160.dp)
                 val artwork: @Composable () -> Unit = {
                     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         if (book.mediaState == "MISSING") Surface(shape = RoundedCornerShape(com.example.readalong.ui.theme.Corners.medium), color = colors.errorContainer) {
@@ -154,7 +164,7 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                                 TextButton(onClick = onFolders, contentPadding = PaddingValues(0.dp)) { Text("Choose folder again", color = colors.onErrorContainer) }
                             }
                         }
-                        Box(Modifier.widthIn(max = if (wide) 360.dp else (screenHeight * 0.40f).coerceIn(260.dp, 380.dp)).fillMaxWidth().aspectRatio(1f)) {
+                        Box(Modifier.widthIn(max = if (wide) wideCover else (screenHeight * 0.40f).coerceIn(260.dp, 380.dp)).fillMaxWidth().aspectRatio(1f)) {
                         Box(Modifier.fillMaxSize().graphicsLayer {
                                 rotationY = flip
                                 cameraDistance = 16 * density
@@ -181,7 +191,7 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                             }
                         }
                         ReadAlongStatusPill(book, job, timeRemaining, reading, execution, onSpeechModel, onQueue,
-                            Modifier.align(Alignment.BottomCenter).padding(12.dp))
+                            Modifier.align(Alignment.BottomStart).padding(12.dp))
                         }
                     }
                 }
@@ -207,7 +217,7 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                 }
                 state.error?.let { Text(it, color = colors.error, style = MaterialTheme.typography.bodySmall) }
 
-                Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().padding(vertical = if (wide) 2.dp else 12.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
                     PlayerAction("Rewind ${appSettings.playerBack} seconds", R.drawable.ic_rewind, "${appSettings.playerBack}", { playback.skip(-appSettings.playerBack * 1000L) })
                     val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
                     FilledIconButton(onClick = { haptics.performHapticFeedback(if (state.isPlaying) androidx.compose.ui.hapticfeedback.HapticFeedbackType.ToggleOff else androidx.compose.ui.hapticfeedback.HapticFeedbackType.ToggleOn); playback.toggle() }, modifier = Modifier.size(76.dp), shape = CircleShape) {
@@ -229,11 +239,11 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                     PlayerAction("Chapters", R.drawable.ic_chapters, "Chapters", { panel = "chapters" })
                 }
                 readingError?.let { Text(it, color = colors.error, style = MaterialTheme.typography.bodySmall) }
-                Spacer(Modifier.height(12.dp))
+                if (!wide) Spacer(Modifier.height(12.dp))
                 }
-                if (wide) Row(horizontalArrangement = Arrangement.spacedBy(32.dp)) {
-                    Box(Modifier.weight(0.9f)) { artwork() }
-                    Column(Modifier.weight(1.1f), verticalArrangement = Arrangement.spacedBy(12.dp), content = controls)
+                if (wide) Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(32.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.weight(0.9f).fillMaxHeight(), contentAlignment = Alignment.Center) { artwork() }
+                    Column(Modifier.weight(1.1f), verticalArrangement = Arrangement.spacedBy(6.dp), content = controls)
                 } else Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     artwork()
                     controls()

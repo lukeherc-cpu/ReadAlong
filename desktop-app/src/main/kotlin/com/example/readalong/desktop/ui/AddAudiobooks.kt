@@ -21,6 +21,8 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.layout
+import com.example.readalong.desktop.core.LibraryBook
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextAlign
@@ -260,17 +262,7 @@ private fun FolderCard(app: AppState, folder: String, books: List<com.example.re
                 }
             }
             if (scanning && !missing) LinearProgressIndicator(Modifier.fillMaxWidth().height(6.dp).clip(CircleShape))
-            if (!missing && books.isNotEmpty()) Row {
-                val strip = books.take(5)
-                strip.forEachIndexed { index, book ->
-                    BookCover(book, Modifier.offset(x = (-12 * index).dp).size(56.dp).border(2.dp, MaterialTheme.colorScheme.surface, RoundedCornerShape(12.dp)),
-                        shape = RoundedCornerShape(12.dp), size = 160)
-                }
-                if (books.size > strip.size) Box(Modifier.offset(x = (-12 * strip.size).dp).size(56.dp).clip(RoundedCornerShape(12.dp))
-                    .background(MaterialTheme.colorScheme.primaryContainer).border(2.dp, MaterialTheme.colorScheme.surface, RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
-                    Text("+${books.size - strip.size}", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                }
-            }
+            if (!missing && books.isNotEmpty()) FolderCovers(books)
         }
     }
     if (removing) AlertDialog(onDismissRequest = { removing = false }, title = { Text("Remove this folder?") },
@@ -377,5 +369,46 @@ private fun SetupAudible(app: AppState) {
         modifier = Modifier.widthIn(max = 460.dp).padding(bottom = 12.dp))
     Button({ app.open(Screen.Audible) }, Modifier.width(460.dp).heightIn(min = 60.dp).pointerHoverIcon(PointerIcon.Hand), shape = CircleShape) {
         Text("Sign in to Audible", style = MaterialTheme.typography.titleMedium)
+    }
+}
+
+/**
+ * Overlapping covers with "+N" at the end. Clicking "+N" spreads the covers apart and the rest pop in after them
+ * while the card grows; "Less" folds them back.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun FolderCovers(books: List<LibraryBook>) {
+    var expanded by remember { mutableStateOf(false) }
+    val canExpand = books.size > 5
+    LaunchedEffect(canExpand) { if (!canExpand) expanded = false }
+    val spread by animateFloatAsState(if (expanded) 1f else 0f, spring(dampingRatio = .85f, stiffness = 380f))
+    val shown = if (expanded) books else books.take(5)
+    val shape = RoundedCornerShape(12.dp)
+    FlowRow(Modifier.fillMaxWidth().animateContentSize(spring(dampingRatio = .9f, stiffness = 320f)),
+        horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        shown.forEachIndexed { index, book ->
+            key(book.id) {
+                val seen = remember { MutableTransitionState(index < 5 && !expanded).apply { targetState = true } }
+                val delay = if (index < 5) 0 else 40 + 22 * (index - 5).coerceAtMost(20)
+                // Each cover reports itself 20dp narrower when folded, so the next one sits over it (12dp overlap after the 8dp gap).
+                AnimatedVisibility(seen, Modifier.layout { m, c ->
+                        val p = m.measure(c)
+                        layout((p.width - 20.dp.toPx() * (1f - spread)).toInt(), p.height) { p.place(0, 0) }
+                    }, enter = fadeIn(tween(200, delay)) + scaleIn(spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = 500f), initialScale = .6f)) {
+                    BookCover(book, Modifier.size(56.dp).border(2.dp, MaterialTheme.colorScheme.surface, shape), shape = shape, size = 160)
+                }
+            }
+        }
+        if (canExpand) key(if (expanded) "less" else "more") {
+            val seen = remember { MutableTransitionState(false).apply { targetState = true } }
+            AnimatedVisibility(seen, enter = fadeIn(tween(180, if (expanded) 40 + 22 * (books.size - 5).coerceAtMost(20) else 0)) + scaleIn(initialScale = .8f)) {
+                Box(Modifier.size(56.dp).clip(shape).background(MaterialTheme.colorScheme.primaryContainer).border(2.dp, MaterialTheme.colorScheme.surface, shape)
+                    .clickable(onClickLabel = if (expanded) "Show fewer books" else "Show all ${books.size} books") { expanded = !expanded }
+                    .pointerHoverIcon(PointerIcon.Hand), contentAlignment = Alignment.Center) {
+                    Text(if (expanded) "Less" else "+${books.size - 5}", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                }
+            }
+        }
     }
 }

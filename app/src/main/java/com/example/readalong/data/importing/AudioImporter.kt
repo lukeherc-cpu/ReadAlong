@@ -25,7 +25,7 @@ import kotlin.coroutines.coroutineContext
 
 enum class FolderMode { ONE_BOOK, LIBRARY }
 /** One book found by [AudioImporter.preview]; [deleted] when it was deleted from ReadAlong earlier. */
-data class PreviewBook(val name: String, val deleted: Boolean)
+data class PreviewBook(val name: String, val deleted: Boolean, val cover: Uri? = null, val firstAudio: Uri? = null)
 /** What a chosen folder holds, shown before it is added. */
 data class FolderPreview(val uri: Uri, val name: String, val books: List<PreviewBook>, val suggested: FolderMode, val deletedAsOneBook: Boolean, val emptyMessage: String?) {
     val deletedBooks get() = books.count { it.deleted }
@@ -110,7 +110,8 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
         val discs = !looseAudio && directories.isNotEmpty() && directories.all { DISC.matches(it.name.orEmpty()) }
         val numbered = groups.size >= 2 && groups.map { it.name.orEmpty().replace(Regex("\\d+"), "").trim().lowercase() }.distinct().size == 1
         val suggested = if (groups.size >= 2 && !discs && !numbered) FolderMode.LIBRARY else FolderMode.ONE_BOOK
-        val found = groups.map { group -> PreviewBook(group.name ?: "Audiobook", LibraryExclusions.excluded(books, group.key, group.found.audio.map { it.uri })) }
+        val found = groups.map { group -> PreviewBook(group.name ?: "Audiobook", LibraryExclusions.excluded(books, group.key, group.found.audio.map { it.uri }),
+            coverImage(group.found.images)?.uri, group.found.audio.firstOrNull()?.uri) }
         FolderPreview(uri, name, found, suggested,
             deletedAsOneBook = groups.isNotEmpty() && LibraryExclusions.excluded(books, "folder:${root.uri}", groups.flatMap { g -> g.found.audio.map { it.uri } }),
             emptyMessage = if (groups.isEmpty()) walk.nothingFound(name) + walk.problemNote() else null)
@@ -148,7 +149,7 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
                 val found = group.found
                 coroutineContext.ensureActive()
                 try {
-                    val (id, isNew) = importGroup(found.audio, group.key, uri.toString(), group.name, explicit) ?: run { deleted++; return@forEach }
+                    val (id, isNew) = importGroup(found.audio, group.key, uri.toString(), group.name, explicit, coverImage(found.images)?.uri) ?: run { deleted++; return@forEach }
                     ids += id; if (isNew) added += id
                     val epubs = found.epubs
                     val selected = if (epubs.size == 1) epubs.single() else epubs.singleOrNull { it.name?.substringBeforeLast('.')?.equals(group.name, true) == true }
@@ -258,7 +259,7 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
         } catch (_: Exception) { metadata } // Optional metadata never rejects readable source audio.
     }
 
-    private suspend fun importGroup(sources: List<Source>, key: String, folderUri: String?, folderName: String?, explicit: Boolean = false): Pair<String, Boolean>? {
+    private suspend fun importGroup(sources: List<Source>, key: String, folderUri: String?, folderName: String?, explicit: Boolean = false, folderCover: Uri? = null): Pair<String, Boolean>? {
         importLock.lock()
         try {
             val excluded = database.withTransaction {
@@ -266,11 +267,11 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
                 LibraryExclusions.excluded(books, key, sources.map { it.uri })
             }
             if (excluded) return null
-            return importGroupLocked(sources, key, folderUri, folderName)
+            return importGroupLocked(sources, key, folderUri, folderName, folderCover)
         } finally { importLock.unlock() }
     }
 
-    private suspend fun importGroupLocked(sources: List<Source>, key: String, folderUri: String?, folderName: String?): Pair<String, Boolean>? {
+    private suspend fun importGroupLocked(sources: List<Source>, key: String, folderUri: String?, folderName: String?, folderCover: Uri? = null): Pair<String, Boolean>? {
         val all = media.allAudio()
         val bySource = all.associateBy { sourceIdentity(Uri.parse(it.uri)) }
         val known = sources.mapNotNull { bySource[sourceIdentity(it.uri)] }.distinctBy { it.id }
@@ -299,7 +300,10 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
         check(metadata.isNotEmpty()) { "None of the selected audio files could be read." }
         val old = books.findBook(id)
         val customCover = books.metadata("override:$id:cover")
-        val cover = customCover ?: metadata.firstNotNullOfOrNull { it.art }?.let { bytes ->
+        // Embedded art first, then a cover image in the book's folder (cover.jpg, folder.jpg, ...).
+        val art = metadata.firstNotNullOfOrNull { it.art }
+            ?: folderCover?.let { image -> runCatching { resolver.openInputStream(image)?.use { it.readBytes() } }.getOrNull()?.takeIf { it.size in 1..20_000_000 } }
+        val cover = customCover ?: art?.let { bytes ->
             try {
                 val directory = File(context.filesDir, "covers").apply { mkdirs() }
                 val file = File(directory, "$id.jpg")
@@ -342,7 +346,11 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
     }
 
     private data class Collected(val audio: List<Source>, val epubs: List<DocumentFile>, val transcripts: List<DocumentFile> = emptyList(), val skipped: Map<String, Int> = emptyMap(),
-        val progress: List<DocumentFile> = emptyList())
+        val progress: List<DocumentFile> = emptyList(), val images: List<DocumentFile> = emptyList())
+
+    /** The image that is most likely the book's cover: one named cover/folder/front, else the only or first image. */
+    private fun coverImage(images: List<DocumentFile>): DocumentFile? =
+        images.firstOrNull { COVER_NAME.containsMatchIn(it.name.orEmpty()) } ?: images.minByOrNull { it.name.orEmpty().lowercase() }
     /** One audiobook found in a library folder: [key] keeps its identity stable across rescans; [home] is where its progress file goes. */
     private data class Group(val key: String, val name: String?, val found: Collected, val home: DocumentFile? = null)
 
@@ -360,7 +368,8 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
         val epubs = children.filter { it.isFile && it.name.orEmpty().endsWith(".epub", true) }
         val transcripts = children.filter { it.isFile && it.name.orEmpty().endsWith(".readalong", true) }
         val progress = children.filter { it.isFile && it.name.orEmpty().endsWith(FolderProgress.EXTENSION, true) }
-        groups += singleFileBooks(loose, epubs, transcripts, progress, root) ?: listOf(Group("folder:${root.uri}", root.name, Collected(loose.map { Source(it.uri, it.name!!) }, epubs, transcripts, progress = progress), root))
+        val images = children.filter { it.isFile && image(it.name.orEmpty()) }
+        groups += singleFileBooks(loose, epubs, transcripts, progress, root, images) ?: listOf(Group("folder:${root.uri}", root.name, Collected(loose.map { Source(it.uri, it.name!!) }, epubs, transcripts, progress = progress, images = images), root))
         val shelves = ArrayDeque(children.filter { it.isDirectory }.map { it to 1 })
         while (shelves.isNotEmpty()) {
             val (directory, depth) = shelves.removeFirst()
@@ -374,7 +383,7 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
                     audio.isNotEmpty() || discs || depth >= 4 || subfolders.isEmpty() -> {
                         val shelfBooks = if (subfolders.isEmpty()) singleFileBooks(audio, inside.filter { it.isFile && it.name.orEmpty().endsWith(".epub", true) },
                             inside.filter { it.isFile && it.name.orEmpty().endsWith(".readalong", true) },
-                            inside.filter { it.isFile && it.name.orEmpty().endsWith(FolderProgress.EXTENSION, true) }, directory) else null
+                            inside.filter { it.isFile && it.name.orEmpty().endsWith(FolderProgress.EXTENSION, true) }, directory, inside.filter { it.isFile && image(it.name.orEmpty()) }) else null
                         groups += shelfBooks ?: listOf(Group("folder:${directory.uri}", directory.name, collect(directory, walk), directory))
                     }
                     else -> subfolders.forEach { shelves.add(it to depth + 1) }
@@ -386,14 +395,15 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
     }
 
     /** Several .m4b files side by side are separate books; returns null for any other mix. */
-    private fun singleFileBooks(audio: List<DocumentFile>, epubs: List<DocumentFile>, transcripts: List<DocumentFile>, progress: List<DocumentFile>, home: DocumentFile): List<Group>? {
+    private fun singleFileBooks(audio: List<DocumentFile>, epubs: List<DocumentFile>, transcripts: List<DocumentFile>, progress: List<DocumentFile>, home: DocumentFile,
+        images: List<DocumentFile> = emptyList()): List<Group>? {
         if (audio.size < 2 || !audio.all { it.name.orEmpty().endsWith(".m4b", true) }) return null
         // "Part 1.m4b", "Part 2.m4b" are one book split into parts.
         if (audio.any { PART.containsMatchIn(it.name.orEmpty()) }) return null
         return audio.map { file ->
             val name = file.name.orEmpty().substringBeforeLast('.')
             val same = { other: DocumentFile -> other.name.orEmpty().substringBeforeLast('.').equals(name, true) }
-            Group("file:${file.uri}", name, Collected(listOf(Source(file.uri, file.name!!)), epubs.filter(same), transcripts.filter(same), progress = progress.filter { it.name.orEmpty().equals(name + FolderProgress.EXTENSION, true) }), home)
+            Group("file:${file.uri}", name, Collected(listOf(Source(file.uri, file.name!!)), epubs.filter(same), transcripts.filter(same), progress = progress.filter { it.name.orEmpty().equals(name + FolderProgress.EXTENSION, true) }, images = images.filter(same)), home)
         }
     }
     private fun collect(root: DocumentFile, walk: Walk): Collected {
@@ -401,6 +411,7 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
         val epubs = mutableListOf<DocumentFile>()
         val transcripts = mutableListOf<DocumentFile>()
         val progress = mutableListOf<DocumentFile>()
+        val images = mutableListOf<DocumentFile>()
         val skipped = mutableMapOf<String, Int>()
         val pending = ArrayDeque<Triple<DocumentFile, Int, String>>()
         pending.add(Triple(root, 0, ""))
@@ -414,11 +425,12 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
                     else if (child.name.orEmpty().endsWith(".epub", true)) epubs += child
                     else if (child.name.orEmpty().endsWith(".readalong", true)) transcripts += child
                     else if (child.name.orEmpty().endsWith(FolderProgress.EXTENSION, true)) { if (depth == 0) progress += child }
+                    else if (image(child.name.orEmpty())) { if (depth <= 1) images += child }
                     else Walk.skippedType(child.name.orEmpty())?.let { skipped[it] = (skipped[it] ?: 0) + 1 }
                 }
             }
         }
-        return Collected(result, epubs, transcripts, skipped, progress)
+        return Collected(result, epubs, transcripts, skipped, progress, images)
     }
 
     internal fun sourceIdentity(uri: Uri): String = LibraryExclusions.source(uri)
@@ -431,10 +443,13 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
         val DISC = Regex("(?i)^(cd|disc|disk|part)\\s*[-_ ]?\\d+.*")
         val PART = Regex("(?i)\\b(part|pt|disc|disk|cd)\\s*[-_.]?\\s*\\d+")
         val AUDIO = setOf("mp3", "m4a", "m4b", "aac", "ogg", "opus", "flac", "wav", "mp4")
+        val IMAGES = setOf("jpg", "jpeg", "png", "webp")
+        val COVER_NAME = Regex("(?i)(cover|folder|front)")
         /** Files a scan uses or expects beside audio; they never count as skipped. */
         val COMPANION = setOf("epub", "readalong", "readalong-progress", "jpg", "jpeg", "png", "webp", "gif", "bmp", "txt", "nfo", "cue", "pdf", "json", "xml", "m3u", "m3u8", "nomedia", "ini", "db", "log", "srt", "lrc", "html", "url", "md")
     }
     private fun supported(name: String) = name.substringAfterLast('.', "").lowercase() in AUDIO
+    private fun image(name: String) = name.substringAfterLast('.', "").lowercase() in IMAGES
 
     /**
      * What a folder scan saw, so the result can say what wasn't added and why: no files reached the

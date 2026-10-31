@@ -49,7 +49,8 @@ private fun AudibleImportScreen(onClose: () -> Unit, onChooseFolder: () -> Unit)
     val context = LocalContext.current
     val store = remember { AudibleStore.get(context) }
     val account by store.account.collectAsStateWithLifecycle()
-    var login by remember { mutableStateOf<AudibleAuth.Login?>(null) }
+    // Not signed in yet: open Amazon's sign-in page straight away (Cancel shows the store picker).
+    var login by remember { mutableStateOf(if (store.account.value == null) runCatching { AudibleAuth.startLogin(defaultAudibleLocale()) }.getOrNull() else null) }
     var error by remember { mutableStateOf<String?>(null) }
     var registering by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -82,9 +83,12 @@ private fun AudibleImportScreen(onClose: () -> Unit, onChooseFolder: () -> Unit)
     BackHandler(enabled = login != null) { login = null }
 }
 
+/** The Audible store for this device's country. */
+private fun defaultAudibleLocale() = AudibleLocale.of(java.util.Locale.getDefault().country.lowercase().let { if (it == "gb") "uk" else it })
+
 @Composable
 private fun SignInIntro(error: String?, onSignIn: (AudibleLocale) -> Unit) {
-    var locale by remember { mutableStateOf(AudibleLocale.of(java.util.Locale.getDefault().country.lowercase().let { if (it == "gb") "uk" else it })) }
+    var locale by remember { mutableStateOf(defaultAudibleLocale()) }
     var choosing by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text("Import from Audible", style = MaterialTheme.typography.headlineSmall)

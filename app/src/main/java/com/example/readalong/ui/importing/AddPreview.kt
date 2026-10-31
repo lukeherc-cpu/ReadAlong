@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.readalong.data.importing.FolderMode
 import com.example.readalong.data.importing.PreviewBook
+import androidx.compose.ui.graphics.asImageBitmap
 
 /**
  * Add audiobooks: one folder picker for a single book or a whole library. The folder is looked at
@@ -68,7 +69,7 @@ fun AddPreviewDialog(model: ImportViewModel, origin: String, onAdded: () -> Unit
         else {
             // One book: a square cover placeholder with its name, like the library's covers.
             val name = if (count == 1) shown.books.first().name else shown.name
-            PreviewTile(name, 0, Modifier.size(176.dp), large = true)
+            PreviewTile(name, 0, Modifier.size(176.dp), large = true, book = shown.books.firstOrNull { it.cover != null } ?: shown.books.firstOrNull())
             Text(name, style = MaterialTheme.typography.titleLarge, textAlign = TextAlign.Center)
             if (count >= 2) Text("All $count folders' audio is played as one audiobook, in order.", style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
@@ -123,7 +124,7 @@ private fun PreviewGrid(books: List<PreviewBook>) {
                         verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         if (more) Box(Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(10.dp)).background(MaterialTheme.colorScheme.primaryContainer), contentAlignment = Alignment.Center) {
                             Text("+$rest", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                        } else PreviewTile(shown[index].name, index, Modifier.fillMaxWidth().alpha(if (deleted) .45f else 1f))
+                        } else PreviewTile(shown[index].name, index, Modifier.fillMaxWidth().alpha(if (deleted) .45f else 1f), book = shown[index])
                         Text(label, style = MaterialTheme.typography.labelMedium, maxLines = 2, overflow = TextOverflow.Ellipsis,
                             color = if (deleted) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface)
                     }
@@ -136,10 +137,30 @@ private fun PreviewGrid(books: List<PreviewBook>) {
 
 /** A square placeholder cover in one of the accent's shades, with the title's first letter. */
 @Composable
-private fun PreviewTile(name: String, index: Int, modifier: Modifier, large: Boolean = false) {
+private fun PreviewTile(name: String, index: Int, modifier: Modifier, large: Boolean = false, book: PreviewBook? = null) {
     val colors = MaterialTheme.colorScheme
     val shade = androidx.compose.ui.graphics.lerp(colors.primary, colors.background, listOf(0f, .3f, .15f, .5f, .22f)[index % 5])
+    val context = androidx.compose.ui.platform.LocalContext.current
+    // The book's own cover: an image in its folder, else the art inside its first audio file.
+    val embedded by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, book?.firstAudio, book?.cover) {
+        val audio = book?.firstAudio
+        if (book?.cover == null && audio != null) value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching {
+                val retriever = android.media.MediaMetadataRetriever()
+                try {
+                    retriever.setDataSource(context, audio)
+                    retriever.embeddedPicture?.let { bytes ->
+                        val options = android.graphics.BitmapFactory.Options().apply { inSampleSize = 4 }
+                        android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)?.asImageBitmap()
+                    }
+                } finally { retriever.release() }
+            }.getOrNull()
+        }
+    }
     Box(modifier.aspectRatio(1f).clip(RoundedCornerShape(if (large) 14.dp else 10.dp)).background(shade), contentAlignment = Alignment.Center) {
         Text(name.trim().take(1).uppercase(), color = colors.onPrimary, style = if (large) MaterialTheme.typography.displayMedium else MaterialTheme.typography.titleLarge)
+        val picture = embedded
+        if (book?.cover != null) coil3.compose.AsyncImage(model = book.cover, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        else if (picture != null) androidx.compose.foundation.Image(picture, null, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
     }
 }
