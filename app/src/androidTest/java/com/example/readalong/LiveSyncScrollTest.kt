@@ -57,7 +57,7 @@ class LiveSyncScrollTest {
         compose.runOnUiThread { app.playback.pause(); app.playback.seek(rows.first().startMs) }
         // The player composes after navigation (slower on a cold emulator): wait for the cover first.
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("flip_cover", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
-        compose.onNodeWithTag("flip_cover", useUnmergedTree = true).performScrollTo().performClick()
+        compose.onNodeWithTag("flip_cover", useUnmergedTree = true).performClick()
         compose.waitUntil(5000) { compose.onAllNodesWithTag("follow_card", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithContentDescription("Read in full screen").performClick()
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("reader_paragraph").fetchSemanticsNodes().isNotEmpty() }

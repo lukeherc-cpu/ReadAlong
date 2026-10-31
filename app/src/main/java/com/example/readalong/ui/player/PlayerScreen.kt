@@ -11,11 +11,9 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import kotlinx.coroutines.launch
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -81,14 +79,24 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
         if (state.isLoading) { kotlinx.coroutines.delay(600); value = true }
     }
     if (appSettings.blurredPlayer && !appSettings.alwaysBasicColor) com.example.readalong.ui.components.BlurredCover(book.coverUri, Modifier.fillMaxSize())
-    // With the ReadAlong bar hidden, the player is one fixed page: no scrolling, back at the top.
-    val barHidden by reading.preparationHidden.collectAsStateWithLifecycle(false)
-    val pageScroll = rememberScrollState()
-    LaunchedEffect(barHidden) { if (barHidden) pageScroll.animateScrollTo(0) }
+    // A book with no text yet flips its cover over once, the first time it's opened, to offer a ReadAlong.
+    val passages by reading.passages.collectAsStateWithLifecycle()
+    // (A sample book, or one whose text came another way, already has text without a ReadAlong job.)
+    val notStarted = !book.isDemo && (job == null || job?.state == "WAITING_SELECTION") && passages.isEmpty()
+    val introShown by reading.textIntroShown.collectAsStateWithLifecycle(null)
+    LaunchedEffect(book.id, introShown) {
+        if (introShown == false && !book.isDemo) {
+            kotlinx.coroutines.delay(900)
+            if (reading.processingJob.value.let { it == null || it.state == "WAITING_SELECTION" } && reading.passages.value.isEmpty()) showText = true
+            reading.markTextIntroShown()
+        }
+    }
+    val pickEpub = rememberEpubPicker(reading)
+    val epub by reading.importedEdition.collectAsStateWithLifecycle()
     Scaffold(containerColor = Color.Transparent, contentColor = colors.onSurface) { insets ->
         Column(
             Modifier.fillMaxSize()
-                .padding(insets).verticalScroll(pageScroll, enabled = !barHidden),
+                .padding(insets),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             // A grab handle, like the pop-up sheets: tap it or pull down to close the player. The touch
@@ -99,7 +107,7 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                 val threshold = with(density) { 40.dp.toPx() }
                 val flick = with(density) { 16.dp.toPx() }
                 val flickSpeed = with(density) { 700.dp.toPx() }
-                Box(Modifier.align(Alignment.Center).size(width = 220.dp, height = 56.dp)
+                Box(Modifier.align(Alignment.Center).size(width = 180.dp, height = 56.dp)
                     .pointerInput(Unit) {
                         val tracker = androidx.compose.ui.input.pointer.util.VelocityTracker()
                         var x = 0f; var y = 0f; var closed = false
@@ -118,6 +126,18 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                 Box(Modifier.align(Alignment.CenterEnd)) {
                     IconButton(onClick = { menu = true }) { Icon(painterResource(R.drawable.ic_more), "More options") }
                     DropdownMenu(menu, { menu = false }) {
+                        // Adding the book's EPUB later swaps the ReadAlong to its exact text, so it leads the menu.
+                        if (!book.isDemo) DropdownMenuItem(
+                            text = {
+                                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    Text(if (epub != null) "Replace matching ebook" else "Add matching ebook", style = MaterialTheme.typography.titleSmall)
+                                    Text("Exact text for this ReadAlong", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+                                }
+                            },
+                            leadingIcon = { Icon(painterResource(R.drawable.ic_book), null, tint = colors.primary) },
+                            onClick = { menu = false; pickEpub() },
+                            modifier = Modifier.padding(horizontal = 6.dp).background(colors.primary.copy(alpha = .12f), RoundedCornerShape(14.dp)).testTag("menu_add_epub"))
+                        if (!book.isDemo) HorizontalDivider(Modifier.padding(horizontal = 14.dp, vertical = 6.dp))
                         DropdownMenuItem(text = { Text(if (book.isFinished) "Mark as not finished" else "Mark as finished") }, onClick = { onFinished(!book.isFinished); menu = false })
                         DropdownMenuItem(text = { Text("Save ReadAlong as EPUB") }, onClick = { menu = false; export.launch("ReadAlong-${book.id}.epub") })
                         DropdownMenuItem(text = { Text("Bookmarks (${bookmarks.size})") }, onClick = { panel = "bookmarks"; menu = false })
@@ -134,15 +154,16 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                                 TextButton(onClick = onFolders, contentPadding = PaddingValues(0.dp)) { Text("Choose folder again", color = colors.onErrorContainer) }
                             }
                         }
-                        Box(Modifier.widthIn(max = if (wide) 360.dp else (screenHeight * 0.40f).coerceIn(260.dp, 380.dp))
-                            .fillMaxWidth().aspectRatio(1f).graphicsLayer {
+                        Box(Modifier.widthIn(max = if (wide) 360.dp else (screenHeight * 0.40f).coerceIn(260.dp, 380.dp)).fillMaxWidth().aspectRatio(1f)) {
+                        Box(Modifier.fillMaxSize().graphicsLayer {
                                 rotationY = flip
                                 cameraDistance = 16 * density
                             }) {
                             // Keep the preview composed, measured and following even while the art faces forward.
                             Box(Modifier.fillMaxSize().graphicsLayer { rotationY = 180f; alpha = if (flip > 90f) 1f else 0f }
                                 .then(if (flip <= 90f) Modifier.clearAndSetSemantics { } else Modifier)) {
-                                com.example.readalong.ui.reading.FollowCard(state, reading, onFollow, com.example.readalong.ui.reading.minimizedReadAlongColor(readerTheme, palette.preview),
+                                if (notStarted) NoTextYet(book, reading, onNotNow = { showText = false })
+                                else com.example.readalong.ui.reading.FollowCard(state, reading, onFollow, com.example.readalong.ui.reading.minimizedReadAlongColor(readerTheme, palette.preview),
                                     onCover = { showText = false }, visible = flip > 90f, modifier = if (showText) com.example.readalong.ui.reading.LocalReaderSurface.current else Modifier,
                                     colorOf = com.example.readalong.ui.reading.LocalReaderSurfaceColor.current)
                             }
@@ -150,7 +171,7 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                                 .clickable(role = Role.Button, onClickLabel = "Show the text") { showText = true; hideCoverTip() }) {
                                 BookCover(book, Modifier.fillMaxSize().navSharedCover(com.example.readalong.ui.components.LocalPlayerCoverKey.current), large = true)
                                 // Until it's been used once: the cover is also the way to the text.
-                                if (!appSettings.coverTipHidden && job != null && job?.state != "WAITING_SELECTION") Surface(Modifier.align(Alignment.BottomCenter).padding(12.dp),
+                                if (!appSettings.coverTipHidden && job?.state == "READY") Surface(Modifier.align(Alignment.BottomCenter).padding(12.dp),
                                     shape = RoundedCornerShape(50), color = Color.Black.copy(alpha = .62f), contentColor = Color.White) {
                                     Row(Modifier.padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                         Icon(painterResource(R.drawable.ic_highlighted_book), null, Modifier.size(18.dp))
@@ -158,6 +179,9 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                                     }
                                 }
                             }
+                        }
+                        ReadAlongStatusPill(book, job, timeRemaining, reading, execution, onSpeechModel, onQueue,
+                            Modifier.align(Alignment.BottomCenter).padding(12.dp))
                         }
                     }
                 }
@@ -204,7 +228,6 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                     PlayerAction("Bookmarks", R.drawable.ic_bookmark, "Bookmark", { panel = "bookmarks" })
                     PlayerAction("Chapters", R.drawable.ic_chapters, "Chapters", { panel = "chapters" })
                 }
-                ReadableProgressCard(book, job, timeRemaining, reading, state.positionMs, execution, onSpeechModel, onQueue)
                 readingError?.let { Text(it, color = colors.error, style = MaterialTheme.typography.bodySmall) }
                 Spacer(Modifier.height(12.dp))
                 }
