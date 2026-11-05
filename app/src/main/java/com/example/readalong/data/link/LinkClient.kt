@@ -20,7 +20,14 @@ data class RemoteFolder(val id: String, val name: String, val shared: Boolean)
  * One conversation with the linked computer (see ReadAlong Desktop's DeviceLink). [open] tries the
  * addresses it was last reached at, then asks the home network where it went.
  */
-class LinkClient private constructor(private val socket: Socket, private val channel: LinkChannel, val computerName: String, val computerId: String, val host: String, val port: Int) : Closeable {
+class LinkClient private constructor(private val socket: Socket, private val channel: LinkChannel, val computerName: String, val computerId: String, val host: String, val port: Int,
+    /** The computer's ReadAlong version; null for ReadAlong Desktop 0.44.1 and earlier, which didn't say. */
+    val computerVersion: String? = null,
+    /** The requests the computer understands (see [LinkChannel.PROTOCOL]). */
+    val computerOps: Set<String> = LinkChannel.V1_OPS.toSet()) : Closeable {
+
+    /** Whether the computer knows [op]; check before sending a request newer than protocol 1. */
+    fun supports(op: String) = op in computerOps
 
     fun folders(): List<RemoteFolder> {
         channel.sendJson(JSONObject().put("op", "folders"))
@@ -28,13 +35,32 @@ class LinkClient private constructor(private val socket: Socket, private val cha
         return List(array.length()) { i -> array.getJSONObject(i).let { RemoteFolder(it.getString("id"), it.getString("name"), it.optBoolean("shared")) } }
     }
 
+    /** The kinds of file the computer was told not to sync (FolderSyncPlan.Kind ids); empty from older versions. */
+    var computerSkips: Set<String> = emptySet()
+        private set
+
     fun list(folder: String): List<SyncFile> {
         channel.sendJson(JSONObject().put("op", "list").put("folder", folder))
-        val pages = channel.receiveJson().getInt("pages")
+        val head = channel.receiveJson()
+        computerSkips = com.example.readalong.domain.link.FolderSyncPlan.decodeKinds(head.optJSONArray("skip"))
+        val pages = head.getInt("pages")
         return (0 until pages).flatMap {
             val files = channel.receiveJson().getJSONArray("files")
             List(files.length()) { i -> SyncFile.fromJson(files.getJSONObject(i)) }
         }
+    }
+
+    /** The computer's shared settings, or null when it has them turned off (or is too old to share them). */
+    fun settings(): Map<String, String>? = try {
+        channel.sendJson(JSONObject().put("op", "settings"))
+        val reply = channel.receiveJson()
+        if (com.example.readalong.domain.link.FolderSyncPlan.Kind.SETTINGS.id in com.example.readalong.domain.link.FolderSyncPlan.decodeKinds(reply.optJSONArray("skip"))) null
+        else com.example.readalong.domain.link.SettingsSync.decode(reply.optJSONObject("values"))
+    } catch (_: com.example.readalong.domain.link.LinkException) { null }
+
+    fun setSettings(values: Map<String, String>) {
+        channel.sendJson(JSONObject().put("op", "set-settings").put("values", com.example.readalong.domain.link.SettingsSync.encode(values)))
+        channel.receiveJson()
     }
 
     /** Copies one of the computer's files into [target]; returns its size and time there. */
@@ -69,7 +95,7 @@ class LinkClient private constructor(private val socket: Socket, private val cha
 
     companion object {
         /** Connects with [key] and introduces this phone. Throws when the computer can't be reached. */
-        fun open(hosts: List<String>, port: Int, key: ByteArray, phoneId: String, phoneName: String): LinkClient {
+        fun open(hosts: List<String>, port: Int, key: ByteArray, phoneId: String, phoneName: String, appVersion: String? = null): LinkClient {
             val keyId = LinkChannel.keyId(key)
             val tried = LinkedHashSet<Pair<String, Int>>()
             fun attempt(host: String, at: Int): LinkClient? {
@@ -79,9 +105,12 @@ class LinkClient private constructor(private val socket: Socket, private val cha
                     socket.connect(InetSocketAddress(host, at), 3_000)
                     socket.soTimeout = 60_000
                     val channel = LinkChannel.connect(socket.getInputStream(), socket.getOutputStream(), key)
-                    channel.sendJson(JSONObject().put("op", "hello").put("device", phoneId).put("name", phoneName))
+                    // Older computers ignore the extra fields.
+                    channel.sendJson(JSONObject().put("op", "hello").put("device", phoneId).put("name", phoneName)
+                        .put("protocol", LinkChannel.PROTOCOL).put("ops", org.json.JSONArray(LinkChannel.OPS)).apply { appVersion?.let { put("app", it) } })
                     val reply = channel.receiveJson()
-                    LinkClient(socket, channel, reply.optString("name", "Computer"), reply.getString("device"), host, at)
+                    LinkClient(socket, channel, reply.optString("name", "Computer"), reply.getString("device"), host, at,
+                        reply.optString("app").take(40).ifBlank { null }, LinkChannel.peerOps(reply))
                 } catch (_: IOException) { runCatching { socket.close() }; null }
             }
             hosts.firstNotNullOfOrNull { attempt(it, port) }?.let { return it }

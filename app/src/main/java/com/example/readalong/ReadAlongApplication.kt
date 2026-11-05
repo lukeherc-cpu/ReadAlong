@@ -2,6 +2,7 @@ package com.example.readalong
 
 import android.app.Application
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.first
 import androidx.room.withTransaction
 import com.example.readalong.data.book.RoomBookRepository
 import com.example.readalong.data.local.ReadAlongDatabase
@@ -15,18 +16,40 @@ class ReadAlongApplication : Application() {
         com.example.readalong.data.transcription.DesktopTranscriptImporter(this, database, processing, generatedEpub).import(id, uri)
         if (database.importedEpubDao().find(id) != null) importedEpub.preference(id, "EPUB")
         importedEpub.requestAlignment(id)
-    }, onProgressFound = { id, location -> folderProgress.sync(id, location) }) }
+    }, onProgressFound = { id, location -> folderProgress.sync(id, location)
+        try { folderBookmarks.sync(id, location) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { }
+    }) }
+    /** Bookmarks shared through the audiobook folder, the same way as listening progress. */
+    val folderBookmarks by lazy { com.example.readalong.data.importing.FolderBookmarks(this, database) }
     /** Listening progress shared with ReadAlong for Windows through the audiobook folder. */
     val folderProgress by lazy { com.example.readalong.data.importing.FolderProgressSync(this, database,
         playing = { id -> playbackStore.state.value.let { it.bookId == id && it.isPlaying } },
         moved = { id, position -> if (playbackStore.state.value.bookId == id) withContext(Dispatchers.Main) { playback.seek(position) } }) }
     /** Folders kept in step with a linked ReadAlong Desktop over the home network; a sync rescans the phone folder it changed. */
     val folderLink by lazy { val links = com.example.readalong.data.link.LinkStore(this)
-        com.example.readalong.data.link.FolderLinkSync(this, links, beforeSync = { com.example.readalong.data.link.TranscriptPackageWriter(this, database, links).writeAll() }) { uri ->
+        com.example.readalong.data.link.FolderLinkSync(this, links, beforeSync = {
+            if (com.example.readalong.domain.link.FolderSyncPlan.Kind.TRANSCRIPT.id !in links.value.skipped) com.example.readalong.data.link.TranscriptPackageWriter(this, database, links).writeAll() },
+            settings = linkSettings) { uri ->
         // A phone folder chosen only for syncing joins the library too.
         if (database.mediaDao().folder(uri.toString()) != null) audioImporter.scan(uri)
         else audioImporter.addFolder(uri, com.example.readalong.data.importing.FolderMode.LIBRARY, persistAccess = false)
     } }
+    /** The settings shared with a linked computer: accent colour, skip times, and the ReadAlong reader's theme, font and size. */
+    private val linkSettings = object : com.example.readalong.data.link.LinkSettings {
+        override suspend fun read(): Map<String, String> {
+            val app = appPreferences.preferences.first(); val reader = readerPreferences.preferences.first()
+            return with(com.example.readalong.domain.link.SettingsSync) { mapOf(ACCENT to app.basicColor.toString(), SKIP_BACK to app.playerBack.toString(),
+                SKIP_FORWARD to app.playerForward.toString(), READER_THEME to reader.theme, READER_FONT to reader.fontFamily, READER_SIZE to reader.fontSize.toString()) }
+        }
+        override suspend fun apply(values: Map<String, String>) { with(com.example.readalong.domain.link.SettingsSync) {
+            appPreferences.update { p -> p.copy(basicColor = values[ACCENT]?.toLongOrNull() ?: p.basicColor,
+                playerBack = values[SKIP_BACK]?.toIntOrNull()?.coerceIn(1, 600) ?: p.playerBack, playerForward = values[SKIP_FORWARD]?.toIntOrNull()?.coerceIn(1, 600) ?: p.playerForward) }
+            val reader = readerPreferences.preferences.first()
+            readerPreferences.save(reader.copy(theme = values[READER_THEME]?.takeIf { it in setOf("DARK", "BLACK", "LIGHT", "SEPIA") } ?: reader.theme,
+                fontFamily = values[READER_FONT]?.takeIf { com.example.readalong.data.preferences.ReaderFonts.valid(it) && it != "MATCH" } ?: reader.fontFamily,
+                fontSize = values[READER_SIZE]?.toFloatOrNull()?.takeIf { it.isFinite() }?.coerceIn(16f, 32f) ?: reader.fontSize))
+        } }
+    }
     val bookRepository: BookRepository by lazy {
         RoomBookRepository(database)
     }
@@ -150,7 +173,7 @@ class ReadAlongApplication : Application() {
     val appPreferences by lazy { com.example.readalong.data.preferences.AppPreferencesStore(this) }
     val bookReaderPreferences by lazy { com.example.readalong.data.preferences.ReaderPreferencesStore.forBooks(this) }
     val readerPreferences by lazy { com.example.readalong.data.preferences.ReaderPreferencesStore(this) }
-    val transcriptRepository by lazy { com.example.readalong.data.reading.TranscriptRepository(database) }
+    val transcriptRepository by lazy { com.example.readalong.data.reading.TranscriptRepository(database, folderBookmarks) }
     val playbackStore by lazy { com.example.readalong.playback.PlaybackStore() }
     val playback by lazy { com.example.readalong.playback.PlaybackCoordinator(this, bookRepository, database, playbackStore) }
 }

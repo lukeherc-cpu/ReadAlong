@@ -154,6 +154,8 @@ fun SettingsScreen(app: AppState) {
                             .pointerHoverIcon(PointerIcon.Hand).then(if (settings.accent == p.color) Modifier.border(3.dp, Color.White, CircleShape) else Modifier))
                     }
                 }
+                SectionTitle("Updates")
+                UpdatesSettings(app)
                 Spacer(Modifier.height(24.dp))
                 Text("ReadAlong for ${AppPaths.platformName} ${System.getProperty("readalong.version") ?: "dev"} · Data in ${AppPaths.data}", style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)

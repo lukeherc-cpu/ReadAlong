@@ -41,7 +41,14 @@ data class AppPreferences(
     val coverProgressBar: Boolean = false,
     /** Transcribe as fast as possible: no slow-down when the phone is warm, in battery saver or low on memory (still stops when hot). */
     val aggressiveTranscription: Boolean = false,
+    /** Total time spent playing audiobooks, across every book. */
+    val listenedMs: Long = 0,
+    /** When [listenedMs] reaches this, the "Enjoying ReadAlong?" card shows; each close without "Don't show again" moves it 10 hours on. */
+    val supportPromptAtMs: Long = SUPPORT_PROMPT_EVERY_MS,
+    val supportPromptOff: Boolean = false,
 )
+
+const val SUPPORT_PROMPT_EVERY_MS = 10L * 60 * 60 * 1000
 
 class AppPreferencesStore(private val context: Context) {
     private val store = context.applicationContext.appDataStore
@@ -74,6 +81,9 @@ class AppPreferencesStore(private val context: Context) {
         p[booleanPreferencesKey("folder_example_hidden")] ?: false,
         p[booleanPreferencesKey("cover_progress_bar")] ?: false,
         p[booleanPreferencesKey("aggressive_transcription")] ?: false,
+        p[longPreferencesKey("listened_ms")] ?: 0,
+        p[longPreferencesKey("support_prompt_at_ms")] ?: SUPPORT_PROMPT_EVERY_MS,
+        p[booleanPreferencesKey("support_prompt_off")] ?: false,
     )
     val preferences = store.data.catch { if (it is IOException) emit(emptyPreferences()) else throw it }.map(::decode)
     suspend fun update(change: (AppPreferences) -> AppPreferences) {
@@ -108,6 +118,9 @@ class AppPreferencesStore(private val context: Context) {
         p[booleanPreferencesKey("folder_example_hidden")] = value.folderExampleHidden
         p[booleanPreferencesKey("cover_progress_bar")] = value.coverProgressBar
         p[booleanPreferencesKey("aggressive_transcription")] = value.aggressiveTranscription
+        p[longPreferencesKey("listened_ms")] = value.listenedMs
+        p[longPreferencesKey("support_prompt_at_ms")] = value.supportPromptAtMs
+        p[booleanPreferencesKey("support_prompt_off")] = value.supportPromptOff
         }
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.example.readalong.ui.launch.LaunchAppearance.request(context, decode(saved)) }
     }

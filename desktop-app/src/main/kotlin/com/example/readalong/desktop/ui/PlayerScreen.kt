@@ -136,7 +136,10 @@ private fun FlipCover(app: AppState, book: LibraryBook, palette: CoverPalette, t
         .graphicsLayer { rotationY = rotation; cameraDistance = 14f * density; scaleX = 1f + lift * .015f; scaleY = 1f + lift * .015f }
         .shadow(24.dp, RoundedCornerShape(Corners.large), ambientColor = Color.Black, spotColor = Color.Black)
         .hoverable(interaction).then(if (flippable) Modifier.clickable(interaction, null) { flipped = !flipped }.pointerHoverIcon(PointerIcon.Hand) else Modifier)) {
-        if (rotation <= 90f) BookCover(book, Modifier.fillMaxSize(), RoundedCornerShape(Corners.large), size = 900)
+        // Right-click the cover: search the internet for another, or choose an image file.
+        if (rotation <= 90f) ContextMenuArea(items = { coverMenu(app, book) }) {
+            BookCover(book, Modifier.fillMaxSize(), RoundedCornerShape(Corners.large), size = 900)
+        }
         else Box(Modifier.fillMaxSize().graphicsLayer { rotationY = 180f }.clip(RoundedCornerShape(Corners.large)).background(lerp(palette.preview, Color.Black, .1f))) {
             if (text != null && !text.isEmpty) {
                 val follow = rememberFollowState(text.paragraphAt(clock.value))
@@ -212,7 +215,8 @@ private fun PlayerControls(app: AppState, book: LibraryBook, clock: State<Long>,
             }
             LabeledAction("ic_bookmark", "Bookmark", {
                 val name = (book.chapters.getOrNull(chapterIndex)?.title?.let { "$it · " } ?: "") + timeText(position)
-                app.library.update(book.id) { it.copy(bookmarks = (it.bookmarks + Bookmark(position, name, System.currentTimeMillis())).sortedBy { b -> b.positionMs }) }
+                app.library.update(book.id) { it.copy(bookmarks = (it.bookmarks + Bookmark(position, name, System.currentTimeMillis(), java.util.UUID.randomUUID().toString())).sortedBy { b -> b.positionMs }) }
+                app.bookmarksChanged(book.id)
                 app.messages.tryEmit("Bookmarked $name")
             })
             var contents by remember { mutableStateOf(false) }
@@ -256,7 +260,7 @@ internal fun ContentsDialog(app: AppState, book: LibraryBook, position: Long, on
                             if (book.bookmarks.isEmpty()) item { Text("No bookmarks yet. Use Bookmark in the player to save a place.", Modifier.padding(24.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
                             itemsIndexed(book.bookmarks) { _, mark ->
                                 ListItem({ Text(mark.name) }, Modifier.clickable { seekBook(app, book.id, mark.positionMs); onDismiss() }.pointerHoverIcon(PointerIcon.Hand),
-                                    trailingContent = { AppIconButton("ic_trash", "Remove bookmark", { app.library.update(book.id) { it.copy(bookmarks = it.bookmarks - mark) } }) },
+                                    trailingContent = { AppIconButton("ic_trash", "Remove bookmark", { app.library.update(book.id) { it.copy(bookmarks = it.bookmarks - mark, removedBookmarks = it.removedBookmarks + mark.id) }; app.bookmarksChanged(book.id) }) },
                                     colors = ListItemDefaults.colors(containerColor = Color.Transparent))
                             }
                         }

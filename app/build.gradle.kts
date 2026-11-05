@@ -28,7 +28,7 @@ android {
         create("github") {
             dimension = "distribution"
             buildConfigField("boolean", "TIP_JAR_ENABLED", "true")
-            buildConfigField("String", "KOFI_URL", "\"${providers.gradleProperty("readalongKoFiUrl").orElse("").get()}\"")
+            buildConfigField("String", "KOFI_URL", "\"${providers.gradleProperty("readalongKoFiUrl").orElse("https://ko-fi.com/readalong").get()}\"")
         }
         create("play") {
             dimension = "distribution"

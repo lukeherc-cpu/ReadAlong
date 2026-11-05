@@ -137,7 +137,7 @@ class DeviceLinkTest {
             Thread.sleep(300)
             assertEquals(1, synced)
             // The link survives a restart.
-            assertEquals(listOf("Pixel"), DeviceLink(scope, library, {}, File(home, "link.json")).state.value.devices.map { it.name })
+            assertEquals(listOf("Pixel"), DeviceLink(scope, library, {}, file = File(home, "link.json")).state.value.devices.map { it.name })
         } finally { link.stop() }
     }
 }
