@@ -68,6 +68,10 @@ class TranscriptionService(private val scope: CoroutineScope, private val librar
     val messages: SharedFlow<String> = mutableMessages
     private val mutableErrors = MutableStateFlow(emptyMap<String, String>())
     val errors: StateFlow<Map<String, String>> = mutableErrors
+    private val finishedFile = File(AppPaths.data, "queue-finished.json")
+    private val mutableFinished = MutableStateFlow(loadList(finishedFile))
+    /** Books whose ReadAlong finished here, newest first, shown under "Transcribed" in the queue until cleared (as on the phone). */
+    val finished: StateFlow<List<String>> = mutableFinished
     private var runner: Job? = null
     /** The transcriber processes working now (one per lane). */
     private val processes = java.util.concurrent.CopyOnWriteArrayList<TranscriberProcess>()
@@ -102,6 +106,7 @@ class TranscriptionService(private val scope: CoroutineScope, private val librar
     /** Adds [bookId] to the queue (first, if [now]) and starts working. */
     fun enqueue(bookId: String, now: Boolean = false) {
         mutableErrors.update { it - bookId }
+        if (bookId in mutableFinished.value) { mutableFinished.update { it - bookId }; saveFinished() }
         mutableQueue.update { queue -> if (now) listOf(bookId) + (queue - bookId) else if (bookId in queue) queue else queue + bookId }
         saveQueue()
         if (now && mutableJob.value?.bookId != bookId) restart() else wake()
@@ -119,6 +124,22 @@ class TranscriptionService(private val scope: CoroutineScope, private val librar
         saveQueue()
         if (mutableQueue.value.firstOrNull() != mutableJob.value?.bookId) restart()
     }
+    /** The queue's play button: moves [bookId] to the front and transcribes it now, resuming the queue if it was paused. */
+    fun start(bookId: String) {
+        mutablePaused.value = false
+        enqueue(bookId, now = true)
+        wake()
+    }
+    /** Saves a new order (from dragging in the queue). Books missing from [ids] keep their place at the end. */
+    fun reorder(ids: List<String>) {
+        mutableQueue.update { queue -> ids.filter { it in queue }.distinct().let { ordered -> ordered + (queue - ordered.toSet()) } }
+        saveQueue()
+        if (mutableJob.value != null && mutableQueue.value.firstOrNull() != mutableJob.value?.bookId) restart()
+    }
+    /** Takes a stopped book off the queue's "Stopped" list; whatever it made so far stays. */
+    fun dismissError(bookId: String) = mutableErrors.update { it - bookId }
+    /** Takes a finished book off the queue's "Transcribed" list; its ReadAlong stays. */
+    fun clearFinished(bookId: String) { mutableFinished.update { it - bookId }; saveFinished() }
     fun pause(paused: Boolean) { mutablePaused.value = paused; if (paused) stop() else wake() }
     /** Removes a book's ReadAlong (and stops making it). */
     fun discard(bookId: String) { remove(bookId); transcripts.remove(bookId) }
@@ -139,6 +160,7 @@ class TranscriptionService(private val scope: CoroutineScope, private val librar
             try {
                 transcribe(book)
                 mutableQueue.update { it - bookId }; saveQueue()
+                mutableFinished.update { listOf(bookId) + (it - bookId) }; saveFinished()
                 mutableMessages.tryEmit("Your ReadAlong of ${book.title} is ready.")
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (failure: Exception) {
@@ -311,7 +333,9 @@ class TranscriptionService(private val scope: CoroutineScope, private val librar
         mutableMessages.tryEmit("Couldn't save ${destination.name} beside the audiobook: ${failure.message}"); false
     }
 
-    private fun loadQueue(): List<String> = runCatching { JSONArray(queueFile.readText()).let { a -> List(a.length()) { a.getString(it) } } }.getOrDefault(emptyList())
+    private fun loadQueue(): List<String> = loadList(queueFile)
+    private fun loadList(file: File): List<String> = runCatching { JSONArray(file.readText()).let { a -> List(a.length()) { a.getString(it) } } }.getOrDefault(emptyList())
+    private fun saveFinished() = runCatching { finishedFile.writeAtomically(JSONArray(mutableFinished.value).toString()) }
     private fun saveQueue() = runCatching { queueFile.writeAtomically(JSONArray(mutableQueue.value).toString()) }
 
     private companion object {

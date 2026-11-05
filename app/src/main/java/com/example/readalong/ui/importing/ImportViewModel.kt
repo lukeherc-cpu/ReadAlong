@@ -26,6 +26,17 @@ class ImportViewModel(private val importer: AudioImporter, private val epubs: co
         mutablePriority.value = mutablePriority.value + ids.filter { processing?.observe(it)?.first()?.state != "READY" }
             .map { ImportPriorityBook(it, importer.title(it), importer.duration(it), importer.hasFolderEpub(it)) }
     }
+    /**
+     * One new book was added: its player opens and the cover turns over to offer a ReadAlong
+     * (see [com.example.readalong.ui.player.NewBookOffer]) instead of the "Make a ReadAlong" pop-up.
+     */
+    private val mutableOpenBook = MutableStateFlow<String?>(null)
+    val openBook = mutableOpenBook.asStateFlow()
+    fun openedBook() { mutableOpenBook.value = null }
+    private suspend fun offerAdded(ids: List<String>) {
+        if (ids.size == 1) { com.example.readalong.ui.player.NewBookOffer.bookId = ids[0]; mutableOpenBook.value = ids[0] }
+        else offerPriority(ids)
+    }
     fun skipPriority() { mutablePriority.value = mutablePriority.value.drop(1) }
     /** The new book's "Make a ReadAlong" choice: from the audio, or matched to an EPUB (picked now or found in its folder). */
     fun startPriority(align: Boolean, uri: Uri?) = action("Starting your ReadAlong…") {
@@ -52,7 +63,7 @@ class ImportViewModel(private val importer: AudioImporter, private val epubs: co
     fun finishAdding() { mutableAddedBook.value = null; mutableEpubUploaded.value = false }
     fun files(uris: List<Uri>) = action {
         val result = importer.importFiles(uris)
-        offerPriority(result.newBookIds)
+        offerAdded(result.newBookIds)
         mutableEpubUploaded.value = false
         result.message
     }
@@ -62,7 +73,7 @@ class ImportViewModel(private val importer: AudioImporter, private val epubs: co
     fun folder(uri: Uri, mode: FolderMode, onAdded: () -> Unit = {}, restoreDeleted: Boolean = mode == FolderMode.ONE_BOOK) = action {
         if (mode == FolderMode.LIBRARY) mutableReadingFolder.value = true
         val result = try { importer.addFolder(uri, mode, restoreDeleted = restoreDeleted) } finally { mutableReadingFolder.value = false }
-        if (mode == FolderMode.ONE_BOOK) offerPriority(result.newBookIds)
+        if (mode == FolderMode.ONE_BOOK) offerAdded(result.newBookIds)
 
         onAdded()
         result.message

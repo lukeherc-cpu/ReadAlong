@@ -57,7 +57,7 @@ object Scanner {
         return FoundBook("file:${file.path}", stem, folder, listOf(file),
             siblings.filter { it.extension.equals("epub", true) && same(it) },
             siblings.filter { it.extension.equals("readalong", true) && same(it) },
-            siblings.filter { it.extension.lowercase() in IMAGES && same(it) })
+            siblings.filter { it.extension.lowercase() in IMAGES && (same(it) || it.name.equals("$stem.${Companions.COVER}", true)) })
     }
 
     private fun singleFileBooks(audio: List<File>, folder: File): List<FoundBook>? {
