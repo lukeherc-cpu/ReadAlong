@@ -88,6 +88,7 @@ fun QueueScreen(app: AppState) {
     // list fills the rest; on a narrow one they stack in one column, as on the phone.
     BoxWithConstraints(Modifier.fillMaxSize()) {
     val wide = maxWidth >= 1000.dp
+    val paneWidth = (maxWidth * .34f).coerceIn(340.dp, 520.dp)
     val listContent: androidx.compose.foundation.lazy.LazyListScope.(Boolean) -> Unit = { withCard ->
             if (current == null && upNext.isEmpty() && stopped.isEmpty() && done.isEmpty() && withCard) item(key = "empty") {
                 Text("Click + to add a book, then press play on it to start its ReadAlong.", Modifier.padding(start = 4.dp),
@@ -182,7 +183,7 @@ fun QueueScreen(app: AppState) {
         Text("Queue", Modifier.padding(start = 4.dp, top = 4.dp, bottom = 16.dp), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         val list = rememberLazyListState()
         if (wide) Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(40.dp)) {
-            Column(Modifier.width((maxWidth * .34f).coerceIn(340.dp, 520.dp)).fillMaxHeight().verticalScroll(rememberScrollState()).padding(bottom = 32.dp)) {
+            Column(Modifier.width(paneWidth).fillMaxHeight().verticalScroll(rememberScrollState()).padding(bottom = 32.dp)) {
                 QueueHeading("Transcribing")
                 AnimatedContent(current, contentKey = { it?.first?.id }, transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(160)) }) { now ->
                     if (now != null) TranscribingCard(now.first, now.second, Modifier, large = true, onOpen = { app.open(Screen.Player(now.first.id)) },
