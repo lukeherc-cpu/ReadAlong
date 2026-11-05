@@ -136,7 +136,10 @@ private fun FlipCover(app: AppState, book: LibraryBook, palette: CoverPalette, t
         .graphicsLayer { rotationY = rotation; cameraDistance = 14f * density; scaleX = 1f + lift * .015f; scaleY = 1f + lift * .015f }
         .shadow(24.dp, RoundedCornerShape(Corners.large), ambientColor = Color.Black, spotColor = Color.Black)
         .hoverable(interaction).then(if (flippable) Modifier.clickable(interaction, null) { flipped = !flipped }.pointerHoverIcon(PointerIcon.Hand) else Modifier)) {
-        if (rotation <= 90f) BookCover(book, Modifier.fillMaxSize(), RoundedCornerShape(Corners.large), size = 900)
+        // Right-click the cover: search the internet for another, or choose an image file.
+        if (rotation <= 90f) ContextMenuArea(items = { coverMenu(app, book) }) {
+            BookCover(book, Modifier.fillMaxSize(), RoundedCornerShape(Corners.large), size = 900)
+        }
         else Box(Modifier.fillMaxSize().graphicsLayer { rotationY = 180f }.clip(RoundedCornerShape(Corners.large)).background(lerp(palette.preview, Color.Black, .1f))) {
             if (text != null && !text.isEmpty) {
                 val follow = rememberFollowState(text.paragraphAt(clock.value))
