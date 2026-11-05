@@ -53,7 +53,7 @@ fun ReadAlongApp(app: AppState) {
             }
         }
     }
-    ReadAlongTheme(settings.accent) {
+    ReadAlongTheme(settings.accent, settings.light) {
         Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
             .dragAndDropTarget(shouldStartDragAndDrop = { true }, target = drop)) {
             Column(Modifier.fillMaxSize()) {
@@ -68,11 +68,13 @@ fun ReadAlongApp(app: AppState) {
                         is Screen.Reader -> ReaderScreen(app, screen.bookId)
                         Screen.Queue -> QueueScreen(app)
                         Screen.Settings -> SettingsScreen(app)
+                        Screen.TranscriptionSettings -> TranscriptionSettingsScreen(app)
+                        Screen.PhoneSettings -> PhoneSettingsScreen(app)
                         Screen.Audible -> AudibleScreen(app)
                         Screen.Folders -> FoldersScreen(app)
                     }
                 }
-                AnimatedVisibility(app.screen == Screen.Library || app.screen == Screen.Queue || app.screen == Screen.Settings || app.screen == Screen.Audible || app.screen == Screen.Folders,
+                AnimatedVisibility(app.screen.let { it == Screen.Library || it == Screen.Queue || it == Screen.Settings || it == Screen.TranscriptionSettings || it == Screen.PhoneSettings || it == Screen.Audible || it == Screen.Folders },
                     enter = slideInVertically { it } + fadeIn(), exit = slideOutVertically { it } + fadeOut()) {
                     MiniPlayer(app)
                 }

@@ -5,6 +5,9 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.sync.withLock
 import java.io.File
 import java.net.URI
 import java.net.http.HttpClient
@@ -25,7 +28,27 @@ class ModelStore {
 
     fun delete(model: SpeechModel) { file(model).delete(); mutableInstalled.value = installedIds() }
 
-    suspend fun download(model: SpeechModel): File = withContext(Dispatchers.IO) {
+    // One download per model at a time: the background download of Tiny and a book that needs it share one file.
+    private val locks = java.util.concurrent.ConcurrentHashMap<String, kotlinx.coroutines.sync.Mutex>()
+
+    /**
+     * Keeps the default model (Tiny for the chosen language) on this computer, so the first book starts without a
+     * manual download. Tries again every few minutes while offline; quiet, since nothing is waiting on it yet.
+     */
+    fun keepDefault(scope: CoroutineScope, language: kotlinx.coroutines.flow.Flow<String>) = scope.launch {
+        language.distinctUntilChanged().collectLatest { code ->
+            val model = SpeechModels.default(code)
+            var wait = 30_000L
+            while (!isInstalled(model)) {
+                if (runCatching { download(model) }.isSuccess) break
+                delay(wait); wait = (wait * 2).coerceAtMost(15 * 60_000L)
+            }
+        }
+    }
+
+    suspend fun download(model: SpeechModel): File = locks.getOrPut(model.id) { kotlinx.coroutines.sync.Mutex() }.withLock { downloadNow(model) }
+
+    private suspend fun downloadNow(model: SpeechModel): File = withContext(Dispatchers.IO) {
         val target = file(model)
         if (isInstalled(model)) return@withContext target
         val partial = File(target.parentFile, target.name + ".part")
