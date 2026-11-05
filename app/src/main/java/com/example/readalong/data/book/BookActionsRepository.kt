@@ -13,7 +13,8 @@ import java.io.File
 import java.util.UUID
 
 class BookActionsRepository(private val context: Context, private val database: ReadAlongDatabase) {
-    suspend fun edit(bookId: String, title: String? = null, author: String? = null, cover: Uri? = null) = withContext(Dispatchers.IO) {
+    /** [toFolder]: a new cover is also saved beside the book (BookFolderFiles), so it syncs; false when it came from there. */
+    suspend fun edit(bookId: String, title: String? = null, author: String? = null, cover: Uri? = null, toFolder: Boolean = true) = withContext(Dispatchers.IO) {
         val replacement = cover?.let { copyCover(it) }
         try {
             database.withTransaction {
@@ -29,6 +30,7 @@ class BookActionsRepository(private val context: Context, private val database: 
                 if (replacement != null) dao.putMetadata(LibraryMetadataEntity("override:$bookId:cover", replacement.second))
             }
         } catch (failure: Exception) { replacement?.first?.delete(); throw failure }
+        if (replacement != null && toFolder) com.example.readalong.data.importing.BookFolderFiles(context, database).saveCover(bookId, replacement.first)
     }
 
     private fun copyCover(uri: Uri): Pair<File, String> {
