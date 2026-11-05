@@ -212,7 +212,8 @@ private fun PlayerControls(app: AppState, book: LibraryBook, clock: State<Long>,
             }
             LabeledAction("ic_bookmark", "Bookmark", {
                 val name = (book.chapters.getOrNull(chapterIndex)?.title?.let { "$it · " } ?: "") + timeText(position)
-                app.library.update(book.id) { it.copy(bookmarks = (it.bookmarks + Bookmark(position, name, System.currentTimeMillis())).sortedBy { b -> b.positionMs }) }
+                app.library.update(book.id) { it.copy(bookmarks = (it.bookmarks + Bookmark(position, name, System.currentTimeMillis(), java.util.UUID.randomUUID().toString())).sortedBy { b -> b.positionMs }) }
+                app.bookmarksChanged(book.id)
                 app.messages.tryEmit("Bookmarked $name")
             })
             var contents by remember { mutableStateOf(false) }
@@ -256,7 +257,7 @@ private fun ContentsDialog(app: AppState, book: LibraryBook, position: Long, onD
                             if (book.bookmarks.isEmpty()) item { Text("No bookmarks yet. Use Bookmark in the player to save a place.", Modifier.padding(24.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
                             itemsIndexed(book.bookmarks) { _, mark ->
                                 ListItem({ Text(mark.name) }, Modifier.clickable { seekBook(app, book.id, mark.positionMs); onDismiss() }.pointerHoverIcon(PointerIcon.Hand),
-                                    trailingContent = { AppIconButton("ic_trash", "Remove bookmark", { app.library.update(book.id) { it.copy(bookmarks = it.bookmarks - mark) } }) },
+                                    trailingContent = { AppIconButton("ic_trash", "Remove bookmark", { app.library.update(book.id) { it.copy(bookmarks = it.bookmarks - mark, removedBookmarks = it.removedBookmarks + mark.id) }; app.bookmarksChanged(book.id) }) },
                                     colors = ListItemDefaults.colors(containerColor = Color.Transparent))
                             }
                         }
