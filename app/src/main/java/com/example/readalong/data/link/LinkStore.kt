@@ -74,7 +74,11 @@ class LinkStore(context: Context) {
             LinkState(o.getString("phoneId"), computer,
                 List(pairs.length()) { i -> pairs.getJSONObject(i).let { FolderPair(it.getString("remoteId"), it.getString("remoteName"), it.getString("localUri"), it.getString("localName")) } },
                 o.optBoolean("foldersAsked"), if (o.isNull("lastSyncAt")) null else o.optLong("lastSyncAt"), if (o.isNull("lastResult")) null else o.optString("lastResult"))
-        }.getOrDefault(fresh)
+        }.getOrElse {
+            // Keep what couldn't be read (perhaps written by a newer version) before the next save replaces it.
+            runCatching { file.copyTo(File(directory, "link.json.unreadable-${System.currentTimeMillis()}")) }
+            fresh
+        }
     }
 
     private fun writeAtomically(target: File, text: String) {

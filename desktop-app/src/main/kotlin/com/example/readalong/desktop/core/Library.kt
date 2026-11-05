@@ -85,7 +85,11 @@ class LibraryStore(private val file: File = AppPaths.library, private val scope:
             val root = JSONObject(file.readText())
             mutableFolders.value = root.optJSONArray("folders")?.let { a -> List(a.length()) { a.getString(it) } }.orEmpty()
             mutableBooks.value = root.getJSONArray("books").let { a -> List(a.length()) { decode(a.getJSONObject(it)) } }
-        }.onFailure { System.err.println("ReadAlong: the library file couldn't be read (${it.message}); starting empty.") }
+        }.onFailure {
+            // Keep what couldn't be read (perhaps written by a newer version) before the next save replaces it.
+            val kept = VersionUpgrade.setAside(file)
+            System.err.println("ReadAlong: the library file couldn't be read (${it.message}); starting empty. A copy is at ${kept ?: "(not saved)"}.")
+        }
     }
 
     companion object {

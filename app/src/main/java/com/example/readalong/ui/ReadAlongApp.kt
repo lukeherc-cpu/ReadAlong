@@ -73,6 +73,8 @@ fun ReadAlongApp(libraryViewModel: LibraryViewModel, app: com.example.readalong.
     val guideEligible = normalPrompts && !importPromptPending && batteryPromptAnswered != null && !backgroundPromptPending
     if (normalPrompts) com.example.readalong.ui.importing.ImportPriorityPrompt(importModel)
     if (normalPrompts && !importPromptPending) com.example.readalong.ui.transcription.BackgroundPreparationPrompt(app)
+    // A newer GitHub release, offered only when nothing else is asking (the Play edition has none).
+    if (guideEligible) com.example.readalong.ui.about.UpdatePrompt()
     val speechSetup: com.example.readalong.ui.transcription.ModelViewModel = viewModel(factory = com.example.readalong.ui.transcription.ModelViewModel.factory(app, app.speechModel, app.processing))
     val setupScope = androidx.compose.runtime.rememberCoroutineScope()
     // The book whose player the mini-player transform is opening or closing (outlives the library screen).
