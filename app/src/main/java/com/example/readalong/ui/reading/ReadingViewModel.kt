@@ -40,6 +40,8 @@ class ReadingViewModel(val bookId: String, val database: ReadAlongDatabase, priv
     }
     /** Whether this book has already flipped its cover over once to offer a ReadAlong (null until loaded). */
     val textIntroShown = database.bookDao().observeMetadata("text_intro_shown:$bookId").map<String?, Boolean?> { it == "true" }
+    /** An EPUB the folder scan found beside the audio (not imported until a ReadAlong uses it). */
+    val folderEpub = database.bookDao().observeMetadata("folder_epub:$bookId").map { it != null }
     fun markTextIntroShown() = action {
         database.bookDao().putMetadata(com.example.readalong.data.local.LibraryMetadataEntity("text_intro_shown:$bookId", "true"))
     }
@@ -90,6 +92,8 @@ class ReadingViewModel(val bookId: String, val database: ReadAlongDatabase, priv
         mutableImportBusy.value = true
         try {
             if (uri != null) requireNotNull(imported).import(bookId, uri)
+            else if (align && database.importedEpubDao().find(bookId) == null)
+                database.bookDao().metadata("folder_epub:$bookId")?.let { requireNotNull(imported).import(bookId, android.net.Uri.parse(it)) }
             imported?.preference(bookId, if (align) "EPUB" else "GENERATED")
             repository.prepareDemo(bookId)
             processing.transcribeNext(bookId)

@@ -144,6 +144,9 @@ class AppState(val scope: CoroutineScope, private val background: Boolean = true
         if (!state.playing && state.bookId in changed) library.book(state.bookId!!)?.let { player.seekTo(it.positionMs) }
     }
 
+    /** The book whose cover is being searched for online ([CoverSearchDialog]). */
+    var coverSearch by mutableStateOf<String?>(null)
+
     /** A chosen folder and what was found in it, shown by [FoundDialog] before anything is added. */
     var found by mutableStateOf<FolderFound?>(null)
 
