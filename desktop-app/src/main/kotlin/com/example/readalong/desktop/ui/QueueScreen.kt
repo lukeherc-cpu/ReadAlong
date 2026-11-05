@@ -84,28 +84,27 @@ fun QueueScreen(app: AppState) {
     val stopped = errors.keys.filter { it !in queue }.mapNotNull { byId[it] }
     val done = finished.filter { it !in queue }.mapNotNull { byId[it] }
 
-    Column(Modifier.fillMaxSize().padding(horizontal = 28.dp)) {
-        Row(Modifier.widthIn(max = 760.dp).fillMaxWidth().padding(top = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-            AppIconButton("ic_back", "Back (Esc)", { app.back() })
-            Spacer(Modifier.weight(1f))
-            AppIconButton("ic_add", "Add book to queue", { adding = true })
-        }
-        Text("Queue", Modifier.padding(start = 4.dp, top = 4.dp, bottom = 16.dp), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        val list = rememberLazyListState()
-        LazyColumn(Modifier.widthIn(max = 760.dp).fillMaxWidth().smoothWheelScroll(list), state = list,
-            verticalArrangement = Arrangement.spacedBy(RowGap), contentPadding = PaddingValues(bottom = 32.dp)) {
-            if (current == null && upNext.isEmpty() && stopped.isEmpty() && done.isEmpty()) item(key = "empty") {
+    // The whole window: on a wide window the book being transcribed gets its own pane on the left and the
+    // list fills the rest; on a narrow one they stack in one column, as on the phone.
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+    val wide = maxWidth >= 1000.dp
+    val listContent: androidx.compose.foundation.lazy.LazyListScope.(Boolean) -> Unit = { withCard ->
+            if (current == null && upNext.isEmpty() && stopped.isEmpty() && done.isEmpty() && withCard) item(key = "empty") {
                 Text("Click + to add a book, then press play on it to start its ReadAlong.", Modifier.padding(start = 4.dp),
                     style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            current?.let { (book, state) ->
+            if (!withCard && upNext.isEmpty() && stopped.isEmpty() && done.isEmpty()) item(key = "empty") {
+                Text("Nothing waiting. Click + to add books to the queue.", Modifier.padding(start = 4.dp),
+                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            if (withCard) current?.let { (book, state) ->
                 item(key = "current:${book.id}") {
                     TranscribingCard(book, state, Modifier.animateItem(placementSpec = tween(220, easing = QueueEasing)),
                         onOpen = { app.open(Screen.Player(book.id)) }, onPause = { app.transcription.pause(true) },
                         onRemove = { app.transcription.remove(book.id) })
                 }
             }
-            if (upNext.isNotEmpty()) item(key = "up-next") { QueueHeading("Up next", Modifier.padding(top = if (current == null) 0.dp else 20.dp).animateItem()) }
+            if (upNext.isNotEmpty()) item(key = "up-next") { QueueHeading("Up next", Modifier.padding(top = if (current == null || !withCard) 0.dp else 20.dp).animateItem()) }
             itemsIndexed(upNext, key = { _, b -> b.id }) { index, book ->
                 val isHeld = held == book.id
                 val lift by animateFloatAsState(if (isHeld) 1f else 0f, tween(160, easing = QueueEasing))
@@ -173,7 +172,30 @@ fun QueueScreen(app: AppState) {
                 QueueRow(book, book.author ?: "Transcribed", null, Modifier.animateItem(), onOpen = { app.open(Screen.Player(book.id)) },
                     onRemove = { app.transcription.clearFinished(book.id) }, removeLabel = "Clear from list")
             }
+    }
+    Column(Modifier.fillMaxSize().padding(horizontal = if (wide) 40.dp else 28.dp)) {
+        Row(Modifier.fillMaxWidth().padding(top = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+            AppIconButton("ic_back", "Back (Esc)", { app.back() })
+            Spacer(Modifier.weight(1f))
+            AppIconButton("ic_add", "Add book to queue", { adding = true })
         }
+        Text("Queue", Modifier.padding(start = 4.dp, top = 4.dp, bottom = 16.dp), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+        val list = rememberLazyListState()
+        if (wide) Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(40.dp)) {
+            Column(Modifier.width((maxWidth * .34f).coerceIn(340.dp, 520.dp)).fillMaxHeight().verticalScroll(rememberScrollState()).padding(bottom = 32.dp)) {
+                QueueHeading("Transcribing")
+                AnimatedContent(current, contentKey = { it?.first?.id }, transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(160)) }) { now ->
+                    if (now != null) TranscribingCard(now.first, now.second, Modifier, large = true, onOpen = { app.open(Screen.Player(now.first.id)) },
+                        onPause = { app.transcription.pause(true) }, onRemove = { app.transcription.remove(now.first.id) })
+                    else IdleCard(paused = paused && queue.isNotEmpty())
+                }
+            }
+            LazyColumn(Modifier.weight(1f).fillMaxHeight().smoothWheelScroll(list), state = list,
+                verticalArrangement = Arrangement.spacedBy(RowGap), contentPadding = PaddingValues(bottom = 32.dp)) { listContent(false) }
+        }
+        else LazyColumn(Modifier.weight(1f).fillMaxWidth().smoothWheelScroll(list), state = list,
+            verticalArrangement = Arrangement.spacedBy(RowGap), contentPadding = PaddingValues(bottom = 32.dp)) { listContent(true) }
+    }
     }
     if (adding) AddToQueueDialog(app, available) { adding = false }
 }
@@ -185,8 +207,10 @@ private fun QueueHeading(text: String, modifier: Modifier = Modifier) {
 
 /** The book being transcribed: cover, title and author, then one progress line and the pause button. A faint "Details" opens what it's doing now. */
 @Composable
-private fun TranscribingCard(book: LibraryBook, job: JobState, modifier: Modifier, onOpen: () -> Unit, onPause: () -> Unit, onRemove: () -> Unit) {
+private fun TranscribingCard(book: LibraryBook, job: JobState, modifier: Modifier, large: Boolean = false, onOpen: () -> Unit, onPause: () -> Unit, onRemove: () -> Unit) {
     var details by remember(book.id) { mutableStateOf(false) }
+    // As on the phone: the chapter being transcribed and how far into it.
+    val (chapter, chapterPercent) = remember(book.id, job.done, job.total) { chapterProgress(book, job) }
     val palette = rememberCoverPalette(book)
     val accent = palette.accent
     val interaction = remember { MutableInteractionSource() }
@@ -200,12 +224,13 @@ private fun TranscribingCard(book: LibraryBook, job: JobState, modifier: Modifie
     Surface(modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.large)).hoverable(interaction).clickable(onClick = onOpen).pointerHoverIcon(PointerIcon.Hand),
         shape = RoundedCornerShape(Corners.large), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .7f)) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            if (large) BookCover(book, Modifier.fillMaxWidth().aspectRatio(1f), RoundedCornerShape(Corners.medium), size = 600)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                BookCover(book, Modifier.size(72.dp), RoundedCornerShape(Corners.medium), size = 160)
+                if (!large) BookCover(book, Modifier.size(72.dp), RoundedCornerShape(Corners.medium), size = 160)
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                    Text(book.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    book.author?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                    Text(book.title, style = if (large) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(chapter ?: book.author ?: "", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 // The phone removes by swiping; here the trash shows on hover.
                 AnimatedVisibility(hovered, enter = fadeIn(tween(120)), exit = fadeOut(tween(120))) {
@@ -216,7 +241,7 @@ private fun TranscribingCard(book: LibraryBook, job: JobState, modifier: Modifie
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text("${job.downloadProgress?.let { (it * 100).toInt() } ?: percent}%", Modifier.alignByBaseline(), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                        Text(if (job.downloadProgress != null) "downloaded" else "of book" + (job.etaMs?.let { " · about ${hoursMinutes(it)} left" } ?: ""),
+                        Text(if (job.downloadProgress != null) "downloaded" else "of book" + (chapterPercent?.let { " · chapter $it%" } ?: "") + (job.etaMs?.let { " · about ${hoursMinutes(it)} left" } ?: ""),
                             Modifier.alignByBaseline(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     ProgressLine(job.downloadProgress ?: job.fraction, color = accent, height = 6.dp)
@@ -242,6 +267,29 @@ private fun TranscribingCard(book: LibraryBook, job: JobState, modifier: Modifie
     }
 }
 
+/** The chapter whose audio is being transcribed, and the share of that chapter done. */
+private fun chapterProgress(book: LibraryBook, job: JobState): Pair<String?, Int?> {
+    val plan = com.example.readalong.desktop.transcription.transcriptionPlan(book)
+    if (plan.isEmpty() || book.chapters.isEmpty()) return null to null
+    fun chapterOf(index: Int) = plan[index].let { book.chapterAt((book.parts.getOrNull(it.file)?.offsetMs ?: 0L) + it.startMs) }
+    val now = chapterOf(job.done.coerceIn(0, plan.lastIndex))
+    val units = plan.indices.filter { chapterOf(it) == now }
+    return book.chapters.getOrNull(now)?.title to (units.count { it < job.done } * 100 / units.size.coerceAtLeast(1))
+}
+
+/** The left pane on a wide window when nothing is being transcribed. */
+@Composable
+private fun IdleCard(paused: Boolean) {
+    Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(Corners.large), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .4f)) {
+        Column(Modifier.fillMaxWidth().padding(vertical = 48.dp, horizontal = 24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Icon(AppIcons.get("ic_waveform"), null, Modifier.size(48.dp), tint = MaterialTheme.colorScheme.primary)
+            Text(if (paused) "Queue paused" else "Nothing transcribing", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text("Press play on a book to start its ReadAlong.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        }
+    }
+}
+
 /** A plain row: square cover, title, one line under it, an optional thin progress line, and its buttons. The trash shows on hover. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -260,7 +308,7 @@ private fun QueueRow(book: LibraryBook, subtitle: String, progress: Float?, modi
             Text(book.title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             val line = @Composable { Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis) }
             if (detail.isNullOrBlank()) line() else TooltipArea(tooltip = { Tooltip(detail) }, delayMillis = 300) { line() }
-            if (progress != null) ProgressLine(progress, Modifier.padding(top = 2.dp), color = MaterialTheme.colorScheme.onSurfaceVariant, height = 3.dp)
+            if (progress != null) ProgressLine(progress, Modifier.padding(top = 2.dp).widthIn(max = 480.dp), color = MaterialTheme.colorScheme.onSurfaceVariant, height = 3.dp)
         }
         if (onRemove != null) Box(Modifier.size(40.dp)) {
             androidx.compose.animation.AnimatedVisibility(hovered, enter = fadeIn(tween(120)), exit = fadeOut(tween(120))) {
