@@ -35,4 +35,15 @@ class TranscriptPackageWriterTest {
         assertEquals("", result.getString("text"))
         assertEquals(0, result.getJSONArray("words").length())
     }
+
+    @Test fun wordsThatOverlapTheSentenceBeforeStillReadOnTheComputer() {
+        // The second sentence's first word starts before the first sentence's last word: the computer used to drop the whole section.
+        val segments = listOf(
+            segment(1_000, "One two three.", "One" to 1_000, "two" to 1_400, "three." to 2_000),
+            segment(1_900, "Four five.", "Four" to 1_900, "five." to 2_400),
+        )
+        val result = TranscriptPackageWriter.chunkResult(segments, 0, 30_000)
+        val read = WhistleResult.segments(result.toString(), TranscriptionInput("b", "c", "file", 0, 30_000, false))
+        assertEquals(listOf("One", "two", "three.", "Four", "five."), read.flatMap { it.words }.map { it.word })
+    }
 }

@@ -2,6 +2,7 @@ package com.example.readalong.desktop
 
 import com.example.readalong.desktop.core.*
 import com.example.readalong.desktop.link.DeviceLink
+import com.example.readalong.desktop.transcription.TranscriptStore
 import com.example.readalong.domain.link.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -115,5 +116,36 @@ class CompanionSyncTest {
             assertFalse(File(books, "Dune/Other.epub").exists())
             assertEquals(setOf("epub"), DeviceLink(scope, library, {}, file = File(home, "link.json")).state.value.skipped)
         } finally { link.stop() }
+    }
+
+    /** A phone package with no readable text is refused, so the book doesn't count as having a ReadAlong it can't show. */
+    @Test fun aPhonePackageIsOnlyTakenWhenItHasText() {
+        val folder = File(home, "Books/Emma").apply { mkdirs() }
+        val audio = File(folder, "01.mp3").apply { writeBytes(ByteArray(2048) { (it % 13).toByte() }) }
+        val book = LibraryBook("pkg-test-" + java.util.UUID.randomUUID(), "Emma", key = "folder:${folder.path}", folder = folder.path,
+            parts = listOf(AudioPart(audio.path, 40_000, 0, audio.length(), audio.lastModified())))
+        val (size, sha) = TranscriptStore.sha256(audio)
+        fun pkg(name: String, text: String): File {
+            val words = org.json.JSONArray().apply { if (text.isNotEmpty()) text.split(" ").forEachIndexed { i, w -> put(JSONObject().put("word", w).put("start", 1.0 + i * .4).put("end", 1.3 + i * .4)) } }
+            val chunks = listOf(0L to 30_000L, 30_000L to 40_000L).map { (a, b) ->
+                JSONObject().put("file", 0).put("startMs", a).put("endMs", b).put("result", JSONObject().put("text", if (a == 0L) text else "").put("words", if (a == 0L) words else org.json.JSONArray())).toString()
+            }
+            val manifest = JSONObject().put("format", "readalong-transcript").put("version", 1).put("complete", true).put("model", "whistle-v1").put("engine", "Cactus Whistle")
+                .put("chunks", chunks.size).put("sources", org.json.JSONArray().put(JSONObject().put("name", "01.mp3").put("size", size).put("sha256", sha).put("durationMs", 40_000)))
+            return File(home, name).apply {
+                java.util.zip.ZipOutputStream(outputStream()).use { zip ->
+                    zip.putNextEntry(java.util.zip.ZipEntry("manifest.json")); zip.write(manifest.toString().toByteArray()); zip.closeEntry()
+                    zip.putNextEntry(java.util.zip.ZipEntry("chunks.jsonl")); chunks.forEach { zip.write((it + "\n").toByteArray()) }; zip.closeEntry()
+                }
+            }
+        }
+        val store = TranscriptStore()
+        try {
+            assertFailsWith<IllegalArgumentException> { store.importPackage(book, pkg("empty.readalong", "")) }
+            assertNull(store.info(book.id))
+            store.importPackage(book, pkg("full.readalong", "Emma Woodhouse, handsome, clever, and rich."))
+            assertEquals(true, store.info(book.id)?.complete)
+            assertTrue(store.segments(book).isNotEmpty())
+        } finally { store.remove(book.id) }
     }
 }
