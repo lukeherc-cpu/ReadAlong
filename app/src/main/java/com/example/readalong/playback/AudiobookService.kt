@@ -149,6 +149,18 @@ class AudiobookService : MediaSessionService() {
                 return result
             }
         }).build()
+        // Counts listening time for the "Enjoying ReadAlong?" card, saved every 30 s.
+        scope.launch {
+            var unsaved = 0L
+            var last = android.os.SystemClock.elapsedRealtime()
+            while (isActive) {
+                delay(1000)
+                val now = android.os.SystemClock.elapsedRealtime()
+                if (player.isPlaying) unsaved += (now - last).coerceIn(0, 5000)
+                last = now
+                if (unsaved >= 30_000) { val add = unsaved; unsaved = 0; runCatching { app.appPreferences.update { it.copy(listenedMs = it.listenedMs + add) } } }
+            }
+        }
         scope.launch {
             var ticks = 0
             while (isActive) {
