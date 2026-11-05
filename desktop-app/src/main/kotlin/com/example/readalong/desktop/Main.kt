@@ -21,6 +21,7 @@ fun main(args: Array<String>) {
         "--self-test" in args -> { kotlin.system.exitProcess(SelfTest.run(args)) }
         "--screenshots" in args -> { Screenshots.run(args[args.indexOf("--screenshots") + 1]); kotlin.system.exitProcess(0) }
     }
+    com.example.readalong.desktop.core.CrashReport.install()
     System.setProperty("skiko.vsync.enabled", "true")
     // macOS: a dark title bar to match the app, and "ReadAlong" in the menu bar rather than the launcher's name.
     System.setProperty("apple.awt.application.appearance", "NSAppearanceNameDarkAqua")

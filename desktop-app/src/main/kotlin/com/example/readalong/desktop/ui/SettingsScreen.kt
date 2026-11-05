@@ -156,6 +156,23 @@ fun SettingsScreen(app: AppState) {
                 }
                 SectionTitle("Updates")
                 UpdatesSettings(app)
+                SectionTitle("Troubleshooting")
+                Card {
+                    Text("Copies this computer's details, the books that stopped and why, and the latest transcriber and app crash logs, " +
+                        "ready to paste into a message. It never includes your books' text.", style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(12.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        PillButton("Copy crash details", {
+                            scope.launch {
+                                val report = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { crashDetails(app) }
+                                java.awt.Toolkit.getDefaultToolkit().systemClipboard.setContents(java.awt.datatransfer.StringSelection(report), null)
+                                app.messages.emit("Crash details copied.")
+                            }
+                        }, filled = false)
+                        PillButton("Open data folder", { runCatching { java.awt.Desktop.getDesktop().open(AppPaths.data) } }, filled = false, icon = "ic_folder")
+                    }
+                }
                 Spacer(Modifier.height(24.dp))
                 Text("ReadAlong for ${AppPaths.platformName} ${System.getProperty("readalong.version") ?: "dev"} · Data in ${AppPaths.data}", style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -164,6 +181,17 @@ fun SettingsScreen(app: AppState) {
         }
         VerticalScrollbar(rememberScrollbarAdapter(scroll), Modifier.align(Alignment.CenterEnd).fillMaxHeight())
     }
+}
+
+/** Settings → Copy crash details. */
+private fun crashDetails(app: AppState): String {
+    val settings = app.settingsStore.settings.value
+    val model = app.transcription.model()
+    return com.example.readalong.desktop.core.CrashReport.build(
+        devices = app.transcription.devices.value.orEmpty().map { "${it.type} ${it.label}${if (it.memoryTotal > 0) " ${it.memoryTotal / (1L shl 20)} MB" else ""}" },
+        settings = listOf("Model: ${model.id} · run on ${settings.device} · aggressive ${settings.aggressive} · language ${settings.language}"),
+        bookErrors = app.transcription.errors.value.map { (id, error) -> (app.library.book(id)?.title ?: id) to error },
+    )
 }
 
 @Composable
