@@ -26,6 +26,8 @@ data class LinkState(
     val lastSyncAt: Long? = null,
     /** A one-line outcome of the last sync, for Settings. */
     val lastResult: String? = null,
+    /** Kinds of companion file left out of syncing (FolderSyncPlan.Kind ids). Empty: everything syncs. */
+    val skipped: Set<String> = emptySet(),
 )
 
 /** Kept as small JSON files in the app's private storage: link.json, and one record of synced files per folder pair. */
@@ -42,7 +44,7 @@ class LinkStore(context: Context) {
     }
 
     fun unlink() {
-        update { LinkState(it.phoneId) }
+        update { LinkState(it.phoneId, skipped = it.skipped) }
         directory.listFiles { f -> f.name.startsWith("synced-") }?.forEach { it.delete() }
     }
 
@@ -57,7 +59,8 @@ class LinkStore(context: Context) {
         }
         writeAtomically(file, JSONObject().put("phoneId", s.phoneId).put("computer", computer ?: JSONObject.NULL)
             .put("pairs", JSONArray(s.pairs.map { JSONObject().put("remoteId", it.remoteId).put("remoteName", it.remoteName).put("localUri", it.localUri).put("localName", it.localName) }))
-            .put("foldersAsked", s.foldersAsked).put("lastSyncAt", s.lastSyncAt ?: JSONObject.NULL).put("lastResult", s.lastResult ?: JSONObject.NULL).toString())
+            .put("foldersAsked", s.foldersAsked).put("lastSyncAt", s.lastSyncAt ?: JSONObject.NULL).put("lastResult", s.lastResult ?: JSONObject.NULL)
+            .put("skipped", FolderSyncPlan.encodeKinds(s.skipped)).toString())
     }
 
     private fun load(): LinkState {
@@ -73,7 +76,8 @@ class LinkStore(context: Context) {
             val pairs = o.optJSONArray("pairs") ?: JSONArray()
             LinkState(o.getString("phoneId"), computer,
                 List(pairs.length()) { i -> pairs.getJSONObject(i).let { FolderPair(it.getString("remoteId"), it.getString("remoteName"), it.getString("localUri"), it.getString("localName")) } },
-                o.optBoolean("foldersAsked"), if (o.isNull("lastSyncAt")) null else o.optLong("lastSyncAt"), if (o.isNull("lastResult")) null else o.optString("lastResult"))
+                o.optBoolean("foldersAsked"), if (o.isNull("lastSyncAt")) null else o.optLong("lastSyncAt"), if (o.isNull("lastResult")) null else o.optString("lastResult"),
+                FolderSyncPlan.decodeKinds(o.optJSONArray("skipped")))
         }.getOrDefault(fresh)
     }
 
