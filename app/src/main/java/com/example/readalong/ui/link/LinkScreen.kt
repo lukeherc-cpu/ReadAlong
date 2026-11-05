@@ -257,6 +257,8 @@ private fun SyncKinds(skipped: Set<String>, onChange: (Set<String>) -> Unit) {
 private val SYNC_KINDS = listOf(
     com.example.readalong.domain.link.FolderSyncPlan.Kind.TRANSCRIPT to "ReadAlong transcripts",
     com.example.readalong.domain.link.FolderSyncPlan.Kind.PROGRESS to "Listening progress",
+    com.example.readalong.domain.link.FolderSyncPlan.Kind.BOOKMARKS to "Bookmarks",
     com.example.readalong.domain.link.FolderSyncPlan.Kind.EPUB to "EPUBs",
     com.example.readalong.domain.link.FolderSyncPlan.Kind.COVER to "Cover art",
+    com.example.readalong.domain.link.FolderSyncPlan.Kind.SETTINGS to "App and reader settings (accent colour, skip times, reading theme, font and size)",
 )
