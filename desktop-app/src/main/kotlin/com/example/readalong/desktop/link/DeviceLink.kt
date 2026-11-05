@@ -29,7 +29,9 @@ data class LinkedDevice(val id: String, val name: String, val key: ByteArray, va
 
 data class LinkState(val deviceId: String, val name: String, val devices: List<LinkedDevice> = emptyList(),
     /** Library folders the phone may sync with; asked right after linking. */
-    val shared: List<String> = emptyList())
+    val shared: List<String> = emptyList(),
+    /** Kinds of companion file left out of syncing (FolderSyncPlan.Kind ids). Empty: everything syncs. */
+    val skipped: Set<String> = emptySet())
 
 /**
  * Links phones to this computer and serves the folders chosen for syncing to them over the home network.
@@ -68,6 +70,7 @@ class DeviceLink(private val scope: CoroutineScope, private val library: Library
     fun folderPromptAnswered() { mutableJustLinked.value = null }
 
     fun setShared(paths: List<String>) = change { it.copy(shared = paths.distinct()) }
+    fun setSkipped(kinds: Set<String>) = change { it.copy(skipped = kinds) }
 
     fun unlink(id: String) {
         change { s -> s.copy(devices = s.devices.filterNot { it.id == id }) }
@@ -178,11 +181,12 @@ class DeviceLink(private val scope: CoroutineScope, private val library: Library
         val base = root.toPath()
         val files = Files.walk(base).use { paths ->
             paths.filter { Files.isRegularFile(it) }.map { path -> SyncFile(base.relativize(path).joinToString("/"), Files.size(path), Files.getLastModifiedTime(path).toMillis()) }
-                .filter { FolderSyncPlan.syncable(it.path) }.toList()
+                .filter { FolderSyncPlan.syncable(it.path) && FolderSyncPlan.included(it.path, mutableState.value.skipped) }.toList()
         }
         // In pages, so a large library never makes a frame too big.
         val pages = files.chunked(500)
-        channel.sendJson(JSONObject().put("pages", pages.size))
+        // The phone leaves out what's turned off here too, so it doesn't send it either.
+        channel.sendJson(JSONObject().put("pages", pages.size).put("skip", FolderSyncPlan.encodeKinds(mutableState.value.skipped)))
         pages.forEach { page -> channel.sendJson(JSONObject().put("files", JSONArray(page.map { it.toJson() }))) }
     }
 
@@ -195,6 +199,7 @@ class DeviceLink(private val scope: CoroutineScope, private val library: Library
     }
 
     private fun receive(channel: LinkChannel, phone: String, root: File, path: String, size: Long) {
+        require(FolderSyncPlan.included(path, mutableState.value.skipped)) { "${path.substringAfterLast('/')} isn't synced: it's turned off in ReadAlong's settings on the computer." }
         val target = resolve(root, path)
         target.parentFile.mkdirs()
         if (target.parentFile.usableSpace < size + 50_000_000) throw IllegalArgumentException("The computer is out of space for ${target.name}.")
@@ -225,7 +230,7 @@ class DeviceLink(private val scope: CoroutineScope, private val library: Library
     }
 
     private fun save(s: LinkState) = runCatching {
-        file.writeAtomically(JSONObject().put("deviceId", s.deviceId).put("name", s.name).put("shared", JSONArray(s.shared))
+        file.writeAtomically(JSONObject().put("deviceId", s.deviceId).put("name", s.name).put("shared", JSONArray(s.shared)).put("skipped", FolderSyncPlan.encodeKinds(s.skipped))
             .put("devices", JSONArray(s.devices.map { d ->
                 JSONObject().put("id", d.id).put("name", d.name).put("key", Base64.getEncoder().encodeToString(d.key)).put("linkedAt", d.linkedAt).put("lastSeen", d.lastSeen ?: JSONObject.NULL).put("appVersion", d.appVersion ?: JSONObject.NULL)
             })).toString(1))
@@ -242,7 +247,8 @@ class DeviceLink(private val scope: CoroutineScope, private val library: Library
                     LinkedDevice(d.getString("id"), d.optString("name", "Phone"), Base64.getDecoder().decode(d.getString("key")), d.optLong("linkedAt"),
                         if (d.isNull("lastSeen")) null else d.optLong("lastSeen"), if (d.isNull("appVersion")) null else d.optString("appVersion"))
                 } },
-                o.optJSONArray("shared")?.let { a -> List(a.length()) { a.getString(it) } }.orEmpty())
+                o.optJSONArray("shared")?.let { a -> List(a.length()) { a.getString(it) } }.orEmpty(),
+                FolderSyncPlan.decodeKinds(o.optJSONArray("skipped")))
         }.getOrElse { com.example.readalong.desktop.core.VersionUpgrade.setAside(file); fresh }
     }
 

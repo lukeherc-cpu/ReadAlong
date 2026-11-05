@@ -39,6 +39,27 @@ object FolderSyncPlan {
 
     fun isAudio(path: String) = path.substringAfterLast('.', "").lowercase() in audio
 
+    /**
+     * The kinds of companion file a person can leave out of syncing (Settings on either app); audio and
+     * anything else always syncs. The ids travel between the apps, so they never change.
+     */
+    enum class Kind(val id: String) { TRANSCRIPT("transcript"), PROGRESS("progress"), EPUB("epub"), COVER("cover") }
+    private val images = setOf("jpg", "jpeg", "png", "webp", "bmp")
+
+    fun kind(path: String): Kind? = when (path.substringAfterLast('.', "").lowercase()) {
+        "readalong" -> Kind.TRANSCRIPT
+        "readalong-progress" -> Kind.PROGRESS
+        "epub" -> Kind.EPUB
+        in images -> Kind.COVER
+        else -> null
+    }
+
+    /** Whether [path] syncs when the kinds in [skipped] (by [Kind.id]) are turned off. */
+    fun included(path: String, skipped: Set<String>): Boolean = kind(path)?.let { it.id !in skipped } ?: true
+
+    fun encodeKinds(skipped: Set<String>) = JSONArray(skipped.sorted())
+    fun decodeKinds(array: JSONArray?): Set<String> = array?.let { a -> (0 until a.length()).mapTo(HashSet()) { a.getString(it) } }.orEmpty()
+
     fun plan(local: List<SyncFile>, remote: List<SyncFile>, synced: Map<String, SyncedState>): List<SyncAction> {
         val mine = local.filter { syncable(it.path) }.associateBy { it.path }
         val theirs = remote.filter { syncable(it.path) }.associateBy { it.path }

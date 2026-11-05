@@ -32,7 +32,9 @@ class AppState(val scope: CoroutineScope, private val background: Boolean = true
     val library = LibraryStore(scope = scope)
     val transcripts = TranscriptStore()
     val models = ModelStore()
-    val importer = LibraryImporter(library, transcripts)
+    /** Chosen covers and EPUBs kept beside each book, so they sync with the phone. */
+    val companions = Companions(library)
+    val importer = LibraryImporter(library, transcripts, companions, beforeTranscriptImport = { transcription.remove(it) }, onMessage = { messages.tryEmit(it) })
     val player = AudioPlayer(scope, library, settingsStore)
     val transcription = TranscriptionService(scope, library, settingsStore, transcripts, models, probe = background)
     /** Shares listening positions with the phone through a file beside each book. */
@@ -50,6 +52,16 @@ class AppState(val scope: CoroutineScope, private val background: Boolean = true
     var searchRequests by mutableStateOf(0)
     /** Linked phones and the folders they sync over the home network; a sync from the phone rescans the library. */
     val link = DeviceLink(scope, library, onSynced = { runCatching { importer.rescan() }; syncProgressNow() })
+
+    /** Makes [epub] the book's EPUB, copied beside the book so it syncs with the phone. */
+    fun attachEpub(bookId: String, epub: File) {
+        scope.launch(Dispatchers.IO) { library.book(bookId)?.let { companions.attachEpub(it, epub) } }
+    }
+
+    /** Makes [image] the book's cover, saved beside the book so it syncs with the phone (for the cover menu: internet search or a file). */
+    fun setCover(bookId: String, image: ByteArray) {
+        scope.launch(Dispatchers.IO) { library.book(bookId)?.let { companions.saveCover(it, image) } }
+    }
 
     fun open(next: Screen) { if (next != screen) { history.addLast(screen); screen = next } }
     fun back() { screen = history.removeLastOrNull() ?: Screen.Library }
