@@ -3,14 +3,12 @@ package com.example.readalong.ui.player
 import android.net.Uri
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.animation.animateContentSize
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import kotlinx.coroutines.launch
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -25,6 +23,9 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.lerp
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.layout.layout
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.readalong.R
 import com.example.readalong.data.local.ProcessingJobEntity
@@ -132,53 +133,51 @@ internal fun ReadAlongStatusPill(book: Book, job: ProcessingJobEntity?, estimate
         onRetry = { stoppedChoices = false; reading.prepareReadable() },
         onRebuild = { stoppedChoices = false; reading.rebuildTranscription() },
         onDismiss = { stoppedChoices = false })
-    // Swiping the pill to the left folds it into just its progress ring; tapping the ring opens it again.
-    // Which way it was left is kept for the book. Tapping the open pill does what it says.
-    val hidden by reading.preparationHidden.collectAsStateWithLifecycle()
-    val open = !hidden
-    // Something that needs a tap (the speech model, or a stop) opens it again.
-    LaunchedEffect(job?.state) { if (job?.state in listOf("FAILED", "WAITING_MODEL")) reading.hidePreparation(false) }
+    // It starts as just its progress ring. Tapping the ring grows it into the full pill, in place, and a
+    // swipe to the left shrinks it back. Tapping the open pill does what it says.
+    var open by rememberSaveable(book.id) { mutableStateOf(false) }
+    // Something that needs a tap (the speech model, or a stop) opens it.
+    LaunchedEffect(job?.state) { if (job?.state in listOf("FAILED", "WAITING_MODEL")) open = true }
+    // One value drives the whole change, so width, ring and text move together without a bounce.
+    val grow by androidx.compose.animation.core.animateFloatAsState(if (open) 1f else 0f,
+        androidx.compose.animation.core.spring(dampingRatio = 1f, stiffness = 260f), label = "ReadAlong pill")
     val density = androidx.compose.ui.platform.LocalDensity.current
-    val foldDistance = with(density) { 48.dp.toPx() }
-    val drag = remember { androidx.compose.animation.core.Animatable(0f) }
-    val scope = rememberCoroutineScope()
-    Surface(modifier.testTag("readalong_status").graphicsLayer {
-            translationX = drag.value
-            alpha = 1f - (-drag.value / (foldDistance * 3f)).coerceIn(0f, .35f)
-        }, shape = RoundedCornerShape(50), color = Color.Black.copy(alpha = .62f), contentColor = Color.White) {
+    val swipe = with(density) { 24.dp.toPx() }
+    Surface(modifier.testTag("readalong_status"), shape = RoundedCornerShape(50), color = Color.Black.copy(alpha = .62f), contentColor = Color.White) {
         Row(Modifier
             .pointerInput(open) {
                 if (!open) return@pointerInput
-                var offset = 0f
-                detectHorizontalDragGestures(
-                    onDragStart = { offset = drag.value },
-                    onDragEnd = {
-                        if (offset < -foldDistance) reading.hidePreparation(true)
-                        scope.launch { drag.animateTo(0f, androidx.compose.animation.core.spring(dampingRatio = .8f, stiffness = 500f)) }
-                    },
-                    onDragCancel = { scope.launch { drag.animateTo(0f) } }) { change, amount ->
+                var moved = 0f
+                detectHorizontalDragGestures(onDragStart = { moved = 0f }) { change, amount ->
                     change.consume()
-                    // Follows the finger to the left; to the right it barely gives.
-                    offset = (offset + amount * if (offset + amount > 0f) .15f else 1f).coerceIn(-foldDistance * 2.5f, foldDistance * .3f)
-                    scope.launch { drag.snapTo(offset) }
+                    moved += amount
+                    if (moved < -swipe) open = false
                 }
             }
-            .clickable(onClickLabel = if (open) label else "Show ReadAlong progress", onClick = { if (open) tap() else reading.hidePreparation(false) })
-            .animateContentSize(androidx.compose.animation.core.spring(dampingRatio = .9f, stiffness = 380f))
-            .padding(horizontal = if (open) 14.dp else 10.dp, vertical = if (open) 8.dp else 10.dp)
+            .clickable(onClickLabel = if (open) label else "Show ReadAlong progress", onClick = { if (open) tap() else open = true })
+            .height(36.dp)
+            .padding(start = lerp(8.dp, 10.dp, grow), end = lerp(8.dp, 14.dp, grow))
             .semantics {
                 contentDescription = label
-                if (open) customActions = listOf(androidx.compose.ui.semantics.CustomAccessibilityAction("Minimize") { reading.hidePreparation(true); true })
+                if (open) customActions = listOf(androidx.compose.ui.semantics.CustomAccessibilityAction("Minimize") { open = false; true })
             },
             verticalAlignment = Alignment.CenterVertically) {
-            if (active && !waitingForCharging) CircularProgressIndicator(progress = { percent / 100f }, modifier = Modifier.size(if (open) 16.dp else 20.dp), strokeWidth = 2.dp,
+            val ring = lerp(20.dp, 17.dp, grow)
+            if (active && !waitingForCharging) CircularProgressIndicator(progress = { percent / 100f }, modifier = Modifier.size(ring), strokeWidth = 2.dp,
                 color = Color.White, trackColor = Color.White.copy(alpha = .25f))
-            else Icon(painterResource(R.drawable.ic_highlighted_book), null, Modifier.size(if (open) 16.dp else 20.dp))
-            androidx.compose.animation.AnimatedVisibility(open,
-                enter = androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(220, delayMillis = 80)) + androidx.compose.animation.expandHorizontally(androidx.compose.animation.core.tween(320), expandFrom = Alignment.Start),
-                exit = androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(140)) + androidx.compose.animation.shrinkHorizontally(androidx.compose.animation.core.tween(340), shrinkTowards = Alignment.Start)) {
-                Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 8.dp))
-            }
+            else Icon(painterResource(R.drawable.ic_highlighted_book), null, Modifier.size(ring))
+            // The label is measured at full width and shown through a window that widens with [grow];
+            // it fades in over the second half of the growth and out over the first half of the shrink.
+            if (grow > 0f) Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .clipToBounds()
+                    .layout { measurable, constraints ->
+                        val placeable = measurable.measure(constraints.copy(minWidth = 0))
+                        val gap = 8.dp.roundToPx()
+                        val width = ((placeable.width + gap) * grow).toInt()
+                        layout(width, placeable.height) { placeable.placeRelative(gap, 0) }
+                    }
+                    .graphicsLayer { alpha = ((grow - .35f) / .65f).coerceIn(0f, 1f) })
         }
     }
 }
