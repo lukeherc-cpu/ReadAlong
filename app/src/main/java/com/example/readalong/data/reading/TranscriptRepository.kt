@@ -11,7 +11,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
 
-class TranscriptRepository(private val database: ReadAlongDatabase) {
+/** [folderBookmarks] shares bookmarks through the book's folder; it hears of each one added or removed. */
+class TranscriptRepository(private val database: ReadAlongDatabase, private val folderBookmarks: com.example.readalong.data.importing.FolderBookmarks? = null) {
     private val dao = database.readingDao()
     fun version(bookId: String): Flow<ReadableVersionEntity?> = flow {
         prepareDemo(bookId)
@@ -23,8 +24,18 @@ class TranscriptRepository(private val database: ReadAlongDatabase) {
     suspend fun addBookmark(bookId: String, positionMs: Long, label: String? = null) {
         dao.putBookmark(BookmarkEntity(UUID.randomUUID().toString(), bookId, positionMs,
             dao.at(bookId, positionMs)?.id, null, label?.trim()?.take(120), System.currentTimeMillis()))
+        shareBookmarks(bookId)
     }
-    suspend fun removeBookmark(id: String) = dao.deleteBookmark(id)
+    suspend fun removeBookmark(id: String) {
+        val bookId = dao.bookmark(id)?.bookId
+        dao.deleteBookmark(id)
+        if (bookId != null) { folderBookmarks?.removed(bookId, id); shareBookmarks(bookId) }
+    }
+    private suspend fun shareBookmarks(bookId: String) {
+        try { folderBookmarks?.push(bookId) }
+        catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+        catch (_: Exception) { }
+    }
     suspend fun prepareDemo(bookId: String) {
         if (database.bookDao().findBook(bookId)?.isDemo != true) return
         database.withTransaction {

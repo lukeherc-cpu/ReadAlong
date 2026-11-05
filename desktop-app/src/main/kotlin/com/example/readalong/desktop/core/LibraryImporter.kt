@@ -11,7 +11,11 @@ import java.io.File
 data class ScanState(val running: Boolean, val label: String, val found: Int = 0, val adding: Boolean = false)
 
 /** Adds books from folders and files, and keeps saved library folders up to date. */
-class LibraryImporter(private val library: LibraryStore, private val transcripts: TranscriptStore) {
+class LibraryImporter(private val library: LibraryStore, private val transcripts: TranscriptStore,
+    private val companions: Companions = Companions(library),
+    /** A `.readalong` from the phone is about to replace this book's unfinished ReadAlong: stop making it. */
+    private val beforeTranscriptImport: (String) -> Unit = {},
+    private val onMessage: (String) -> Unit = {}) {
     private val mutableState = MutableStateFlow(ScanState(false, ""))
     val state: StateFlow<ScanState> = mutableState
     private val lock = kotlinx.coroutines.sync.Mutex()
@@ -73,13 +77,37 @@ class LibraryImporter(private val library: LibraryStore, private val transcripts
         return added
     }
 
-    /** An EPUB or a .readalong package beside the audio is picked up automatically. */
+    /**
+     * An EPUB, cover or `.readalong` package beside the audio is picked up automatically. The companion files
+     * ("<book>.epub", "<book>.cover.jpg", "<book>.readalong") win when they changed since this computer last saw
+     * them, which is how a choice made on the phone arrives here.
+     */
     private fun adoptCompanions(book: LibraryBook, item: FoundBook) {
-        if (book.epubPath == null) item.epubs.firstOrNull()?.let { epub -> library.update(book.id) { it.copy(epubPath = epub.path, textSource = "EPUB") } }
-        if (transcripts.info(book.id) == null) item.transcripts.firstOrNull()?.let { file ->
-            runCatching { transcripts.importPackage(library.book(book.id) ?: book, file) }
-                .onFailure { System.err.println("ReadAlong: ${file.name} wasn't imported: ${it.message}") }
+        val epubName = book.companionFile("epub").name
+        val companionEpub = item.epubs.firstOrNull { it.name.equals(epubName, ignoreCase = true) }
+        if (companionEpub != null && companions.epubChanged(library.book(book.id) ?: book, companionEpub))
+            library.update(book.id) { it.copy(epubPath = companionEpub.path, textSource = "EPUB") }
+        else if (library.book(book.id)?.epubPath == null) item.epubs.firstOrNull()?.let { epub -> library.update(book.id) { it.copy(epubPath = epub.path, textSource = "EPUB") } }
+
+        val coverName = book.companionFile(Companions.COVER).name
+        item.images.firstOrNull { it.name.equals(coverName, ignoreCase = true) }?.let { cover ->
+            if (companions.coverChanged(book, cover)) library.update(book.id) { it.copy(coverPath = cover.path) }
         }
+
+        val packageName = book.companionFile("readalong").name
+        val pkg = item.transcripts.firstOrNull { it.name.equals(packageName, ignoreCase = true) } ?: item.transcripts.firstOrNull() ?: return
+        val info = transcripts.info(book.id)
+        // This computer's own finished ReadAlong is kept; an unfinished one, or one taken from an older package, is replaced.
+        if (info != null && info.complete && !info.imported) return
+        // Each version of a package is tried once, so one that doesn't fit isn't hashed again on every rescan.
+        if (!companions.packageChanged(book.id, pkg)) return
+        if (info != null) beforeTranscriptImport(book.id)
+        runCatching { transcripts.importPackage(library.book(book.id) ?: book, pkg) }
+            .onSuccess { if (info != null) onMessage("${book.title}: ReadAlong from your phone added.") }
+            .onFailure {
+                System.err.println("ReadAlong: ${pkg.name} wasn't imported: ${it.message}")
+                onMessage("The ReadAlong for ${book.title} from your phone couldn't be used: ${it.message}")
+            }
     }
 
     private fun build(id: String, item: FoundBook, existing: LibraryBook?): LibraryBook {
@@ -104,6 +132,6 @@ class LibraryImporter(private val library: LibraryStore, private val transcripts
             positionMs = existing?.positionMs?.coerceAtMost(offset) ?: 0, finished = existing?.finished ?: false,
             lastPlayedAt = existing?.lastPlayedAt, addedAt = existing?.addedAt ?: System.currentTimeMillis(),
             bookmarks = existing?.bookmarks.orEmpty(), textSource = existing?.textSource ?: if (item.epubs.isNotEmpty()) "EPUB" else "GENERATED",
-            speed = existing?.speed ?: 1f)
+            speed = existing?.speed ?: 1f, removedBookmarks = existing?.removedBookmarks.orEmpty())
     }
 }

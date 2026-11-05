@@ -7,6 +7,7 @@ import com.example.readalong.domain.link.FolderSyncPlan
 import com.example.readalong.domain.link.LinkChannel
 import com.example.readalong.domain.link.LinkCode
 import com.example.readalong.domain.link.SyncFile
+import com.example.readalong.domain.link.SettingsSync
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -23,11 +24,15 @@ import java.util.Base64
 import kotlin.concurrent.thread
 
 /** A phone linked to this computer. [key] is the secret the two share. */
-data class LinkedDevice(val id: String, val name: String, val key: ByteArray, val linkedAt: Long, val lastSeen: Long? = null)
+data class LinkedDevice(val id: String, val name: String, val key: ByteArray, val linkedAt: Long, val lastSeen: Long? = null,
+    /** The phone's ReadAlong version from its last hello; null for phones on 0.44.1 or earlier, which didn't send one. */
+    val appVersion: String? = null)
 
 data class LinkState(val deviceId: String, val name: String, val devices: List<LinkedDevice> = emptyList(),
     /** Library folders the phone may sync with; asked right after linking. */
-    val shared: List<String> = emptyList())
+    val shared: List<String> = emptyList(),
+    /** Kinds of companion file left out of syncing (FolderSyncPlan.Kind ids). Empty: everything syncs. */
+    val skipped: Set<String> = emptySet())
 
 /**
  * Links phones to this computer and serves the folders chosen for syncing to them over the home network.
@@ -38,6 +43,8 @@ data class LinkState(val deviceId: String, val name: String, val devices: List<L
  * listening progress show up. Nothing outside a shared folder can be read or written, and nothing is deleted.
  */
 class DeviceLink(private val scope: CoroutineScope, private val library: LibraryStore, private val onSynced: suspend () -> Unit,
+    /** The app and reader settings shared with the phone (SettingsSync keys), and how to take the phone's. */
+    private val settings: () -> Map<String, String> = { emptyMap() }, private val applySettings: (Map<String, String>) -> Unit = {},
     private val file: File = File(AppPaths.data, "link.json")) {
     private val mutableState = MutableStateFlow(load())
     val state: StateFlow<LinkState> = mutableState
@@ -66,6 +73,7 @@ class DeviceLink(private val scope: CoroutineScope, private val library: Library
     fun folderPromptAnswered() { mutableJustLinked.value = null }
 
     fun setShared(paths: List<String>) = change { it.copy(shared = paths.distinct()) }
+    fun setSkipped(kinds: Set<String>) = change { it.copy(skipped = kinds) }
 
     fun unlink(id: String) {
         change { s -> s.copy(devices = s.devices.filterNot { it.id == id }) }
@@ -120,8 +128,11 @@ class DeviceLink(private val scope: CoroutineScope, private val library: Library
             val hello = channel.receiveJson()
             require(hello.optString("op") == "hello")
             val phone = welcome(keyId, hello.getString("device"), hello.optString("name").ifBlank { "Phone" })
+                .copy(appVersion = hello.optString("app").take(40).ifBlank { null })
             device = phone
-            channel.sendJson(JSONObject().put("device", mutableState.value.deviceId).put("name", mutableState.value.name).put("platform", AppPaths.platformName))
+            // Older phones ignore the extra fields; newer ones use them to send only requests this computer knows.
+            channel.sendJson(JSONObject().put("device", mutableState.value.deviceId).put("name", mutableState.value.name).put("platform", AppPaths.platformName)
+                .put("protocol", LinkChannel.PROTOCOL).put("ops", JSONArray(LinkChannel.OPS)).put("app", System.getProperty("readalong.version") ?: "dev"))
             while (true) {
                 val request = try { channel.receiveJson() } catch (_: EOFException) { break }
                 try {
@@ -131,6 +142,11 @@ class DeviceLink(private val scope: CoroutineScope, private val library: Library
                         "get" -> send(channel, phone.name, shared(request), request.getString("path"))
                         "put" -> { receive(channel, phone.name, shared(request), request.getString("path"), request.getLong("size")); changed = true }
                         "create" -> channel.sendJson(create(request.getString("name")))
+                        "settings" -> channel.sendJson(JSONObject().put("values", SettingsSync.encode(settings())).put("skip", FolderSyncPlan.encodeKinds(mutableState.value.skipped)))
+                        "set-settings" -> {
+                            if (FolderSyncPlan.Kind.SETTINGS.id !in mutableState.value.skipped) applySettings(SettingsSync.decode(request.optJSONObject("values")))
+                            channel.sendJson(JSONObject().put("ok", true))
+                        }
                         "done" -> { channel.sendJson(JSONObject().put("ok", true)); break }
                         else -> channel.sendJson(JSONObject().put("error", "This version of ReadAlong Desktop doesn't know how to do that. Update it to sync."))
                     }
@@ -139,7 +155,7 @@ class DeviceLink(private val scope: CoroutineScope, private val library: Library
         } catch (_: Exception) { /* The phone went away or the network dropped; it tries again next time. */ }
         finally {
             mutableActivity.value = null
-            device?.let { seen -> change { s -> s.copy(devices = s.devices.map { if (it.id == seen.id) it.copy(lastSeen = System.currentTimeMillis()) else it }) } }
+            device?.let { seen -> change { s -> s.copy(devices = s.devices.map { if (it.id == seen.id) it.copy(lastSeen = System.currentTimeMillis(), appVersion = seen.appVersion ?: it.appVersion) else it }) } }
             if (changed) scope.launch { runCatching { onSynced() } }
         }
     }
@@ -173,11 +189,12 @@ class DeviceLink(private val scope: CoroutineScope, private val library: Library
         val base = root.toPath()
         val files = Files.walk(base).use { paths ->
             paths.filter { Files.isRegularFile(it) }.map { path -> SyncFile(base.relativize(path).joinToString("/"), Files.size(path), Files.getLastModifiedTime(path).toMillis()) }
-                .filter { FolderSyncPlan.syncable(it.path) }.toList()
+                .filter { FolderSyncPlan.syncable(it.path) && FolderSyncPlan.included(it.path, mutableState.value.skipped) }.toList()
         }
         // In pages, so a large library never makes a frame too big.
         val pages = files.chunked(500)
-        channel.sendJson(JSONObject().put("pages", pages.size))
+        // The phone leaves out what's turned off here too, so it doesn't send it either.
+        channel.sendJson(JSONObject().put("pages", pages.size).put("skip", FolderSyncPlan.encodeKinds(mutableState.value.skipped)))
         pages.forEach { page -> channel.sendJson(JSONObject().put("files", JSONArray(page.map { it.toJson() }))) }
     }
 
@@ -190,6 +207,7 @@ class DeviceLink(private val scope: CoroutineScope, private val library: Library
     }
 
     private fun receive(channel: LinkChannel, phone: String, root: File, path: String, size: Long) {
+        require(FolderSyncPlan.included(path, mutableState.value.skipped)) { "${path.substringAfterLast('/')} isn't synced: it's turned off in ReadAlong's settings on the computer." }
         val target = resolve(root, path)
         target.parentFile.mkdirs()
         if (target.parentFile.usableSpace < size + 50_000_000) throw IllegalArgumentException("The computer is out of space for ${target.name}.")
@@ -220,9 +238,9 @@ class DeviceLink(private val scope: CoroutineScope, private val library: Library
     }
 
     private fun save(s: LinkState) = runCatching {
-        file.writeAtomically(JSONObject().put("deviceId", s.deviceId).put("name", s.name).put("shared", JSONArray(s.shared))
+        file.writeAtomically(JSONObject().put("deviceId", s.deviceId).put("name", s.name).put("shared", JSONArray(s.shared)).put("skipped", FolderSyncPlan.encodeKinds(s.skipped))
             .put("devices", JSONArray(s.devices.map { d ->
-                JSONObject().put("id", d.id).put("name", d.name).put("key", Base64.getEncoder().encodeToString(d.key)).put("linkedAt", d.linkedAt).put("lastSeen", d.lastSeen ?: JSONObject.NULL)
+                JSONObject().put("id", d.id).put("name", d.name).put("key", Base64.getEncoder().encodeToString(d.key)).put("linkedAt", d.linkedAt).put("lastSeen", d.lastSeen ?: JSONObject.NULL).put("appVersion", d.appVersion ?: JSONObject.NULL)
             })).toString(1))
     }
 
@@ -235,10 +253,11 @@ class DeviceLink(private val scope: CoroutineScope, private val library: Library
             LinkState(o.getString("deviceId"), o.optString("name").ifBlank { computerName() },
                 List(devices.length()) { i -> devices.getJSONObject(i).let { d ->
                     LinkedDevice(d.getString("id"), d.optString("name", "Phone"), Base64.getDecoder().decode(d.getString("key")), d.optLong("linkedAt"),
-                        if (d.isNull("lastSeen")) null else d.optLong("lastSeen"))
+                        if (d.isNull("lastSeen")) null else d.optLong("lastSeen"), if (d.isNull("appVersion")) null else d.optString("appVersion"))
                 } },
-                o.optJSONArray("shared")?.let { a -> List(a.length()) { a.getString(it) } }.orEmpty())
-        }.getOrDefault(fresh)
+                o.optJSONArray("shared")?.let { a -> List(a.length()) { a.getString(it) } }.orEmpty(),
+                FolderSyncPlan.decodeKinds(o.optJSONArray("skipped")))
+        }.getOrElse { com.example.readalong.desktop.core.VersionUpgrade.setAside(file); fresh }
     }
 
     companion object {

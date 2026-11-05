@@ -40,7 +40,7 @@ class DesktopTranscriptImporter(private val context: Context, private val databa
                 val header = zip.getInputStream(zip.getEntry("manifest.json")).use { input -> val out = java.io.ByteArrayOutputStream(); val buffer = ByteArray(8192); while (true) { val n = input.read(buffer); if (n < 0) break; require(out.size() + n <= 1024 * 1024); out.write(buffer, 0, n) }; out.toByteArray() }
                 require(header.size <= 1024 * 1024)
                 val manifest = JSONObject(header.toString(Charsets.UTF_8))
-                require(manifest.getString("format") == "readalong-transcript" && manifest.getInt("version") == 1 && manifest.getBoolean("complete")) { "This transcript format is not supported or is incomplete." }
+                require(manifest.getString("format") == "readalong-transcript" && com.example.readalong.domain.update.FormatVersion.readable(manifest, 1) && manifest.getBoolean("complete")) { "This transcript format is not supported or is incomplete." }
                 importedModelId = manifest.getString("model")
                 // ReadAlong for Windows writes "desktop:<backend>:<model>" and the engine's name, e.g. "Whisper small.en".
                 val desktop = importedModelId.startsWith("desktop:") && importedModelId.length <= 120
@@ -75,7 +75,8 @@ class DesktopTranscriptImporter(private val context: Context, private val databa
                     val match = matches.indexOfFirst { it.name == expected.optString("name") }.takeIf { it >= 0 } ?: 0
                     val file = matches.removeAt(match); files += file
                     durations[i] = expected.getLong("durationMs")
-                    require(durations[i] in 1..7L * 24 * 60 * 60_000 && abs(durations[i] - requireNotNull(file.durationMs)) <= 1000) { "The transcript's audio duration does not match this book." }
+                    // The bytes match, so this is the same audio; the apps only measure some MP3s' length differently (VBR without a frame index).
+                    require(durations[i] in 1..7L * 24 * 60 * 60_000 && abs(durations[i] - requireNotNull(file.durationMs)) <= maxOf(1_000L, file.durationMs!! / 50)) { "The transcript's audio duration does not match this book." }
                 }
                 val offsets = files.map { requireNotNull(canonicalOffsets[it.id]) }
                 val ends = LongArray(files.size); var fileIndex = 0; var count = 0; var bytes = 0L

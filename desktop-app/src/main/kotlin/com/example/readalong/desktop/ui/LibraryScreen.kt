@@ -250,7 +250,7 @@ fun bookMenu(app: AppState, book: LibraryBook): List<ContextMenuItem> = listOfNo
     ContextMenuItem("Play") { app.play(book.id) },
     ContextMenuItem("Open") { app.open(Screen.Player(book.id)) },
     if (app.transcripts.info(book.id)?.complete == true) null else ContextMenuItem("Make ReadAlong now") { app.transcription.start(book.id) },
-    ContextMenuItem("Match an EPUB…") { chooseFile("Choose the book's EPUB", "epub")?.let { f -> app.library.update(book.id) { it.copy(epubPath = f.path, textSource = "EPUB") } } },
+    ContextMenuItem("Match an EPUB…") { chooseFile("Choose the book's EPUB", "epub")?.let { f -> app.attachEpub(book.id, f) } },
     ContextMenuItem("Import a .readalong transcript…") {
         chooseFile("Choose a ReadAlong transcript", "readalong")?.let { f ->
             app.scope.launch(kotlinx.coroutines.Dispatchers.IO) {
@@ -267,6 +267,7 @@ fun bookMenu(app: AppState, book: LibraryBook): List<ContextMenuItem> = listOfNo
             }
         }
     } else null,
+    *coverMenu(app, book).toTypedArray(),
     ContextMenuItem(if (book.finished) "Mark as not finished" else "Mark as finished") { app.library.update(book.id) { it.copy(finished = !it.finished, positionMs = if (it.finished) 0 else it.positionMs) } },
     book.folder?.let { folder -> ContextMenuItem("Show in folder") { runCatching { Desktop.getDesktop().open(File(folder)) } } },
     ContextMenuItem("Remove from library") { if (app.player.state.value.bookId == book.id) app.player.close(); app.transcription.remove(book.id); app.library.remove(book.id) },

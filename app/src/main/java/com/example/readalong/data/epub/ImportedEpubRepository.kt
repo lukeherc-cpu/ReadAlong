@@ -81,6 +81,10 @@ class ImportedEpubRepository(private val context: Context, private val database:
                 requestAlignment(bookId)
             }
         } finally { if (!published) { file.delete(); fontDirectory.deleteRecursively() } }
+        // A chosen EPUB goes beside the book too, so it syncs with the folder; one found there already is.
+        try { com.example.readalong.data.importing.BookFolderFiles(context, database).saveEpub(bookId, uri) }
+        catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+        catch (_: Exception) { }
     } }
 
     suspend fun preference(bookId: String, value: String) {

@@ -46,7 +46,7 @@ fun ReadAlongApp(app: AppState) {
                 val epub = files.singleOrNull()?.takeIf { it.extension.equals("epub", true) }
                 val screen = app.screen
                 if (epub != null && screen is Screen.Player) {
-                    app.library.update(screen.bookId) { it.copy(epubPath = epub.path, textSource = "EPUB") }
+                    app.attachEpub(screen.bookId, epub)
                     app.messages.tryEmit("Matching ${epub.name} to the audio.")
                 } else files.singleOrNull()?.takeIf { it.isDirectory }?.let(app::chooseFolder) ?: app.addPaths(files)
                 return true
@@ -78,6 +78,9 @@ fun ReadAlongApp(app: AppState) {
                 }
             }
             FoundDialog(app)
+            UpdateDialog(app)
+            CoverSearchDialog(app)
+            SupportPrompt(app)
             SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(bottom = 96.dp))
             AnimatedVisibility(dropping, enter = fadeIn(), exit = fadeOut()) {
                 Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .55f)).padding(24.dp), contentAlignment = Alignment.Center) {
