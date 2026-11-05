@@ -7,7 +7,11 @@ import org.json.JSONObject
 import java.io.File
 import java.util.concurrent.TimeUnit
 
-class TranscriberException(message: String, val processDied: Boolean = false) : Exception(message)
+/**
+ * [processDied]: the transcriber process ended (a native abort such as exit 134, a driver fault, out of memory).
+ * [recognition]: whisper itself failed on the audio it was given; the process is still running.
+ */
+class TranscriberException(message: String, val processDied: Boolean = false, val recognition: Boolean = false) : Exception(message)
 
 /** The app's side of [Worker]: starts the transcriber process and exchanges JSON lines with it. */
 class TranscriberProcess private constructor(private val process: Process) : AutoCloseable {
@@ -50,7 +54,7 @@ class TranscriberProcess private constructor(private val process: Process) : Aut
     suspend fun next(): JSONObject {
         val message = messages.receiveCatching().getOrNull()
             ?: throw TranscriberException("The transcriber stopped unexpectedly (exit ${runCatching { process.waitFor(2, TimeUnit.SECONDS); process.exitValue() }.getOrDefault(-1)}).", processDied = true)
-        if (message.optString("type") == "error") throw TranscriberException(message.optString("message", "Transcription failed."))
+        if (message.optString("type") == "error") throw TranscriberException(message.optString("message", "Transcription failed."), recognition = message.optBoolean("recognition"))
         return message
     }
 

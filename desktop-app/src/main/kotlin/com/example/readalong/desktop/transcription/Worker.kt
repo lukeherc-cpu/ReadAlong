@@ -101,7 +101,12 @@ object Worker {
                     try { while (true) { Thread.sleep(250); send(JSONObject().put("type", "progress").put("unit", index).put("value", WhisperNative.progress())) } }
                     catch (_: InterruptedException) {}
                 }
-                val json = try { JSONObject(WhisperNative.transcribe(model, audio, language, threads, beams)) } finally { reporter.interrupt() }
+                val json = try { JSONObject(WhisperNative.transcribe(model, audio, language, threads, beams)) }
+                catch (failure: java.io.IOException) {
+                    // whisper_full failed on this unit (a GPU allocation or decoder error): the app retries the unit, not the book.
+                    send(JSONObject().put("type", "error").put("recognition", true).put("index", index).put("message", failure.message ?: "Speech recognition failed"))
+                    return
+                } finally { reporter.interrupt() }
                 val result = TranscriptStore.chunkResult(json.getJSONArray("segments").toString(), end - start)
                 send(JSONObject().put("type", "unit").put("index", index).put("startMs", start).put("endMs", end)
                     .put("result", result).put("language", json.opt("language")).put("ms", (System.nanoTime() - began) / 1_000_000))
