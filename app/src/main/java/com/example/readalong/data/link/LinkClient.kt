@@ -35,9 +35,15 @@ class LinkClient private constructor(private val socket: Socket, private val cha
         return List(array.length()) { i -> array.getJSONObject(i).let { RemoteFolder(it.getString("id"), it.getString("name"), it.optBoolean("shared")) } }
     }
 
+    /** The kinds of file the computer was told not to sync (FolderSyncPlan.Kind ids); empty from older versions. */
+    var computerSkips: Set<String> = emptySet()
+        private set
+
     fun list(folder: String): List<SyncFile> {
         channel.sendJson(JSONObject().put("op", "list").put("folder", folder))
-        val pages = channel.receiveJson().getInt("pages")
+        val head = channel.receiveJson()
+        computerSkips = com.example.readalong.domain.link.FolderSyncPlan.decodeKinds(head.optJSONArray("skip"))
+        val pages = head.getInt("pages")
         return (0 until pages).flatMap {
             val files = channel.receiveJson().getJSONArray("files")
             List(files.length()) { i -> SyncFile.fromJson(files.getJSONObject(i)) }

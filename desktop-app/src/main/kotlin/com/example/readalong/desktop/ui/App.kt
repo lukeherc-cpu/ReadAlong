@@ -46,7 +46,7 @@ fun ReadAlongApp(app: AppState) {
                 val epub = files.singleOrNull()?.takeIf { it.extension.equals("epub", true) }
                 val screen = app.screen
                 if (epub != null && screen is Screen.Player) {
-                    app.library.update(screen.bookId) { it.copy(epubPath = epub.path, textSource = "EPUB") }
+                    app.attachEpub(screen.bookId, epub)
                     app.messages.tryEmit("Matching ${epub.name} to the audio.")
                 } else files.singleOrNull()?.takeIf { it.isDirectory }?.let(app::chooseFolder) ?: app.addPaths(files)
                 return true
