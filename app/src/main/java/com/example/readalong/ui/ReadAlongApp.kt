@@ -57,6 +57,7 @@ fun ReadAlongApp(libraryViewModel: LibraryViewModel, app: com.example.readalong.
             controller.isAppearanceLightNavigationBars = light
         }
     }
+    if (showPrompts) com.example.readalong.ui.about.SupportPrompt(app)
     val actions: com.example.readalong.ui.library.BookActionsViewModel = viewModel(factory = com.example.readalong.ui.library.BookActionsViewModel.factory(app))
     val actionError by actions.error.collectAsStateWithLifecycle()
     val pendingImports by importModel.priority.collectAsStateWithLifecycle()

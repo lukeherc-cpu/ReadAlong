@@ -162,7 +162,7 @@ private suspend fun remoteCover(url: String): ImageBitmap? = synchronized(remote
 }
 
 /** The default browser; xdg-open where Java's desktop support is missing (some Linux desktops and the Flatpak). */
-private fun openBrowser(url: String): Boolean = runCatching {
+internal fun openBrowser(url: String): Boolean = runCatching {
     val desktop = if (java.awt.Desktop.isDesktopSupported()) java.awt.Desktop.getDesktop() else null
     if (desktop?.isSupported(java.awt.Desktop.Action.BROWSE) == true) { desktop.browse(URI(url)); true }
     else { ProcessBuilder("xdg-open", url).start(); true }
