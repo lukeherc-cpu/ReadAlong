@@ -34,7 +34,8 @@ class AppState(val scope: CoroutineScope, private val background: Boolean = true
     val models = ModelStore()
     /** Chosen covers and EPUBs kept beside each book, so they sync with the phone. */
     val companions = Companions(library)
-    val importer = LibraryImporter(library, transcripts, companions, beforeTranscriptImport = { transcription.remove(it) }, onMessage = { messages.tryEmit(it) })
+    val importer = LibraryImporter(library, transcripts, companions, beforeTranscriptImport = { transcription.remove(it) },
+        onTranscriptImported = { transcription.imported(it) }, onMessage = { messages.tryEmit(it) })
     val player = AudioPlayer(scope, library, settingsStore)
     val transcription = TranscriptionService(scope, library, settingsStore, transcripts, models, probe = background)
     /** Shares listening positions with the phone through a file beside each book. */

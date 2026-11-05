@@ -173,12 +173,34 @@ class TranscriptStore {
                 }
             }
             require(count == manifest.getInt("chunks") && ends.contentEquals(durations)) { "The transcript is incomplete." }
+            checkReadable(book, byPart.flatMap { it })
             val text = byPart.flatMap { it }.joinToString("") { it.toJson().toString() + "\n" }
             File(folder(book.id), "chunks.jsonl").writeAtomically(text)
             writeInfo(book.id, manifest.getString("model"), manifest.optString("engine").take(60).ifBlank { engineName(manifest.getString("model")) },
                 count, count, complete = true, imported = true)
             bump(book.id)
         }
+    }
+
+    /**
+     * A package is only taken when the reader can show it: some text, and most sections readable the way [segments]
+     * reads them. Otherwise the book would count as having a ReadAlong while showing none.
+     */
+    private fun checkReadable(book: LibraryBook, chunks: List<Chunk>) {
+        val spoken = chunks.filter { it.result.optString("text").isNotBlank() }
+        require(spoken.isNotEmpty()) { "it has no text in it. Make the ReadAlong again on the phone, then sync." }
+        var firstError: String? = null
+        var tried = 0
+        val readable = spoken.count { chunk ->
+            val part = book.parts[chunk.file]
+            val start = part.offsetMs + chunk.startMs; val end = part.offsetMs + minOf(chunk.endMs, part.durationMs)
+            if (end <= start) return@count false
+            tried++
+            runCatching { WhistleResult.segments(chunk.result.toString(), TranscriptionInput(book.id, "c", part.path, start, end, false, chunk.startMs)) }
+                .onFailure { if (firstError == null) firstError = it.message ?: it.javaClass.simpleName }
+                .getOrNull()?.isNotEmpty() == true
+        }
+        require(tried == 0 || readable * 2 >= tried) { "only $readable of $tried sections could be read" + (firstError?.let { " ($it)" } ?: "") + "." }
     }
 
     private fun validateWords(result: JSONObject, lengthMs: Long) {
