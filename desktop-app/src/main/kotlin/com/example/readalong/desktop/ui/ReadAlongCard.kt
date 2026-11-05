@@ -46,7 +46,7 @@ fun ReadAlongCard(app: AppState, book: LibraryBook, modifier: Modifier = Modifie
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             PillButton("Make ReadAlong", { app.transcription.enqueue(book.id, now = job == null) }, icon = "ic_readalong")
                             PillButton(if (book.epubPath == null) "Add EPUB…" else "Change EPUB…", {
-                                chooseFile("Choose the book's EPUB", "epub")?.let { f -> app.library.update(book.id) { it.copy(epubPath = f.path, textSource = "EPUB") } }
+                                chooseFile("Choose the book's EPUB", "epub")?.let { f -> app.attachEpub(book.id, f) }
                             }, filled = false, icon = "ic_book_add")
                         }
                         Spacer(Modifier.height(10.dp))
