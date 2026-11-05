@@ -460,7 +460,7 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
         val IMAGES = setOf("jpg", "jpeg", "png", "webp")
         val COVER_NAME = Regex("(?i)(cover|folder|front)")
         /** Files a scan uses or expects beside audio; they never count as skipped. */
-        val COMPANION = setOf("epub", "readalong", "readalong-progress", "jpg", "jpeg", "png", "webp", "gif", "bmp", "txt", "nfo", "cue", "pdf", "json", "xml", "m3u", "m3u8", "nomedia", "ini", "db", "log", "srt", "lrc", "html", "url", "md")
+        val COMPANION = setOf("epub", "readalong", "readalong-progress", "readalong-bookmarks", "jpg", "jpeg", "png", "webp", "gif", "bmp", "txt", "nfo", "cue", "pdf", "json", "xml", "m3u", "m3u8", "nomedia", "ini", "db", "log", "srt", "lrc", "html", "url", "md")
     }
     private fun supported(name: String) = name.substringAfterLast('.', "").lowercase() in AUDIO
     private fun image(name: String) = name.substringAfterLast('.', "").lowercase() in IMAGES

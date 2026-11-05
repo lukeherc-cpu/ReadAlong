@@ -113,7 +113,7 @@ class CompanionSyncTest {
                 channel.sendJson(JSONObject().put("op", "done")); channel.receive()
             }
             assertFalse(File(books, "Dune/Other.epub").exists())
-            assertEquals(setOf("epub"), DeviceLink(scope, library, {}, File(home, "link.json")).state.value.skipped)
+            assertEquals(setOf("epub"), DeviceLink(scope, library, {}, file = File(home, "link.json")).state.value.skipped)
         } finally { link.stop() }
     }
 }

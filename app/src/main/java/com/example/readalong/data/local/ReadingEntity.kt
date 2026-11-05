@@ -100,6 +100,10 @@ interface ReadingDao {
     @Upsert suspend fun putProgress(progress: ReadingProgressEntity)
     @Query("SELECT * FROM bookmarks WHERE bookId = :bookId ORDER BY audioMs, createdAt")
     fun bookmarks(bookId: String): Flow<List<BookmarkEntity>>
+    @Query("SELECT * FROM bookmarks WHERE bookId = :bookId ORDER BY audioMs, createdAt")
+    suspend fun bookmarkList(bookId: String): List<BookmarkEntity>
+    @Query("SELECT * FROM bookmarks WHERE id = :id")
+    suspend fun bookmark(id: String): BookmarkEntity?
     @Upsert suspend fun putBookmark(bookmark: BookmarkEntity)
     @Query("DELETE FROM bookmarks WHERE id = :id")
     suspend fun deleteBookmark(id: String)

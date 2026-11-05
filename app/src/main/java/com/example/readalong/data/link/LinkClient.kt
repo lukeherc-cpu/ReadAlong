@@ -50,6 +50,19 @@ class LinkClient private constructor(private val socket: Socket, private val cha
         }
     }
 
+    /** The computer's shared settings, or null when it has them turned off (or is too old to share them). */
+    fun settings(): Map<String, String>? = try {
+        channel.sendJson(JSONObject().put("op", "settings"))
+        val reply = channel.receiveJson()
+        if (com.example.readalong.domain.link.FolderSyncPlan.Kind.SETTINGS.id in com.example.readalong.domain.link.FolderSyncPlan.decodeKinds(reply.optJSONArray("skip"))) null
+        else com.example.readalong.domain.link.SettingsSync.decode(reply.optJSONObject("values"))
+    } catch (_: com.example.readalong.domain.link.LinkException) { null }
+
+    fun setSettings(values: Map<String, String>) {
+        channel.sendJson(JSONObject().put("op", "set-settings").put("values", com.example.readalong.domain.link.SettingsSync.encode(values)))
+        channel.receiveJson()
+    }
+
     /** Copies one of the computer's files into [target]; returns its size and time there. */
     fun get(folder: String, path: String, target: OutputStream, progress: (Long, Long) -> Unit): SyncFile {
         channel.sendJson(JSONObject().put("op", "get").put("folder", folder).put("path", path))
