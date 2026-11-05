@@ -16,8 +16,8 @@ object SettingsSync {
     const val SKIP_FORWARD = "skipForward"
     const val READER_THEME = "readerTheme"
     const val READER_FONT = "readerFont"
-    const val READER_SIZE = "readerSize"
-    val keys = listOf(ACCENT, SKIP_BACK, SKIP_FORWARD, READER_THEME, READER_FONT, READER_SIZE)
+    // The reader's text size is not shared: a phone and a computer screen want different ones.
+    val keys = listOf(ACCENT, SKIP_BACK, SKIP_FORWARD, READER_THEME, READER_FONT)
 
     /** The values both sides should have now. */
     fun merge(phone: Map<String, String>, computer: Map<String, String>, agreed: Map<String, String>?): Map<String, String> =
