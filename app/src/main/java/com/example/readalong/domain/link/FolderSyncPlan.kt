@@ -41,14 +41,16 @@ object FolderSyncPlan {
 
     /**
      * The kinds of companion file a person can leave out of syncing (Settings on either app); audio and
-     * anything else always syncs. The ids travel between the apps, so they never change.
+     * anything else always syncs. The ids travel between the apps, so they never change. [SETTINGS] is no file:
+     * it is the app and reader settings, which travel over the link itself (see SettingsSync).
      */
-    enum class Kind(val id: String) { TRANSCRIPT("transcript"), PROGRESS("progress"), EPUB("epub"), COVER("cover") }
+    enum class Kind(val id: String) { TRANSCRIPT("transcript"), PROGRESS("progress"), BOOKMARKS("bookmarks"), EPUB("epub"), COVER("cover"), SETTINGS("settings") }
     private val images = setOf("jpg", "jpeg", "png", "webp", "bmp")
 
     fun kind(path: String): Kind? = when (path.substringAfterLast('.', "").lowercase()) {
         "readalong" -> Kind.TRANSCRIPT
         "readalong-progress" -> Kind.PROGRESS
+        "readalong-bookmarks" -> Kind.BOOKMARKS
         "epub" -> Kind.EPUB
         in images -> Kind.COVER
         else -> null

@@ -7,6 +7,7 @@ import com.example.readalong.domain.link.FolderSyncPlan
 import com.example.readalong.domain.link.LinkChannel
 import com.example.readalong.domain.link.LinkCode
 import com.example.readalong.domain.link.SyncFile
+import com.example.readalong.domain.link.SettingsSync
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -42,6 +43,8 @@ data class LinkState(val deviceId: String, val name: String, val devices: List<L
  * listening progress show up. Nothing outside a shared folder can be read or written, and nothing is deleted.
  */
 class DeviceLink(private val scope: CoroutineScope, private val library: LibraryStore, private val onSynced: suspend () -> Unit,
+    /** The app and reader settings shared with the phone (SettingsSync keys), and how to take the phone's. */
+    private val settings: () -> Map<String, String> = { emptyMap() }, private val applySettings: (Map<String, String>) -> Unit = {},
     private val file: File = File(AppPaths.data, "link.json")) {
     private val mutableState = MutableStateFlow(load())
     val state: StateFlow<LinkState> = mutableState
@@ -139,6 +142,11 @@ class DeviceLink(private val scope: CoroutineScope, private val library: Library
                         "get" -> send(channel, phone.name, shared(request), request.getString("path"))
                         "put" -> { receive(channel, phone.name, shared(request), request.getString("path"), request.getLong("size")); changed = true }
                         "create" -> channel.sendJson(create(request.getString("name")))
+                        "settings" -> channel.sendJson(JSONObject().put("values", SettingsSync.encode(settings())).put("skip", FolderSyncPlan.encodeKinds(mutableState.value.skipped)))
+                        "set-settings" -> {
+                            if (FolderSyncPlan.Kind.SETTINGS.id !in mutableState.value.skipped) applySettings(SettingsSync.decode(request.optJSONObject("values")))
+                            channel.sendJson(JSONObject().put("ok", true))
+                        }
                         "done" -> { channel.sendJson(JSONObject().put("ok", true)); break }
                         else -> channel.sendJson(JSONObject().put("error", "This version of ReadAlong Desktop doesn't know how to do that. Update it to sync."))
                     }

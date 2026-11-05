@@ -13,7 +13,8 @@ data class AudioPart(val path: String, val durationMs: Long, val offsetMs: Long,
     val name: String get() = File(path).name
 }
 data class Chapter(val title: String, val startMs: Long)
-data class Bookmark(val positionMs: Long, val name: String, val createdAt: Long)
+/** [id] is shared with the phone through `<book>.readalong-bookmarks`; bookmarks made before it existed get one from their time and place. */
+data class Bookmark(val positionMs: Long, val name: String, val createdAt: Long, val id: String = "d$createdAt-$positionMs")
 
 data class LibraryBook(
     val id: String,
@@ -34,6 +35,8 @@ data class LibraryBook(
     /** "GENERATED" reads the transcript; "EPUB" reads the matched EPUB. */
     val textSource: String = "GENERATED",
     val speed: Float = 1f,
+    /** Ids of bookmarks deleted here, so syncing deletes them on the phone instead of bringing them back. */
+    val removedBookmarks: List<String> = emptyList(),
 ) {
     val durationMs: Long get() = parts.sumOf { it.durationMs }
     fun asBook() = Book(id, title, author, coverPath, null, durationMs, positionMs, finished, lastPlayedAt, addedAt)
@@ -99,7 +102,8 @@ class LibraryStore(private val file: File = AppPaths.library, private val scope:
             .put("textSource", b.textSource).put("speed", b.speed.toDouble())
             .put("parts", JSONArray(b.parts.map { JSONObject().put("path", it.path).put("duration", it.durationMs).put("offset", it.offsetMs).put("size", it.size).put("modified", it.modified) }))
             .put("chapters", JSONArray(b.chapters.map { JSONObject().put("title", it.title).put("start", it.startMs) }))
-            .put("bookmarks", JSONArray(b.bookmarks.map { JSONObject().put("position", it.positionMs).put("name", it.name).put("created", it.createdAt) }))
+            .put("bookmarks", JSONArray(b.bookmarks.map { JSONObject().put("id", it.id).put("position", it.positionMs).put("name", it.name).put("created", it.createdAt) }))
+            .put("removedBookmarks", JSONArray(b.removedBookmarks))
 
         fun decode(o: JSONObject): LibraryBook {
             fun JSONObject.text(name: String) = if (has(name) && !isNull(name)) getString(name) else null
@@ -108,8 +112,9 @@ class LibraryStore(private val file: File = AppPaths.library, private val scope:
                 o.list("parts") { AudioPart(it.getString("path"), it.getLong("duration"), it.getLong("offset"), it.optLong("size"), it.optLong("modified")) },
                 o.list("chapters") { Chapter(it.getString("title"), it.getLong("start")) }, o.text("cover"), o.text("epub"),
                 o.optLong("position"), o.optBoolean("finished"), if (o.isNull("lastPlayed") || !o.has("lastPlayed")) null else o.getLong("lastPlayed"),
-                o.optLong("added"), o.list("bookmarks") { Bookmark(it.getLong("position"), it.getString("name"), it.optLong("created")) },
-                o.optString("textSource", "GENERATED"), o.optDouble("speed", 1.0).toFloat())
+                o.optLong("added"), o.list("bookmarks") { Bookmark(it.getLong("position"), it.getString("name"), it.optLong("created")).let { b -> it.text("id")?.let { id -> b.copy(id = id) } ?: b } },
+                o.optString("textSource", "GENERATED"), o.optDouble("speed", 1.0).toFloat(),
+                o.optJSONArray("removedBookmarks")?.let { a -> List(a.length()) { a.getString(it) } }.orEmpty())
         }
     }
 }

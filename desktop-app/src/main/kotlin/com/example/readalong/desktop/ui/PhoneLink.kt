@@ -152,7 +152,8 @@ private fun SyncKinds(skipped: Set<String>, onChange: (Set<String>) -> Unit) {
     Text("Audiobooks always sync. Untick anything you'd rather keep separate on each device.", style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant)
     listOf(FolderSyncPlan.Kind.TRANSCRIPT to "ReadAlong transcripts", FolderSyncPlan.Kind.PROGRESS to "Listening progress",
-        FolderSyncPlan.Kind.EPUB to "EPUBs", FolderSyncPlan.Kind.COVER to "Cover art").forEach { (kind, label) ->
+        FolderSyncPlan.Kind.BOOKMARKS to "Bookmarks", FolderSyncPlan.Kind.EPUB to "EPUBs", FolderSyncPlan.Kind.COVER to "Cover art",
+        FolderSyncPlan.Kind.SETTINGS to "App and reader settings (accent colour, skip times, reading theme, font and size)").forEach { (kind, label) ->
         val on = kind.id !in skipped
         Row(Modifier.fillMaxWidth().clickable { onChange(if (on) skipped + kind.id else skipped - kind.id) }, verticalAlignment = Alignment.CenterVertically) {
             Checkbox(on, { onChange(if (on) skipped + kind.id else skipped - kind.id) })
