@@ -14,13 +14,15 @@ interface Dwm : StdCallLibrary {
     fun DwmSetWindowAttribute(hwnd: WinDef.HWND, attribute: Int, value: IntByReference, size: Int): Int
 }
 
-/** Windows 10/11: a dark title bar in the app's own colour instead of the default white one. */
-fun styleTitleBar(window: ComposeWindow, caption: Color) {
+/** Windows 10/11: a title bar in the app's own colour (dark or light, following the theme) instead of the default white one. */
+fun styleTitleBar(window: ComposeWindow, caption: Color, dark: Boolean = true) {
+    // macOS: the title bar follows the window's appearance.
+    if (AppPaths.isMac) runCatching { window.rootPane.putClientProperty("apple.awt.windowAppearance", if (dark) "NSAppearanceNameDarkAqua" else "NSAppearanceNameAqua") }
     if (!AppPaths.isWindows) return
     runCatching {
         val dwm = Native.load("dwmapi", Dwm::class.java)
         val hwnd = WinDef.HWND(Pointer(window.windowHandle))
-        dwm.DwmSetWindowAttribute(hwnd, 20, IntByReference(1), 4) // DWMWA_USE_IMMERSIVE_DARK_MODE
+        dwm.DwmSetWindowAttribute(hwnd, 20, IntByReference(if (dark) 1 else 0), 4) // DWMWA_USE_IMMERSIVE_DARK_MODE
         val argb = caption.toArgb()
         val colorref = (argb and 0xFF shl 16) or (argb and 0xFF00) or (argb shr 16 and 0xFF) // 0x00BBGGRR
         dwm.DwmSetWindowAttribute(hwnd, 35, IntByReference(colorref), 4) // DWMWA_CAPTION_COLOR (Windows 11)

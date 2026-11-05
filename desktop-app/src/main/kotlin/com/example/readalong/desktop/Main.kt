@@ -24,7 +24,7 @@ fun main(args: Array<String>) {
     com.example.readalong.desktop.core.CrashReport.install()
     System.setProperty("skiko.vsync.enabled", "true")
     // macOS: a dark title bar to match the app, and "ReadAlong" in the menu bar rather than the launcher's name.
-    System.setProperty("apple.awt.application.appearance", "NSAppearanceNameDarkAqua")
+    System.setProperty("apple.awt.application.appearance", if (com.example.readalong.desktop.core.SettingsStore.savedLight()) "NSAppearanceNameAqua" else "NSAppearanceNameDarkAqua")
     System.setProperty("apple.awt.application.name", "ReadAlong")
     // Before anything loads: keep a copy of the library and settings when a different version starts.
     System.getProperty("readalong.version")?.let { com.example.readalong.desktop.core.VersionUpgrade.run(it) }
@@ -36,7 +36,8 @@ fun main(args: Array<String>) {
             icon = androidx.compose.ui.res.painterResource("icon/readalong.png"),
             onKeyEvent = { handleKey(app, it) }) {
             window.minimumSize = java.awt.Dimension(720, 560)
-            LaunchedEffect(Unit) { styleTitleBar(window, Color(0xFF111416)) }
+            val settings by app.settingsStore.settings.collectAsState()
+            LaunchedEffect(settings.light, settings.accent) { styleTitleBar(window, windowBackground(settings.accent, settings.light), dark = !settings.light) }
             ReadAlongApp(app)
         }
     }

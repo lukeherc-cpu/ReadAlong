@@ -19,6 +19,10 @@ sealed interface Screen {
     data class Reader(val bookId: String) : Screen
     data object Queue : Screen
     data object Settings : Screen
+    /** Settings → Transcription (ReadAlong): where to run, language and speech model. */
+    data object TranscriptionSettings : Screen
+    /** Settings → Link a phone. */
+    data object PhoneSettings : Screen
     data object Audible : Screen
     data object Folders : Screen
 }
@@ -135,7 +139,7 @@ class AppState(val scope: CoroutineScope, private val background: Boolean = true
         }
     }
 
-    init { if (background) { link.start(); updates.checkIfDue() } }
+    init { if (background) { link.start(); updates.checkIfDue(); models.keepDefault(scope, settingsStore.settings.map { it.language }) } }
 
     /** Picks up positions from the phone; run when the window comes to the front. */
     fun syncProgress() { if (background) scope.launch(Dispatchers.IO) { syncProgressNow() } }

@@ -22,22 +22,43 @@ fun hsv(hue: Float, saturation: Float, value: Float) = Color(java.awt.Color.HSBt
 fun palette(hue: Float, saturation: Float) = CoverPalette(hsv(hue, saturation, .25f), hsv(hue, saturation, .38f), hsv(hue, .20f, .95f))
 
 /** The phone's launch palettes; the accent colour picks one. */
-data class AccentPalette(val name: String, val color: Long, val background: Long, val ink: Long, val pale: Long)
+data class AccentPalette(val name: String, val color: Long, val background: Long, val ink: Long, val pale: Long,
+    /** The light theme's page colour (the phone's LaunchPalette.page). */
+    val page: Long)
 val AccentPalettes = listOf(
-    AccentPalette("Blue", 0xFF496B8A, 0xFF182A3B, 0xFF496B8A, 0xFFD4E5F3),
-    AccentPalette("Teal", 0xFF287A78, 0xFF143837, 0xFF246664, 0xFFAAF2F0),
-    AccentPalette("Green", 0xFF477A52, 0xFF213826, 0xFF3B6645, 0xFFAAF2B9),
-    AccentPalette("Amber", 0xFF8A6B25, 0xFF382D14, 0xFF665224, 0xFFF2DCAA),
-    AccentPalette("Orange", 0xFFA76535, 0xFF382314, 0xFF664024, 0xFFF2C8AA),
-    AccentPalette("Coral", 0xFF9A4F4A, 0xFF381D1B, 0xFF663431, 0xFFF2AEAA),
-    AccentPalette("Rose", 0xFF955376, 0xFF381F2C, 0xFF663951, 0xFFF2AAD0),
-    AccentPalette("Purple", 0xFF72558C, 0xFF2E2238, 0xFF533E66, 0xFFD0AAF2),
-    AccentPalette("Indigo", 0xFF565F94, 0xFF212438, 0xFF3B4166, 0xFFAAB4F2),
-    AccentPalette("Slate", 0xFF666B73, 0xFF323438, 0xFF5A5F66, 0xFFD7E1F2),
+    AccentPalette("Blue", 0xFF496B8A, 0xFF182A3B, 0xFF496B8A, 0xFFD4E5F3, 0xFFFBFCFE),
+    AccentPalette("Teal", 0xFF287A78, 0xFF143837, 0xFF246664, 0xFFAAF2F0, 0xFFF7FEFE),
+    AccentPalette("Green", 0xFF477A52, 0xFF213826, 0xFF3B6645, 0xFFAAF2B9, 0xFFF7FEF8),
+    AccentPalette("Amber", 0xFF8A6B25, 0xFF382D14, 0xFF665224, 0xFFF2DCAA, 0xFFFEFCF7),
+    AccentPalette("Orange", 0xFFA76535, 0xFF382314, 0xFF664024, 0xFFF2C8AA, 0xFFFEFAF7),
+    AccentPalette("Coral", 0xFF9A4F4A, 0xFF381D1B, 0xFF663431, 0xFFF2AEAA, 0xFFFEF7F7),
+    AccentPalette("Rose", 0xFF955376, 0xFF381F2C, 0xFF663951, 0xFFF2AAD0, 0xFFFEF7FA),
+    AccentPalette("Purple", 0xFF72558C, 0xFF2E2238, 0xFF533E66, 0xFFD0AAF2, 0xFFFAF7FE),
+    AccentPalette("Indigo", 0xFF565F94, 0xFF212438, 0xFF3B4166, 0xFFAAB4F2, 0xFFF7F8FE),
+    AccentPalette("Slate", 0xFF666B73, 0xFF323438, 0xFF5A5F66, 0xFFD7E1F2, 0xFFFBFCFE),
 )
 fun accentPalette(argb: Long): CoverPalette = (AccentPalettes.firstOrNull { it.color == argb } ?: AccentPalettes.first()).let {
     CoverPalette(Color(it.background), Color(it.ink), Color(it.pale))
 }
+
+/** The phone's light scheme (readAlongScheme with light = true), every Material role set from one palette. */
+fun lightScheme(palette: CoverPalette, page: Color): ColorScheme = lightColorScheme(
+    primary = palette.preview, onPrimary = Color.White,
+    primaryContainer = palette.accent, onPrimaryContainer = palette.background, inversePrimary = palette.accent,
+    secondary = palette.preview, onSecondary = Color.White, secondaryContainer = lerp(palette.accent, Color.White, .25f), onSecondaryContainer = palette.background,
+    tertiary = palette.preview, onTertiary = Color.White, tertiaryContainer = palette.accent, onTertiaryContainer = palette.background,
+    background = page, onBackground = Color(0xFF1F2428), surface = page, onSurface = Color(0xFF1F2428),
+    surfaceVariant = lerp(palette.accent, Color.White, .28f), onSurfaceVariant = lerp(Color(0xFF59616A), palette.preview, .22f),
+    surfaceTint = palette.preview, inverseSurface = palette.background, inverseOnSurface = Color.White,
+    outline = lerp(Color(0xFF7D858E), palette.preview, .3f), outlineVariant = lerp(page, palette.preview, .18f), scrim = Color.Black,
+    surfaceBright = Color.White, surfaceDim = lerp(page, palette.accent, .45f),
+    surfaceContainerLowest = Color.White, surfaceContainerLow = lerp(page, palette.accent, .12f),
+    surfaceContainer = lerp(page, palette.accent, .22f), surfaceContainerHigh = lerp(page, palette.accent, .36f),
+    surfaceContainerHighest = lerp(page, palette.accent, .5f))
+
+/** The window background for the app's theme, for the title bar. */
+fun windowBackground(accent: Long, light: Boolean): Color =
+    if (light) Color((AccentPalettes.firstOrNull { it.color == accent } ?: AccentPalettes.first()).page) else Color(0xFF111416)
 
 /** The phone's dark scheme (readAlongScheme), every Material role set from one palette. */
 fun darkScheme(palette: CoverPalette): ColorScheme = darkColorScheme(
@@ -87,7 +108,7 @@ object AppIcons {
 }
 
 @Composable
-fun ReadAlongTheme(accent: Long, content: @Composable () -> Unit) {
+fun ReadAlongTheme(accent: Long, light: Boolean = false, content: @Composable () -> Unit) {
     val palette = accentPalette(accent)
     val font = Fonts.app
     val base = Typography()
@@ -99,7 +120,7 @@ fun ReadAlongTheme(accent: Long, content: @Composable () -> Unit) {
         titleSmall = TextStyleCopy(base.titleSmall), bodyLarge = TextStyleCopy(base.bodyLarge.copy(lineHeight = 26.sp)), bodyMedium = TextStyleCopy(base.bodyMedium),
         bodySmall = TextStyleCopy(base.bodySmall), labelLarge = TextStyleCopy(base.labelLarge), labelMedium = TextStyleCopy(base.labelMedium),
         labelSmall = TextStyleCopy(base.labelSmall.copy(fontSize = 12.sp, lineHeight = 16.sp)))
-    MaterialTheme(colorScheme = darkScheme(palette), typography = typography,
+    MaterialTheme(colorScheme = if (light) lightScheme(palette, windowBackground(accent, true)) else darkScheme(palette), typography = typography,
         shapes = Shapes(small = androidx.compose.foundation.shape.RoundedCornerShape(Corners.small), medium = androidx.compose.foundation.shape.RoundedCornerShape(Corners.medium),
             large = androidx.compose.foundation.shape.RoundedCornerShape(Corners.large))) {
         // Text drawn straight on the window background (not inside a Surface) would otherwise default to black.

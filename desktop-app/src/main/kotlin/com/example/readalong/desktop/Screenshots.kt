@@ -57,7 +57,14 @@ object Screenshots {
             shot("reader") { app.home(); app.open(Screen.Reader(first.id)) }
             shot("reader-sepia") { app.settingsStore.update { it.copy(readerTheme = "SEPIA") }; app.home(); app.open(Screen.Reader(first.id)) }
             shot("queue") { app.home(); app.open(Screen.Queue) }
-            shot("settings") { app.home(); app.open(Screen.Settings) }
+            shot("settings", 1360, 1700) { app.home(); app.open(Screen.Settings) }
+            shot("settings-transcription", 1360, 1200) { app.home(); app.open(Screen.Settings); app.open(Screen.TranscriptionSettings) }
+            shot("settings-phone") { app.home(); app.open(Screen.Settings); app.open(Screen.PhoneSettings) }
+            shot("settings-light", 1360, 1700) { app.settingsStore.update { it.copy(light = true) }; app.home(); app.open(Screen.Settings) }
+            shot("settings-transcription-light", 1360, 1200) { app.home(); app.open(Screen.Settings); app.open(Screen.TranscriptionSettings) }
+            shot("library-light") { app.home() }
+            shot("queue-light") { app.home(); app.open(Screen.Queue) }
+            app.settingsStore.update { it.copy(light = false) }
             shot("library-empty") { app.library.replaceAll { emptyList() }; app.home() }
         } finally { scope.cancel(); home.deleteRecursively() }
     }
