@@ -49,7 +49,30 @@ class AppState(val scope: CoroutineScope, private val background: Boolean = true
     /** Ctrl+F in the reader. */
     var searchRequests by mutableStateOf(0)
     /** Linked phones and the folders they sync over the home network; a sync from the phone rescans the library. */
-    val link = DeviceLink(scope, library, onSynced = { runCatching { importer.rescan() }; syncProgressNow() })
+    /** Shares bookmarks with the phone through a file beside each book. */
+    val bookmarks = BookmarkSync(library)
+    val link = DeviceLink(scope, library, onSynced = { runCatching { importer.rescan() }; syncProgressNow() },
+        settings = { sharedSettings() }, applySettings = ::applySharedSettings)
+
+    /** After a bookmark is added or removed here: hand it to the phone. */
+    fun bookmarksChanged(bookId: String) {
+        if (background) scope.launch(Dispatchers.IO) { library.book(bookId)?.let { runCatching { bookmarks.sync(it) } } }
+    }
+
+    /** The settings shared with a linked phone (see SettingsSync). */
+    private fun sharedSettings(): Map<String, String> = settingsStore.value.let { s ->
+        with(com.example.readalong.domain.link.SettingsSync) { mapOf(ACCENT to s.accent.toString(), SKIP_BACK to s.skipBackSeconds.toString(),
+            SKIP_FORWARD to s.skipForwardSeconds.toString(), READER_THEME to s.readerTheme, READER_FONT to s.readerFont, READER_SIZE to s.readerSize.toString()) }
+    }
+
+    private fun applySharedSettings(values: Map<String, String>) = with(com.example.readalong.domain.link.SettingsSync) {
+        settingsStore.update { s -> s.copy(accent = values[ACCENT]?.toLongOrNull() ?: s.accent,
+            skipBackSeconds = values[SKIP_BACK]?.toIntOrNull()?.coerceIn(1, 600) ?: s.skipBackSeconds,
+            skipForwardSeconds = values[SKIP_FORWARD]?.toIntOrNull()?.coerceIn(1, 600) ?: s.skipForwardSeconds,
+            readerTheme = values[READER_THEME]?.takeIf { it in setOf("DARK", "BLACK", "LIGHT", "SEPIA") } ?: s.readerTheme,
+            readerFont = values[READER_FONT]?.takeIf { it.isNotBlank() && it.length <= 80 } ?: s.readerFont,
+            readerSize = values[READER_SIZE]?.toFloatOrNull()?.takeIf { it.isFinite() }?.coerceIn(14f, 40f) ?: s.readerSize) }
+    }
 
     /** Makes [epub] the book's EPUB, copied beside the book so it syncs with the phone. */
     fun attachEpub(bookId: String, epub: File) {
@@ -65,7 +88,33 @@ class AppState(val scope: CoroutineScope, private val background: Boolean = true
     fun back() { screen = history.removeLastOrNull() ?: Screen.Library }
     fun home() { history.clear(); screen = Screen.Library }
 
+    /** The "Enjoying ReadAlong?" card is showing. */
+    var supportPrompt by mutableStateOf(false)
+        private set
+
+    /** Closes the card; unless [never], it comes back after another 10 hours of listening. */
+    fun closeSupportPrompt(never: Boolean) {
+        supportPrompt = false
+        settingsStore.update { if (never) it.copy(supportPromptOff = true) else it.copy(supportPromptAtMs = it.listenedMs + SUPPORT_PROMPT_EVERY_MS) }
+    }
+
     init {
+        // Counts listening time, saved every 30 s, and asks for a star or a donation every 10 hours of it.
+        if (background) scope.launch {
+            var unsaved = 0L
+            var last = System.currentTimeMillis()
+            while (isActive) {
+                delay(1000)
+                val now = System.currentTimeMillis()
+                if (player.state.value.playing) unsaved += (now - last).coerceIn(0, 5000)
+                last = now
+                if (unsaved >= 30_000) {
+                    settingsStore.update { it.copy(listenedMs = it.listenedMs + unsaved) }; unsaved = 0
+                    val s = settingsStore.value
+                    if (!s.supportPromptOff && !supportPrompt && s.listenedMs >= s.supportPromptAtMs) supportPrompt = true
+                }
+            }
+        }
         scope.launch { transcription.messages.collect { messages.emit(it) } }
         scope.launch { audible.messages.collect { messages.emit(it) } }
         if (background) scope.launch(Dispatchers.IO) { runCatching { importer.rescan() }; syncProgressNow() }
@@ -90,6 +139,7 @@ class AppState(val scope: CoroutineScope, private val background: Boolean = true
     private fun syncProgressNow() = runCatching {
         val state = player.state.value
         val changed = progress.syncAll(playing = state.bookId.takeIf { state.playing })
+        bookmarks.syncAll()
         // A book that is loaded but paused moves to the phone's place too.
         if (!state.playing && state.bookId in changed) library.book(state.bookId!!)?.let { player.seekTo(it.positionMs) }
     }
