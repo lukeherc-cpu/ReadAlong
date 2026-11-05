@@ -268,7 +268,6 @@ fun bookMenu(app: AppState, book: LibraryBook): List<ContextMenuItem> = listOfNo
         }
     } else null,
     *coverMenu(app, book).toTypedArray(),
-    *coverMenu(app, book).toTypedArray(),
     ContextMenuItem(if (book.finished) "Mark as not finished" else "Mark as finished") { app.library.update(book.id) { it.copy(finished = !it.finished, positionMs = if (it.finished) 0 else it.positionMs) } },
     book.folder?.let { folder -> ContextMenuItem("Show in folder") { runCatching { Desktop.getDesktop().open(File(folder)) } } },
     ContextMenuItem("Remove from library") { if (app.player.state.value.bookId == book.id) app.player.close(); app.transcription.remove(book.id); app.library.remove(book.id) },

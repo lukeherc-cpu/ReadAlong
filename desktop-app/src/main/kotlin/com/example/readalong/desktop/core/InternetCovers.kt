@@ -3,7 +3,6 @@ package com.example.readalong.desktop.core
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
-import java.io.File
 import java.net.HttpURLConnection
 import java.net.URI
 import java.net.URLEncoder
@@ -68,18 +67,4 @@ object InternetCovers {
     /** Whether [bytes] decode as an image (Java's decoders, then Skia's for WebP and the like). */
     fun readable(bytes: ByteArray): Boolean = runCatching { javax.imageio.ImageIO.read(bytes.inputStream()) }.getOrNull() != null ||
         runCatching { org.jetbrains.skia.Image.makeFromEncoded(bytes); true }.getOrDefault(false)
-
-    /**
-     * Keeps a chosen cover for [book] in ReadAlong's covers folder, under a new name each time so the
-     * library's image cache never shows the old one. Returns the file to store as the book's cover.
-     */
-    fun save(book: LibraryBook, bytes: ByteArray, extension: String): File {
-        val ext = extension.lowercase().takeIf { it in setOf("jpg", "jpeg", "png", "webp", "bmp", "gif") } ?: "jpg"
-        AppPaths.covers.listFiles { f -> f.name.startsWith("${book.id}-") }?.forEach { it.delete() }
-        val file = File(AppPaths.covers, "${book.id}-${System.currentTimeMillis()}.$ext")
-        val temporary = File(file.parentFile, file.name + ".tmp")
-        temporary.writeBytes(bytes)
-        java.nio.file.Files.move(temporary.toPath(), file.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
-        return file
-    }
 }

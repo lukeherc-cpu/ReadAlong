@@ -56,14 +56,19 @@ fun chooseCoverFile(app: AppState, book: LibraryBook) {
         runCatching {
             val bytes = file.readBytes()
             require(InternetCovers.readable(bytes)) { "That file isn't an image ReadAlong can read." }
-            setCover(app, book, bytes, file.extension)
+            setCover(app, book, bytes)
         }.onFailure { app.messages.emit(it.message ?: "That image couldn't be used.") }
     }
 }
 
-private fun setCover(app: AppState, book: LibraryBook, bytes: ByteArray, extension: String) {
-    val saved = InternetCovers.save(book, bytes, extension)
-    app.library.update(book.id) { it.copy(coverPath = saved.path) }
+/**
+ * Saves the cover beside the book (so it syncs to the phone) through [AppState.companions], then
+ * drops the old image from the cache: the file keeps its name, so the cache wouldn't notice on its own.
+ */
+private fun setCover(app: AppState, book: LibraryBook, bytes: ByteArray) {
+    val previous = book.coverPath
+    val saved = app.companions.saveCover(book, bytes)
+    previous?.let(Covers::forget); Covers.forget(saved.path)
     app.messages.tryEmit("Cover updated for ${book.title}.")
 }
 
@@ -112,7 +117,7 @@ fun CoverSearchDialog(app: AppState) {
                                         scope.launch {
                                             try {
                                                 val bytes = InternetCovers.download(cover.url)
-                                                withContext(Dispatchers.IO) { setCover(app, book, bytes, cover.url.substringAfterLast('.', "jpg").substringBefore('?')) }
+                                                withContext(Dispatchers.IO) { setCover(app, book, bytes) }
                                                 close()
                                             } catch (cancelled: CancellationException) { throw cancelled }
                                             catch (failure: Exception) { error = failure.message ?: "That cover couldn't be downloaded." }
