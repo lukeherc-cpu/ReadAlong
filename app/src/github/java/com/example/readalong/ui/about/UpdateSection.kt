@@ -64,25 +64,27 @@ fun UpdatePrompt() {
     release?.let { UpdateDialog(it) }
 }
 
+/** Styled like the app's other prompts: the ReadAlong logo, a short title and two full-width pill buttons in the current theme. */
 @Composable
 private fun UpdateDialog(release: AppRelease) {
-    val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
-    val notes = remember(release) { UpdateCheck.summary(release.notes) }
-    AlertDialog(onDismissRequest = { PhoneUpdates.offer.value = null }, modifier = Modifier.testTag("update_dialog"),
-        title = { Text("ReadAlong ${release.version} is available") },
-        text = {
-            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("You have ${BuildConfig.VERSION_NAME}. It installs over this version, so your library, ReadAlongs and listening progress stay, and your computer keeps syncing with either version.")
-                if (notes.isNotBlank()) Text(notes, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                TextButton(onClick = { PhoneUpdates.skip(context, release) }, contentPadding = PaddingValues(0.dp)) { Text("Skip this version") }
+    val colors = MaterialTheme.colorScheme
+    androidx.compose.ui.window.Dialog(onDismissRequest = { PhoneUpdates.offer.value = null }) {
+        Surface(Modifier.fillMaxWidth().testTag("update_dialog"), shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp), color = colors.surfaceContainerHigh) {
+            Column(Modifier.padding(horizontal = 24.dp, vertical = 28.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Icon(androidx.compose.ui.res.painterResource(com.example.readalong.R.drawable.ic_readalong), null, Modifier.size(72.dp), tint = androidx.compose.ui.graphics.Color.Unspecified)
+                Text("Update available", style = MaterialTheme.typography.headlineSmall, color = colors.onSurface)
+                Spacer(Modifier.height(4.dp))
+                Button(onClick = {
+                    runCatching { uriHandler.openUri(release.apkUrl ?: release.pageUrl) }
+                    PhoneUpdates.offer.value = null
+                }, Modifier.fillMaxWidth().height(52.dp).testTag("update_download")) { Text("Download", style = MaterialTheme.typography.titleMedium) }
+                FilledTonalButton(onClick = { PhoneUpdates.offer.value = null }, Modifier.fillMaxWidth().height(52.dp).testTag("update_later")) {
+                    Text("Later", style = MaterialTheme.typography.titleMedium)
+                }
             }
-        },
-        confirmButton = { TextButton(onClick = {
-            runCatching { uriHandler.openUri(release.apkUrl ?: release.pageUrl) }
-            PhoneUpdates.offer.value = null
-        }) { Text("Download") } },
-        dismissButton = { TextButton(onClick = { PhoneUpdates.offer.value = null }) { Text("Later") } })
+        }
+    }
 }
 
 /** The Updates rows in Settings. */
