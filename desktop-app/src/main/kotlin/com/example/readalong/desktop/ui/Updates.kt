@@ -15,7 +15,7 @@ import com.example.readalong.domain.update.AppRelease
 import com.example.readalong.domain.update.UpdateCheck
 import kotlinx.coroutines.launch
 
-/** "ReadAlong X is available" after the daily check. Downloading opens the installer for this computer in the browser. */
+/** "Update available" after the daily check. Downloading opens the installer for this computer in the browser. */
 @Composable
 fun UpdateDialog(app: AppState) {
     val release by app.updates.offer.collectAsState()
@@ -27,25 +27,19 @@ fun UpdateDialog(app: AppState) {
     }
 }
 
+/** Styled like the app's other prompts: the ReadAlong logo, a short title and two full-width pill buttons in the current theme. */
 @Composable
 private fun UpdateBody(app: AppState, release: AppRelease) {
-    Column(Modifier.width(480.dp).padding(28.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Text("ReadAlong ${release.version} is available", style = MaterialTheme.typography.headlineSmall)
-        Text("You have ${app.updates.current}. Your library, ReadAlongs and listening progress stay as they are, and the phone keeps syncing with either version.",
-            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        val notes = UpdateCheck.summary(release.notes, maxLines = 8)
-        if (notes.isNotBlank()) Surface(shape = RoundedCornerShape(Corners.medium), color = MaterialTheme.colorScheme.surfaceContainer) {
-            Text(notes, Modifier.heightIn(max = 180.dp).verticalScroll(rememberScrollState()).padding(14.dp), style = MaterialTheme.typography.bodySmall)
-        }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            TextButton({ app.updates.skip(release) }) { Text("Skip this version") }
-            Spacer(Modifier.weight(1f))
-            PillButton("Later", app.updates::later, filled = false)
-            PillButton("Download", {
-                if (!openBrowser(app.updates.downloadUrl(release))) app.messages.tryEmit("Open ${release.pageUrl} to download the update.")
-                app.updates.later()
-            })
-        }
+    Column(Modifier.width(380.dp).padding(horizontal = 28.dp, vertical = 30.dp), horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Icon(AppIcons.get("ic_readalong"), null, Modifier.size(72.dp), tint = androidx.compose.ui.graphics.Color.Unspecified)
+        Text("Update available", style = MaterialTheme.typography.headlineSmall)
+        Spacer(Modifier.height(4.dp))
+        PillButton("Download", {
+            if (!openBrowser(app.updates.downloadUrl(release))) app.messages.tryEmit("Open ${release.pageUrl} to download the update.")
+            app.updates.later()
+        }, Modifier.fillMaxWidth().height(48.dp))
+        PillButton("Later", app.updates::later, Modifier.fillMaxWidth().height(48.dp), filled = false)
     }
 }
 
