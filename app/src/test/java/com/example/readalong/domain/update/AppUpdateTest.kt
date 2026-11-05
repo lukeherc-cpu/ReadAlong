@@ -37,7 +37,11 @@ class AppUpdateTest {
         val r = AppRelease.fromGitHub(release("v0.45.0", "ReadAlong-0.45.0.apk", "ReadAlong-0.45.0.apk.sha256", "ReadAlong-Windows.msi"))!!
         assertEquals(v("0.45.0"), r.version)
         assertEquals("https://github.com/x/releases/download/v0.45.0/ReadAlong-0.45.0.apk", r.apkUrl)
-        assertEquals("What's new\n- Faster\n- Smoother", UpdateCheck.summary(r.notes))
+        assertEquals("• Faster\n• Smoother", UpdateCheck.summary(r.notes))
+        // GitHub's generated notes.
+        val generated = "## What's Changed\n* Add sheet: +N more opens out to every found book by @lukeherc-cpu in https://github.com/lukeherc-cpu/ReadAlong/pull/41\n\n\n" +
+            "**Full Changelog**: https://github.com/lukeherc-cpu/ReadAlong/compare/v0.44.0...v0.44.1"
+        assertEquals("• Add sheet: +N more opens out to every found book", UpdateCheck.summary(generated))
         assertNull(AppRelease.fromGitHub(release("v0.45.0").put("draft", true)))
         assertNull(AppRelease.fromGitHub(release("nightly")))
     }

@@ -104,7 +104,17 @@ object UpdateCheck {
         } finally { connection.disconnect() }
     }
 
-    /** The first lines of a release's notes, for a short dialog. */
-    fun summary(notes: String, maxLines: Int = 6): String =
-        notes.lineSequence().map { it.trim().trimStart('#').trim() }.filter { it.isNotEmpty() }.take(maxLines).joinToString("\n")
+    /**
+     * The first changes in a release's notes, for a short dialog. GitHub's generated notes ("What's Changed",
+     * "* Title by @someone in https://…", "**Full Changelog**: …") become plain "• Title" lines.
+     */
+    fun summary(notes: String, maxLines: Int = 6): String = notes.lineSequence()
+        .map { it.trim() }
+        .filter { it.isNotEmpty() && !it.startsWith("#") && !it.contains("Full Changelog") && !it.startsWith("<!--") }
+        .map { line ->
+            val bullet = line.startsWith("* ") || line.startsWith("- ")
+            val text = line.removePrefix("* ").removePrefix("- ").replace(Regex("\\s+by @\\S+ in https://\\S+$"), "").replace("**", "").trim()
+            if (bullet) "• $text" else text
+        }
+        .filter { it.isNotBlank() && it != "•" }.take(maxLines).joinToString("\n")
 }
