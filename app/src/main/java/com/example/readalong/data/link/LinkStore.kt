@@ -45,8 +45,13 @@ class LinkStore(context: Context) {
 
     fun unlink() {
         update { LinkState(it.phoneId, skipped = it.skipped) }
-        directory.listFiles { f -> f.name.startsWith("synced-") }?.forEach { it.delete() }
+        directory.listFiles { f -> f.name.startsWith("synced-") || f.name == "settings.json" }?.forEach { it.delete() }
     }
+
+    /** The settings the phone and computer last agreed on (SettingsSync); null before the first settings sync. */
+    fun agreedSettings(): Map<String, String>? = File(directory, "settings.json").takeIf { it.isFile }
+        ?.let { runCatching { com.example.readalong.domain.link.SettingsSync.decode(JSONObject(it.readText())) }.getOrNull() }
+    fun saveAgreedSettings(values: Map<String, String>) = writeAtomically(File(directory, "settings.json"), com.example.readalong.domain.link.SettingsSync.encode(values).toString())
 
     fun synced(pair: FolderPair): Map<String, SyncedState> = syncedFile(pair).takeIf { it.isFile }?.let { FolderSyncPlan.decode(it.readText()) }.orEmpty()
     fun saveSynced(pair: FolderPair, state: Map<String, SyncedState>) = writeAtomically(syncedFile(pair), FolderSyncPlan.encode(state))

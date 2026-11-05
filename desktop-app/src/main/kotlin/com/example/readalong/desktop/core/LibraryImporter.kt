@@ -132,6 +132,6 @@ class LibraryImporter(private val library: LibraryStore, private val transcripts
             positionMs = existing?.positionMs?.coerceAtMost(offset) ?: 0, finished = existing?.finished ?: false,
             lastPlayedAt = existing?.lastPlayedAt, addedAt = existing?.addedAt ?: System.currentTimeMillis(),
             bookmarks = existing?.bookmarks.orEmpty(), textSource = existing?.textSource ?: if (item.epubs.isNotEmpty()) "EPUB" else "GENERATED",
-            speed = existing?.speed ?: 1f)
+            speed = existing?.speed ?: 1f, removedBookmarks = existing?.removedBookmarks.orEmpty())
     }
 }

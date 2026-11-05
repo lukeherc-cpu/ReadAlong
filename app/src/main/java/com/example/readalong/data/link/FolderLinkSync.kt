@@ -33,7 +33,14 @@ data class SyncProgress(val text: String, val fraction: Float? = null)
  * turned off in [LinkState.skipped] (or on the computer) aren't copied. Before each sync,
  * [beforeSync] writes the `.readalong` of each book transcribed on the phone into its folder (TranscriptPackageWriter).
  */
-class FolderLinkSync(private val context: Context, val store: LinkStore, private val beforeSync: suspend () -> Unit = {}, private val rescan: suspend (Uri) -> Unit) {
+/** This phone's side of the shared app and reader settings (SettingsSync keys). */
+interface LinkSettings {
+    suspend fun read(): Map<String, String>
+    suspend fun apply(values: Map<String, String>)
+}
+
+class FolderLinkSync(private val context: Context, val store: LinkStore, private val beforeSync: suspend () -> Unit = {}, private val settings: LinkSettings? = null,
+    private val rescan: suspend (Uri) -> Unit) {
     private val resolver = context.contentResolver
     private val lock = Mutex()
     private val mutableProgress = MutableStateFlow<SyncProgress?>(null)
@@ -77,6 +84,7 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
                         copied += done; failed += failures
                         if (done > 0 || first) runCatching { rescan(Uri.parse(pair.localUri)) }
                     }
+                    syncSettings(client)
                 }
                 val result = when {
                     failed > 0 -> "Copied $copied ${files(copied)}; $failed couldn't be copied and will be tried again."
@@ -87,6 +95,19 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
                 result
             } finally { mutableProgress.value = null }
         }
+    }
+
+    /** App and reader settings, unless "App and reader settings" is unticked here or on the computer. */
+    private suspend fun syncSettings(client: LinkClient) {
+        val mine = settings ?: return
+        if (com.example.readalong.domain.link.FolderSyncPlan.Kind.SETTINGS.id in store.value.skipped) return
+        mutableProgress.value = SyncProgress("Syncing settings…")
+        val theirs = client.settings() ?: return
+        val phone = mine.read()
+        val agreed = com.example.readalong.domain.link.SettingsSync.merge(phone, theirs, store.agreedSettings())
+        if (agreed.any { (key, value) -> phone[key] != value }) mine.apply(agreed)
+        if (agreed.any { (key, value) -> theirs[key] != value }) client.setSettings(agreed)
+        store.saveAgreedSettings(agreed)
     }
 
     private fun files(count: Int) = if (count == 1) "file" else "files"
