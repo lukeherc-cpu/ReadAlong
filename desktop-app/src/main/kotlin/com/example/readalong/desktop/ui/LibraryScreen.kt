@@ -249,7 +249,7 @@ private fun BookTile(app: AppState, book: LibraryBook, making: Float?, queued: B
 fun bookMenu(app: AppState, book: LibraryBook): List<ContextMenuItem> = listOfNotNull(
     ContextMenuItem("Play") { app.play(book.id) },
     ContextMenuItem("Open") { app.open(Screen.Player(book.id)) },
-    if (app.transcripts.info(book.id)?.complete == true) null else ContextMenuItem("Make ReadAlong now") { app.transcription.enqueue(book.id, now = true) },
+    if (app.transcripts.info(book.id)?.complete == true) null else ContextMenuItem("Make ReadAlong now") { app.transcription.start(book.id) },
     ContextMenuItem("Match an EPUB…") { chooseFile("Choose the book's EPUB", "epub")?.let { f -> app.attachEpub(book.id, f) } },
     ContextMenuItem("Import a .readalong transcript…") {
         chooseFile("Choose a ReadAlong transcript", "readalong")?.let { f ->

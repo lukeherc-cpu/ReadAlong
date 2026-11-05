@@ -235,7 +235,7 @@ private fun SkipButton(icon: String, seconds: Int, description: String, onClick:
 }
 
 @Composable
-private fun ContentsDialog(app: AppState, book: LibraryBook, position: Long, onDismiss: () -> Unit) {
+internal fun ContentsDialog(app: AppState, book: LibraryBook, position: Long, onDismiss: () -> Unit) {
     var tab by remember { mutableStateOf(0) }
     androidx.compose.ui.window.DialogWindow(onCloseRequest = onDismiss, title = book.title, state = androidx.compose.ui.window.rememberDialogState(size = androidx.compose.ui.unit.DpSize(520.dp, 640.dp))) {
         ReadAlongTheme(app.settingsStore.value.accent) {
