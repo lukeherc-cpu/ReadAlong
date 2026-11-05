@@ -57,7 +57,8 @@ class Companions(private val library: LibraryStore, private val file: File = Fil
     }
 
     /** A rescan found a `.readalong` beside the book: true the first time this version of it is seen. */
-    fun packageChanged(bookId: String, pkg: File): Boolean = changed("readalong", bookId, pkg)
+    // "readalong2": 0.45.0 could take a package that showed no text, so each one is tried again once.
+    fun packageChanged(bookId: String, pkg: File): Boolean = changed("readalong2", bookId, pkg)
 
     @Synchronized private fun changed(kind: String, bookId: String, file: File): Boolean {
         val now = signature(file)
