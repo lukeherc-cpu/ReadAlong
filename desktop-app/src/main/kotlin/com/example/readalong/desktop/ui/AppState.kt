@@ -65,7 +65,33 @@ class AppState(val scope: CoroutineScope, private val background: Boolean = true
     fun back() { screen = history.removeLastOrNull() ?: Screen.Library }
     fun home() { history.clear(); screen = Screen.Library }
 
+    /** The "Enjoying ReadAlong?" card is showing. */
+    var supportPrompt by mutableStateOf(false)
+        private set
+
+    /** Closes the card; unless [never], it comes back after another 10 hours of listening. */
+    fun closeSupportPrompt(never: Boolean) {
+        supportPrompt = false
+        settingsStore.update { if (never) it.copy(supportPromptOff = true) else it.copy(supportPromptAtMs = it.listenedMs + SUPPORT_PROMPT_EVERY_MS) }
+    }
+
     init {
+        // Counts listening time, saved every 30 s, and asks for a star or a donation every 10 hours of it.
+        if (background) scope.launch {
+            var unsaved = 0L
+            var last = System.currentTimeMillis()
+            while (isActive) {
+                delay(1000)
+                val now = System.currentTimeMillis()
+                if (player.state.value.playing) unsaved += (now - last).coerceIn(0, 5000)
+                last = now
+                if (unsaved >= 30_000) {
+                    settingsStore.update { it.copy(listenedMs = it.listenedMs + unsaved) }; unsaved = 0
+                    val s = settingsStore.value
+                    if (!s.supportPromptOff && !supportPrompt && s.listenedMs >= s.supportPromptAtMs) supportPrompt = true
+                }
+            }
+        }
         scope.launch { transcription.messages.collect { messages.emit(it) } }
         scope.launch { audible.messages.collect { messages.emit(it) } }
         if (background) scope.launch(Dispatchers.IO) { runCatching { importer.rescan() }; syncProgressNow() }
