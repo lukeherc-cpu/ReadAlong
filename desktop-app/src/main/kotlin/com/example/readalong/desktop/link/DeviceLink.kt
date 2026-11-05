@@ -24,7 +24,9 @@ import java.util.Base64
 import kotlin.concurrent.thread
 
 /** A phone linked to this computer. [key] is the secret the two share. */
-data class LinkedDevice(val id: String, val name: String, val key: ByteArray, val linkedAt: Long, val lastSeen: Long? = null)
+data class LinkedDevice(val id: String, val name: String, val key: ByteArray, val linkedAt: Long, val lastSeen: Long? = null,
+    /** The phone's ReadAlong version from its last hello; null for phones on 0.44.1 or earlier, which didn't send one. */
+    val appVersion: String? = null)
 
 data class LinkState(val deviceId: String, val name: String, val devices: List<LinkedDevice> = emptyList(),
     /** Library folders the phone may sync with; asked right after linking. */
@@ -126,8 +128,11 @@ class DeviceLink(private val scope: CoroutineScope, private val library: Library
             val hello = channel.receiveJson()
             require(hello.optString("op") == "hello")
             val phone = welcome(keyId, hello.getString("device"), hello.optString("name").ifBlank { "Phone" })
+                .copy(appVersion = hello.optString("app").take(40).ifBlank { null })
             device = phone
-            channel.sendJson(JSONObject().put("device", mutableState.value.deviceId).put("name", mutableState.value.name).put("platform", AppPaths.platformName))
+            // Older phones ignore the extra fields; newer ones use them to send only requests this computer knows.
+            channel.sendJson(JSONObject().put("device", mutableState.value.deviceId).put("name", mutableState.value.name).put("platform", AppPaths.platformName)
+                .put("protocol", LinkChannel.PROTOCOL).put("ops", JSONArray(LinkChannel.OPS)).put("app", System.getProperty("readalong.version") ?: "dev"))
             while (true) {
                 val request = try { channel.receiveJson() } catch (_: EOFException) { break }
                 try {
@@ -150,7 +155,7 @@ class DeviceLink(private val scope: CoroutineScope, private val library: Library
         } catch (_: Exception) { /* The phone went away or the network dropped; it tries again next time. */ }
         finally {
             mutableActivity.value = null
-            device?.let { seen -> change { s -> s.copy(devices = s.devices.map { if (it.id == seen.id) it.copy(lastSeen = System.currentTimeMillis()) else it }) } }
+            device?.let { seen -> change { s -> s.copy(devices = s.devices.map { if (it.id == seen.id) it.copy(lastSeen = System.currentTimeMillis(), appVersion = seen.appVersion ?: it.appVersion) else it }) } }
             if (changed) scope.launch { runCatching { onSynced() } }
         }
     }
@@ -235,7 +240,7 @@ class DeviceLink(private val scope: CoroutineScope, private val library: Library
     private fun save(s: LinkState) = runCatching {
         file.writeAtomically(JSONObject().put("deviceId", s.deviceId).put("name", s.name).put("shared", JSONArray(s.shared)).put("skipped", FolderSyncPlan.encodeKinds(s.skipped))
             .put("devices", JSONArray(s.devices.map { d ->
-                JSONObject().put("id", d.id).put("name", d.name).put("key", Base64.getEncoder().encodeToString(d.key)).put("linkedAt", d.linkedAt).put("lastSeen", d.lastSeen ?: JSONObject.NULL)
+                JSONObject().put("id", d.id).put("name", d.name).put("key", Base64.getEncoder().encodeToString(d.key)).put("linkedAt", d.linkedAt).put("lastSeen", d.lastSeen ?: JSONObject.NULL).put("appVersion", d.appVersion ?: JSONObject.NULL)
             })).toString(1))
     }
 
@@ -248,11 +253,11 @@ class DeviceLink(private val scope: CoroutineScope, private val library: Library
             LinkState(o.getString("deviceId"), o.optString("name").ifBlank { computerName() },
                 List(devices.length()) { i -> devices.getJSONObject(i).let { d ->
                     LinkedDevice(d.getString("id"), d.optString("name", "Phone"), Base64.getDecoder().decode(d.getString("key")), d.optLong("linkedAt"),
-                        if (d.isNull("lastSeen")) null else d.optLong("lastSeen"))
+                        if (d.isNull("lastSeen")) null else d.optLong("lastSeen"), if (d.isNull("appVersion")) null else d.optString("appVersion"))
                 } },
                 o.optJSONArray("shared")?.let { a -> List(a.length()) { a.getString(it) } }.orEmpty(),
                 FolderSyncPlan.decodeKinds(o.optJSONArray("skipped")))
-        }.getOrDefault(fresh)
+        }.getOrElse { com.example.readalong.desktop.core.VersionUpgrade.setAside(file); fresh }
     }
 
     companion object {
