@@ -147,6 +147,11 @@ class AppState(val scope: CoroutineScope, private val background: Boolean = true
         if (!state.playing && state.bookId in changed) library.book(state.bookId!!)?.let { player.seekTo(it.positionMs) }
     }
 
+    /** Edited titles and authors, shared with the phone. */
+    val bookInfo = BookInfoSync(library)
+    /** The book whose title and author are being edited ([EditInfoDialog]). */
+    var editingInfo by mutableStateOf<String?>(null)
+
     /** The book whose cover is being searched for online ([CoverSearchDialog]). */
     var coverSearch by mutableStateOf<String?>(null)
 

@@ -13,7 +13,7 @@ import java.io.File
 import java.util.UUID
 
 class BookActionsRepository(private val context: Context, private val database: ReadAlongDatabase) {
-    /** [toFolder]: a new cover is also saved beside the book (BookFolderFiles), so it syncs; false when it came from there. */
+    /** [toFolder]: a new cover, title or author is also saved beside the book (BookFolderFiles), so it syncs; false when it came from there. */
     suspend fun edit(bookId: String, title: String? = null, author: String? = null, cover: Uri? = null, toFolder: Boolean = true) = withContext(Dispatchers.IO) {
         val replacement = cover?.let { copyCover(it) }
         try {
@@ -31,6 +31,13 @@ class BookActionsRepository(private val context: Context, private val database: 
             }
         } catch (failure: Exception) { replacement?.first?.delete(); throw failure }
         if (replacement != null && toFolder) com.example.readalong.data.importing.BookFolderFiles(context, database).saveCover(bookId, replacement.first)
+        // An edited title or author is shared with the other device through "<book>.readalong-info".
+        if ((title != null || author != null) && toFolder) {
+            database.bookDao().putMetadata(LibraryMetadataEntity(com.example.readalong.data.importing.BookFolderFiles.EDITED + bookId, System.currentTimeMillis().toString()))
+            try { com.example.readalong.data.importing.BookFolderFiles(context, database).syncInfo(bookId) }
+            catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+            catch (_: Exception) { }
+        }
     }
 
     private fun copyCover(uri: Uri): Pair<File, String> {
