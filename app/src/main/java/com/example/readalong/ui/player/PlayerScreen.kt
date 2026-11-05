@@ -86,7 +86,9 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
     val notStarted = !book.isDemo && (job == null || job?.state == "WAITING_SELECTION") && passages.isEmpty()
     val introShown by reading.textIntroShown.collectAsStateWithLifecycle(null)
     LaunchedEffect(book.id, introShown) {
-        if (introShown == false && !book.isDemo) {
+        // Also right after the book was added on its own, in place of the "Make a ReadAlong" pop-up.
+        val justAdded = introShown != null && NewBookOffer.take(book.id)
+        if ((introShown == false || justAdded) && !book.isDemo) {
             kotlinx.coroutines.delay(900)
             if (reading.processingJob.value.let { it == null || it.state == "WAITING_SELECTION" } && reading.passages.value.isEmpty()) showText = true
             reading.markTextIntroShown()
