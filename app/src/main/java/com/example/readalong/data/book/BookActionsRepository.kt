@@ -33,7 +33,10 @@ class BookActionsRepository(private val context: Context, private val database: 
         if (replacement != null && toFolder) com.example.readalong.data.importing.BookFolderFiles(context, database).saveCover(bookId, replacement.first)
         // An edited title or author is shared with the other device through "<book>.readalong-info".
         if ((title != null || author != null) && toFolder) {
-            database.bookDao().putMetadata(LibraryMetadataEntity(com.example.readalong.data.importing.BookFolderFiles.EDITED + bookId, System.currentTimeMillis().toString()))
+            val editedKey = com.example.readalong.data.importing.BookFolderFiles.EDITED + bookId
+            // Later than any edit taken from the computer, even when its clock runs ahead, so this edit is the one that sticks.
+            val editedAt = maxOf(System.currentTimeMillis(), (database.bookDao().metadata(editedKey)?.toLongOrNull() ?: 0) + 1)
+            database.bookDao().putMetadata(LibraryMetadataEntity(editedKey, editedAt.toString()))
             try { com.example.readalong.data.importing.BookFolderFiles(context, database).syncInfo(bookId) }
             catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
             catch (_: Exception) { }

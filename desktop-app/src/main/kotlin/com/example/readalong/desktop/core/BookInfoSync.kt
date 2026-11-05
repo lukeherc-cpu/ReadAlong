@@ -12,9 +12,12 @@ class BookInfoSync(private val library: LibraryStore) {
     fun edit(bookId: String, title: String, author: String?) {
         val clean = title.trim().take(500)
         require(clean.isNotEmpty()) { "Enter a title." }
-        library.update(bookId) { it.copy(title = clean, author = author?.trim()?.take(500)?.ifEmpty { null }, editedAt = System.currentTimeMillis()) }
+        library.update(bookId) { it.copy(title = clean, author = author?.trim()?.take(500)?.ifEmpty { null }, editedAt = editTime(it.editedAt)) }
         library.book(bookId)?.let { sync(it) }
     }
+
+    /** Later than any edit taken from the phone, even when the phone's clock runs ahead, so a new edit here always wins. */
+    private fun editTime(previous: Long?) = maxOf(System.currentTimeMillis(), (previous ?: 0) + 1)
 
     /** Takes the phone's newer edit, or writes this computer's. Returns true when the phone's was taken. Never throws. */
     fun sync(book: LibraryBook): Boolean = runCatching {
