@@ -67,6 +67,16 @@ dependencies {
     implementation("org.bytedeco:ffmpeg:$ffmpeg:$nativePlatform")
     implementation("net.java.dev.jna:jna-platform:5.18.1")
     implementation("com.google.zxing:core:3.5.3") // the phone-linking QR code
+    // Amazon's sign-in page in a ReadAlong window (JavaFX's WebKit), so the final address is caught without copy and paste.
+    val javafxPlatform = when (nativePlatform) {
+        "windows-x86_64" -> "win"
+        "macosx-arm64" -> "mac-aarch64"
+        "macosx-x86_64" -> "mac"
+        else -> "linux"
+    }
+    listOf("base", "graphics", "controls", "media", "web", "swing").forEach { module ->
+        implementation("org.openjfx:javafx-$module:21.0.6:$javafxPlatform")
+    }
     testImplementation(kotlin("test"))
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
 }
@@ -89,7 +99,7 @@ compose.desktop {
             copyright = "GPL-3.0"
             licenseFile.set(project.file("../LICENSE"))
             appResourcesRootDir.set(project.layout.projectDirectory.dir("native/build/resources"))
-            modules("java.sql", "jdk.unsupported", "java.net.http", "jdk.crypto.ec")
+            modules("java.sql", "jdk.unsupported", "java.net.http", "jdk.crypto.ec", "jdk.jsobject", "jdk.xml.dom", "java.scripting")
             windows {
                 menuGroup = "ReadAlong"
                 shortcut = true
