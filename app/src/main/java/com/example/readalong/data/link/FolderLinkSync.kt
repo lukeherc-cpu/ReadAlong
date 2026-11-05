@@ -51,7 +51,7 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
 
     /** Links with the computer that showed [code]. Returns the folders it offers. */
     suspend fun link(code: LinkCode): List<RemoteFolder> = withContext(Dispatchers.IO) {
-        LinkClient.open(code.hosts, code.port, code.key, store.value.phoneId, phoneName).use { client ->
+        LinkClient.open(code.hosts, code.port, code.key, store.value.phoneId, phoneName, com.example.readalong.BuildConfig.VERSION_NAME).use { client ->
             store.update { it.copy(computer = LinkedComputer(client.computerId, client.computerName, code.key, listOf(client.host) + (code.hosts - client.host), client.port, System.currentTimeMillis()),
                 pairs = emptyList(), foldersAsked = false, lastSyncAt = null, lastResult = null) }
             client.folders()
@@ -115,7 +115,7 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
     /** Connects to the linked computer and remembers where it was found. */
     private fun connect(): LinkClient {
         val computer = store.value.computer ?: throw IOException("This phone isn't linked to a computer.")
-        val client = LinkClient.open(computer.hosts, computer.port, computer.key, store.value.phoneId, phoneName)
+        val client = LinkClient.open(computer.hosts, computer.port, computer.key, store.value.phoneId, phoneName, com.example.readalong.BuildConfig.VERSION_NAME)
         if (client.host != computer.hosts.firstOrNull() || client.port != computer.port || client.computerName != computer.name)
             store.update { s -> s.copy(computer = s.computer?.copy(name = client.computerName, hosts = listOf(client.host) + (computer.hosts - client.host).take(4), port = client.port)) }
         return client

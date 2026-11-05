@@ -25,6 +25,8 @@ fun main(args: Array<String>) {
     // macOS: a dark title bar to match the app, and "ReadAlong" in the menu bar rather than the launcher's name.
     System.setProperty("apple.awt.application.appearance", "NSAppearanceNameDarkAqua")
     System.setProperty("apple.awt.application.name", "ReadAlong")
+    // Before anything loads: keep a copy of the library and settings when a different version starts.
+    System.getProperty("readalong.version")?.let { com.example.readalong.desktop.core.VersionUpgrade.run(it) }
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     val app = AppState(scope)
     application(exitProcessOnExit = true) {

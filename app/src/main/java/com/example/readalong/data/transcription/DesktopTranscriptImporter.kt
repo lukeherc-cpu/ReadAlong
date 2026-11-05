@@ -40,7 +40,7 @@ class DesktopTranscriptImporter(private val context: Context, private val databa
                 val header = zip.getInputStream(zip.getEntry("manifest.json")).use { input -> val out = java.io.ByteArrayOutputStream(); val buffer = ByteArray(8192); while (true) { val n = input.read(buffer); if (n < 0) break; require(out.size() + n <= 1024 * 1024); out.write(buffer, 0, n) }; out.toByteArray() }
                 require(header.size <= 1024 * 1024)
                 val manifest = JSONObject(header.toString(Charsets.UTF_8))
-                require(manifest.getString("format") == "readalong-transcript" && manifest.getInt("version") == 1 && manifest.getBoolean("complete")) { "This transcript format is not supported or is incomplete." }
+                require(manifest.getString("format") == "readalong-transcript" && com.example.readalong.domain.update.FormatVersion.readable(manifest, 1) && manifest.getBoolean("complete")) { "This transcript format is not supported or is incomplete." }
                 importedModelId = manifest.getString("model")
                 // ReadAlong for Windows writes "desktop:<backend>:<model>" and the engine's name, e.g. "Whisper small.en".
                 val desktop = importedModelId.startsWith("desktop:") && importedModelId.length <= 120

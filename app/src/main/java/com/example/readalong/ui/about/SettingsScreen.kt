@@ -79,6 +79,7 @@ fun SettingsScreen(app: ReadAlongApplication, onBack: () -> Unit, onModel: () ->
                 SettingsRow("Link a computer", R.drawable.ic_devices, onClick = onLink)
                 SettingsRow("Offline speech models", R.drawable.ic_waveform, onClick = onModel)
                 SettingsRow("About ReadAlong", R.drawable.ic_info, onClick = onAbout)
+                UpdateSettings()
         }
         SectionLabel("Advanced")
         SettingsGroup {

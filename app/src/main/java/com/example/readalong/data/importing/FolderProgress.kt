@@ -59,7 +59,7 @@ data class FolderProgress(
         fun parse(text: String): FolderProgress? = runCatching {
             if (text.length > 64 * 1024) return null
             val o = JSONObject(text)
-            if (o.optString("format") != FORMAT || o.optInt("version", 0) !in 1..VERSION) return null
+            if (o.optString("format") != FORMAT || !com.example.readalong.domain.update.FormatVersion.readable(o, VERSION)) return null
             FolderProgress(o.getLong("updatedAt"), o.getLong("positionMs").coerceAtLeast(0), o.optLong("durationMs"), o.optBoolean("finished"),
                 o.optString("file").takeIf { !o.isNull("file") && it.isNotBlank() }, o.optInt("fileIndex", -1), o.optLong("filePositionMs").coerceAtLeast(0),
                 o.optString("device").take(40), if (o.has("fileCount")) o.optInt("fileCount") else null)
