@@ -22,7 +22,8 @@ class ReadAlongApplication : Application() {
         moved = { id, position -> if (playbackStore.state.value.bookId == id) withContext(Dispatchers.Main) { playback.seek(position) } }) }
     /** Folders kept in step with a linked ReadAlong Desktop over the home network; a sync rescans the phone folder it changed. */
     val folderLink by lazy { val links = com.example.readalong.data.link.LinkStore(this)
-        com.example.readalong.data.link.FolderLinkSync(this, links, beforeSync = { com.example.readalong.data.link.TranscriptPackageWriter(this, database, links).writeAll() }) { uri ->
+        com.example.readalong.data.link.FolderLinkSync(this, links, beforeSync = {
+            if (com.example.readalong.domain.link.FolderSyncPlan.Kind.TRANSCRIPT.id !in links.value.skipped) com.example.readalong.data.link.TranscriptPackageWriter(this, database, links).writeAll() }) { uri ->
         // A phone folder chosen only for syncing joins the library too.
         if (database.mediaDao().folder(uri.toString()) != null) audioImporter.scan(uri)
         else audioImporter.addFolder(uri, com.example.readalong.data.importing.FolderMode.LIBRARY, persistAccess = false)

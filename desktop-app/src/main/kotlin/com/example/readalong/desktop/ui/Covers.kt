@@ -35,7 +35,9 @@ object Covers {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Entry>) = size > 160
     }
 
-    fun cached(path: String, size: Int): ImageBitmap? = synchronized(cache) { cache["$path@$size"]?.image }
+    /** Keyed by the file's time too, so a cover replaced in place (one synced from the phone) is read again. */
+    private fun key(path: String, size: Int) = "$path:${File(path).lastModified()}@$size"
+    fun cached(path: String, size: Int): ImageBitmap? = synchronized(cache) { cache[key(path, size)]?.image }
 
     suspend fun load(path: String, size: Int): ImageBitmap? = withContext(Dispatchers.IO) {
         cached(path, size)?.let { return@withContext it }
@@ -49,18 +51,18 @@ object Covers {
             drawImage(source, 0, 0, w, h, null); dispose()
         }
         val bitmap = scaled.toComposeImageBitmap()
-        synchronized(cache) { cache["$path@$size"] = Entry(bitmap, paletteOf(scaled)) }
+        synchronized(cache) { cache[key(path, size)] = Entry(bitmap, paletteOf(scaled)) }
         bitmap
     }
 
     private fun decodeWithSkia(path: String, size: Int): ImageBitmap? = runCatching {
         val image = org.jetbrains.skia.Image.makeFromEncoded(File(path).readBytes())
-        image.toComposeImageBitmap().also { synchronized(cache) { cache["$path@$size"] = Entry(it, null) } }
+        image.toComposeImageBitmap().also { synchronized(cache) { cache[key(path, size)] = Entry(it, null) } }
     }.getOrNull()
 
     suspend fun palette(path: String): CoverPalette? {
         load(path, 96)
-        return synchronized(cache) { cache["$path@96"]?.palette }
+        return synchronized(cache) { cache[key(path, 96)]?.palette }
     }
 
     /** The phone's cover sampling: the most common saturated hue, weighted by saturation. */

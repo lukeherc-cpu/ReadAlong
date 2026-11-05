@@ -150,7 +150,8 @@ class TranscriptStore {
                 require(!matches.isNullOrEmpty()) { "This transcript belongs to different audio. Use the original audiobook files." }
                 val part = matches.firstOrNull { book.parts[it].name == source.optString("name") } ?: matches.first()
                 matches.remove(part)
-                require(abs(source.getLong("durationMs") - book.parts[part].durationMs) <= 1000) { "The transcript's audio duration does not match this book." }
+                // The bytes match, so this is the same audio; the two apps only measure some MP3s' length differently (VBR without a frame index).
+                require(abs(source.getLong("durationMs") - book.parts[part].durationMs) <= maxOf(1_000L, book.parts[part].durationMs / 50)) { "The transcript's audio duration does not match this book." }
                 part
             }
             val durations = LongArray(sources.length()) { sources.getJSONObject(it).getLong("durationMs") }
