@@ -15,6 +15,8 @@ class LibraryImporter(private val library: LibraryStore, private val transcripts
     private val companions: Companions = Companions(library),
     /** A `.readalong` from the phone is about to replace this book's unfinished ReadAlong: stop making it. */
     private val beforeTranscriptImport: (String) -> Unit = {},
+    /** A `.readalong` from the phone is now this book's ReadAlong. */
+    private val onTranscriptImported: (String) -> Unit = {},
     private val onMessage: (String) -> Unit = {}) {
     private val mutableState = MutableStateFlow(ScanState(false, ""))
     val state: StateFlow<ScanState> = mutableState
@@ -103,7 +105,7 @@ class LibraryImporter(private val library: LibraryStore, private val transcripts
         if (!companions.packageChanged(book.id, pkg)) return
         if (info != null) beforeTranscriptImport(book.id)
         runCatching { transcripts.importPackage(library.book(book.id) ?: book, pkg) }
-            .onSuccess { if (info != null) onMessage("${book.title}: ReadAlong from your phone added.") }
+            .onSuccess { onTranscriptImported(book.id); onMessage("The ReadAlong of ${book.title} arrived from your phone.") }
             .onFailure {
                 System.err.println("ReadAlong: ${pkg.name} wasn't imported: ${it.message}")
                 onMessage("The ReadAlong for ${book.title} from your phone couldn't be used: ${it.message}")

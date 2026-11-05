@@ -138,6 +138,13 @@ class TranscriptionService(private val scope: CoroutineScope, private val librar
     }
     /** Takes a stopped book off the queue's "Stopped" list; whatever it made so far stays. */
     fun dismissError(bookId: String) = mutableErrors.update { it - bookId }
+    /** A finished ReadAlong arrived from the phone: the book leaves the queue and shows under "Transcribed", as if made here. */
+    fun imported(bookId: String) {
+        if (mutableJob.value?.bookId == bookId) restart()
+        mutableQueue.update { it - bookId }; saveQueue()
+        mutableErrors.update { it - bookId }
+        mutableFinished.update { listOf(bookId) + (it - bookId) }; saveFinished()
+    }
     /** Takes a finished book off the queue's "Transcribed" list; its ReadAlong stays. */
     fun clearFinished(bookId: String) { mutableFinished.update { it - bookId }; saveFinished() }
     fun pause(paused: Boolean) { mutablePaused.value = paused; if (paused) stop() else wake() }
@@ -181,7 +188,9 @@ class TranscriptionService(private val scope: CoroutineScope, private val librar
         // Resume only the same model's work on the same plan.
         val resumable = info != null && !info.imported && info.model == model.packageId && existing.size <= plan.size &&
             existing.withIndex().all { (i, c) -> plan[i].let { it.file == c.file && it.startMs == c.startMs && it.endMs == c.endMs } }
-        if (info?.complete == true && (info.imported || resumable)) return
+        // A finished ReadAlong is only "done" when it has text to show; one that doesn't is made again.
+        if (info?.complete == true && (info.imported || resumable) && transcripts.segments(book).isNotEmpty()) return
+        if (info?.complete == true && info.imported) transcripts.remove(book.id)
         if (!resumable) transcripts.begin(book.id, model.packageId, model.engineName, plan.size)
         var done = if (resumable) existing.size else 0
 

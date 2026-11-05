@@ -89,6 +89,11 @@ class TranscriptPackageWriter(private val context: Context, private val database
             JSONObject().put("file", index).put("startMs", unit.fileStartMs).put("endMs", unit.fileStartMs + length)
                 .put("result", chunkResult(within, unit.startMs, length)).toString()
         }
+        // A package with no text would make the computer show an empty ReadAlong; keep this book's text to itself instead.
+        if (lines.none { JSONObject(it).getJSONObject("result").optString("text").isNotBlank() }) {
+            android.util.Log.i("ReadAlong", "Transcript package not written: no text")
+            return false
+        }
         val manifest = JSONObject().put("format", "readalong-transcript").put("version", 1).put("complete", true)
             .put("model", SpeechModelStore.ID).put("engine", "Cactus Whistle").put("chunks", lines.size).put("sources", sources)
 
@@ -151,8 +156,11 @@ class TranscriptPackageWriter(private val context: Context, private val database
             if (words.isEmpty()) text = ""
             val limit = lengthMs / 1000.0
             val array = JSONArray()
+            // Readers (WhistleResult) refuse a section whose word times go backwards, so each starts no earlier than the one before.
+            var previous = 0.0
             words.forEach { word ->
-                val start = ((word.startMs - unitStartMs) / 1000.0).coerceIn(0.0, limit)
+                val start = ((word.startMs - unitStartMs) / 1000.0).coerceIn(previous, limit)
+                previous = start
                 val end = ((word.endMs - unitStartMs) / 1000.0).coerceIn(start, limit)
                 array.put(JSONObject().put("word", word.word.trim()).put("start", start).put("end", end).apply {
                     word.confidence?.toDouble()?.takeIf { it in 0.0..1.0 }?.let { put("probability", it) }

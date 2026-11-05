@@ -254,9 +254,10 @@ fun bookMenu(app: AppState, book: LibraryBook): List<ContextMenuItem> = listOfNo
     ContextMenuItem("Import a .readalong transcript…") {
         chooseFile("Choose a ReadAlong transcript", "readalong")?.let { f ->
             app.scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                app.transcription.remove(book.id)
                 runCatching { app.transcripts.importPackage(book, f) }
-                    .onSuccess { app.messages.emit("Transcript imported for ${book.title}.") }
-                    .onFailure { app.messages.emit(it.message ?: "That transcript couldn't be imported.") }
+                    .onSuccess { app.transcription.imported(book.id); app.messages.emit("Transcript imported for ${book.title}.") }
+                    .onFailure { app.messages.emit("That transcript couldn't be imported: ${it.message}") }
             }
         }
     },
