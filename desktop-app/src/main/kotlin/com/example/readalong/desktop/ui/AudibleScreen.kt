@@ -44,48 +44,80 @@ fun AudibleScreen(app: AppState) {
     }
 }
 
+/**
+ * Signing in: Amazon's page opens in a ReadAlong window, which catches Amazon's final address by itself, so
+ * there is nothing to copy or paste. Where that window can't open, the system browser is used and the address
+ * is picked up from the clipboard as soon as it's copied; pasting it by hand stays as a last resort.
+ */
 @Composable
 private fun AudibleSignIn(app: AppState) {
     val scope = rememberCoroutineScope()
-    val clipboard = LocalClipboardManager.current
     var locale by remember { mutableStateOf(AudibleLocale.of(java.util.Locale.getDefault().country.lowercase().let { if (it == "gb") "uk" else it })) }
     var choosing by remember { mutableStateOf(false) }
-    var url by remember { mutableStateOf(app.audible.login?.url) }
+    // null: not started; true: in ReadAlong's sign-in window; false: in the system browser.
+    var inWindow by remember { mutableStateOf<Boolean?>(null) }
     var redirect by remember { mutableStateOf("") }
+    var pasting by remember { mutableStateOf(false) }
     var working by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    fun finish(address: String) {
+        if (working) return
+        working = true; error = null
+        scope.launch {
+            try { app.audible.finishLogin(address) }
+            catch (failure: Exception) { error = failure.message ?: "Signing in didn't finish. Try again."; inWindow = null }
+            finally { working = false }
+        }
+    }
+    fun signIn() {
+        error = null; redirect = ""
+        val address = app.audible.startLogin(locale)
+        val opened = AudibleSignInWindow.open(address, "Sign in to Amazon · ReadAlong",
+            onRedirect = { scope.launch { finish(it) } }, onClosed = { scope.launch { if (!working) inWindow = null } })
+        inWindow = opened
+        if (!opened && !openBrowser(address)) { error = "Your browser didn't open. Copy the link below into your browser."; pasting = true }
+    }
+    // The system browser fallback: watch the clipboard for Amazon's final address.
+    if (inWindow == false) LaunchedEffect(Unit) {
+        // An address left on the clipboard from an earlier sign-in belongs to another attempt.
+        val stale = AudibleSignInWindow.redirectOnClipboard()
+        while (true) {
+            AudibleSignInWindow.redirectOnClipboard()?.takeIf { it != stale }?.let { if (!working) finish(it) }
+            kotlinx.coroutines.delay(700)
+        }
+    }
+    DisposableEffect(Unit) { onDispose { AudibleSignInWindow.close() } }
     Column(Modifier.widthIn(max = 720.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Text("Import from Audible", style = MaterialTheme.typography.titleLarge)
-        Text("1. Choose your store and open Amazon's sign-in page.", style = MaterialTheme.typography.titleSmall)
+        Text("Sign in with your Amazon account to see your Audible library and download your books.", color = MaterialTheme.colorScheme.onSurfaceVariant)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
             Box {
-                PillButton("Store: ${locale.label}", { choosing = true }, filled = false)
+                PillButton("Store: ${locale.label}", { choosing = true }, filled = false, enabled = !working)
                 DropdownMenu(choosing, { choosing = false }) {
-                    AudibleLocale.entries.forEach { option -> DropdownMenuItem({ Text(option.label) }, { locale = option; choosing = false; url = null }) }
+                    AudibleLocale.entries.forEach { option -> DropdownMenuItem({ Text(option.label) }, { locale = option; choosing = false; AudibleSignInWindow.close(); inWindow = null }) }
                 }
             }
-            PillButton("Open Amazon sign-in", {
-                val address = app.audible.startLogin(locale)
-                url = address
-                error = if (openBrowser(address)) null else "Your browser didn't open. Copy the link and paste it into your browser."
-            })
-            url?.let { address -> PillButton("Copy link", { clipboard.setText(AnnotatedString(address)) }, filled = false) }
-        }
-        Text("2. Sign in, then paste the address of the \"not found\" page Amazon ends on.",
-            style = MaterialTheme.typography.titleSmall)
-        OutlinedTextField(redirect, { redirect = it }, Modifier.fillMaxWidth(), singleLine = true, enabled = url != null && !working,
-            placeholder = { Text("https://www.amazon…/ap/maplanding?…") })
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            PillButton(if (working) "Signing in…" else "Finish signing in", {
-                working = true; error = null
-                scope.launch {
-                    try { app.audible.finishLogin(redirect) } catch (failure: Exception) { error = failure.message ?: "Signing in didn't finish. Try again." }
-                    finally { working = false }
-                }
-            }, enabled = url != null && redirect.isNotBlank() && !working)
+            PillButton(if (working) "Signing in…" else if (inWindow != null) "Start again" else "Sign in to Amazon", { signIn() }, enabled = !working)
             if (working) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
         }
+        when (inWindow) {
+            true -> Text("Sign in in the window that opened. ReadAlong finishes by itself once Amazon is done.", style = MaterialTheme.typography.bodyMedium)
+            false -> Text("Sign in in your browser. When Amazon ends on a \"page not found\", copy that page's address (Ctrl+L, then Ctrl+C) and ReadAlong takes it from there.",
+                style = MaterialTheme.typography.bodyMedium)
+            null -> {}
+        }
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        if (inWindow != null || pasting) {
+            if (!pasting) TextButton({ pasting = true }) { Text("Paste the address instead") }
+            else {
+                app.audible.login?.url?.let { address ->
+                    val clipboard = LocalClipboardManager.current
+                    PillButton("Copy sign-in link", { clipboard.setText(AnnotatedString(address)) }, filled = false)
+                }
+                OutlinedTextField(redirect, { redirect = it }, Modifier.fillMaxWidth(), singleLine = true, enabled = !working,
+                    placeholder = { Text("https://www.amazon…/ap/maplanding?…") })
+                PillButton("Finish signing in", { finish(redirect) }, enabled = redirect.isNotBlank() && !working, filled = false)
+            }
+        }
         Text("Your password goes only to Amazon. Nothing is uploaded anywhere else.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
@@ -162,7 +194,7 @@ private suspend fun remoteCover(url: String): ImageBitmap? = synchronized(remote
 }
 
 /** The default browser; xdg-open where Java's desktop support is missing (some Linux desktops and the Flatpak). */
-private fun openBrowser(url: String): Boolean = runCatching {
+internal fun openBrowser(url: String): Boolean = runCatching {
     val desktop = if (java.awt.Desktop.isDesktopSupported()) java.awt.Desktop.getDesktop() else null
     if (desktop?.isSupported(java.awt.Desktop.Action.BROWSE) == true) { desktop.browse(URI(url)); true }
     else { ProcessBuilder("xdg-open", url).start(); true }

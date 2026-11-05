@@ -30,7 +30,7 @@ fun ReadAlongCard(app: AppState, book: LibraryBook, modifier: Modifier = Modifie
                         Spacer(Modifier.height(8.dp))
                         Text("This book's ReadAlong starts after ${(queue.indexOf(book.id)).coerceAtLeast(1)} other book(s).", color = ink.copy(alpha = .7f))
                         Spacer(Modifier.height(16.dp))
-                        PillButton("Start now", { app.transcription.enqueue(book.id, now = true) }, filled = false)
+                        PillButton("Start now", { app.transcription.start(book.id) }, filled = false)
                     }
                     else -> {
                         Text("Read along with this book", style = MaterialTheme.typography.titleLarge, color = ink)
@@ -44,9 +44,9 @@ fun ReadAlongCard(app: AppState, book: LibraryBook, modifier: Modifier = Modifie
                         errors[book.id]?.let { Spacer(Modifier.height(10.dp)); Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
                         Spacer(Modifier.height(18.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            PillButton("Make ReadAlong", { app.transcription.enqueue(book.id, now = job == null) }, icon = "ic_readalong")
+                            PillButton("Make ReadAlong", { if (job == null) app.transcription.start(book.id) else app.transcription.enqueue(book.id) }, icon = "ic_readalong")
                             PillButton(if (book.epubPath == null) "Add EPUB…" else "Change EPUB…", {
-                                chooseFile("Choose the book's EPUB", "epub")?.let { f -> app.library.update(book.id) { it.copy(epubPath = f.path, textSource = "EPUB") } }
+                                chooseFile("Choose the book's EPUB", "epub")?.let { f -> app.attachEpub(book.id, f) }
                             }, filled = false, icon = "ic_book_add")
                         }
                         Spacer(Modifier.height(10.dp))

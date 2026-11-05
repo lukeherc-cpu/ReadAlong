@@ -29,10 +29,18 @@ data class SyncProgress(val text: String, val fraction: Float? = null)
  *
  * Each sync lists both sides of every [FolderPair], copies what [FolderSyncPlan] says, and rescans the
  * phone folder, so new books, `.readalong` transcripts and `.readalong-progress` positions are picked up
- * exactly as if the folder had been synced any other way. Nothing is ever deleted on either side. Before each sync,
+ * exactly as if the folder had been synced any other way. Nothing is ever deleted on either side. Kinds of companion file
+ * turned off in [LinkState.skipped] (or on the computer) aren't copied. Before each sync,
  * [beforeSync] writes the `.readalong` of each book transcribed on the phone into its folder (TranscriptPackageWriter).
  */
-class FolderLinkSync(private val context: Context, val store: LinkStore, private val beforeSync: suspend () -> Unit = {}, private val rescan: suspend (Uri) -> Unit) {
+/** This phone's side of the shared app and reader settings (SettingsSync keys). */
+interface LinkSettings {
+    suspend fun read(): Map<String, String>
+    suspend fun apply(values: Map<String, String>)
+}
+
+class FolderLinkSync(private val context: Context, val store: LinkStore, private val beforeSync: suspend () -> Unit = {}, private val settings: LinkSettings? = null,
+    private val rescan: suspend (Uri) -> Unit) {
     private val resolver = context.contentResolver
     private val lock = Mutex()
     private val mutableProgress = MutableStateFlow<SyncProgress?>(null)
@@ -43,7 +51,7 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
 
     /** Links with the computer that showed [code]. Returns the folders it offers. */
     suspend fun link(code: LinkCode): List<RemoteFolder> = withContext(Dispatchers.IO) {
-        LinkClient.open(code.hosts, code.port, code.key, store.value.phoneId, phoneName).use { client ->
+        LinkClient.open(code.hosts, code.port, code.key, store.value.phoneId, phoneName, com.example.readalong.BuildConfig.VERSION_NAME).use { client ->
             store.update { it.copy(computer = LinkedComputer(client.computerId, client.computerName, code.key, listOf(client.host) + (code.hosts - client.host), client.port, System.currentTimeMillis()),
                 pairs = emptyList(), foldersAsked = false, lastSyncAt = null, lastResult = null) }
             client.folders()
@@ -76,6 +84,7 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
                         copied += done; failed += failures
                         if (done > 0 || first) runCatching { rescan(Uri.parse(pair.localUri)) }
                     }
+                    syncSettings(client)
                 }
                 val result = when {
                     failed > 0 -> "Copied $copied ${files(copied)}; $failed couldn't be copied and will be tried again."
@@ -88,12 +97,25 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
         }
     }
 
+    /** App and reader settings, unless "App and reader settings" is unticked here or on the computer. */
+    private suspend fun syncSettings(client: LinkClient) {
+        val mine = settings ?: return
+        if (com.example.readalong.domain.link.FolderSyncPlan.Kind.SETTINGS.id in store.value.skipped) return
+        mutableProgress.value = SyncProgress("Syncing settings…")
+        val theirs = client.settings() ?: return
+        val phone = mine.read()
+        val agreed = com.example.readalong.domain.link.SettingsSync.merge(phone, theirs, store.agreedSettings())
+        if (agreed.any { (key, value) -> phone[key] != value }) mine.apply(agreed)
+        if (agreed.any { (key, value) -> theirs[key] != value }) client.setSettings(agreed)
+        store.saveAgreedSettings(agreed)
+    }
+
     private fun files(count: Int) = if (count == 1) "file" else "files"
 
     /** Connects to the linked computer and remembers where it was found. */
     private fun connect(): LinkClient {
         val computer = store.value.computer ?: throw IOException("This phone isn't linked to a computer.")
-        val client = LinkClient.open(computer.hosts, computer.port, computer.key, store.value.phoneId, phoneName)
+        val client = LinkClient.open(computer.hosts, computer.port, computer.key, store.value.phoneId, phoneName, com.example.readalong.BuildConfig.VERSION_NAME)
         if (client.host != computer.hosts.firstOrNull() || client.port != computer.port || client.computerName != computer.name)
             store.update { s -> s.copy(computer = s.computer?.copy(name = client.computerName, hosts = listOf(client.host) + (computer.hosts - client.host).take(4), port = client.port)) }
         return client
@@ -103,9 +125,15 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
         val tree = Uri.parse(pair.localUri)
         val rootId = DocumentsContract.getTreeDocumentId(tree)
         mutableProgress.value = SyncProgress("Comparing ${pair.localName}…")
-        val local = walk(tree, rootId)
-        val remote = client.list(pair.remoteId)
-        val previous = store.synced(pair)
+        val remote = client.list(pair.remoteId).toMutableList()
+        // Kinds turned off on either side (Settings › Sync) are left alone on both.
+        val skipped = store.value.skipped + client.computerSkips
+        val local = walk(tree, rootId).filterKeys { FolderSyncPlan.included(it, skipped) }
+        remote.retainAll { FolderSyncPlan.included(it.path, skipped) }
+        val recorded = store.synced(pair)
+        // Their records are kept, so turning a kind back on carries on from where it was.
+        val held = recorded.filterKeys { !FolderSyncPlan.included(it, skipped) }
+        val previous = recorded - held.keys
         val actions = FolderSyncPlan.plan(local.values.map { it.file }, remote, previous)
         val localNow = local.mapValues { it.value.file }.toMutableMap()
         val remoteNow = remote.associateBy { it.path }.toMutableMap()
@@ -134,11 +162,11 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
             } catch (refused: com.example.readalong.domain.link.LinkException) { failed++; android.util.Log.w("ReadAlong", "Link sync skipped a file: ${refused.message}") }
             catch (io: IOException) {
                 // A dropped connection ends this sync; what was copied so far is kept and recorded.
-                store.saveSynced(pair, FolderSyncPlan.settled(localNow.values.toList(), remoteNow.values.toList(), previous))
+                store.saveSynced(pair, held + FolderSyncPlan.settled(localNow.values.toList(), remoteNow.values.toList(), previous))
                 throw io
             }
         }
-        store.saveSynced(pair, FolderSyncPlan.settled(localNow.values.toList(), remoteNow.values.toList(), previous))
+        store.saveSynced(pair, held + FolderSyncPlan.settled(localNow.values.toList(), remoteNow.values.toList(), previous))
         return copied to failed
     }
 

@@ -26,6 +26,8 @@ data class LinkState(
     val lastSyncAt: Long? = null,
     /** A one-line outcome of the last sync, for Settings. */
     val lastResult: String? = null,
+    /** Kinds of companion file left out of syncing (FolderSyncPlan.Kind ids). Empty: everything syncs. */
+    val skipped: Set<String> = emptySet(),
 )
 
 /** Kept as small JSON files in the app's private storage: link.json, and one record of synced files per folder pair. */
@@ -42,9 +44,14 @@ class LinkStore(context: Context) {
     }
 
     fun unlink() {
-        update { LinkState(it.phoneId) }
-        directory.listFiles { f -> f.name.startsWith("synced-") }?.forEach { it.delete() }
+        update { LinkState(it.phoneId, skipped = it.skipped) }
+        directory.listFiles { f -> f.name.startsWith("synced-") || f.name == "settings.json" }?.forEach { it.delete() }
     }
+
+    /** The settings the phone and computer last agreed on (SettingsSync); null before the first settings sync. */
+    fun agreedSettings(): Map<String, String>? = File(directory, "settings.json").takeIf { it.isFile }
+        ?.let { runCatching { com.example.readalong.domain.link.SettingsSync.decode(JSONObject(it.readText())) }.getOrNull() }
+    fun saveAgreedSettings(values: Map<String, String>) = writeAtomically(File(directory, "settings.json"), com.example.readalong.domain.link.SettingsSync.encode(values).toString())
 
     fun synced(pair: FolderPair): Map<String, SyncedState> = syncedFile(pair).takeIf { it.isFile }?.let { FolderSyncPlan.decode(it.readText()) }.orEmpty()
     fun saveSynced(pair: FolderPair, state: Map<String, SyncedState>) = writeAtomically(syncedFile(pair), FolderSyncPlan.encode(state))
@@ -57,7 +64,8 @@ class LinkStore(context: Context) {
         }
         writeAtomically(file, JSONObject().put("phoneId", s.phoneId).put("computer", computer ?: JSONObject.NULL)
             .put("pairs", JSONArray(s.pairs.map { JSONObject().put("remoteId", it.remoteId).put("remoteName", it.remoteName).put("localUri", it.localUri).put("localName", it.localName) }))
-            .put("foldersAsked", s.foldersAsked).put("lastSyncAt", s.lastSyncAt ?: JSONObject.NULL).put("lastResult", s.lastResult ?: JSONObject.NULL).toString())
+            .put("foldersAsked", s.foldersAsked).put("lastSyncAt", s.lastSyncAt ?: JSONObject.NULL).put("lastResult", s.lastResult ?: JSONObject.NULL)
+            .put("skipped", FolderSyncPlan.encodeKinds(s.skipped)).toString())
     }
 
     private fun load(): LinkState {
@@ -73,8 +81,13 @@ class LinkStore(context: Context) {
             val pairs = o.optJSONArray("pairs") ?: JSONArray()
             LinkState(o.getString("phoneId"), computer,
                 List(pairs.length()) { i -> pairs.getJSONObject(i).let { FolderPair(it.getString("remoteId"), it.getString("remoteName"), it.getString("localUri"), it.getString("localName")) } },
-                o.optBoolean("foldersAsked"), if (o.isNull("lastSyncAt")) null else o.optLong("lastSyncAt"), if (o.isNull("lastResult")) null else o.optString("lastResult"))
-        }.getOrDefault(fresh)
+                o.optBoolean("foldersAsked"), if (o.isNull("lastSyncAt")) null else o.optLong("lastSyncAt"), if (o.isNull("lastResult")) null else o.optString("lastResult"),
+                FolderSyncPlan.decodeKinds(o.optJSONArray("skipped")))
+        }.getOrElse {
+            // Keep what couldn't be read (perhaps written by a newer version) before the next save replaces it.
+            runCatching { file.copyTo(File(directory, "link.json.unreadable-${System.currentTimeMillis()}")) }
+            fresh
+        }
     }
 
     private fun writeAtomically(target: File, text: String) {

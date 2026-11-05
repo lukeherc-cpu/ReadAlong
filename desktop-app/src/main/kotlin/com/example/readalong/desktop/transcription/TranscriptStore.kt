@@ -139,7 +139,7 @@ class TranscriptStore {
             val names = zip.entries().toList().map { it.name }.toSet()
             require(names == setOf("manifest.json", "chunks.jsonl")) { "Choose a ReadAlong transcript (.readalong)." }
             val manifest = JSONObject(zip.getInputStream(zip.getEntry("manifest.json")).use { String(it.readNBytes(1024 * 1024)) })
-            require(manifest.getString("format") == FORMAT && manifest.getInt("version") == 1 && manifest.getBoolean("complete")) { "This transcript format is not supported or is incomplete." }
+            require(manifest.getString("format") == FORMAT && com.example.readalong.domain.update.FormatVersion.readable(manifest, 1) && manifest.getBoolean("complete")) { "This transcript format is not supported or is incomplete." }
             val sources = manifest.getJSONArray("sources")
             require(sources.length() == book.parts.size) { "This transcript must contain the same audiobook audio files." }
             val hashes = book.parts.indices.groupBy { i -> sha256(File(book.parts[i].path)).let { "${it.first}:${it.second}" } }.mapValues { it.value.toMutableList() }
@@ -150,7 +150,8 @@ class TranscriptStore {
                 require(!matches.isNullOrEmpty()) { "This transcript belongs to different audio. Use the original audiobook files." }
                 val part = matches.firstOrNull { book.parts[it].name == source.optString("name") } ?: matches.first()
                 matches.remove(part)
-                require(abs(source.getLong("durationMs") - book.parts[part].durationMs) <= 1000) { "The transcript's audio duration does not match this book." }
+                // The bytes match, so this is the same audio; the two apps only measure some MP3s' length differently (VBR without a frame index).
+                require(abs(source.getLong("durationMs") - book.parts[part].durationMs) <= maxOf(1_000L, book.parts[part].durationMs / 50)) { "The transcript's audio duration does not match this book." }
                 part
             }
             val durations = LongArray(sources.length()) { sources.getJSONObject(it).getLong("durationMs") }

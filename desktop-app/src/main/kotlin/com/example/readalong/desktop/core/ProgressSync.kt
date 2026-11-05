@@ -51,7 +51,7 @@ class ProgressSync(private val library: LibraryStore) {
 
         fun parse(text: String): SharedProgress? {
             val json = JSONObject(text)
-            if (json.optString("format") != FORMAT || json.optInt("version", 0) !in 1..1) return null
+            if (json.optString("format") != FORMAT || !com.example.readalong.domain.update.FormatVersion.readable(json, 1)) return null
             return SharedProgress(json.optString("device"), json.getLong("updatedAt"), json.optLong("positionMs"), json.optLong("durationMs"),
                 json.optBoolean("finished"), json.optString("file").ifBlank { null }, if (json.has("fileIndex")) json.getInt("fileIndex") else null,
                 if (json.has("filePositionMs")) json.getLong("filePositionMs") else null, if (json.has("fileCount")) json.getInt("fileCount") else null)

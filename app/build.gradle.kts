@@ -15,8 +15,8 @@ android {
         applicationId = "com.example.readalong"
         minSdk = 26
         targetSdk = 37
-        versionCode = 78
-        versionName = "0.44.2"
+        versionCode = 77
+        versionName = "0.44.1"
 
         ndk { abiFilters += providers.gradleProperty("readalongAbi").orNull?.let { listOf(it) } ?: listOf("arm64-v8a") }
         externalNativeBuild { cmake { arguments += "-DANDROID_STL=c++_shared" } }
@@ -28,7 +28,7 @@ android {
         create("github") {
             dimension = "distribution"
             buildConfigField("boolean", "TIP_JAR_ENABLED", "true")
-            buildConfigField("String", "KOFI_URL", "\"${providers.gradleProperty("readalongKoFiUrl").orElse("").get()}\"")
+            buildConfigField("String", "KOFI_URL", "\"${providers.gradleProperty("readalongKoFiUrl").orElse("https://ko-fi.com/readalong").get()}\"")
         }
         create("play") {
             dimension = "distribution"

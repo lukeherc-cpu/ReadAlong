@@ -76,6 +76,20 @@ class LinkChannel private constructor(private val input: DataInputStream, privat
         const val TCP_PORT = 47810
         const val DISCOVERY_PORT = 47811
         const val MAX_FRAME = 1 shl 20
+        /**
+         * The request set this build speaks. Both sides send it with their app version in "hello" and its
+         * reply; a side that sends none is protocol 1 (0.44.1 and earlier). New requests are added to [OPS]
+         * and the protocol number goes up, and a side only sends a request the other lists (or, for an older
+         * peer, one in [V1_OPS]), so older and newer phones and computers keep syncing what they both know.
+         * A request a peer doesn't know gets an "error" reply, never a dropped connection.
+         */
+        const val PROTOCOL = 1
+        val V1_OPS = listOf("hello", "folders", "list", "get", "put", "create", "done")
+        val OPS = V1_OPS
+
+        /** The requests a peer understands, from its hello or reply. */
+        fun peerOps(json: org.json.JSONObject): Set<String> =
+            json.optJSONArray("ops")?.let { a -> (0 until a.length()).map { a.optString(it) }.filter { it.isNotBlank() }.toSet() } ?: V1_OPS.toSet()
         private const val CHUNK = 256 * 1024
         private val random = SecureRandom()
 

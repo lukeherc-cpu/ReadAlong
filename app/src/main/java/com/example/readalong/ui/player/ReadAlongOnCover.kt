@@ -6,6 +6,11 @@ import androidx.compose.foundation.background
 import androidx.compose.animation.animateContentSize
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -26,6 +31,12 @@ import com.example.readalong.data.local.ProcessingJobEntity
 import com.example.readalong.data.processing.progress
 import com.example.readalong.domain.model.Book
 import com.example.readalong.ui.reading.ReadingViewModel
+
+/** The book just added on its own: its player turns the cover over to offer a ReadAlong once, even if it was opened before. */
+object NewBookOffer {
+    @Volatile var bookId: String? = null
+    fun take(id: String): Boolean = (bookId == id).also { if (it) bookId = null }
+}
 
 private val EpubTypes = arrayOf("application/epub+zip", "application/octet-stream")
 
@@ -61,7 +72,10 @@ internal fun NoTextYet(book: Book, reading: ReadingViewModel, onNotNow: () -> Un
 /** Where the text comes from: the matching EPUB (exact text) or the audio itself. */
 @Composable
 private fun MakeReadAlongSheet(reading: ReadingViewModel, onDismiss: () -> Unit) {
-    val epub by reading.importedEdition.collectAsStateWithLifecycle()
+    val imported by reading.importedEdition.collectAsStateWithLifecycle()
+    // An EPUB found beside the audio counts as the matching ebook; it's imported when it's used.
+    val folderEpub by reading.folderEpub.collectAsStateWithLifecycle(false)
+    val epub = imported ?: if (folderEpub) Unit else null
     val busy by reading.importBusy.collectAsStateWithLifecycle()
     val picker = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         if (uri != null) { reading.createWithSource(true, uri) {}; onDismiss() }
@@ -118,15 +132,44 @@ internal fun ReadAlongStatusPill(book: Book, job: ProcessingJobEntity?, estimate
         onRetry = { stoppedChoices = false; reading.prepareReadable() },
         onRebuild = { stoppedChoices = false; reading.rebuildTranscription() },
         onDismiss = { stoppedChoices = false })
-    // It shows in full, then folds smoothly into just its progress ring; tapping the ring opens it again
-    // (and it folds away again after a few seconds). Tapping the open pill does what it says.
-    var open by remember(book.id, job?.state) { mutableStateOf(true) }
-    LaunchedEffect(open) { if (open) { kotlinx.coroutines.delay(3_500); open = false } }
-    Surface(modifier.testTag("readalong_status"), shape = RoundedCornerShape(50), color = Color.Black.copy(alpha = .62f), contentColor = Color.White) {
-        Row(Modifier.clickable(onClickLabel = if (open) label else "Show ReadAlong progress", onClick = { if (open) tap() else open = true })
+    // Swiping the pill to the left folds it into just its progress ring; tapping the ring opens it again.
+    // Which way it was left is kept for the book. Tapping the open pill does what it says.
+    val hidden by reading.preparationHidden.collectAsStateWithLifecycle()
+    val open = !hidden
+    // Something that needs a tap (the speech model, or a stop) opens it again.
+    LaunchedEffect(job?.state) { if (job?.state in listOf("FAILED", "WAITING_MODEL")) reading.hidePreparation(false) }
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val foldDistance = with(density) { 48.dp.toPx() }
+    val drag = remember { androidx.compose.animation.core.Animatable(0f) }
+    val scope = rememberCoroutineScope()
+    Surface(modifier.testTag("readalong_status").graphicsLayer {
+            translationX = drag.value
+            alpha = 1f - (-drag.value / (foldDistance * 3f)).coerceIn(0f, .35f)
+        }, shape = RoundedCornerShape(50), color = Color.Black.copy(alpha = .62f), contentColor = Color.White) {
+        Row(Modifier
+            .pointerInput(open) {
+                if (!open) return@pointerInput
+                var offset = 0f
+                detectHorizontalDragGestures(
+                    onDragStart = { offset = drag.value },
+                    onDragEnd = {
+                        if (offset < -foldDistance) reading.hidePreparation(true)
+                        scope.launch { drag.animateTo(0f, androidx.compose.animation.core.spring(dampingRatio = .8f, stiffness = 500f)) }
+                    },
+                    onDragCancel = { scope.launch { drag.animateTo(0f) } }) { change, amount ->
+                    change.consume()
+                    // Follows the finger to the left; to the right it barely gives.
+                    offset = (offset + amount * if (offset + amount > 0f) .15f else 1f).coerceIn(-foldDistance * 2.5f, foldDistance * .3f)
+                    scope.launch { drag.snapTo(offset) }
+                }
+            }
+            .clickable(onClickLabel = if (open) label else "Show ReadAlong progress", onClick = { if (open) tap() else reading.hidePreparation(false) })
             .animateContentSize(androidx.compose.animation.core.spring(dampingRatio = .9f, stiffness = 380f))
             .padding(horizontal = if (open) 14.dp else 10.dp, vertical = if (open) 8.dp else 10.dp)
-            .semantics { contentDescription = label },
+            .semantics {
+                contentDescription = label
+                if (open) customActions = listOf(androidx.compose.ui.semantics.CustomAccessibilityAction("Minimize") { reading.hidePreparation(true); true })
+            },
             verticalAlignment = Alignment.CenterVertically) {
             if (active && !waitingForCharging) CircularProgressIndicator(progress = { percent / 100f }, modifier = Modifier.size(if (open) 16.dp else 20.dp), strokeWidth = 2.dp,
                 color = Color.White, trackColor = Color.White.copy(alpha = .25f))

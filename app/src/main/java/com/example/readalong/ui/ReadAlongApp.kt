@@ -57,6 +57,7 @@ fun ReadAlongApp(libraryViewModel: LibraryViewModel, app: com.example.readalong.
             controller.isAppearanceLightNavigationBars = light
         }
     }
+    if (showPrompts) com.example.readalong.ui.about.SupportPrompt(app)
     val actions: com.example.readalong.ui.library.BookActionsViewModel = viewModel(factory = com.example.readalong.ui.library.BookActionsViewModel.factory(app))
     val actionError by actions.error.collectAsStateWithLifecycle()
     val pendingImports by importModel.priority.collectAsStateWithLifecycle()
@@ -73,6 +74,8 @@ fun ReadAlongApp(libraryViewModel: LibraryViewModel, app: com.example.readalong.
     val guideEligible = normalPrompts && !importPromptPending && batteryPromptAnswered != null && !backgroundPromptPending
     if (normalPrompts) com.example.readalong.ui.importing.ImportPriorityPrompt(importModel)
     if (normalPrompts && !importPromptPending) com.example.readalong.ui.transcription.BackgroundPreparationPrompt(app)
+    // A newer GitHub release, offered only when nothing else is asking (the Play edition has none).
+    if (guideEligible) com.example.readalong.ui.about.UpdatePrompt()
     val speechSetup: com.example.readalong.ui.transcription.ModelViewModel = viewModel(factory = com.example.readalong.ui.transcription.ModelViewModel.factory(app, app.speechModel, app.processing))
     val setupScope = androidx.compose.runtime.rememberCoroutineScope()
     // The book whose player the mini-player transform is opening or closing (outlives the library screen).
@@ -97,6 +100,15 @@ fun ReadAlongApp(libraryViewModel: LibraryViewModel, app: com.example.readalong.
             androidx.compose.runtime.CompositionLocalProvider(com.example.readalong.ui.components.LocalNavVisibilityScope provides this) {
             // Ignore callbacks from outgoing destinations after their entry has been popped.
             fun open(route: String) { if (navController.currentBackStackEntry?.id == libraryEntry.id) navController.navigate(route) { launchSingleTop = true } }
+            // One book was just added: open its player, where the cover turns over to offer a ReadAlong.
+            val addedBook by importModel.openBook.collectAsStateWithLifecycle()
+            androidx.compose.runtime.LaunchedEffect(addedBook, route) {
+                val id = addedBook ?: return@LaunchedEffect
+                if (navController.currentBackStackEntry?.id == libraryEntry.id) {
+                    importModel.openedBook()
+                    navController.navigate("book/${Uri.encode(id)}") { launchSingleTop = true }
+                }
+            }
             val jobs by app.processing.queue.collectAsStateWithLifecycle(emptyList())
             androidx.lifecycle.compose.LifecycleEventEffect(androidx.lifecycle.Lifecycle.Event.ON_RESUME) { importModel.refreshLibrary() }
             val state by libraryViewModel.state.collectAsStateWithLifecycle()
