@@ -37,6 +37,7 @@ const val SCAN_INCOMPLETE = "Scan incomplete. Rescan to continue."
 
 class AudioImporter(private val context: Context, private val database: ReadAlongDatabase, private val onEpubFound: suspend (String, Uri) -> Unit = { _, _ -> }, private val onImported: suspend (String) -> Unit = {}, private val onTranscriptFound: suspend (String, Uri) -> Unit = { _, _ -> },
     private val onProgressFound: suspend (String, FolderProgressLocation) -> Unit = { _, _ -> }) {
+    private val folderFiles = BookFolderFiles(context, database)
     private val resolver = context.contentResolver
     private val media = database.mediaDao()
     private val books = database.bookDao()
@@ -151,12 +152,24 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
                 try {
                     val (id, isNew) = importGroup(found.audio, group.key, uri.toString(), group.name, explicit, coverImage(found.images)?.uri) ?: run { deleted++; return@forEach }
                     ids += id; if (isNew) added += id
+                    // Companion files share a base name: the book's folder, or a single-file book's own name.
+                    val base = (if (group.key.startsWith("file:")) group.name else group.home?.name ?: group.name).orEmpty().ifBlank { "Audiobook" }
                     val epubs = found.epubs
-                    val selected = if (epubs.size == 1) epubs.single() else epubs.singleOrNull { it.name?.substringBeforeLast('.')?.equals(group.name, true) == true }
+                    // The companion "<book>.epub" (saved by either app when an EPUB is chosen) wins over others.
+                    val selected = epubs.firstOrNull { it.name.equals(base + BookFolderFiles.EPUB, true) }
+                        ?: if (epubs.size == 1) epubs.single() else epubs.singleOrNull { it.name?.substringBeforeLast('.')?.equals(group.name, true) == true }
                     if (selected != null) {
+                        val hasEdition = database.importedEpubDao().find(id) != null
+                        val replaced = selected.name.equals(base + BookFolderFiles.EPUB, true) && folderFiles.epubChanged(id, selected.uri, hasEdition, books.metadata("folder_epub:$id"))
                         books.putMetadata(LibraryMetadataEntity("folder_epub:$id", selected.uri.toString()))
                         // A bad EPUB never rejects playable audio. Keep it discoverable for a retry.
-                        if (database.importedEpubDao().find(id) == null) try { onEpubFound(id, selected.uri) }
+                        if (!hasEdition || replaced) try { onEpubFound(id, selected.uri) }
+                        catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                        catch (_: Exception) { }
+                    }
+                    // A cover chosen on the computer (or another phone) arrives as "<book>.cover.jpg".
+                    found.images.firstOrNull { it.name.equals(base + BookFolderFiles.COVER, true) }?.let { cover ->
+                        try { folderFiles.coverFound(id, cover.uri) }
                         catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
                         catch (_: Exception) { }
                     }
@@ -177,7 +190,7 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
                     if (found.transcripts.isNotEmpty() && books.metadata("folder_transcript_error:$id") != null) transcriptFailures++
                     // Listening progress from ReadAlong for Windows (or another phone) beside the book; never fails the scan.
                     group.home?.let { home ->
-                        val name = (if (group.key.startsWith("file:")) group.name else home.name ?: group.name).orEmpty().ifBlank { "Audiobook" } + FolderProgress.EXTENSION
+                        val name = base + FolderProgress.EXTENSION
                         try { onProgressFound(id, FolderProgressLocation(home.uri.toString(), name, found.progress.firstOrNull { it.name.equals(name, true) }?.uri?.toString())) }
                         catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
                         catch (_: Exception) { }
@@ -403,7 +416,8 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
         return audio.map { file ->
             val name = file.name.orEmpty().substringBeforeLast('.')
             val same = { other: DocumentFile -> other.name.orEmpty().substringBeforeLast('.').equals(name, true) }
-            Group("file:${file.uri}", name, Collected(listOf(Source(file.uri, file.name!!)), epubs.filter(same), transcripts.filter(same), progress = progress.filter { it.name.orEmpty().equals(name + FolderProgress.EXTENSION, true) }, images = images.filter(same)), home)
+            Group("file:${file.uri}", name, Collected(listOf(Source(file.uri, file.name!!)), epubs.filter(same), transcripts.filter(same), progress = progress.filter { it.name.orEmpty().equals(name + FolderProgress.EXTENSION, true) },
+                images = images.filter { same(it) || it.name.orEmpty().equals(name + BookFolderFiles.COVER, true) }), home)
         }
     }
     private fun collect(root: DocumentFile, walk: Walk): Collected {

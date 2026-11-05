@@ -13,6 +13,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.example.readalong.domain.link.FolderSyncPlan
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
@@ -68,6 +69,8 @@ fun PhoneLinkCard(app: AppState) {
                         Text(folder, style = MaterialTheme.typography.bodyMedium)
                     }
                 }
+                Spacer(Modifier.height(12.dp))
+                SyncKinds(state.skipped, link::setSkipped)
                 Spacer(Modifier.height(8.dp))
                 PillButton("Link another phone", { link.startPairing() }, filled = false, icon = "ic_add")
             }
@@ -76,7 +79,7 @@ fun PhoneLinkCard(app: AppState) {
 
     val code = pairing
     if (code != null && justLinked == null) PairingDialog(code.encode()) { link.cancelPairing() }
-    justLinked?.let { phone -> FolderPrompt(phone.name, folders) { chosen -> chosen?.let(link::setShared); link.folderPromptAnswered() } }
+    justLinked?.let { phone -> FolderPrompt(phone.name, folders, state.skipped, link::setSkipped) { chosen -> chosen?.let(link::setShared); link.folderPromptAnswered() } }
 }
 
 @Composable
@@ -101,7 +104,7 @@ private fun PairingDialog(code: String, onCancel: () -> Unit) {
 
 /** Asked once a phone has linked. Null means "not now". */
 @Composable
-private fun FolderPrompt(phone: String, folders: List<String>, onAnswer: (List<String>?) -> Unit) {
+private fun FolderPrompt(phone: String, folders: List<String>, skipped: Set<String>, onSkipped: (Set<String>) -> Unit, onAnswer: (List<String>?) -> Unit) {
     var chosen by remember { mutableStateOf(folders.toSet()) }
     AlertDialog(onDismissRequest = { onAnswer(null) }, title = { Text("Sync your audiobook folders?") }, text = {
         Column {
@@ -119,6 +122,8 @@ private fun FolderPrompt(phone: String, folders: List<String>, onAnswer: (List<S
                     }
                 }
             }
+            Spacer(Modifier.height(12.dp))
+            SyncKinds(skipped, onSkipped)
         }
     }, confirmButton = { TextButton({ onAnswer(chosen.toList()) }, enabled = chosen.isNotEmpty() || folders.isEmpty()) { Text(if (folders.isEmpty()) "OK" else "Sync these folders") } },
         dismissButton = { TextButton({ onAnswer(null) }) { Text("Not now") } })
@@ -134,5 +139,21 @@ private fun QrCode(text: String, modifier: Modifier) {
         val cell = size.minDimension / matrix.width
         for (y in 0 until matrix.height) for (x in 0 until matrix.width) if (matrix.get(x, y))
             drawRect(Color.Black, Offset(x * cell, y * cell), Size(cell + 0.5f, cell + 0.5f))
+    }
+}
+
+/** "What to sync": the companion files that travel with the books, all on by default. Audio always syncs. */
+@Composable
+private fun SyncKinds(skipped: Set<String>, onChange: (Set<String>) -> Unit) {
+    Text("What to sync", style = MaterialTheme.typography.labelLarge)
+    Text("Audiobooks always sync. Untick anything you'd rather keep separate on each device.", style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant)
+    listOf(FolderSyncPlan.Kind.TRANSCRIPT to "ReadAlong transcripts", FolderSyncPlan.Kind.PROGRESS to "Listening progress",
+        FolderSyncPlan.Kind.EPUB to "EPUBs", FolderSyncPlan.Kind.COVER to "Cover art").forEach { (kind, label) ->
+        val on = kind.id !in skipped
+        Row(Modifier.fillMaxWidth().clickable { onChange(if (on) skipped + kind.id else skipped - kind.id) }, verticalAlignment = Alignment.CenterVertically) {
+            Checkbox(on, { onChange(if (on) skipped + kind.id else skipped - kind.id) })
+            Text(label, style = MaterialTheme.typography.bodyMedium)
+        }
     }
 }
