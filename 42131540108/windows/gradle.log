@@ -1,0 +1,67 @@
+Starting a Gradle Daemon (subsequent builds will be faster)
+> Task :checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :convertXmlValueResourcesForMain NO-SOURCE
+> Task :copyNonXmlValueResourcesForMain NO-SOURCE
+> Task :prepareComposeResourcesTaskForMain NO-SOURCE
+> Task :generateResourceAccessorsForMain SKIPPED
+> Task :generateActualResourceCollectorsForMain SKIPPED
+> Task :generateComposeResClass SKIPPED
+> Task :sharedSources
+> Task :assembleMainResources
+> Task :sharedResources
+> Task :processResources
+> Task :convertXmlValueResourcesForTest NO-SOURCE
+> Task :copyNonXmlValueResourcesForTest NO-SOURCE
+> Task :prepareComposeResourcesTaskForTest NO-SOURCE
+> Task :generateResourceAccessorsForTest SKIPPED
+> Task :assembleTestResources
+> Task :processTestResources
+> Task :compileKotlin
+w: file:///D:/a/ReadAlong/ReadAlong/desktop-app/build/shared/com/example/readalong/audible/AudibleDownloader.kt:56:26 'constructor(p0: String!): URL' is deprecated. Deprecated in Java.
+w: file:///D:/a/ReadAlong/ReadAlong/desktop-app/build/shared/com/example/readalong/audible/AudibleHttp.kt:23:26 'constructor(p0: String!): URL' is deprecated. Deprecated in Java.
+w: file:///D:/a/ReadAlong/ReadAlong/desktop-app/build/shared/com/example/readalong/audible/AudibleHttp.kt:39:88 Condition is always 'true'.
+w: file:///D:/a/ReadAlong/ReadAlong/desktop-app/build/shared/com/example/readalong/domain/update/AppUpdate.kt:93:27 'constructor(p0: String!): URL' is deprecated. Deprecated in Java.
+w: file:///D:/a/ReadAlong/ReadAlong/desktop-app/src/main/kotlin/com/example/readalong/desktop/Main.kt:35:44 'fun painterResource(resourcePath: String): Painter' is deprecated. Migrate to the Compose resources library. See https://www.jetbrains.com/help/kotlin-multiplatform-dev/compose-images-resources.html If you need to load resources specificly from Java classpath, you should still use the new resource library and use a snippet from https://github.com/JetBrains/compose-multiplatform-core/pull/1457.
+w: file:///D:/a/ReadAlong/ReadAlong/desktop-app/src/main/kotlin/com/example/readalong/desktop/ui/AudibleScreen.kt:113:37 'val LocalClipboardManager: ProvidableCompositionLocal<ClipboardManager>' is deprecated. Use LocalClipboard instead which supports suspend functions.
+w: file:///D:/a/ReadAlong/ReadAlong/desktop-app/src/main/kotlin/com/example/readalong/desktop/ui/MiniPlayer.kt:157:56 'val Icons.Rounded.VolumeOff: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.VolumeOff.
+w: file:///D:/a/ReadAlong/ReadAlong/desktop-app/src/main/kotlin/com/example/readalong/desktop/ui/MiniPlayer.kt:157:85 'val Icons.Rounded.VolumeUp: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.VolumeUp.
+w: file:///D:/a/ReadAlong/ReadAlong/desktop-app/src/main/kotlin/com/example/readalong/desktop/ui/PlayerScreen.kt:244:21 'fun TabRow(selectedTabIndex: Int, modifier: Modifier = ..., containerColor: Color = ..., contentColor: Color = ..., indicator: @Composable() ComposableFunction1<@ParameterName(...) List<TabPosition>, Unit> = ..., divider: @Composable() ComposableFunction0<Unit> = ..., tabs: @Composable() ComposableFunction0<Unit>): Unit' is deprecated. Replaced with PrimaryTabRow and SecondaryTabRow.
+
+> Task :checkRuntime
+> Task :compileJava NO-SOURCE
+> Task :classes
+> Task :jar
+> Task :compileTestKotlin
+> Task :createRuntimeImage
+> Task :compileTestJava NO-SOURCE
+> Task :testClasses
+
+> Task :test
+
+CompanionSyncTest > editedTitlesAndAuthorsSyncBothWays() FAILED
+    org.opentest4j.AssertionFailedError at CompanionSyncTest.kt:171
+
+39 tests completed, 1 failed
+
+> Task :test FAILED
+gradle/actions: Writing build results to D:\a\_temp\.gradle-actions\build-results\__run_2-1793922521068.json
+
+[Incubating] Problems report is available at: file:///D:/a/ReadAlong/ReadAlong/desktop-app/build/reports/problems/problems-report.html
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':test'.
+> There were failing tests. See the report at: file:///D:/a/ReadAlong/ReadAlong/desktop-app/build/reports/tests/test/index.html
+
+* Try:
+> Run with --scan to get full insights from a Build Scan (powered by Develocity).
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/9.6.0/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD FAILED in 1m 24s
+12 actionable tasks: 12 executed
