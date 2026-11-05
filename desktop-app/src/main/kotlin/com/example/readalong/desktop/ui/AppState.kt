@@ -39,6 +39,8 @@ class AppState(val scope: CoroutineScope, private val background: Boolean = true
     val progress = ProgressSync(library)
     /** Signing in to Audible and importing its books (the engine is shared with the phone's GitHub build). */
     val audible = AudibleService(scope, importer, transcription)
+    /** The daily look for a newer release on GitHub. */
+    val updates = UpdateService(scope, settingsStore)
 
     var screen by mutableStateOf<Screen>(Screen.Library)
         private set
@@ -71,7 +73,7 @@ class AppState(val scope: CoroutineScope, private val background: Boolean = true
         }
     }
 
-    init { if (background) link.start() }
+    init { if (background) { link.start(); updates.checkIfDue() } }
 
     /** Picks up positions from the phone; run when the window comes to the front. */
     fun syncProgress() { if (background) scope.launch(Dispatchers.IO) { syncProgressNow() } }

@@ -53,6 +53,9 @@ fun PhoneLinkCard(app: AppState) {
                             Text(device.name, style = MaterialTheme.typography.titleSmall)
                             Text(device.lastSeen?.let { "Last synced ${DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(it))}" } ?: "Linked, not synced yet",
                                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            com.example.readalong.desktop.core.versionNote(device.appVersion, System.getProperty("readalong.version"))?.let {
+                                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
                         }
                         TextButton({ link.unlink(device.id) }) { Text("Unlink") }
                     }
@@ -136,3 +139,4 @@ private fun QrCode(text: String, modifier: Modifier) {
             drawRect(Color.Black, Offset(x * cell, y * cell), Size(cell + 0.5f, cell + 0.5f))
     }
 }
+
