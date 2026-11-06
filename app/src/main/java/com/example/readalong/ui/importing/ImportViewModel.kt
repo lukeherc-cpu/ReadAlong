@@ -112,6 +112,11 @@ class ImportViewModel(private val importer: AudioImporter, private val epubs: co
         else previewFolder(uri, "folders")
     }
     fun remove(folder: FolderEntity) = action { importer.removeFolder(folder); "Folder removed from your library." }
+    /** How far the folder scan under way has got, once its books are counted. */
+    val scanProgress = importer.scanProgress
+    private val mutableSynced = kotlinx.coroutines.flow.MutableSharedFlow<String>(extraBufferCapacity = 1)
+    /** What a background rescan brought in, e.g. Synced “Audiobooks” · 2 new · 1 ReadAlong; nothing when it changed nothing. */
+    val synced = mutableSynced.asSharedFlow()
     private val mutableScanningFolder = MutableStateFlow<String?>(null)
     val scanningFolder = mutableScanningFolder.asStateFlow()
     private var autoScan: kotlinx.coroutines.Job? = null
@@ -119,7 +124,7 @@ class ImportViewModel(private val importer: AudioImporter, private val epubs: co
         if (autoScan?.isActive == true) return
         autoScan = viewModelScope.launch {
             while (busy.value) kotlinx.coroutines.delay(150)
-            try { importer.rescanSavedFolders { mutableScanningFolder.value = it?.name } }
+            try { syncedNote(importer.rescanSavedFolders { mutableScanningFolder.value = it?.name })?.let { mutableSynced.tryEmit(it) } }
             finally { mutableScanningFolder.value = null }
         }
     }
@@ -153,3 +158,17 @@ class ImportViewModel(private val importer: AudioImporter, private val epubs: co
 }
 
 data class ImportPriorityBook(val id: String, val title: String, val durationMs: Long? = null, val folderEpub: Boolean = false)
+
+/**
+ * The note a background rescan leaves when it brought something in: Synced “Audiobooks” · 2 new · 1 ReadAlong
+ * (no name when several folders brought something). Null when nothing changed.
+ */
+internal fun syncedNote(results: List<Pair<FolderEntity, com.example.readalong.data.importing.ImportResult>>): String? {
+    val changed = results.filter { (_, result) -> result.newBookIds.isNotEmpty() || result.transcriptsTaken > 0 }
+    if (changed.isEmpty()) return null
+    val added = changed.sumOf { it.second.newBookIds.distinct().size }
+    val readAlongs = changed.sumOf { it.second.transcriptsTaken }
+    val parts = listOfNotNull(added.takeIf { it > 0 }?.let { "$it new" }, readAlongs.takeIf { it > 0 }?.let { if (it == 1) "1 ReadAlong" else "$it ReadAlongs" })
+    val title = changed.singleOrNull()?.let { "Synced “${it.first.name}”" } ?: "Synced"
+    return (listOf(title) + parts).joinToString(" · ")
+}

@@ -37,6 +37,9 @@ fun LibraryScreen(
     state: LibraryUiState,
     scanningFolder: String? = null,
     readingFolder: Boolean = false,
+    /** How far the folder scan under way has got, once its books are counted. */
+    scanProgress: com.example.readalong.data.importing.ScanProgress? = null,
+    snackbar: SnackbarHostState? = null,
     selectedBookId: String? = null,
     transcribing: Boolean = false,
     onQueue: () -> Unit = {},
@@ -56,6 +59,13 @@ fun LibraryScreen(
     var sortMenu by remember { mutableStateOf(false) }
     val sort = LibrarySort.valueOf(sortName)
     val settings = com.example.readalong.ui.theme.LocalAppSettings.current
+    // A background rescan shows its progress only once it has taken a second, so quick ones stay quiet.
+    var slowSync by remember { mutableStateOf(false) }
+    LaunchedEffect(scanningFolder != null) {
+        slowSync = false
+        if (scanningFolder != null) { kotlinx.coroutines.delay(1_000); slowSync = true }
+    }
+    val syncProgress = scanProgress?.takeIf { scanningFolder != null && slowSync && !readingFolder }
     val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as? com.example.readalong.ReadAlongApplication
     val scope = rememberCoroutineScope()
     val width = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp
@@ -64,6 +74,8 @@ fun LibraryScreen(
     Scaffold(
         topBar = {
             Surface(color = MaterialTheme.colorScheme.background) {
+                // The sync bar is drawn over the header's bottom edge, so the header never changes height.
+                Box {
                 Column(
                     Modifier.fillMaxWidth()
                         .windowInsetsPadding(ScaffoldDefaults.contentWindowInsets.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
@@ -77,7 +89,7 @@ fun LibraryScreen(
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = onAbout) { Icon(painterResource(R.drawable.ic_settings), "Settings") }
                         IconButton(onClick = onFolders) { Icon(painterResource(R.drawable.ic_bookshelf), "Audiobook folders") }
-                        Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { com.example.readalong.ui.launch.LibraryLogo(scanningFolder, transcribing, settings.animateTranscriptionLogo, readingFolder = readingFolder, onClick = onQueue) }
+                        Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { com.example.readalong.ui.launch.LibraryLogo(scanningFolder, transcribing, settings.animateTranscriptionLogo, readingFolder = readingFolder, onClick = onQueue, syncCount = syncProgress?.count()) }
                         IconButton(onClick = { searchVisible = !searchVisible; if (!searchVisible) query = "" },
                             modifier = Modifier.onGloballyPositioned { val b = it.boundsInRoot(); iconCenter = b.center }) { Icon(painterResource(R.drawable.ic_search), "Search library") }
                         importControls()
@@ -90,9 +102,12 @@ fun LibraryScreen(
                         modifier = Modifier.fillMaxWidth().onGloballyPositioned { barOrigin = it.positionInRoot() },
                         placeholder = stringResource(R.string.search_books), testTag = "library_search", topGap = 16.dp)
                 }
+                syncProgress?.let { SyncBar(it, Modifier.align(Alignment.BottomCenter)) }
+                }
             }
         },
         bottomBar = miniPlayer,
+        snackbarHost = { snackbar?.let { SnackbarHost(it) } },
     ) { insets ->
         val libraryGrid = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
         LazyVerticalGrid(

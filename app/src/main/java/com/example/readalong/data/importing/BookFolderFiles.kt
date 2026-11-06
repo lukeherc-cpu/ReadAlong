@@ -57,8 +57,9 @@ class BookFolderFiles(private val context: Context, private val database: ReadAl
      * already the book's EPUB before this phone kept track ([previous], the EPUB the last scan used) is only
      * recorded, so an upgrade never redoes matching.
      */
-    suspend fun epubChanged(bookId: String, epub: Uri, hasEdition: Boolean, previous: String?): Boolean = withContext(Dispatchers.IO) {
-        val seen = signature(epub) ?: return@withContext false
+    /** [known]: the EPUB's "size:modified" when the caller already listed it, which saves asking the provider again. */
+    suspend fun epubChanged(bookId: String, epub: Uri, hasEdition: Boolean, previous: String?, known: String? = null): Boolean = withContext(Dispatchers.IO) {
+        val seen = known ?: signature(epub) ?: return@withContext false
         val last = dao.metadata(EPUB_SEEN + bookId)
         if (last == seen) return@withContext false
         dao.putMetadata(LibraryMetadataEntity(EPUB_SEEN + bookId, seen))

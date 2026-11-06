@@ -62,6 +62,10 @@ fun ImportControls(model: ImportViewModel, onFolders: () -> Unit, onBook: (Strin
 fun ImportStatus(model: ImportViewModel) {
     val busy by model.busy.collectAsStateWithLifecycle()
     val message by model.message.collectAsStateWithLifecycle()
+    val reading by model.readingFolder.collectAsStateWithLifecycle()
+    val progress by model.scanProgress.collectAsStateWithLifecycle()
+    // A newly added library folder: only Reading “…” with its count and bar, once its books are counted.
+    if (reading) { progress?.let { com.example.readalong.ui.library.ReadingFolderLine(it) }; return }
     if (busy || message != null) Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
         message?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
