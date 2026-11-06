@@ -238,7 +238,10 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
         val parentUri = DocumentsContract.buildDocumentUriUsingTree(tree, parent)
         val temporary = DocumentsContract.createDocument(resolver, parentUri, "application/octet-stream", ".$name.readalong-sync") ?: throw IOException("Couldn't write $name.")
         try {
-            val received = resolver.openOutputStream(temporary, "w")?.use { output -> client.get(pair.remoteId, path, output.buffered(256 * 1024), progress) } ?: throw IOException("Couldn't write $name.")
+            // Closing the buffered stream flushes it: without that, the last part of every file never reached the phone.
+            val received = resolver.openOutputStream(temporary, "w")?.buffered(256 * 1024)?.use { output -> client.get(pair.remoteId, path, output, progress) } ?: throw IOException("Couldn't write $name.")
+            // Never put a short copy in place of the real file: the next sync tries again.
+            stat(temporary)?.let { if (it.size != received.size) throw IOException("Only ${it.size} of ${received.size} bytes of $name arrived.") }
             child(tree, parent, name)?.let { (existing, _) -> DocumentsContract.deleteDocument(resolver, DocumentsContract.buildDocumentUriUsingTree(tree, existing)) }
             val final = runCatching { DocumentsContract.renameDocument(resolver, temporary, name) }.getOrNull()
                 ?: copyInto(parentUri, temporary, name)
