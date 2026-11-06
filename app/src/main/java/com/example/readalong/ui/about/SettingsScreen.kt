@@ -42,6 +42,7 @@ fun SettingsScreen(app: ReadAlongApplication, onBack: () -> Unit, onModel: () ->
             IconButton(onClick = onBack) { Icon(painterResource(R.drawable.ic_back), "Back to library") }
             Text("Settings", style = MaterialTheme.typography.headlineMedium)
         }
+        if (!preferences.tipJarInOther) TipJarSection(false) { move -> save { it.copy(tipJarInOther = move) } }
         // Grouped by where a setting shows up, so no group mixes the app's look with the player or the reader.
         SettingsSection("Look") {
             SettingsGroup {
@@ -85,7 +86,6 @@ fun SettingsScreen(app: ReadAlongApplication, onBack: () -> Unit, onModel: () ->
             SettingsGroup {
                 UpdateSettings()
                 SettingsRow("About ReadAlong", onClick = onAbout)
-                TipJarRow()
                 SettingsRow(if (copied) "Crash details copied" else "Copy crash details for support", onClick = { scope.launch {
                     val report = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                         com.example.readalong.data.diagnostics.CrashDiagnostics.read(app) + com.example.readalong.data.diagnostics.CrashDiagnostics.transcriptionFailures(app.database)
@@ -94,6 +94,7 @@ fun SettingsScreen(app: ReadAlongApplication, onBack: () -> Unit, onModel: () ->
                 } })
             }
         }
+        if (preferences.tipJarInOther) TipJarSection(true) { move -> save { it.copy(tipJarInOther = move) } }
     } }
     if (appFont) com.example.readalong.ui.reading.AppFontDialog(preferences.appFont, { appFont = false }) { font -> save { it.copy(appFont = font) }; appFont = false }
     if (appearance) com.example.readalong.ui.reading.ReaderAppearance(reader, { appearance = false }) { value -> scope.launch { app.readerPreferences.save(value) }; appearance = false }
