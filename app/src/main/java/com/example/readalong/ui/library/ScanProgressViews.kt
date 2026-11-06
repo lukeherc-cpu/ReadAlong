@@ -28,7 +28,7 @@ private fun ScanProgress.fraction() = if (total == 0) 0f else done.toFloat() / t
 fun ReadingFolderLine(progress: ScanProgress, modifier: Modifier = Modifier) {
     val fraction by animatedFraction(progress.fraction(), "Folder reading progress")
     val figures = MaterialTheme.typography.bodySmall.copy(fontFeatureSettings = "tnum")
-    Column(modifier.fillMaxWidth().padding(bottom = 16.dp).semantics(mergeDescendants = true) {
+    Column(modifier.fillMaxWidth().semantics(mergeDescendants = true) {
         progressBarRangeInfo = ProgressBarRangeInfo(progress.fraction(), 0f..1f)
         stateDescription = "Reading ${progress.folder}, ${progress.done} of ${progress.total}"
     }) {
