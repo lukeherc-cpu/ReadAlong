@@ -25,12 +25,10 @@ class FolderScanQueriesTest {
         val authority = "com.example.readalong.test.original-books"
         val book = DocumentsContract.buildTreeDocumentUri(authority, "book")
         val library = DocumentsContract.buildTreeDocumentUri(authority, "library")
-        val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
-        automation.adoptShellPermissionIdentity("android.permission.MANAGE_DOCUMENTS")
         try {
-            context.contentResolver.call(book, "grant-original-book", null, null)
-            context.contentResolver.call(book, "show-new-book", "false", null)
-            fun queries() = context.contentResolver.call(book, "query-count", null, null)!!.getInt("count")
+            shellCall("grant-original-book")
+            shellCall("show-new-book", "false")
+            fun queries() = Regex("count=(\\d+)").find(shellCall("query-count"))!!.groupValues[1].toInt()
             val importer = AudioImporter(context, db)
             val added = importer.addFolder(library, FolderMode.LIBRARY, false)
             val id = added.bookIds.single()
@@ -42,6 +40,16 @@ class FolderScanQueriesTest {
             assertEquals(listOf(id), rescan.bookIds)
             // library, book, Disc 1 and Disc 2 listed once each, plus the root's own checks.
             assertTrue("A rescan of 3 folders and 4 files made $count provider queries", count <= 10)
-        } finally { context.contentResolver.call(book, "show-new-book", "false", null); automation.dropShellPermissionIdentity(); db.close() }
+        } finally { db.close() }
+    }
+
+    /**
+     * Calls the test provider as the shell, which holds MANAGE_DOCUMENTS. The app process can't open the
+     * provider itself on API 34 even with the shell's identity adopted; the URI grants it hands out still work.
+     */
+    private fun shellCall(method: String, arg: String? = null): String {
+        val command = "content call --uri content://com.example.readalong.test.original-books --method $method" + (arg?.let { " --arg $it" } ?: "")
+        val output = InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand(command)
+        return android.os.ParcelFileDescriptor.AutoCloseInputStream(output).bufferedReader().readText()
     }
 }
