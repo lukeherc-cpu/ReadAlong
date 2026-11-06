@@ -148,4 +148,30 @@ class CompanionSyncTest {
             assertTrue(store.segments(book).isNotEmpty())
         } finally { store.remove(book.id) }
     }
+
+    /** A title or author edited on either device reaches the other; the newer edit wins. */
+    @Test fun editedTitlesAndAuthorsSyncBothWays() {
+        val (library, book) = bookIn(File(home, "Books/Dune"))
+        val sync = BookInfoSync(library)
+        val file = File(home, "Books/Dune/Dune.readalong-info")
+        // Never edited anywhere: nothing written, nothing changed.
+        assertFalse(sync.sync(book)); assertFalse(file.exists())
+        // Edited here: shared.
+        sync.edit("b1", "Dune (Deluxe)", "Frank Herbert ")
+        assertEquals(BookInfo("Dune (Deluxe)", "Frank Herbert", library.book("b1")!!.editedAt!!), BookInfoFiles.parse(file.readText()))
+        // Edited later on the phone: taken.
+        val later = library.book("b1")!!.editedAt!! + 60_000
+        file.writeText(BookInfoFiles.encode(BookInfo("Dune Messiah", null, later), "Android"))
+        assertTrue(sync.sync(library.book("b1")!!))
+        assertEquals(Triple("Dune Messiah", null, later), library.book("b1")!!.let { Triple(it.title, it.author, it.editedAt) })
+        // An older phone edit doesn't undo a newer one here; this computer's is written back.
+        sync.edit("b1", "Dune", "Herbert")
+        file.writeText(BookInfoFiles.encode(BookInfo("Old", null, 5), "Android"))
+        assertFalse(sync.sync(library.book("b1")!!))
+        assertEquals("Dune", library.book("b1")!!.title)
+        assertEquals("Dune", BookInfoFiles.parse(file.readText())?.title)
+        // The edit survives a restart.
+        assertEquals(library.book("b1")!!.editedAt, LibraryStore.decode(LibraryStore.encode(library.book("b1")!!)).editedAt)
+        assertNull(BookInfoFiles.parse("{\"format\":\"readalong-info\",\"version\":1,\"title\":\" \",\"editedAt\":1}"))
+    }
 }

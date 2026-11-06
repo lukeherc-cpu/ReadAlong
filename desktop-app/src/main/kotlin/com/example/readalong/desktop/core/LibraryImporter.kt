@@ -17,7 +17,8 @@ class LibraryImporter(private val library: LibraryStore, private val transcripts
     private val beforeTranscriptImport: (String) -> Unit = {},
     /** A `.readalong` from the phone is now this book's ReadAlong. */
     private val onTranscriptImported: (String) -> Unit = {},
-    private val onMessage: (String) -> Unit = {}) {
+    private val onMessage: (String) -> Unit = {},
+    private val info: BookInfoSync = BookInfoSync(library)) {
     private val mutableState = MutableStateFlow(ScanState(false, ""))
     val state: StateFlow<ScanState> = mutableState
     private val lock = kotlinx.coroutines.sync.Mutex()
@@ -85,6 +86,8 @@ class LibraryImporter(private val library: LibraryStore, private val transcripts
      * them, which is how a choice made on the phone arrives here.
      */
     private fun adoptCompanions(book: LibraryBook, item: FoundBook) {
+        // A title or author edited on the phone.
+        info.sync(library.book(book.id) ?: book)
         val epubName = book.companionFile("epub").name
         val companionEpub = item.epubs.firstOrNull { it.name.equals(epubName, ignoreCase = true) }
         if (companionEpub != null && companions.epubChanged(library.book(book.id) ?: book, companionEpub))

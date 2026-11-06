@@ -194,6 +194,10 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
                         try { onProgressFound(id, FolderProgressLocation(home.uri.toString(), name, found.progress.firstOrNull { it.name.equals(name, true) }?.uri?.toString())) }
                         catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
                         catch (_: Exception) { }
+                        // A title or author edited on the computer (or edited here and not yet shared).
+                        try { folderFiles.syncInfo(id) }
+                        catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                        catch (_: Exception) { }
                     }
                 }
                 catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
@@ -460,7 +464,7 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
         val IMAGES = setOf("jpg", "jpeg", "png", "webp")
         val COVER_NAME = Regex("(?i)(cover|folder|front)")
         /** Files a scan uses or expects beside audio; they never count as skipped. */
-        val COMPANION = setOf("epub", "readalong", "readalong-progress", "readalong-bookmarks", "jpg", "jpeg", "png", "webp", "gif", "bmp", "txt", "nfo", "cue", "pdf", "json", "xml", "m3u", "m3u8", "nomedia", "ini", "db", "log", "srt", "lrc", "html", "url", "md")
+        val COMPANION = setOf("epub", "readalong", "readalong-progress", "readalong-bookmarks", "readalong-info", "jpg", "jpeg", "png", "webp", "gif", "bmp", "txt", "nfo", "cue", "pdf", "json", "xml", "m3u", "m3u8", "nomedia", "ini", "db", "log", "srt", "lrc", "html", "url", "md")
     }
     private fun supported(name: String) = name.substringAfterLast('.', "").lowercase() in AUDIO
     private fun image(name: String) = name.substringAfterLast('.', "").lowercase() in IMAGES
