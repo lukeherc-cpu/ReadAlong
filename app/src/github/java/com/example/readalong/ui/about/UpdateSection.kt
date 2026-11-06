@@ -100,8 +100,10 @@ fun UpdateSettings() {
         modifier = Modifier.testTag("update_auto")) { enabled = it; PhoneUpdates.setEnabled(context, it) }
     val found = release
     if (status == null && found != null) SettingsRow("Download ${found.version}", onClick = { runCatching { uriHandler.openUri(found.apkUrl ?: found.pageUrl) } })
-    else SettingsRow("Check for updates now", Modifier.testTag("update_check"), enabled = status != "Checking…",
+    // The check's result ("… is the latest version.", errors) goes under the label: as trailing text it took the
+    // whole row and squeezed the label into a one-letter column.
+    else SettingsRow("Check for updates now", Modifier.testTag("update_check"), summary = status, enabled = status != "Checking…",
         onClick = { scope.launch { PhoneUpdates.check(context, manualCheck = true) } }) {
-        ValueText(status ?: "Version ${BuildConfig.VERSION_NAME}"); Chevron()
+        if (status == null) ValueText("Version ${BuildConfig.VERSION_NAME}"); Chevron()
     }
 }
