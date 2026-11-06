@@ -92,6 +92,9 @@ object Covers {
 }
 
 /** A stable colour per title for books without cover art (the phone's placeholderPalette). */
+/** The accent palette while "Use accent color instead of cover colors" is on; null uses each book's colours. */
+val LocalAccentOnly = androidx.compose.runtime.staticCompositionLocalOf<CoverPalette?> { null }
+
 fun placeholderPalette(book: LibraryBook): CoverPalette {
     val hues = listOf(212f, 168f, 24f, 340f, 262f, 42f, 196f, 8f, 140f, 288f)
     return palette(hues[Math.floorMod((book.title.lowercase() + (book.author ?: "")).hashCode(), hues.size)], .40f)
@@ -99,6 +102,8 @@ fun placeholderPalette(book: LibraryBook): CoverPalette {
 
 @Composable
 fun rememberCoverPalette(book: LibraryBook?): CoverPalette {
+    // Settings → "Use accent color instead of cover colors".
+    LocalAccentOnly.current?.let { return it }
     val fallback = remember(book?.id, book?.title) { book?.let(::placeholderPalette) ?: palette(212f, .4f) }
     val path = book?.coverPath
     val revision = Covers.revision
