@@ -138,8 +138,8 @@ fun CloseGlyph(color: Color, description: String? = null) {
 }
 
 /**
- * The library search bar. Opening: a pill the size of the search icon springs out leftwards from under the icon
- * with a small bounce. Closing is one quick move with no bounce: the bar shrinks back towards the icon and fades as it goes.
+ * The library search bar. Opening: a pill the size of the search icon grows out leftwards from under the icon
+ * and eases to rest without overshooting. Closing is one quick move with no bounce: the bar shrinks back towards the icon and fades as it goes.
  * [anchor] is the search icon's centre in this bar's coordinates (null until measured).
  */
 @Composable
@@ -162,7 +162,7 @@ fun SpringSearchBar(visible: Boolean, anchor: androidx.compose.ui.geometry.Offse
                 launch { space.animateTo(1f, tween(420, easing = SearchEasing)) }
                 launch { fade.animateTo(1f, tween(60)) }
                 launch { lift.animateTo(0f, tween(230, easing = SearchEasing)) }
-                launch { stretch.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = .58f, stiffness = 360f)) }
+                launch { stretch.animateTo(1f, tween(360, easing = SearchEasing)) }
                 launch { kotlinx.coroutines.delay(300); text.animateTo(1f, tween(260, easing = SearchEasing)) }
                 launch { kotlinx.coroutines.delay(120); runCatching { focus.requestFocus() } }
             }
