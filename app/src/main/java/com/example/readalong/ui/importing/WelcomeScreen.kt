@@ -42,12 +42,13 @@ import com.example.readalong.data.importing.FolderMode
 import kotlinx.coroutines.delay
 
 /**
- * First launch: how to set up the library (local files or Audible), then that source's page. Each page
- * is centered; the title inks in word by word, like a ReadAlong, and the line under it all at once.
- * [onDone] runs once a folder or file was added, or the person skips.
+ * First launch: how to set up the library (local files, Audible, or ReadAlong on a computer), then that source's
+ * page. Each page is centered; the title inks in word by word, like a ReadAlong, and the line under it all at once.
+ * [onDone] runs once a folder or file was added, or the person skips. [onLinkComputer] ends setup and opens
+ * Settings › Link a computer, where the books on ReadAlong Desktop can be synced to an (empty) phone folder.
  */
 @Composable
-fun WelcomeScreen(model: ImportViewModel, onDone: () -> Unit) {
+fun WelcomeScreen(model: ImportViewModel, onLinkComputer: () -> Unit = {}, onDone: () -> Unit) {
     var step by rememberSaveable { mutableIntStateOf(0) }
     // Import from Audible goes straight to its sign-in, with no page in between.
     var audible by rememberSaveable { mutableStateOf(false) }
@@ -61,7 +62,7 @@ fun WelcomeScreen(model: ImportViewModel, onDone: () -> Unit) {
         }, label = "Welcome step") { shown ->
             Box(Modifier.fillMaxSize().systemBarsPadding()) {
                 when (shown) {
-                    0 -> WelcomeChoose(onLocal = { step = 1 }, onAudible = { audible = true }, onSkip = onDone)
+                    0 -> WelcomeChoose(onLocal = { step = 1 }, onAudible = { audible = true }, onComputer = onLinkComputer, onSkip = onDone)
                     else -> WelcomeLocal(model, onDone, onBack = { step = 0 })
                 }
             }
@@ -133,7 +134,7 @@ private fun SetupChoice(shade: Pair<androidx.compose.ui.graphics.Color, androidx
 }
 
 @Composable
-private fun WelcomeChoose(onLocal: () -> Unit, onAudible: () -> Unit, onSkip: () -> Unit) {
+private fun WelcomeChoose(onLocal: () -> Unit, onAudible: () -> Unit, onComputer: () -> Unit, onSkip: () -> Unit) {
     val shades = sourceShades()
     CenteredPage(onBack = null) {
         WelcomeLogo(112.dp)
@@ -141,6 +142,7 @@ private fun WelcomeChoose(onLocal: () -> Unit, onAudible: () -> Unit, onSkip: ()
         Text("How would you like to set up your library?", style = MaterialTheme.typography.titleMedium, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
         SetupChoice(shades[0], R.drawable.ic_folder, "Local files", "Audiobooks already on this phone", Modifier.testTag("welcome_next"), onLocal)
         SetupChoice(shades[1], R.drawable.ic_headphones, "Import from Audible", "Books you own on Audible", onClick = onAudible)
+        SetupChoice(shades[2], R.drawable.ic_devices, "Sync from your computer", "Books in ReadAlong on your computer", Modifier.testTag("welcome_link_computer"), onComputer)
         TextButton(onClick = onSkip, modifier = Modifier.padding(top = 4.dp).heightIn(min = 44.dp)) { Text("Skip for now") }
     }
 }
@@ -163,7 +165,7 @@ private fun WelcomeLocal(model: ImportViewModel, onDone: () -> Unit, onBack: () 
     CenteredPage(onBack) {
         WelcomeLogo()
         Text("Add your audiobooks", style = MaterialTheme.typography.headlineSmall, textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.semantics { heading() })
-        Text("Pick a folder. It can hold one book or your whole library. ReadAlong works out which and shows you before adding.",
+        Text("Pick a folder. It can hold one book or your whole library, or be empty for books you'll sync from your computer. ReadAlong works out which and shows you before adding.",
             style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             modifier = Modifier.widthIn(max = 320.dp).padding(bottom = 12.dp))
         Button(onClick = add, enabled = !busy, modifier = Modifier.fillMaxWidth().heightIn(min = 60.dp).testTag("choose_folder"), shape = RoundedCornerShape(30.dp)) {
@@ -220,6 +222,37 @@ fun AudiobookSourceButtons(model: ImportViewModel, onAdded: () -> Unit = {}, lar
     if (stacked) buttons()
     else Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(if (large) 10.dp else 8.dp)) { buttons() }
     if (audible) com.example.readalong.ui.audible.AudibleImportEntry(onChooseFolder = { audible = false; add() }, onDismiss = { audible = false })
+}
+
+/** In the empty library: the library folders already chosen that hold no books yet (e.g. one waiting for a sync). */
+@Composable
+fun EmptyLibraryFolders(model: ImportViewModel) {
+    val folders by model.folders.collectAsStateWithLifecycle()
+    val folderBooks by model.folderBooks.collectAsStateWithLifecycle()
+    val waiting = folders.filter { it.mode == FolderMode.LIBRARY.name && folderBooks[it.uri].isNullOrEmpty() }
+    if (waiting.isEmpty()) return
+    val names = waiting.joinToString(", ") { "\u201c${it.name}\u201d" }
+    Text("Your library folder $names is empty for now. Add audiobooks to it, or sync them from ReadAlong on your computer.",
+        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 4.dp).testTag("empty_library_folder"))
+}
+
+/**
+ * Opens Settings › Link a computer, to sync books from ReadAlong Desktop. Once linked, it says so instead
+ * (the folders then fill on the next sync).
+ */
+@Composable
+fun SyncFromComputerButton(link: com.example.readalong.data.link.FolderLinkSync, onClick: () -> Unit) {
+    val state by link.store.state.collectAsStateWithLifecycle()
+    val computer = state.computer
+    OutlinedButton(onClick = onClick, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).testTag("sync_from_computer")) {
+        Icon(painterResource(R.drawable.ic_devices), null, Modifier.size(20.dp))
+        Spacer(Modifier.width(10.dp))
+        Text(when {
+            computer == null -> "Sync from your computer"
+            state.pairs.isEmpty() -> "Choose folders to sync with ${computer.name}"
+            else -> "Synced with ${computer.name}"
+        }, style = MaterialTheme.typography.titleMedium)
+    }
 }
 
 @Composable
