@@ -91,6 +91,8 @@ class LinkChannel private constructor(private val input: DataInputStream, privat
         fun peerOps(json: org.json.JSONObject): Set<String> =
             json.optJSONArray("ops")?.let { a -> (0 until a.length()).map { a.optString(it) }.filter { it.isNotBlank() }.toSet() } ?: V1_OPS.toSet()
         private const val CHUNK = 256 * 1024
+        /** How much of a file each frame carries (all but the last of a file are full). */
+        const val FRAME_DATA = CHUNK.toLong()
         private val random = SecureRandom()
 
         fun newKey(): ByteArray = ByteArray(32).also(random::nextBytes)
