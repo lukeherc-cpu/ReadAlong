@@ -24,7 +24,9 @@ class LinkClient private constructor(private val socket: Socket, private val cha
     /** The computer's ReadAlong version; null for ReadAlong Desktop 0.44.1 and earlier, which didn't say. */
     val computerVersion: String? = null,
     /** The requests the computer understands (see [LinkChannel.PROTOCOL]). */
-    val computerOps: Set<String> = LinkChannel.V1_OPS.toSet()) : Closeable {
+    val computerOps: Set<String> = LinkChannel.V1_OPS.toSet(),
+    /** When the computer last had something new for the phone ("Sync to phone", a finished ReadAlong, an edit); 0 from older versions. */
+    val computerChanged: Long = 0) : Closeable {
 
     /** Whether the computer knows [op]; check before sending a request newer than protocol 1. */
     fun supports(op: String) = op in computerOps
@@ -110,7 +112,7 @@ class LinkClient private constructor(private val socket: Socket, private val cha
                         .put("protocol", LinkChannel.PROTOCOL).put("ops", org.json.JSONArray(LinkChannel.OPS)).apply { appVersion?.let { put("app", it) } })
                     val reply = channel.receiveJson()
                     LinkClient(socket, channel, reply.optString("name", "Computer"), reply.getString("device"), host, at,
-                        reply.optString("app").take(40).ifBlank { null }, LinkChannel.peerOps(reply))
+                        reply.optString("app").take(40).ifBlank { null }, LinkChannel.peerOps(reply), reply.optLong("changed", 0))
                 } catch (_: IOException) { runCatching { socket.close() }; null }
             }
             hosts.firstNotNullOfOrNull { attempt(it, port) }?.let { return it }
