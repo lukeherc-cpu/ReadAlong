@@ -50,6 +50,8 @@ class FolderScanQueriesTest {
     private fun shellCall(method: String, arg: String? = null): String {
         val command = "content call --uri content://com.example.readalong.test.original-books --method $method" + (arg?.let { " --arg $it" } ?: "")
         val output = InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand(command)
-        return android.os.ParcelFileDescriptor.AutoCloseInputStream(output).bufferedReader().readText()
+        val text = android.os.ParcelFileDescriptor.AutoCloseInputStream(output).bufferedReader().readText()
+        check("Result:" in text) { "$command: $text" }
+        return text
     }
 }
