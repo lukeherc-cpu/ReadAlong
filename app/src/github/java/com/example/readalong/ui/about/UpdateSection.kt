@@ -87,7 +87,7 @@ private fun UpdateDialog(release: AppRelease) {
     }
 }
 
-/** The Updates rows in Settings. */
+/** The Updates rows in Settings › About. */
 @Composable
 fun UpdateSettings() {
     val context = LocalContext.current
@@ -96,20 +96,12 @@ fun UpdateSettings() {
     val status by PhoneUpdates.manual.collectAsState()
     val release by PhoneUpdates.offer.collectAsState()
     val uriHandler = LocalUriHandler.current
-    Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("Check for updates automatically", style = MaterialTheme.typography.bodyLarge)
-                Text("Once a day, from GitHub. Nothing downloads until you choose to.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Switch(enabled, onCheckedChange = { enabled = it; PhoneUpdates.setEnabled(context, it) }, Modifier.testTag("update_auto"))
-        }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { scope.launch { PhoneUpdates.check(context, manualCheck = true) } }, enabled = status != "Checking…",
-                modifier = Modifier.testTag("update_check")) { Text("Check for updates") }
-            val found = release
-            if (status == null && found != null) TextButton(onClick = { runCatching { uriHandler.openUri(found.apkUrl ?: found.pageUrl) } }) { Text("Download ${found.version}") }
-            else Text(status ?: "Version ${BuildConfig.VERSION_NAME}", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
+    PreferenceSwitch("Check for updates automatically", enabled, summary = "Once a day from GitHub. Nothing downloads until you choose to",
+        modifier = Modifier.testTag("update_auto")) { enabled = it; PhoneUpdates.setEnabled(context, it) }
+    val found = release
+    if (status == null && found != null) SettingsRow("Download ${found.version}", onClick = { runCatching { uriHandler.openUri(found.apkUrl ?: found.pageUrl) } })
+    else SettingsRow("Check for updates now", Modifier.testTag("update_check"), enabled = status != "Checking…",
+        onClick = { scope.launch { PhoneUpdates.check(context, manualCheck = true) } }) {
+        ValueText(status ?: "Version ${BuildConfig.VERSION_NAME}"); Chevron()
     }
 }
