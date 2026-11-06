@@ -20,7 +20,9 @@ import androidx.compose.ui.unit.sp
 import com.example.readalong.R
 
 @Composable
-fun LibraryLogo(scanningFolder: String?, transcribing: Boolean = false, animate: Boolean = true, readingFolder: Boolean = false, onClick: () -> Unit = {}) {
+fun LibraryLogo(scanningFolder: String?, transcribing: Boolean = false, animate: Boolean = true, readingFolder: Boolean = false, onClick: () -> Unit = {},
+    /** "46 / 120" while a background rescan that has taken a while is under way. */
+    syncCount: String? = null) {
     val moving = (scanningFolder != null || transcribing || readingFolder) && animate && ValueAnimator.areAnimatorsEnabled()
     val page = if (moving) {
         val transition = rememberInfiniteTransition(label = "Transcribing pages")
@@ -34,10 +36,10 @@ fun LibraryLogo(scanningFolder: String?, transcribing: Boolean = false, animate:
         syncNote = scanningFolder != null
         if (syncNote) { kotlinx.coroutines.delay(3_000); syncNote = false }
     }
-    val label = if (readingFolder) "Reading folder" else if (transcribing) "Transcribing" else if (syncNote) "Syncing" else null
+    val label = if (readingFolder) "Reading folder" else if (transcribing) "Transcribing" else if (syncCount != null) "Syncing $syncCount" else if (syncNote) "Syncing" else null
     Column(Modifier.widthIn(min = 64.dp).clickable(onClickLabel = "Open the queue", onClick = onClick).semantics(mergeDescendants = true) {
         contentDescription = "ReadAlong queue"
-        stateDescription = if (readingFolder) "Reading folder" else if (transcribing) "Transcribing" else scanningFolder?.let { "Syncing $it" } ?: "Library up to date"
+        stateDescription = if (readingFolder) "Reading folder" else if (transcribing) "Transcribing" else scanningFolder?.let { "Syncing $it" + (syncCount?.let { c -> ", $c" } ?: "") } ?: "Library up to date"
     }, horizontalAlignment = Alignment.CenterHorizontally) {
         PageTurnLogo(page, Modifier.size(52.dp))
         // The label's line is always reserved (sized in sp, so large fonts aren't clipped), so the
@@ -46,7 +48,7 @@ fun LibraryLogo(scanningFolder: String?, transcribing: Boolean = false, animate:
         Box(Modifier.heightIn(min = lineHeight), contentAlignment = Alignment.Center) {
             if (label != null) Text(label, fontSize = 12.sp, lineHeight = 16.sp, maxLines = 1, softWrap = false,
                 color = MaterialTheme.colorScheme.primary,
-                style = androidx.compose.material3.LocalTextStyle.current.copy(platformStyle = androidx.compose.ui.text.PlatformTextStyle(includeFontPadding = true)))
+                style = androidx.compose.material3.LocalTextStyle.current.copy(fontFeatureSettings = "tnum", platformStyle = androidx.compose.ui.text.PlatformTextStyle(includeFontPadding = true)))
         }
     }
 }

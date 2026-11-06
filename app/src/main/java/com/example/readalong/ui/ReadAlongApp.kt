@@ -114,6 +114,15 @@ fun ReadAlongApp(libraryViewModel: LibraryViewModel, app: com.example.readalong.
             val state by libraryViewModel.state.collectAsStateWithLifecycle()
             val scanningFolder by importModel.scanningFolder.collectAsStateWithLifecycle()
             val readingFolder by importModel.readingFolder.collectAsStateWithLifecycle()
+            val scanProgress by importModel.scanProgress.collectAsStateWithLifecycle()
+            val librarySnackbar = androidx.compose.runtime.remember { androidx.compose.material3.SnackbarHostState() }
+            // What a background rescan brought in, above the mini player for about 4 s; nothing when it changed nothing.
+            androidx.compose.runtime.LaunchedEffect(importModel) {
+                importModel.synced.collect { note ->
+                    librarySnackbar.currentSnackbarData?.dismiss()
+                    kotlinx.coroutines.withTimeoutOrNull(4_000) { librarySnackbar.showSnackbar(note, duration = androidx.compose.material3.SnackbarDuration.Indefinite) }
+                }
+            }
             val playbackState by playback.state.collectAsStateWithLifecycle()
             val activeBookFlow = androidx.compose.runtime.remember(playbackState.bookId) {
                 playbackState.bookId?.let(bookRepository::observeBook) ?: kotlinx.coroutines.flow.flowOf(null)
@@ -157,6 +166,8 @@ fun ReadAlongApp(libraryViewModel: LibraryViewModel, app: com.example.readalong.
                 state = state,
                 scanningFolder = scanningFolder,
                 readingFolder = readingFolder,
+                scanProgress = scanProgress,
+                snackbar = librarySnackbar,
                 transcribing = jobs.any { it.state in setOf("QUEUED", "PROCESSING", "PARTIAL_READY", "GENERATING_EPUB") },
                 onQueue = { open("queue") },
                 selectedBookId = playbackState.bookId,
