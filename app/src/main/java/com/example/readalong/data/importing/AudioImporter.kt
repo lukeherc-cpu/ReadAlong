@@ -40,7 +40,7 @@ data class ImportResult(val bookIds: List<String>, val message: String, val newB
     /** ReadAlongs found beside books and taken in by this scan. */
     val transcriptsTaken: Int = 0)
 
-/** A folder scan under way: [done] of the [total] books it found are read. */
+/** A folder scan's real work under way: [done] of the [total] books it has to add or update are finished. */
 data class ScanProgress(val folder: String, val done: Int, val total: Int)
 
 /** Saved on a folder while it is scanned; it stays only if the scan was cut short. */
@@ -56,7 +56,7 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
     private val importLock = kotlinx.coroutines.sync.Mutex()
     val folders = media.observeFolders()
     private val mutableScanProgress = kotlinx.coroutines.flow.MutableStateFlow<ScanProgress?>(null)
-    /** The folder being scanned and how far it has got, once its books are counted; null between scans. */
+    /** How far a scan has got with the books it has to add or update; null between scans and while a scan finds nothing new. */
     val scanProgress: kotlinx.coroutines.flow.StateFlow<ScanProgress?> = mutableScanProgress
     /** Book ids by saved folder uri. */
     val folderBooks = media.observeFolderBooks().map { rows -> rows.groupBy({ it.folderUri }, { it.bookId }) }
@@ -170,12 +170,24 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
             // Each book stands alone: one that can't be read is named in the result, never stops the others.
             groups.filter { it.found.audio.isEmpty() && it.found.skipped.isNotEmpty() }.forEach { walk.problem(it.name, "no audio ReadAlong can play: ${Walk.counts(it.found.skipped)}") }
             val readable = groups.filter { it.found.audio.isNotEmpty() }
-            readable.forEachIndexed { position, group ->
-                mutableScanProgress.value = ScanProgress(saved.name, position, readable.size)
+            // Progress shows only for real work: a book to add (or whose audio changed), or a ReadAlong that
+            // arrived from another device. A routine check that finds everything up to date shows nothing.
+            val known = index.get()
+            val work = readable.filter { group ->
+                val files = group.found.audio.map { known[sourceIdentity(it.uri)] }
+                val bookId = files.firstOrNull()?.bookId
+                val newAudio = bookId == null || files.any { it == null || it.durationMs == null || it.bookId != bookId }
+                val newReadAlong = bookId != null && group.found.transcripts.maxByOrNull { it.lastModified() }
+                    ?.let { "${it.uri}:${it.length()}:${it.lastModified()}" != books.metadata("folder_transcript:$bookId") } == true
+                (newAudio || newReadAlong) && !LibraryExclusions.excluded(books, group.key, group.found.audio.map { it.uri })
+            }.toSet()
+            var worked = 0
+            readable.forEach { group ->
+                if (group in work) mutableScanProgress.value = ScanProgress(saved.name, worked++, work.size)
                 val found = group.found
                 coroutineContext.ensureActive()
                 try {
-                    val (id, isNew) = importGroup(found.audio, group.key, uri.toString(), group.name, explicit, coverImage(found.images)?.uri, index) ?: run { deleted++; return@forEachIndexed }
+                    val (id, isNew) = importGroup(found.audio, group.key, uri.toString(), group.name, explicit, coverImage(found.images)?.uri, index) ?: run { deleted++; return@forEach }
                     ids += id; if (isNew) added += id
                     // Companion files share a base name: the book's folder, or a single-file book's own name.
                     val base = (if (group.key.startsWith("file:")) group.name else group.home?.name ?: group.name).orEmpty().ifBlank { "Audiobook" }
