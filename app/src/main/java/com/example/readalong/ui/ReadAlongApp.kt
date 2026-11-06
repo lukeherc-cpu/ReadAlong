@@ -85,9 +85,16 @@ fun ReadAlongApp(libraryViewModel: LibraryViewModel, app: com.example.readalong.
         // Older setups stopped at the battery step; that now shows before the first ReadAlong instead.
         if (appSettings.setupStage in 1..2) setupStage(3)
     }
+    // "Sync from your computer" on the welcome page ends setup and opens Settings › Link a computer over the library.
+    var openAfterSetup by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf<String?>(null) }
     if (appSettings.setupStage == 0) {
-        com.example.readalong.ui.importing.WelcomeScreen(importModel) { setupStage(3) }
+        com.example.readalong.ui.importing.WelcomeScreen(importModel, onLinkComputer = { openAfterSetup = "link"; setupStage(3) }) { setupStage(3) }
         return
+    }
+    androidx.compose.runtime.LaunchedEffect(openAfterSetup) {
+        val route = openAfterSetup ?: return@LaunchedEffect
+        openAfterSetup = null
+        navController.navigate(route) { launchSingleTop = true }
     }
     androidx.compose.animation.SharedTransitionLayout {
     androidx.compose.runtime.CompositionLocalProvider(com.example.readalong.ui.components.LocalNavSharedScope provides this) {
@@ -172,7 +179,9 @@ fun ReadAlongApp(libraryViewModel: LibraryViewModel, app: com.example.readalong.
                 emptyActions = {
                     // The same choices as the welcome page, then the folder example folded under Help.
                     androidx.compose.foundation.layout.Column(verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
+                        com.example.readalong.ui.importing.EmptyLibraryFolders(importModel)
                         com.example.readalong.ui.importing.AudiobookSourceButtons(importModel, large = true)
+                        com.example.readalong.ui.importing.SyncFromComputerButton(app.folderLink, onClick = { open("link") })
                         com.example.readalong.ui.importing.FolderHelp()
                     }
                 },
