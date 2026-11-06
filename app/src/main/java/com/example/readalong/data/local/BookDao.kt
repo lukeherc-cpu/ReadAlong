@@ -57,6 +57,17 @@ interface BookDao {
     @Query("SELECT * FROM library_metadata WHERE substr(`key`, 1, length(:prefix)) = :prefix")
     suspend fun metadataWithPrefix(prefix: String): List<LibraryMetadataEntity>
 
+    /**
+     * Per book: whether it has an EPUB (one chosen for it, or one found beside the audio) and a finished ReadAlong.
+     * The library folders screen marks its covers with these.
+     */
+    @Query("""SELECT b.id AS bookId,
+        (EXISTS(SELECT 1 FROM imported_epubs e WHERE e.bookId = b.id)
+            OR EXISTS(SELECT 1 FROM library_metadata m WHERE m.`key` = 'folder_epub:' || b.id)) AS epub,
+        EXISTS(SELECT 1 FROM processing_jobs p WHERE p.bookId = b.id AND p.state = 'READY') AS readAlong
+        FROM books b""")
+    fun observeBadges(): kotlinx.coroutines.flow.Flow<List<BookBadges>>
+
     @Query("SELECT value FROM library_metadata WHERE `key` = :key")
     fun observeMetadata(key: String): kotlinx.coroutines.flow.Flow<String?>
 
@@ -69,3 +80,6 @@ interface BookDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertMetadata(metadata: LibraryMetadataEntity)
 }
+
+/** What a book's cover badges on the library folders screen show. */
+data class BookBadges(val bookId: String, val epub: Boolean, val readAlong: Boolean)
