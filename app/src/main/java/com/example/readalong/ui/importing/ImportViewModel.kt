@@ -111,7 +111,11 @@ class ImportViewModel(private val importer: AudioImporter, private val epubs: co
         if (uri.toString() == folder.uri) folder(uri, FolderMode.valueOf(folder.mode), restoreDeleted = false)
         else previewFolder(uri, "folders")
     }
-    fun remove(folder: FolderEntity) = action { importer.removeFolder(folder); "Folder removed from your library." }
+    /** The folder and its books leave the library at once; their clean-up finishes in the background. */
+    fun remove(folder: FolderEntity) {
+        importer.removeFolderInBackground(folder) { showMessage(it.message ?: "That folder couldn't be removed. Please try again.") }
+        showMessage("Folder removed from your library.")
+    }
     /** How far the folder scan under way has got, once its books are counted. */
     val scanProgress = importer.scanProgress
     private val mutableSynced = kotlinx.coroutines.flow.MutableSharedFlow<String>(extraBufferCapacity = 1)
