@@ -39,10 +39,29 @@ fun ReadingFolderLine(progress: ScanProgress, modifier: Modifier = Modifier) {
             Text(progress.count(), style = figures, color = MaterialTheme.colorScheme.primary, maxLines = 1)
         }
         Spacer(Modifier.height(8.dp))
-        LinearProgressIndicator(progress = { fraction }, modifier = Modifier.fillMaxWidth().height(4.dp),
-            color = MaterialTheme.colorScheme.primary, trackColor = MaterialTheme.colorScheme.primary.copy(alpha = .15f),
-            strokeCap = StrokeCap.Round, gapSize = 0.dp, drawStopIndicator = {})
+        FolderProgressBar(fraction)
     }
+}
+
+/**
+ * The folder-reading bar the library and the Library folders page share: 4dp, rounded, primary on a 15%
+ * primary track. [fraction] null (books not counted yet) slides the same bar instead of filling it.
+ */
+@Composable
+fun FolderProgressBar(fraction: Float?, modifier: Modifier = Modifier) {
+    val color = MaterialTheme.colorScheme.primary
+    val track = MaterialTheme.colorScheme.primary.copy(alpha = .15f)
+    val bar = modifier.fillMaxWidth().height(4.dp)
+    if (fraction == null) LinearProgressIndicator(bar, color = color, trackColor = track, strokeCap = StrokeCap.Round, gapSize = 0.dp)
+    else LinearProgressIndicator(progress = { fraction }, modifier = bar, color = color, trackColor = track,
+        strokeCap = StrokeCap.Round, gapSize = 0.dp, drawStopIndicator = {})
+}
+
+/** The animated fraction of [progress] done, or null while there is none, for [FolderProgressBar]. */
+@Composable
+fun animatedScanFraction(progress: ScanProgress?): Float? {
+    val fraction by animatedFraction(progress?.fraction() ?: 0f, "Folder reading progress")
+    return if (progress == null) null else fraction
 }
 
 /** A background rescan that is taking a while: an edge-to-edge 2dp bar under the library header. */
