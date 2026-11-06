@@ -216,76 +216,128 @@ class TranscriptionService(private val scope: CoroutineScope, private val librar
         val laneDevices = arrayOfNulls<Pair<String, Boolean>>(lanes.size)
         val started = System.nanoTime(); var audioDone = 0L
         val audioLeft = plan.drop(done).sumOf { it.endMs - it.startMs }
+        val crashes = CrashPolicy()
         var toldFallback = false
+        val cpuThreads = (Runtime.getRuntime().availableProcessors() - 1).coerceIn(1, 8)
+
+        /** Keeps [result] for plan unit [index] and saves every unit up to the first one still missing, in book order. */
+        suspend fun keep(number: Int, index: Int, result: org.json.JSONObject) = lock.withLock {
+            val unit = plan[index]
+            waiting[index] = result
+            audioDone += unit.endMs - unit.startMs
+            while (true) {
+                val ready = waiting.remove(done) ?: break
+                val saved = plan[done]
+                transcripts.append(book.id, Chunk(saved.file, saved.startMs, saved.endMs, ready), plan.size)
+                done++
+            }
+            unitPercent.remove(number)
+            val elapsedMs = (System.nanoTime() - started) / 1_000_000.0
+            val speed = if (elapsedMs > 0) audioDone / elapsedMs else null
+            mutableJob.update { it?.copy(done = done + waiting.size, unitPercent = unitPercent.values.sum(), speed = speed,
+                etaMs = speed?.takeIf { s -> s > 0 }?.let { s -> ((audioLeft - audioDone).coerceAtLeast(0) / s).toLong() }) }
+        }
+
+        fun onProgress(number: Int, percent: Int) {
+            unitPercent[number] = percent.coerceIn(0, 100)
+            mutableJob.update { it?.copy(unitPercent = unitPercent.values.sum()) }
+        }
+
+        /** Plan unit [index] alone on the CPU, without DTW word times, in its own transcriber. False if that failed too. */
+        suspend fun rescue(number: Int, index: Int): Boolean {
+            val unit = plan[index]
+            var rescuer: TranscriberProcess? = null
+            return try {
+                val fresh = TranscriberProcess.start().also { rescuer = it; processes += it }
+                fresh.load(modelFile, 0, "cpu")
+                fresh.transcribe(File(book.parts[unit.file].path), listOf(unit.startMs to unit.endMs), settings.value.language, cpuThreads, 1,
+                    onProgress = { _, percent -> onProgress(number, percent) }) { _, result, _ -> keep(number, index, result) }
+                true
+            } catch (failure: TranscriberException) {
+                currentCoroutineContext().ensureActive() // Paused or removed: the process was stopped on purpose.
+                if (!failure.processDied && !failure.recognition) throw failure
+                rescuer?.let { saveCrashLog(it, book, model, "cpu, no word alignment", unit, failure) }
+                false
+            } finally { rescuer?.let { r -> r.close(); processes -= r } }
+        }
+
+        /** Last resort for a unit nothing could recognize: it's saved with no words, so the rest of the book carries on. */
+        suspend fun skip(number: Int, index: Int) {
+            keep(number, index, org.json.JSONObject().put("text", "").put("words", JSONArray()))
+            val unit = plan[index]
+            mutableMessages.tryEmit("ReadAlong couldn't transcribe ${(unit.endMs - unit.startMs) / 1000} s of ${book.title} at " +
+                "${clock(book.parts[unit.file].offsetMs + unit.startMs)} and left it out. The rest of the book carries on.")
+        }
 
         suspend fun lane(number: Int, wanted: String, threads: Int) {
-            // A crash on the GPU is often a one-off (a driver hiccup, a timeout on one hard chunk), so the GPU gets
-            // [GPU_RETRIES] fresh starts before this lane moves to the CPU. The next book tries the GPU again.
+            // A failure is retried on the unit it happened on (see CrashPolicy), so one hard chunk neither moves the
+            // book off the GPU nor stops it. The GPU is given up for this book only when many different units fail.
             var preference = wanted
-            var gpuCrashes = 0
             var worker: TranscriberProcess? = null
             try {
                 while (true) {
+                    if (preference != "cpu" && crashes.gpuUnstable) {
+                        worker?.let { w -> w.close(); processes -= w }
+                        worker = null
+                        preference = "cpu"
+                        if (!toldFallback) { toldFallback = true; mutableMessages.tryEmit("The GPU kept failing, so ReadAlong is finishing ${book.title} on the CPU. It's slower, but your progress is kept.") }
+                    }
                     val batch = lock.withLock { pending.removeFirstOrNull() } ?: return
                     var finished = 0
+                    var loaded = worker != null
                     try {
                         val current = worker ?: TranscriberProcess.start().also { fresh ->
                             worker = fresh; processes += fresh
                             mutableDevices.value = fresh.devices
-                            val loaded = fresh.load(modelFile, model.heads, preference)
+                            val device = fresh.load(modelFile, model.heads, preference)
+                            loaded = true
                             lock.withLock {
-                                laneDevices[number] = loaded
+                                laneDevices[number] = device
                                 val running = laneDevices.filterNotNull()
                                 mutableJob.update { it?.copy(phase = "Transcribing", device = running.map { d -> d.first }.distinct().joinToString(" + "), onGpu = running.any { d -> d.second }) }
                             }
                         }
                         val onGpu = laneDevices[number]?.second == true
                         // Beam search on a GPU (accuracy is cheap there) unless aggressive; greedy decoding on a CPU, several times faster.
-                        // After a GPU crash, greedy there too: a driver that resets long-running work (amdgpu's job
-                        // timeout on Linux, Windows' TDR) gets much shorter submissions.
-                        val beams = if (onGpu && gpuCrashes == 0 && !aggressive) 5 else 1
+                        // Greedy too for a unit being tried again, and once the GPU has failed on a few units.
+                        val retrying = batch.size == 1 && crashes.failures(batch.first()) > 0
+                        val beams = if (onGpu && !retrying && !crashes.preferGreedy && !aggressive) 5 else 1
                         val units = batch.map { plan[it] }
-                                                // A GPU lane that moved to the CPU needs the processor threads a CPU run would get.
-                        val lanesThreads = if (preference == wanted) threads else (Runtime.getRuntime().availableProcessors() - 1).coerceIn(1, 8)
-                        current.transcribe(File(book.parts[units.first().file].path), units.map { it.startMs to it.endMs }, settings.value.language, lanesThreads, beams,
-                            onProgress = { _, percent ->
-                                unitPercent[number] = percent.coerceIn(0, 100)
-                                mutableJob.update { it?.copy(unitPercent = unitPercent.values.sum()) }
-                            }) { index, result, _ ->
+                        // A GPU lane that moved to the CPU needs the processor threads a CPU run would get.
+                        val laneThreads = if (preference == wanted) threads else cpuThreads
+                        current.transcribe(File(book.parts[units.first().file].path), units.map { it.startMs to it.endMs }, settings.value.language, laneThreads, beams,
+                            onProgress = { _, percent -> onProgress(number, percent) }) { index, result, _ ->
                             finished = index + 1
-                            lock.withLock {
-                                val unit = plan[batch[index]]
-                                waiting[batch[index]] = result
-                                audioDone += unit.endMs - unit.startMs
-                                while (true) {
-                                    val ready = waiting.remove(done) ?: break
-                                    val saved = plan[done]
-                                    transcripts.append(book.id, Chunk(saved.file, saved.startMs, saved.endMs, ready), plan.size)
-                                    done++
-                                }
-                                unitPercent.remove(number)
-                                val elapsedMs = (System.nanoTime() - started) / 1_000_000.0
-                                val speed = if (elapsedMs > 0) audioDone / elapsedMs else null
-                                mutableJob.update { it?.copy(done = done + waiting.size, unitPercent = unitPercent.values.sum(), speed = speed,
-                                    etaMs = speed?.takeIf { s -> s > 0 }?.let { s -> ((audioLeft - audioDone).coerceAtLeast(0) / s).toLong() }) }
-                            }
+                            keep(number, batch[index], result)
                         }
                     } catch (failure: TranscriberException) {
-                        // Hand back what this lane hadn't finished, at the front so it's saved in order.
-                        lock.withLock { if (finished < batch.size) pending.addFirst(batch.drop(finished)) }
+                        currentCoroutineContext().ensureActive() // Paused or removed: the process was stopped on purpose.
+                        val onGpu = laneDevices[number]?.second == true && preference != "cpu"
                         unitPercent.remove(number)
-                        worker?.let { w -> if (failure.processDied) saveCrashLog(w, book, model, preference); w.kill(); processes -= w }
-                        worker = null
-                        if (preference != "cpu" && failure.processDied) {
-                            // A driver fault, a GPU timeout or running out of graphics memory: start again where it stopped.
-                            gpuCrashes++
-                            if (gpuCrashes > GPU_RETRIES) {
-                                preference = "cpu"
-                                if (!toldFallback) { toldFallback = true; mutableMessages.tryEmit("The GPU stopped responding again, so ReadAlong is finishing ${book.title} on the CPU. It's slower, but your progress is kept.") }
-                            }
-                            continue
+                        val rest = batch.drop(finished)
+                        val unitFailed = (failure.processDied || failure.recognition) && loaded
+                        worker?.let { w ->
+                            if (failure.processDied || failure.recognition) saveCrashLog(w, book, model, preference, rest.firstOrNull()?.takeIf { unitFailed }?.let { plan[it] }, failure)
+                            w.kill(); processes -= w
                         }
-                        throw failure
+                        worker = null
+                        // Every unit was already saved (it stopped while finishing the file): nothing to redo.
+                        if (rest.isEmpty() && failure.processDied) continue
+                        if (!unitFailed) {
+                            // Hand back what this lane hadn't finished, at the front so it's saved in order.
+                            lock.withLock { pending.addFirst(rest) }
+                            // Died while loading the model on the GPU: try again, and after a couple of times on the CPU.
+                            if (failure.processDied && preference != "cpu") { crashes.gpuStartFailed(); continue }
+                            throw failure
+                        }
+                        // The unit being recognized failed: it's tried again on its own; the units after it go back in the queue.
+                        val index = rest.first()
+                        lock.withLock { if (rest.size > 1) pending.addFirst(rest.drop(1)) }
+                        when (crashes.failed(index, onGpu)) {
+                            CrashPolicy.Action.RETRY -> lock.withLock { pending.addFirst(listOf(index)) }
+                            CrashPolicy.Action.RESCUE -> if (!rescue(number, index)) skip(number, index)
+                            CrashPolicy.Action.SKIP -> skip(number, index)
+                        }
                     }
                 }
             } finally { worker?.let { w -> w.close(); processes -= w } }
@@ -321,10 +373,12 @@ class TranscriptionService(private val scope: CoroutineScope, private val librar
     }
 
     /** The transcriber's last log lines when it died, for working out why (the GPU driver, memory, a bad file). */
-    private fun saveCrashLog(worker: TranscriberProcess, book: LibraryBook, model: SpeechModel, preference: String) = runCatching {
+    private fun saveCrashLog(worker: TranscriberProcess, book: LibraryBook, model: SpeechModel, preference: String, unit: PlanUnit?,
+        failure: TranscriberException) = runCatching {
         val log = File(AppPaths.data, "transcriber-crash.log")
         val entry = buildString {
             appendLine("== ${java.time.LocalDateTime.now()} · ${book.title} · ${model.id} · device $preference · ${AppPaths.platformName}")
+            appendLine(failure.message + (unit?.let { " · file ${it.file + 1}, ${clock(it.startMs)}–${clock(it.endMs)}" } ?: ""))
             worker.devices.forEach { appendLine("device: ${it.type} ${it.label} ${it.memoryTotal / (1 shl 20)} MB") }
             worker.drainLog().forEach { appendLine(it) }
         }
@@ -348,8 +402,8 @@ class TranscriptionService(private val scope: CoroutineScope, private val librar
     private fun saveQueue() = runCatching { queueFile.writeAtomically(JSONArray(mutableQueue.value).toString()) }
 
     private companion object {
-        /** Fresh starts on the GPU after a crash before a book moves to the CPU. */
-        const val GPU_RETRIES = 2
+        /** h:mm:ss, for messages and the crash log. */
+        fun clock(ms: Long): String = (ms / 1000).let { s -> "%d:%02d:%02d".format(s / 3600, s / 60 % 60, s % 60) }
         /** Units a lane takes at a time when several work on one book: about two minutes of audio. */
         const val BATCH_UNITS = 4
     }
