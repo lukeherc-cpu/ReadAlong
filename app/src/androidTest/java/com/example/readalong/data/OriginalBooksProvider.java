@@ -22,8 +22,11 @@ public class OriginalBooksProvider extends DocumentsProvider {
     private boolean showNewBook = false;
     private boolean showEpub = false;
     private boolean showTranscript = false;
+    /** Document and child-document queries since the last "query-count", so a test can see how many a scan makes. */
+    private final java.util.concurrent.atomic.AtomicInteger queries = new java.util.concurrent.atomic.AtomicInteger();
     @Override public boolean onCreate() { return true; }
     @Override public Bundle call(String method, String arg, Bundle extras) {
+        if ("query-count".equals(method)) { Bundle out = new Bundle(); out.putInt("count", queries.getAndSet(0)); return out; }
         if ("show-transcript".equals(method)) { showTranscript = "true".equals(arg); return new Bundle(); }
         if ("show-epub".equals(method)) { showEpub = "true".equals(arg); return new Bundle(); }
         if ("show-new-book".equals(method)) { showNewBook = "true".equals(arg); return new Bundle(); }
@@ -76,8 +79,9 @@ public class OriginalBooksProvider extends DocumentsProvider {
         }
         return cursor;
     }
-    @Override public Cursor queryDocument(String id, String[] projection) { return documents(new String[]{id}, projection); }
+    @Override public Cursor queryDocument(String id, String[] projection) { queries.incrementAndGet(); return documents(new String[]{id}, projection); }
     @Override public Cursor queryChildDocuments(String id, String[] projection, String sortOrder) {
+        queries.incrementAndGet();
         String[] ids = new String[0];
         if (id.equals("library")) ids = showNewBook ? new String[]{"book", "library/New book"} : new String[]{"book"};
         if (id.equals("library/New book")) ids = new String[]{"library/New book/New.wav"};
