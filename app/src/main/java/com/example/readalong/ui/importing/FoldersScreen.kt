@@ -87,7 +87,8 @@ fun FoldersScreen(model: ImportViewModel, onBack: () -> Unit) {
     val shown = folders.filter { it.mode == FolderMode.LIBRARY.name }
 
     Scaffold { insets ->
-        PullToRefreshBox(isRefreshing = scanningFolder != null, onRefresh = model::refreshLibrary, modifier = Modifier.fillMaxSize().padding(insets)) {
+        // The circle shows only while being pulled; the folder card's own bar shows the check itself.
+        PullToRefreshBox(isRefreshing = false, onRefresh = model::refreshLibrary, modifier = Modifier.fillMaxSize().padding(insets)) {
             Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
                 IconButton(onClick = onBack, modifier = Modifier.padding(top = 8.dp)) {
                     Icon(painterResource(R.drawable.ic_back), "Back to library")
