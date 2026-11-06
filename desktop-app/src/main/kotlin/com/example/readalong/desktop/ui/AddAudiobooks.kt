@@ -267,7 +267,7 @@ private fun FolderCard(app: AppState, folder: String, books: List<com.example.re
                 }
             }
             if (scanning && !missing) LinearProgressIndicator(Modifier.fillMaxWidth().height(6.dp).clip(CircleShape))
-            if (!missing && books.isNotEmpty()) FolderCovers(books)
+            if (!missing && books.isNotEmpty()) { FolderCovers(app, books); BadgeKey() }
         }
     }
     if (removing) AlertDialog(onDismissRequest = { removing = false }, title = { Text("Remove this folder?") },
@@ -381,15 +381,17 @@ private fun SetupAudible(app: AppState) {
  * Overlapping covers with "+N" at the end. Clicking "+N" spreads the covers apart and the rest pop in after them
  * while the card grows; "Less" folds them back.
  */
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
-private fun FolderCovers(books: List<LibraryBook>) {
+private fun FolderCovers(app: AppState, books: List<LibraryBook>) {
     var expanded by remember { mutableStateOf(false) }
     val canExpand = books.size > 5
     LaunchedEffect(canExpand) { if (!canExpand) expanded = false }
     val spread by animateFloatAsState(if (expanded) 1f else 0f, spring(dampingRatio = .85f, stiffness = 380f))
     val shown = if (expanded) books else books.take(5)
     val shape = RoundedCornerShape(12.dp)
+    // Re-read which ReadAlongs are finished whenever a transcript changes.
+    val revisions by app.transcripts.revisions.collectAsState()
     FlowRow(Modifier.fillMaxWidth().animateContentSize(spring(dampingRatio = .9f, stiffness = 320f)),
         horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         shown.forEachIndexed { index, book ->
@@ -401,7 +403,17 @@ private fun FolderCovers(books: List<LibraryBook>) {
                         val p = m.measure(c)
                         layout((p.width - 20.dp.toPx() * (1f - spread)).toInt(), p.height) { p.place(0, 0) }
                     }, enter = fadeIn(tween(200, delay)) + scaleIn(spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = 500f), initialScale = .6f)) {
-                    BookCover(book, Modifier.size(56.dp).border(2.dp, MaterialTheme.colorScheme.surface, shape), shape = shape, size = 160)
+                    val readAlong = remember(book.id, revisions[book.id]) { app.transcripts.info(book.id)?.complete == true }
+                    val epub = book.epubPath != null
+                    val status = listOf(if (readAlong) "ReadAlong ready" else "No ReadAlong yet", if (epub) "EPUB linked" else "No EPUB · click to add one")
+                    TooltipArea(tooltip = { Tooltip("${book.title} · ${status.joinToString(" · ")}") }, delayMillis = 300) {
+                        Box(if (epub) Modifier else Modifier.clickable(onClickLabel = "Add an EPUB") {
+                            chooseFile("Choose the book's EPUB", "epub")?.let { app.attachEpub(book.id, it) }
+                        }.pointerHoverIcon(PointerIcon.Hand)) {
+                            BookCover(book, Modifier.size(56.dp).border(2.dp, MaterialTheme.colorScheme.surface, shape), shape = shape, size = 160)
+                            CoverBadges(readAlong, epub, Modifier.align(Alignment.BottomEnd))
+                        }
+                    }
                 }
             }
         }
@@ -417,3 +429,47 @@ private fun FolderCovers(books: List<LibraryBook>) {
         }
     }
 }
+
+/** The corner badges on a folder cover: the ReadAlong logo for a finished ReadAlong, a book for a linked EPUB. */
+@Composable
+private fun CoverBadges(readAlong: Boolean, epub: Boolean, modifier: Modifier = Modifier) {
+    if (!readAlong && !epub) return
+    Row(modifier, horizontalArrangement = Arrangement.spacedBy(1.dp)) {
+        if (readAlong) ReadAlongBadge()
+        if (epub) EpubBadge()
+    }
+}
+
+@Composable
+private fun EpubBadge() {
+    Box(Modifier.size(BadgeSize).clip(CircleShape).background(MaterialTheme.colorScheme.primary).border(1.5.dp, MaterialTheme.colorScheme.surface, CircleShape),
+        contentAlignment = Alignment.Center) {
+        Icon(AppIcons.get("ic_book"), null, Modifier.size(11.dp), tint = MaterialTheme.colorScheme.onPrimary)
+    }
+}
+
+@Composable
+private fun ReadAlongBadge() {
+    Box(Modifier.size(BadgeSize).clip(CircleShape).background(Color(0xFFD4E5F3)).border(1.5.dp, MaterialTheme.colorScheme.surface, CircleShape),
+        contentAlignment = Alignment.Center) {
+        // The logo's artwork sits inside padding of its own; drawn larger so the headphones and book fill the badge.
+        Image(AppIcons.get("ic_readalong"), null, Modifier.requiredSize(22.dp))
+    }
+}
+
+/** What the two badges mean, under the covers. */
+@Composable
+private fun BadgeKey() {
+    val style = MaterialTheme.typography.bodySmall
+    val color = MaterialTheme.colorScheme.onSurfaceVariant
+    Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            EpubBadge(); Text("= linked EPUB", style = style, color = color)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            ReadAlongBadge(); Text("= ReadAlong ready", style = style, color = color)
+        }
+    }
+}
+
+private val BadgeSize = 18.dp
