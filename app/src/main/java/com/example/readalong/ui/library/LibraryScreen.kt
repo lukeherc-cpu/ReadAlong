@@ -83,7 +83,7 @@ fun LibraryScreen(
                         importControls()
                     }
                     }
-                    // Springs out of the search icon with a small bounce, and glides back into it without one.
+                    // Grows out of the search icon and glides back into it, with no bounce either way.
                     com.example.readalong.ui.components.SpringSearchBar(state is LibraryUiState.Ready && searchVisible,
                         anchor = iconCenter?.let { c -> barOrigin?.let { c - it } }, query = query, onQuery = { query = it },
                         onClose = { searchVisible = false; query = "" }, accent = MaterialTheme.colorScheme.primary,
@@ -127,7 +127,7 @@ fun LibraryScreen(
                 if (groups.isNotEmpty() && !settings.longPressTipHidden && !searchVisible) item(key = "long-press-tip", span = { GridItemSpan(maxLineSpan) }) {
                     Surface(shape = RoundedCornerShape(com.example.readalong.ui.theme.Corners.medium), color = MaterialTheme.colorScheme.secondaryContainer) {
                         Row(Modifier.fillMaxWidth().padding(start = 16.dp, top = 4.dp, bottom = 4.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text("Tip: press and hold a book to change its title, cover or status.", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium,
+                            Text("Press and hold a book to change its title, cover or status", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSecondaryContainer)
                             IconButton(onClick = { scope.launch { app?.appPreferences?.update { it.copy(longPressTipHidden = true) } } }) {
                                 com.example.readalong.ui.components.CloseGlyph(MaterialTheme.colorScheme.onSecondaryContainer, "Dismiss tip")
