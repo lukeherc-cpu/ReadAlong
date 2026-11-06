@@ -68,7 +68,7 @@ class ReadingModesTest {
             compose.waitUntil(10_000) { compose.onNodeWithTag("follow_passages").fetchSemanticsNode().config[SemanticsProperties.VerticalScrollAxisRange].value() > 0f }
             val restored = compose.onNodeWithTag("follow_passages").fetchSemanticsNode().config[SemanticsProperties.VerticalScrollAxisRange].value()
             assertTrue("The same reading passage should be restored: $before vs $restored", kotlin.math.abs(before-restored) < 160f)
-            compose.onNodeWithContentDescription("Settings").performClick()
+            compose.onNodeWithContentDescription("Text appearance").performClick()
             compose.onNodeWithText("Dark").performScrollTo().performClick()
             compose.onNodeWithText("Apply").performClick()
             compose.waitUntil(5_000) { runBlocking { app.bookReaderPreferences.preferences.first().theme == "DARK" } }
