@@ -42,7 +42,7 @@ class FirstVisitGuidesTest {
                 when (guide) {
                     GuidePage.HOME -> listOf("Add audiobooks", "Search", "Queue", "Library folders", "Settings")
                     GuidePage.PLAYER -> listOf("Cover art", "Make a ReadAlong")
-                    GuidePage.READER -> listOf("Settings", "Search", "Reading mode", "Chapters", "Back")
+                    GuidePage.READER -> listOf("Text appearance", "Search", "Reading mode", "Chapters", "Back")
                 }.forEach { compose.onNodeWithText(it).assertExists() }
                 capture("guide-${guide.name.lowercase()}-${if (theme) "light" else "dark"}")
             }
