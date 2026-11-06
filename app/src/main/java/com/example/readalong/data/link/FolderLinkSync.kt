@@ -27,9 +27,11 @@ data class SyncProgress(val text: String, val fraction: Float? = null)
 /**
  * Links this phone to ReadAlong Desktop and keeps paired folders in step with it over the home network.
  *
- * Each sync lists both sides of every [FolderPair], copies what [FolderSyncPlan] says, and rescans the
- * phone folder, so new books, `.readalong` transcripts and `.readalong-progress` positions are picked up
- * exactly as if the folder had been synced any other way. Nothing is ever deleted on either side. Kinds of companion file
+ * Each sync lists both sides of every [FolderPair], copies what [FolderSyncPlan] says, and then rescans
+ * every paired phone folder, so new books, `.readalong` transcripts (which show as transcribed in the queue),
+ * covers, edited titles and listening positions take effect exactly as if the folder had been synced any other
+ * way. While ReadAlong is open, [watch] checks every minute whether the computer is reachable and syncs when it
+ * has something new (a finished ReadAlong, an edit, or "Sync to phone" pressed there) or the last sync is old. Nothing is ever deleted on either side. Kinds of companion file
  * turned off in [LinkState.skipped] (or on the computer) aren't copied. Before each sync,
  * [beforeSync] writes the `.readalong` of each book transcribed on the phone into its folder (TranscriptPackageWriter).
  */
@@ -40,7 +42,8 @@ interface LinkSettings {
 }
 
 class FolderLinkSync(private val context: Context, val store: LinkStore, private val beforeSync: suspend () -> Unit = {}, private val settings: LinkSettings? = null,
-    private val rescan: suspend (Uri) -> Unit) {
+    /** Rescans a phone folder; returns "<book>: <why>" for each ReadAlong there that couldn't be used. */
+    private val rescan: suspend (Uri) -> List<String>) {
     private val resolver = context.contentResolver
     private val lock = Mutex()
     private val mutableProgress = MutableStateFlow<SyncProgress?>(null)
@@ -77,23 +80,53 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
             mutableProgress.value = SyncProgress("Connecting to ${store.value.computer?.name}…")
             try {
                 var copied = 0; var failed = 0
+                val problems = mutableListOf<String>()
+                var change = 0L
                 connect().use { client ->
+                    change = client.computerChanged
                     for (pair in pairs) {
-                        val first = store.synced(pair).isEmpty()
                         val (done, failures) = syncPair(client, pair)
                         copied += done; failed += failures
-                        if (done > 0 || first) runCatching { rescan(Uri.parse(pair.localUri)) }
                     }
                     syncSettings(client)
+                }
+                // Every paired folder, even when nothing was copied: a ReadAlong that couldn't be used before is tried
+                // again, and books, covers and titles that arrived some other way show up too.
+                for (pair in pairs) {
+                    coroutineContext.ensureActive()
+                    mutableProgress.value = SyncProgress("Updating your library from ${pair.localName}…")
+                    try { problems += rescan(Uri.parse(pair.localUri)) }
+                    catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                    catch (failure: Exception) { problems += "${pair.localName}: ${failure.message ?: "couldn't be scanned"}" }
                 }
                 val result = when {
                     failed > 0 -> "Copied $copied ${files(copied)}; $failed couldn't be copied and will be tried again."
                     copied == 0 -> "Up to date."
                     else -> "Copied $copied ${files(copied)}."
+                } + when (problems.size) {
+                    0 -> ""
+                    1 -> " A ReadAlong couldn't be used: ${problems.single()}"
+                    else -> " ${problems.size} ReadAlongs couldn't be used, e.g. ${problems.first()}"
                 }
-                store.update { it.copy(lastSyncAt = System.currentTimeMillis(), lastResult = result) }
+                store.update { it.copy(lastSyncAt = System.currentTimeMillis(), lastResult = result, seenChange = maxOf(it.seenChange, change)) }
                 result
             } finally { mutableProgress.value = null }
+        }
+    }
+
+    /**
+     * While ReadAlong is open: every minute, sees whether the computer is reachable and syncs when it says it has
+     * something new since the last sync, or the last sync is more than ten minutes old. Runs until cancelled.
+     */
+    suspend fun watch(syncNow: () -> Unit) = withContext(Dispatchers.IO) {
+        while (true) {
+            val s = store.value
+            if (s.computer != null && s.pairs.isNotEmpty() && mutableProgress.value == null && !lock.isLocked) {
+                val change = runCatching { connect().use { it.computerChanged } }.getOrNull()
+                val stale = (s.lastSyncAt ?: 0) < System.currentTimeMillis() - 10 * 60_000
+                if (change != null && (change > s.seenChange || stale)) syncNow()
+            }
+            kotlinx.coroutines.delay(60_000)
         }
     }
 

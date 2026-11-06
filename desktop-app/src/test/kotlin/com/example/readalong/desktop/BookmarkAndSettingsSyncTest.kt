@@ -52,15 +52,17 @@ class BookmarkAndSettingsSyncTest {
         sync.sync(start)
         val merged = library.book("b1")!!
         assertEquals(listOf(30_000L, 690_000L), merged.bookmarks.map { it.positionMs })
-        assertEquals(setOf("mine", "phone"), BookmarkFiles.parse(file.readText())!!.bookmarks.map { it.id }.toSet())
+        // The old separate file was folded into the book's state file.
+        assertFalse(file.exists())
+        assertEquals(setOf("mine", "phone"), BookmarkFiles.parse(BookStateFiles.section(File(folder, "Dune.readalong-state").readText(), BookStateFiles.Part.BOOKMARKS)!!)!!.bookmarks.map { it.id }.toSet())
 
         // Deleted here: gone from the file, and remembered.
         library.update("b1") { it.copy(bookmarks = it.bookmarks.filterNot { b -> b.id == "phone" }, removedBookmarks = it.removedBookmarks + "phone") }
         sync.sync(library.book("b1")!!)
-        assertEquals(setOf("mine"), BookmarkFiles.parse(file.readText())!!.bookmarks.map { it.id }.toSet())
-        assertTrue("phone" in BookmarkFiles.parse(file.readText())!!.removed)
+        assertEquals(setOf("mine"), BookmarkFiles.parse(BookStateFiles.section(File(folder, "Dune.readalong-state").readText(), BookStateFiles.Part.BOOKMARKS)!!)!!.bookmarks.map { it.id }.toSet())
+        assertTrue("phone" in BookmarkFiles.parse(BookStateFiles.section(File(folder, "Dune.readalong-state").readText(), BookStateFiles.Part.BOOKMARKS)!!)!!.removed)
 
-        // Deleted on the phone: deleted here.
+        // Deleted on the phone (here by an older version, which still writes the separate file): deleted here.
         file.writeText(BookmarkFiles.encode(BookmarkFile(emptyList(), setOf("phone", "mine")), "Android"))
         sync.sync(library.book("b1")!!)
         assertTrue(library.book("b1")!!.bookmarks.isEmpty())

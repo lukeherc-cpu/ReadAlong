@@ -49,15 +49,33 @@ object FolderSyncPlan {
 
     fun kind(path: String): Kind? = when (path.substringAfterLast('.', "").lowercase()) {
         "readalong" -> Kind.TRANSCRIPT
-        "readalong-progress" -> Kind.PROGRESS
+        "readalong-progress", "readalong-state" -> Kind.PROGRESS
         "readalong-bookmarks" -> Kind.BOOKMARKS
         "epub" -> Kind.EPUB
         in images -> Kind.COVER
         else -> null
     }
 
-    /** Whether [path] syncs when the kinds in [skipped] (by [Kind.id]) are turned off. */
-    fun included(path: String, skipped: Set<String>): Boolean = kind(path)?.let { it.id !in skipped } ?: true
+    /**
+     * Whether [path] syncs when the kinds in [skipped] (by [Kind.id]) are turned off. A book's
+     * `.readalong-state` holds its progress, bookmarks and edited title together, so it syncs only while
+     * neither progress nor bookmarks is turned off.
+     */
+    fun included(path: String, skipped: Set<String>): Boolean =
+        if (path.endsWith(BookStateFiles.EXTENSION, ignoreCase = true)) Kind.PROGRESS.id !in skipped && Kind.BOOKMARKS.id !in skipped
+        else kind(path)?.let { it.id !in skipped } ?: true
+
+    /**
+     * The "What to sync" checkboxes on both apps: each label and the kind ids it turns off together. Progress and
+     * bookmarks share one file (with edited titles and authors), so they share one checkbox.
+     */
+    val checkboxes: List<Pair<String, Set<String>>> = listOf(
+        "ReadAlong transcripts" to setOf(Kind.TRANSCRIPT.id),
+        "Listening progress, bookmarks and edited titles" to setOf(Kind.PROGRESS.id, Kind.BOOKMARKS.id),
+        "EPUBs" to setOf(Kind.EPUB.id),
+        "Cover art" to setOf(Kind.COVER.id),
+        "App and reader settings (accent colour, skip times, reading theme and font; text size stays per device)" to setOf(Kind.SETTINGS.id),
+    )
 
     fun encodeKinds(skipped: Set<String>) = JSONArray(skipped.sorted())
     fun decodeKinds(array: JSONArray?): Set<String> = array?.let { a -> (0 until a.length()).mapTo(HashSet()) { a.getString(it) } }.orEmpty()

@@ -58,6 +58,22 @@ class DeviceLink(private val scope: CoroutineScope, private val library: Library
     /** What a phone is doing right now, for Settings. */
     val activity: StateFlow<String?> = mutableActivity
 
+    /**
+     * When this computer last had something new for the phone: "Sync to phone", a finished ReadAlong, an edit. The
+     * phone checks every minute while ReadAlong is open on it and syncs when this is newer than what it last saw.
+     * It starts at launch, so a computer coming back online is itself a reason to sync.
+     */
+    @Volatile private var changedAt = System.currentTimeMillis()
+    private val mutableSyncRequested = MutableStateFlow<Long?>(null)
+    /** When "Sync to phone" was pressed, until a phone has synced since. */
+    val syncRequested: StateFlow<Long?> = mutableSyncRequested
+
+    /** Something the phone should pick up: a finished ReadAlong, a new cover, EPUB or title. */
+    fun changed() { changedAt = maxOf(System.currentTimeMillis(), changedAt + 1) }
+
+    /** "Sync to phone": the phone syncs the next time it checks (within a minute while ReadAlong is open on it). */
+    fun requestSync() { changed(); mutableSyncRequested.value = changedAt }
+
     @Volatile private var server: ServerSocket? = null
     @Volatile private var discovery: DatagramSocket? = null
 
@@ -124,6 +140,7 @@ class DeviceLink(private val scope: CoroutineScope, private val library: Library
         val (channel, keyId) = runCatching { LinkChannel.accept(socket.getInputStream(), socket.getOutputStream(), ::keyFor) }.getOrNull() ?: return
         var device: LinkedDevice? = null
         var changed = false
+        var listed = false
         try {
             val hello = channel.receiveJson()
             require(hello.optString("op") == "hello")
@@ -132,13 +149,13 @@ class DeviceLink(private val scope: CoroutineScope, private val library: Library
             device = phone
             // Older phones ignore the extra fields; newer ones use them to send only requests this computer knows.
             channel.sendJson(JSONObject().put("device", mutableState.value.deviceId).put("name", mutableState.value.name).put("platform", AppPaths.platformName)
-                .put("protocol", LinkChannel.PROTOCOL).put("ops", JSONArray(LinkChannel.OPS)).put("app", System.getProperty("readalong.version") ?: "dev"))
+                .put("protocol", LinkChannel.PROTOCOL).put("ops", JSONArray(LinkChannel.OPS)).put("app", System.getProperty("readalong.version") ?: "dev").put("changed", changedAt))
             while (true) {
                 val request = try { channel.receiveJson() } catch (_: EOFException) { break }
                 try {
                     when (request.optString("op")) {
                         "folders" -> channel.sendJson(JSONObject().put("folders", JSONArray(folders())))
-                        "list" -> list(channel, shared(request))
+                        "list" -> { list(channel, shared(request)); listed = true }
                         "get" -> send(channel, phone.name, shared(request), request.getString("path"))
                         "put" -> { receive(channel, phone.name, shared(request), request.getString("path"), request.getLong("size")); changed = true }
                         "create" -> channel.sendJson(create(request.getString("name")))
@@ -156,6 +173,8 @@ class DeviceLink(private val scope: CoroutineScope, private val library: Library
         finally {
             mutableActivity.value = null
             device?.let { seen -> change { s -> s.copy(devices = s.devices.map { if (it.id == seen.id) it.copy(lastSeen = System.currentTimeMillis(), appVersion = seen.appVersion ?: it.appVersion) else it }) } }
+            // A real sync (not just the phone checking whether this computer is there) answers "Sync to phone".
+            if (listed) mutableSyncRequested.value = null
             if (changed) scope.launch { runCatching { onSynced() } }
         }
     }

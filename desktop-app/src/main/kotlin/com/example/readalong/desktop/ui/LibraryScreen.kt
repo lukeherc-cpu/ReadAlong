@@ -70,6 +70,7 @@ fun LibraryScreen(app: AppState) {
                         QueueLogo(scanning = scan.running && !scan.adding, readingFolder = scan.running && scan.adding,
                             transcribing = job?.phase == "Transcribing", queued = queue.size, onClick = { app.open(Screen.Queue) }, size = 52.dp)
                     }
+                    SyncToPhoneButton(app)
                     AppIconButton("ic_search", "Search library", { searching = !searching; if (!searching) query = "" },
                         Modifier.onGloballyPositioned { iconCenter = it.boundsInRoot().center })
                     AddBookButton(app)
@@ -195,6 +196,14 @@ private fun SpringSearchBar(visible: Boolean, anchor: androidx.compose.ui.geomet
 /** The phone's shelf button: opens the library folders page. */
 @Composable
 private fun FoldersButton(app: AppState) = AppIconButton("ic_bookshelf", "Library folders", { app.open(Screen.Folders) })
+
+/** "Sync to phone", once a phone is linked: the phone syncs at its next check, within a minute while ReadAlong is open on it. */
+@Composable
+private fun SyncToPhoneButton(app: AppState) {
+    val link by app.link.state.collectAsState()
+    if (link.devices.isEmpty()) return
+    AppIconButton("ic_sync", "Sync to phone", { app.syncToPhone() })
+}
 
 /** The phone's sort button, at the end of the first section's heading. */
 @Composable

@@ -1,5 +1,6 @@
 package com.example.readalong.desktop.core
 
+import com.example.readalong.domain.link.BookStateFiles
 import org.json.JSONObject
 import java.io.File
 import kotlin.math.abs
@@ -17,8 +18,9 @@ data class SharedProgress(val device: String, val updatedAt: Long, val positionM
     val file: String?, val fileIndex: Int?, val filePositionMs: Long?, val fileCount: Int? = null)
 
 /**
- * Reads and writes "<book>.readalong-progress" (format "readalong-progress", version 1), which the phone
- * also reads and writes on each folder scan and when playback pauses. The most recent listening wins.
+ * Reads and writes the book's listening progress (format "readalong-progress", version 1), the "progress" part
+ * of its "<book>.readalong-state" (see [BookState]), which the phone also reads and writes on each folder scan
+ * and when playback pauses. The most recent listening wins.
  */
 class ProgressSync(private val library: LibraryStore) {
     /** Takes newer positions from the shared files and refreshes files that are older than this computer's. [playing] is left alone. */
@@ -27,8 +29,7 @@ class ProgressSync(private val library: LibraryStore) {
 
     /** Syncs one book; returns true when its position came from the shared file. */
     fun sync(book: LibraryBook): Boolean {
-        val file = book.companionFile(EXTENSION)
-        val shared = if (file.isFile) runCatching { parse(file.readText()) }.getOrNull() else null
+        val shared = BookState.read(book, BookStateFiles.Part.PROGRESS)?.let { runCatching { parse(it) }.getOrNull() }
         val local = book.lastPlayedAt ?: 0L
         if (shared != null && shared.updatedAt > local + 2_000) {
             val position = resolve(book, shared) ?: return false
@@ -42,10 +43,11 @@ class ProgressSync(private val library: LibraryStore) {
     /** Records this computer's position for the phone; quietly does nothing where the folder can't be written. */
     fun write(book: LibraryBook) {
         if (book.parts.isEmpty() || book.lastPlayedAt == null) return
-        runCatching { book.companionFile(EXTENSION).writeAtomically(encode(book)) }
+        runCatching { BookState.write(book, BookStateFiles.Part.PROGRESS, encode(book)) }
     }
 
     companion object {
+        /** The separate progress file older versions wrote; [BookState] folds it into the state file. */
         const val EXTENSION = "readalong-progress"
         const val FORMAT = "readalong-progress"
 
