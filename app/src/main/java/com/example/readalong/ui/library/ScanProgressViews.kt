@@ -18,8 +18,11 @@ import androidx.compose.ui.unit.dp
 import com.example.readalong.data.importing.ScanProgress
 import com.example.readalong.ui.components.animatedFraction
 
-/** "34 / 120", the one count format both progress views use. */
-internal fun ScanProgress.count() = "$done / $total"
+/**
+ * "34 / 120 remaining", the one count format every progress view uses. "remaining" because the total is only
+ * the books still to be added or updated, not the whole library.
+ */
+fun ScanProgress.count() = "$done / $total remaining"
 
 private fun ScanProgress.fraction() = if (total == 0) 0f else done.toFloat() / total
 
