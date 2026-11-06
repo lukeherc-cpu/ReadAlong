@@ -140,4 +140,46 @@ class DeviceLinkTest {
             assertEquals(listOf("Pixel"), DeviceLink(scope, library, {}, file = File(home, "link.json")).state.value.devices.map { it.name })
         } finally { link.stop() }
     }
+
+    /** "Sync to phone" and a finished ReadAlong tell the phone, at its next check, that there is something new. */
+    @Test fun computerSaysWhenItHasSomethingNew() {
+        val home = Files.createTempDirectory("link").toFile()
+        val books = File(home, "Audiobooks").apply { mkdirs() }
+        val scope = CoroutineScope(Dispatchers.IO)
+        val library = LibraryStore(File(home, "library.json"), scope).apply { setFolders(listOf(books.absolutePath)) }
+        val link = DeviceLink(scope, library, onSynced = {}, file = File(home, "link.json"))
+        try {
+            val code = link.startPairing()
+            fun session(block: (LinkChannel) -> Unit = {}): Long = Socket("127.0.0.1", code.port).use { socket ->
+                val channel = LinkChannel.connect(socket.getInputStream(), socket.getOutputStream(), code.key)
+                channel.sendJson(JSONObject().put("op", "hello").put("device", "phone-1").put("name", "Pixel"))
+                val changed = channel.receiveJson().getLong("changed")
+                block(channel)
+                channel.sendJson(JSONObject().put("op", "done")); channel.receive()
+                changed
+            }
+            val atStart = session()
+            assertTrue(atStart > 0)
+            // Nothing new: the same answer.
+            assertEquals(atStart, session())
+            link.requestSync()
+            assertNotNull(link.syncRequested.value)
+            val asked = session()
+            assertTrue(asked > atStart)
+            // Only checking whether the computer is there doesn't answer the request; a sync does.
+            assertNotNull(link.syncRequested.value)
+            link.setShared(listOf(books.absolutePath))
+            session { channel ->
+                channel.sendJson(JSONObject().put("op", "list").put("folder", DeviceLink.folderId(books.absolutePath)))
+                val pages = channel.receiveJson().getInt("pages")
+                repeat(pages) { channel.receiveJson() }
+            }
+            // The computer finishes the session just after answering "done".
+            val until = System.currentTimeMillis() + 3_000
+            while (link.syncRequested.value != null && System.currentTimeMillis() < until) Thread.sleep(20)
+            assertNull(link.syncRequested.value)
+            link.changed()
+            assertTrue(session() > asked)
+        } finally { link.stop() }
+    }
 }

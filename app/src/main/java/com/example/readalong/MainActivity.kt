@@ -1,6 +1,10 @@
 package com.example.readalong
 
 import android.os.Bundle
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -35,6 +39,14 @@ open class MainActivity : ComponentActivity() {
             statusBarStyle = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT) { !launchSettings.libraryLight },
             navigationBarStyle = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT) { !launchSettings.libraryLight },
         )
+        // A linked computer: while ReadAlong is on screen, check every minute whether it's reachable, and sync when it
+        // has something new (a finished ReadAlong, an edit, "Sync to phone") or the last sync is getting old.
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                val app = application as ReadAlongApplication
+                runCatching { app.folderLink.watch { com.example.readalong.data.link.LinkSyncWorker.syncNow(app) } }
+            }
+        }
         val animateLaunch = savedInstanceState == null
         setContent {
             var launching by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(animateLaunch) }

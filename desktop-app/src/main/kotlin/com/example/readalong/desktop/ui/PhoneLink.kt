@@ -61,6 +61,15 @@ fun PhoneLinkCard(app: AppState) {
                         TextButton({ link.unlink(device.id) }) { Text("Unlink") }
                     }
                 }
+                val requested by link.syncRequested.collectAsState()
+                Spacer(Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    PillButton("Sync to phone", { app.syncToPhone() }, icon = "ic_sync", filled = false)
+                    Spacer(Modifier.width(12.dp))
+                    Text(if (requested != null) "Waiting for your phone. It syncs within a minute while ReadAlong is open on it."
+                        else "Your phone also syncs by itself whenever this computer has something new.",
+                        Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
                 activity?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary) }
                 Spacer(Modifier.height(12.dp))
                 Text("Folders synced with your phone", style = MaterialTheme.typography.labelLarge)

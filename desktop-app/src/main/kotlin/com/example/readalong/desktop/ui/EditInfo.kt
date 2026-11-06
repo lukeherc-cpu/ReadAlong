@@ -25,7 +25,7 @@ fun EditInfoDialog(app: AppState) {
     }, confirmButton = {
         TextButton({
             val (t, a) = title to author
-            app.scope.launch(Dispatchers.IO) { runCatching { app.bookInfo.edit(id, t, a) }.onFailure { app.messages.tryEmit(it.message ?: "Couldn't save.") } }
+            app.scope.launch(Dispatchers.IO) { runCatching { app.bookInfo.edit(id, t, a); app.link.changed() }.onFailure { app.messages.tryEmit(it.message ?: "Couldn't save.") } }
             close()
         }, enabled = title.isNotBlank()) { Text("Save") }
     }, dismissButton = { TextButton(close) { Text("Cancel") } })
