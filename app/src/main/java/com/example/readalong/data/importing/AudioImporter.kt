@@ -165,12 +165,12 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
             // Each book stands alone: one that can't be read is named in the result, never stops the others.
             groups.filter { it.found.audio.isEmpty() && it.found.skipped.isNotEmpty() }.forEach { walk.problem(it.name, "no audio ReadAlong can play: ${Walk.counts(it.found.skipped)}") }
             val readable = groups.filter { it.found.audio.isNotEmpty() }
-            readable.forEachIndexed { index, group ->
-                mutableScanProgress.value = ScanProgress(saved.name, index, readable.size)
+            readable.forEachIndexed { position, group ->
+                mutableScanProgress.value = ScanProgress(saved.name, position, readable.size)
                 val found = group.found
                 coroutineContext.ensureActive()
                 try {
-                    val (id, isNew) = importGroup(found.audio, group.key, uri.toString(), group.name, explicit, coverImage(found.images)?.uri, index) ?: run { deleted++; return@forEach }
+                    val (id, isNew) = importGroup(found.audio, group.key, uri.toString(), group.name, explicit, coverImage(found.images)?.uri, index) ?: run { deleted++; return@forEachIndexed }
                     ids += id; if (isNew) added += id
                     // Companion files share a base name: the book's folder, or a single-file book's own name.
                     val base = (if (group.key.startsWith("file:")) group.name else group.home?.name ?: group.name).orEmpty().ifBlank { "Audiobook" }
