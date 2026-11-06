@@ -80,14 +80,20 @@ class AppState(val scope: CoroutineScope, private val background: Boolean = true
             readerFont = values[READER_FONT]?.takeIf { it.isNotBlank() && it.length <= 80 } ?: s.readerFont) }
     }
 
+    /** "Sync to phone": asks the linked phone to sync now, and says when to expect it. */
+    fun syncToPhone() {
+        link.requestSync()
+        messages.tryEmit("Your phone will sync within a minute while ReadAlong is open on it and on the same Wi-Fi.")
+    }
+
     /** Makes [epub] the book's EPUB, copied beside the book so it syncs with the phone. */
     fun attachEpub(bookId: String, epub: File) {
-        scope.launch(Dispatchers.IO) { library.book(bookId)?.let { companions.attachEpub(it, epub) } }
+        scope.launch(Dispatchers.IO) { library.book(bookId)?.let { companions.attachEpub(it, epub) }; link.changed() }
     }
 
     /** Makes [image] the book's cover, saved beside the book so it syncs with the phone (for the cover menu: internet search or a file). */
     fun setCover(bookId: String, image: ByteArray) {
-        scope.launch(Dispatchers.IO) { library.book(bookId)?.let { companions.saveCover(it, image) } }
+        scope.launch(Dispatchers.IO) { library.book(bookId)?.let { companions.saveCover(it, image) }; link.changed() }
     }
 
     fun open(next: Screen) { if (next != screen) { history.addLast(screen); screen = next } }
@@ -137,6 +143,9 @@ class AppState(val scope: CoroutineScope, private val background: Boolean = true
             }
         }
     }
+
+    // A finished ReadAlong is news for the phone: it syncs at its next check.
+    init { scope.launch { transcription.finished.drop(1).collect { link.changed() } } }
 
     init { if (background) { link.start(); updates.checkIfDue(); models.keepDefault(scope, settingsStore.settings.map { it.language }) } }
 

@@ -61,6 +61,15 @@ fun PhoneLinkCard(app: AppState) {
                         TextButton({ link.unlink(device.id) }) { Text("Unlink") }
                     }
                 }
+                val requested by link.syncRequested.collectAsState()
+                Spacer(Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    PillButton("Sync to phone", { app.syncToPhone() }, icon = "ic_sync", filled = false)
+                    Spacer(Modifier.width(12.dp))
+                    Text(if (requested != null) "Waiting for your phone. It syncs within a minute while ReadAlong is open on it."
+                        else "Your phone also syncs by itself whenever this computer has something new.",
+                        Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
                 activity?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary) }
                 Spacer(Modifier.height(12.dp))
                 Text("Folders synced with your phone", style = MaterialTheme.typography.labelLarge)
@@ -151,12 +160,10 @@ private fun SyncKinds(skipped: Set<String>, onChange: (Set<String>) -> Unit) {
     Text("What to sync", style = MaterialTheme.typography.labelLarge)
     Text("Audiobooks always sync. Untick anything you'd rather keep separate on each device.", style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant)
-    listOf(FolderSyncPlan.Kind.TRANSCRIPT to "ReadAlong transcripts", FolderSyncPlan.Kind.PROGRESS to "Listening progress",
-        FolderSyncPlan.Kind.BOOKMARKS to "Bookmarks", FolderSyncPlan.Kind.EPUB to "EPUBs", FolderSyncPlan.Kind.COVER to "Cover art",
-        FolderSyncPlan.Kind.SETTINGS to "App and reader settings (accent colour, skip times, reading theme and font; text size stays per device)").forEach { (kind, label) ->
-        val on = kind.id !in skipped
-        Row(Modifier.fillMaxWidth().clickable { onChange(if (on) skipped + kind.id else skipped - kind.id) }, verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(on, { onChange(if (on) skipped + kind.id else skipped - kind.id) })
+    FolderSyncPlan.checkboxes.forEach { (label, ids) ->
+        val on = ids.none { it in skipped }
+        Row(Modifier.fillMaxWidth().clickable { onChange(if (on) skipped + ids else skipped - ids) }, verticalAlignment = Alignment.CenterVertically) {
+            Checkbox(on, { onChange(if (on) skipped + ids else skipped - ids) })
             Text(label, style = MaterialTheme.typography.bodyMedium)
         }
     }

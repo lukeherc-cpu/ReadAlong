@@ -14,7 +14,6 @@ import java.io.File
 import java.security.MessageDigest
 import java.util.UUID
 import java.util.zip.ZipFile
-import kotlin.math.abs
 
 /** A desktop package is data, never executable content. Validate everything before replacing text. */
 class DesktopTranscriptImporter(private val context: Context, private val database: ReadAlongDatabase,
@@ -75,8 +74,10 @@ class DesktopTranscriptImporter(private val context: Context, private val databa
                     val match = matches.indexOfFirst { it.name == expected.optString("name") }.takeIf { it >= 0 } ?: 0
                     val file = matches.removeAt(match); files += file
                     durations[i] = expected.getLong("durationMs")
-                    // The bytes match, so this is the same audio; the apps only measure some MP3s' length differently (VBR without a frame index).
-                    require(durations[i] in 1..7L * 24 * 60 * 60_000 && abs(durations[i] - requireNotNull(file.durationMs)) <= maxOf(1_000L, file.durationMs!! / 50)) { "The transcript's audio duration does not match this book." }
+                    // The bytes match, so this is the same audio, whatever length each app measured. The two often disagree on
+                    // MP3s without a frame index (VBR), where both only estimate: the computer's sections are in real audio
+                    // time either way, and text past this phone's end of the file is dropped below.
+                    require(durations[i] in 1..7L * 24 * 60 * 60_000 && (file.durationMs ?: 0) > 0) { "The transcript's audio duration does not match this book." }
                 }
                 val offsets = files.map { requireNotNull(canonicalOffsets[it.id]) }
                 val ends = LongArray(files.size); var fileIndex = 0; var count = 0; var bytes = 0L

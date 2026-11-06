@@ -31,8 +31,8 @@ class ReadAlongApplication : Application() {
             if (com.example.readalong.domain.link.FolderSyncPlan.Kind.TRANSCRIPT.id !in links.value.skipped) com.example.readalong.data.link.TranscriptPackageWriter(this, database, links).writeAll() },
             settings = linkSettings) { uri ->
         // A phone folder chosen only for syncing joins the library too.
-        if (database.mediaDao().folder(uri.toString()) != null) audioImporter.scan(uri)
-        else audioImporter.addFolder(uri, com.example.readalong.data.importing.FolderMode.LIBRARY, persistAccess = false)
+        (if (database.mediaDao().folder(uri.toString()) != null) audioImporter.scan(uri)
+        else audioImporter.addFolder(uri, com.example.readalong.data.importing.FolderMode.LIBRARY, persistAccess = false)).transcriptProblems
     } }
     /** The settings shared with a linked computer: accent colour, skip times, and the ReadAlong reader's theme and font (each device keeps its own text size). */
     private val linkSettings = object : com.example.readalong.data.link.LinkSettings {

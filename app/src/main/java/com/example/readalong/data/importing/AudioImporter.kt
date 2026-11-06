@@ -30,7 +30,9 @@ data class PreviewBook(val name: String, val deleted: Boolean, val cover: Uri? =
 data class FolderPreview(val uri: Uri, val name: String, val books: List<PreviewBook>, val suggested: FolderMode, val deletedAsOneBook: Boolean, val emptyMessage: String?) {
     val deletedBooks get() = books.count { it.deleted }
 }
-data class ImportResult(val bookIds: List<String>, val message: String, val newBookIds: List<String> = emptyList())
+data class ImportResult(val bookIds: List<String>, val message: String, val newBookIds: List<String> = emptyList(),
+    /** "<book>: <why>" for each ReadAlong beside a book that couldn't be used, so a sync can say which and why. */
+    val transcriptProblems: List<String> = emptyList())
 
 /** Saved on a folder while it is scanned; it stays only if the scan was cut short. */
 const val SCAN_INCOMPLETE = "Scan incomplete. Rescan to continue."
@@ -143,6 +145,7 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
             val added = mutableListOf<String>()
             var failures = 0
             var transcriptFailures = 0
+            val transcriptProblems = mutableListOf<String>()
             var deleted = 0
             // Each book stands alone: one that can't be read is named in the result, never stops the others.
             groups.filter { it.found.audio.isEmpty() && it.found.skipped.isNotEmpty() }.forEach { walk.problem(it.name, "no audio ReadAlong can play: ${Walk.counts(it.found.skipped)}") }
@@ -184,7 +187,14 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
                             break
                         } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
                         catch (failure: Exception) {
-                            books.putMetadata(LibraryMetadataEntity("folder_transcript_error:$id", failure.message ?: "The folder transcript could not be imported."))
+                            val reason = failure.message?.takeIf { it.isNotBlank() } ?: failure.javaClass.simpleName
+                            android.util.Log.w("ReadAlong", "The ReadAlong beside ${group.name} couldn't be imported", failure)
+                            books.putMetadata(LibraryMetadataEntity("folder_transcript_error:$id", reason))
+                            transcriptProblems += "${group.name ?: "A book"}: $reason"
+                            // The queue and player show why, instead of offering to make a ReadAlong as if none had arrived.
+                            database.processingDao().find(id)?.takeIf { it.state in setOf("WAITING_SELECTION", "FAILED") }?.let { job ->
+                                database.processingDao().put(job.copy(message = "A ReadAlong arrived from your computer but couldn't be used: $reason", updatedAt = System.currentTimeMillis()))
+                            }
                         }
                     }
                     if (found.transcripts.isNotEmpty() && books.metadata("folder_transcript_error:$id") != null) transcriptFailures++
@@ -215,7 +225,7 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
                 (if (transcriptFailures > 0) " $transcriptFailures companion transcript(s) couldn't be imported. Check that the audio files match." else "")
             // An empty result stays on the folders screen too: the status line only shows for a few seconds.
             media.putFolder(saved.copy(lastScanAt = System.currentTimeMillis(), error = if (walk.problems.isNotEmpty() || ids.isEmpty()) message else null))
-            ImportResult(ids.distinct(), message, added.distinct())
+            ImportResult(ids.distinct(), message, added.distinct(), transcriptProblems)
         } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
         catch (failure: Exception) {
             media.folderBooks(uri.toString()).forEach { media.mediaState(it, "MISSING") }
@@ -464,7 +474,7 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
         val IMAGES = setOf("jpg", "jpeg", "png", "webp")
         val COVER_NAME = Regex("(?i)(cover|folder|front)")
         /** Files a scan uses or expects beside audio; they never count as skipped. */
-        val COMPANION = setOf("epub", "readalong", "readalong-progress", "readalong-bookmarks", "readalong-info", "jpg", "jpeg", "png", "webp", "gif", "bmp", "txt", "nfo", "cue", "pdf", "json", "xml", "m3u", "m3u8", "nomedia", "ini", "db", "log", "srt", "lrc", "html", "url", "md")
+        val COMPANION = setOf("epub", "readalong", "readalong-state", "readalong-progress", "readalong-bookmarks", "readalong-info", "jpg", "jpeg", "png", "webp", "gif", "bmp", "txt", "nfo", "cue", "pdf", "json", "xml", "m3u", "m3u8", "nomedia", "ini", "db", "log", "srt", "lrc", "html", "url", "md")
     }
     private fun supported(name: String) = name.substringAfterLast('.', "").lowercase() in AUDIO
     private fun image(name: String) = name.substringAfterLast('.', "").lowercase() in IMAGES

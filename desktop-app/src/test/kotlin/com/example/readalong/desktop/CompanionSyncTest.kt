@@ -125,13 +125,13 @@ class CompanionSyncTest {
         val book = LibraryBook("pkg-test-" + java.util.UUID.randomUUID(), "Emma", key = "folder:${folder.path}", folder = folder.path,
             parts = listOf(AudioPart(audio.path, 40_000, 0, audio.length(), audio.lastModified())))
         val (size, sha) = TranscriptStore.sha256(audio)
-        fun pkg(name: String, text: String): File {
+        fun pkg(name: String, text: String, length: Long = 40_000): File {
             val words = org.json.JSONArray().apply { if (text.isNotEmpty()) text.split(" ").forEachIndexed { i, w -> put(JSONObject().put("word", w).put("start", 1.0 + i * .4).put("end", 1.3 + i * .4)) } }
-            val chunks = listOf(0L to 30_000L, 30_000L to 40_000L).map { (a, b) ->
+            val chunks = listOf(0L to 30_000L, 30_000L to length).map { (a, b) ->
                 JSONObject().put("file", 0).put("startMs", a).put("endMs", b).put("result", JSONObject().put("text", if (a == 0L) text else "").put("words", if (a == 0L) words else org.json.JSONArray())).toString()
             }
             val manifest = JSONObject().put("format", "readalong-transcript").put("version", 1).put("complete", true).put("model", "whistle-v1").put("engine", "Cactus Whistle")
-                .put("chunks", chunks.size).put("sources", org.json.JSONArray().put(JSONObject().put("name", "01.mp3").put("size", size).put("sha256", sha).put("durationMs", 40_000)))
+                .put("chunks", chunks.size).put("sources", org.json.JSONArray().put(JSONObject().put("name", "01.mp3").put("size", size).put("sha256", sha).put("durationMs", length)))
             return File(home, name).apply {
                 java.util.zip.ZipOutputStream(outputStream()).use { zip ->
                     zip.putNextEntry(java.util.zip.ZipEntry("manifest.json")); zip.write(manifest.toString().toByteArray()); zip.closeEntry()
@@ -145,6 +145,9 @@ class CompanionSyncTest {
             assertNull(store.info(book.id))
             store.importPackage(book, pkg("full.readalong", "Emma Woodhouse, handsome, clever, and rich."))
             assertEquals(true, store.info(book.id)?.complete)
+            // The same bytes measured 10% longer by the other app (a VBR MP3 without a frame index): still this book's text.
+            store.importPackage(book, pkg("vbr.readalong", "Emma Woodhouse, handsome, clever, and rich.", length = 44_000))
+            assertEquals(true, store.info(book.id)?.complete)
             assertTrue(store.segments(book).isNotEmpty())
         } finally { store.remove(book.id) }
     }
@@ -153,25 +156,60 @@ class CompanionSyncTest {
     @Test fun editedTitlesAndAuthorsSyncBothWays() {
         val (library, book) = bookIn(File(home, "Books/Dune"))
         val sync = BookInfoSync(library)
-        val file = File(home, "Books/Dune/Dune.readalong-info")
+        val state = File(home, "Books/Dune/Dune.readalong-state")
+        fun shared() = BookInfoFiles.parse(BookStateFiles.section(state.readText(), BookStateFiles.Part.INFO)!!)
+        fun phoneEdits(info: BookInfo) = state.writeText(BookStateFiles.withSection(state.takeIf { it.isFile }?.readText(), BookStateFiles.Part.INFO, BookInfoFiles.encode(info, "Android"), "Android")!!)
         // Never edited anywhere: nothing written, nothing changed.
-        assertFalse(sync.sync(book)); assertFalse(file.exists())
+        assertFalse(sync.sync(book)); assertFalse(state.exists())
         // Edited here: shared.
         sync.edit("b1", "Dune (Deluxe)", "Frank Herbert ")
-        assertEquals(BookInfo("Dune (Deluxe)", "Frank Herbert", library.book("b1")!!.editedAt!!), BookInfoFiles.parse(file.readText()))
+        assertEquals(BookInfo("Dune (Deluxe)", "Frank Herbert", library.book("b1")!!.editedAt!!), shared())
         // Edited later on the phone: taken.
         val later = library.book("b1")!!.editedAt!! + 60_000
-        file.writeText(BookInfoFiles.encode(BookInfo("Dune Messiah", null, later), "Android"))
+        phoneEdits(BookInfo("Dune Messiah", null, later))
         assertTrue(sync.sync(library.book("b1")!!))
         assertEquals(Triple("Dune Messiah", null, later), library.book("b1")!!.let { Triple(it.title, it.author, it.editedAt) })
         // An older phone edit doesn't undo a newer one here; this computer's is written back.
         sync.edit("b1", "Dune", "Herbert")
-        file.writeText(BookInfoFiles.encode(BookInfo("Old", null, 5), "Android"))
+        phoneEdits(BookInfo("Old", null, 5))
         assertFalse(sync.sync(library.book("b1")!!))
         assertEquals("Dune", library.book("b1")!!.title)
-        assertEquals("Dune", BookInfoFiles.parse(file.readText())?.title)
+        assertEquals("Dune", shared()?.title)
         // The edit survives a restart.
         assertEquals(library.book("b1")!!.editedAt, LibraryStore.decode(LibraryStore.encode(library.book("b1")!!)).editedAt)
         assertNull(BookInfoFiles.parse("{\"format\":\"readalong-info\",\"version\":1,\"title\":\" \",\"editedAt\":1}"))
+    }
+
+    /** Progress, bookmarks and edits kept the old way, one file each, end up in the book's single state file. */
+    @Test fun oldSeparateFilesAreFoldedIntoOneStateFile() {
+        val folder = File(home, "Books/Dune")
+        val (library, book) = bookIn(folder)
+        val mark = { id: String -> SharedBookmark(id, id, 1, 1_000, 0, null, -1, 0, null) }
+        // The state file already has a newer position and one bookmark; the old files have an older position, a new edit and more bookmarks.
+        File(folder, "Dune.readalong-state").writeText(BookStateFiles.withSection(null, BookStateFiles.Part.PROGRESS,
+            JSONObject().put("format", "readalong-progress").put("version", 1).put("updatedAt", 9_000).put("positionMs", 900).toString(), "Android")!!
+            .let { BookStateFiles.withSection(it, BookStateFiles.Part.BOOKMARKS, BookmarkFiles.encode(BookmarkFile(listOf(mark("a")), setOf("x")), "Android"), "Android")!! })
+        File(folder, "Dune.readalong-progress").writeText(JSONObject().put("format", "readalong-progress").put("version", 1).put("updatedAt", 5_000).put("positionMs", 500).toString())
+        File(folder, "Dune.readalong-bookmarks").writeText(BookmarkFiles.encode(BookmarkFile(listOf(mark("b"), mark("x")), setOf("c")), "Android"))
+        File(folder, "Dune.readalong-info").writeText(BookInfoFiles.encode(BookInfo("Dune Messiah", "Herbert", 7), "Android"))
+        File(folder, "notes.readalong-info").writeText("not ours")
+
+        BookState.convert(book)
+        val text = File(folder, "Dune.readalong-state").readText()
+        assertEquals(9_000, JSONObject(BookStateFiles.section(text, BookStateFiles.Part.PROGRESS)!!).getLong("updatedAt"))
+        val marks = BookmarkFiles.parse(BookStateFiles.section(text, BookStateFiles.Part.BOOKMARKS)!!)!!
+        assertEquals(setOf("a", "b"), marks.bookmarks.map { it.id }.toSet())
+        assertEquals(setOf("c", "x"), marks.removed)
+        assertEquals("Dune Messiah", BookInfoFiles.parse(BookStateFiles.section(text, BookStateFiles.Part.INFO)!!)?.title)
+        assertEquals(listOf("01.mp3", "Dune.readalong-state", "notes.readalong-info"), folder.list()!!.sorted())
+        // The apps read it as before: the info is taken from it.
+        assertTrue(BookInfoSync(library).sync(book))
+        assertEquals("Dune Messiah", library.book("b1")!!.title)
+        // One file to sync, turned off with progress or bookmarks.
+        assertEquals(FolderSyncPlan.Kind.PROGRESS, FolderSyncPlan.kind("Dune/Dune.readalong-state"))
+        assertTrue(FolderSyncPlan.included("Dune/Dune.readalong-state", setOf("epub")))
+        assertFalse(FolderSyncPlan.included("Dune/Dune.readalong-state", setOf("bookmarks")))
+        // A state file from a newer version that this one can't read is never written over.
+        assertNull(BookStateFiles.withSection("{\"format\":\"readalong-state\",\"version\":9}", BookStateFiles.Part.INFO, "{}", "Test"))
     }
 }
