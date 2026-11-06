@@ -53,7 +53,7 @@ fun ReadAlongApp(app: AppState) {
             }
         }
     }
-    ReadAlongTheme(settings.accent, settings.light) {
+    ReadAlongTheme(settings.accent, settings.light, settings.appFont, accentOnly = settings.alwaysAccent) {
         Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
             .dragAndDropTarget(shouldStartDragAndDrop = { true }, target = drop)) {
             Column(Modifier.fillMaxSize()) {

@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -54,6 +55,10 @@ fun SettingsScreen(app: AppState) {
                     }
                 }
             }
+            PreferenceSwitch("Match mini player to book colors", settings.coloredMiniPlayer, "ic_play") { v -> save { it.copy(coloredMiniPlayer = v) } }
+            PreferenceSwitch("Use accent color instead of cover colors", settings.alwaysAccent, "ic_image") { v -> save { it.copy(alwaysAccent = v) } }
+            PreferenceSwitch("Show title and author", settings.showTitleAndAuthor, "ic_book") { v -> save { it.copy(showTitleAndAuthor = v) } }
+            AppFontRow(settings.appFont) { font -> save { it.copy(appFont = font) } }
         }
 
         SectionLabel("Playback")
@@ -238,7 +243,28 @@ private fun TipJarSection(inOther: Boolean, onMove: (Boolean) -> Unit) {
     }
 }
 
-/** A settings page: back button, title, and a centred scrolling column. */
+/** Settings → App font: a menu of the bundled fonts, each shown in itself. */
+@Composable
+private fun AppFontRow(value: String, onChoose: (String) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    val name = Fonts.reading.firstOrNull { it.first == value }?.second ?: "Plus Jakarta Sans"
+    Box {
+        SettingsRow("App font", "ic_font", onClick = { open = true }) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(name, fontFamily = Fonts.reading(value), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Chevron()
+            }
+        }
+        DropdownMenu(open, { open = false }, Modifier.align(Alignment.TopEnd)) {
+            Fonts.reading.forEach { (key, label) ->
+                DropdownMenuItem({ Text(label, fontFamily = Fonts.reading(key)) }, { onChoose(key); open = false },
+                    trailingIcon = { if (key == value) Icon(androidx.compose.material.icons.Icons.Rounded.Check, "Selected", Modifier.size(18.dp)) })
+            }
+        }
+    }
+}
+
+/** A settings page: back button, title, and a scrolling column the width of the window. */
 @Composable
 private fun SettingsPage(title: String, back: String, app: AppState, content: @Composable ColumnScope.() -> Unit) {
     val scroll = rememberScrollState()
@@ -249,7 +275,8 @@ private fun SettingsPage(title: String, back: String, app: AppState, content: @C
                 Spacer(Modifier.width(10.dp))
                 Text(title, style = MaterialTheme.typography.headlineMedium)
             }
-            Column(Modifier.widthIn(max = 760.dp).fillMaxWidth().align(Alignment.CenterHorizontally), verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
+            // The page's full width, like the phone's Settings.
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
             Spacer(Modifier.height(40.dp))
         }
         VerticalScrollbar(rememberScrollbarAdapter(scroll), Modifier.align(Alignment.CenterEnd).fillMaxHeight())
