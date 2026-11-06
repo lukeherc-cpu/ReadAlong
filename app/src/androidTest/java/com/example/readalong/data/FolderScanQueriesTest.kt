@@ -48,9 +48,10 @@ class FolderScanQueriesTest {
      * provider itself on API 34 even with the shell's identity adopted; the URI grants it hands out still work.
      */
     private fun shellCall(method: String, arg: String? = null): String {
-        val command = "content call --uri content://com.example.readalong.test.original-books --method $method" + (arg?.let { " --arg $it" } ?: "")
-        val output = InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand("sh -c '$command 2>&1'")
-        val text = android.os.ParcelFileDescriptor.AutoCloseInputStream(output).bufferedReader().readText()
+        val command = "content call --user 0 --uri content://com.example.readalong.test.original-books/tree/book --method $method" + (arg?.let { " --arg $it" } ?: "")
+        val streams = InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommandRwe(command)
+        streams[1].close()
+        val text = listOf(streams[0], streams[2]).joinToString("\n") { android.os.ParcelFileDescriptor.AutoCloseInputStream(it).bufferedReader().readText() }
         check("Result:" in text) { "$command: $text" }
         return text
     }
