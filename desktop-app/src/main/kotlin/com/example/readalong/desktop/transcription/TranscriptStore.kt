@@ -17,7 +17,6 @@ import java.security.MessageDigest
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
-import kotlin.math.abs
 
 /** One unit of a transcript: [startMs] to [endMs] of audio file [file], at most 30 s, in the phone's chunk format. */
 data class Chunk(val file: Int, val startMs: Long, val endMs: Long, val result: JSONObject) {
@@ -150,8 +149,9 @@ class TranscriptStore {
                 require(!matches.isNullOrEmpty()) { "This transcript belongs to different audio. Use the original audiobook files." }
                 val part = matches.firstOrNull { book.parts[it].name == source.optString("name") } ?: matches.first()
                 matches.remove(part)
-                // The bytes match, so this is the same audio; the two apps only measure some MP3s' length differently (VBR without a frame index).
-                require(abs(source.getLong("durationMs") - book.parts[part].durationMs) <= maxOf(1_000L, book.parts[part].durationMs / 50)) { "The transcript's audio duration does not match this book." }
+                // The bytes match, so this is the same audio, whatever length each app measured: the two often disagree on
+                // MP3s without a frame index (VBR), where both only estimate. Text past this computer's end of the file is cut off when read.
+                require(source.getLong("durationMs") in 1..7L * 24 * 60 * 60_000) { "The transcript's audio duration does not match this book." }
                 part
             }
             val durations = LongArray(sources.length()) { sources.getJSONObject(it).getLong("durationMs") }
