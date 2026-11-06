@@ -9,6 +9,7 @@ import com.example.readalong.data.local.LibraryMetadataEntity
 import com.example.readalong.data.local.ReadAlongDatabase
 import com.example.readalong.domain.link.BookInfo
 import com.example.readalong.domain.link.BookInfoFiles
+import com.example.readalong.domain.link.BookStateFiles
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -17,7 +18,7 @@ import java.io.InputStream
 /**
  * A book's chosen cover and EPUB, kept beside its audio so they travel with the folder (a linked computer,
  * OneDrive, Syncthing, a cable) the way `.readalong` and `.readalong-progress` do, under the same base name:
- * `<book>.cover.jpg` and `<book>.epub`. ReadAlong Desktop reads and writes the same files.
+ * `<book>.cover.jpg` and `<book>.epub`. (Progress, bookmarks and edited titles share `<book>.readalong-state`.) ReadAlong Desktop reads and writes the same files.
  *
  * Each scan adopts a companion file whose size or time changed since this phone last wrote or took it, so a
  * cover or EPUB chosen on the computer replaces the phone's, and the other way round. Folders the phone can
@@ -65,7 +66,8 @@ class BookFolderFiles(private val context: Context, private val database: ReadAl
     }
 
     /**
-     * Shares a title or author edited on either device through "<book>.readalong-info": the newer edit wins. Run by each
+     * Shares a title or author edited on either device through the "info" part of "<book>.readalong-state" (see
+     * [FolderBookState]): the newer edit wins. Run by each
      * folder scan, and after an edit here. Returns true when the folder's edit was taken.
      */
     suspend fun syncInfo(bookId: String): Boolean = withContext(Dispatchers.IO) {
@@ -73,9 +75,8 @@ class BookFolderFiles(private val context: Context, private val database: ReadAl
         val book = dao.findBook(bookId) ?: return@withContext false
         val edited = dao.metadata("override:$bookId:title") != null || dao.metadata("override:$bookId:author") != null
         val local = if (edited) BookInfo(book.title, book.author, dao.metadata(EDITED + bookId)?.toLongOrNull() ?: 0) else null
-        val name = baseName(location) + BookInfoFiles.EXTENSION
-        val existing = child(Uri.parse(location.folder), name)
-        val file = existing?.let { uri -> runCatching { resolver.openInputStream(uri)?.use { BookInfoFiles.parse(String(it.readBytes(), Charsets.UTF_8)) } }.getOrNull() }
+        val state = FolderBookState(context)
+        val file = state.read(location, BookStateFiles.Part.INFO)?.let(BookInfoFiles::parse)
         when (BookInfoFiles.direction(local, file)) {
             BookInfoFiles.Action.TAKE -> {
                 val taken = requireNotNull(file)
@@ -84,8 +85,7 @@ class BookFolderFiles(private val context: Context, private val database: ReadAl
                 true
             }
             BookInfoFiles.Action.WRITE -> {
-                val text = BookInfoFiles.encode(requireNotNull(local), "Android").toByteArray(Charsets.UTF_8)
-                write(bookId, BookInfoFiles.EXTENSION) { text.inputStream() }
+                state.write(location, BookStateFiles.Part.INFO, BookInfoFiles.encode(requireNotNull(local), "Android"))
                 false
             }
             BookInfoFiles.Action.NONE -> false

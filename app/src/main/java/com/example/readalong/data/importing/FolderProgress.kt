@@ -1,8 +1,6 @@
 package com.example.readalong.data.importing
 
 import android.content.Context
-import android.net.Uri
-import android.provider.DocumentsContract
 import androidx.room.withTransaction
 import com.example.readalong.data.local.AudioFileEntity
 import com.example.readalong.data.local.LibraryMetadataEntity
@@ -12,10 +10,10 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
 /**
- * Listening progress shared with ReadAlong for Windows (or another phone) through the audiobook folder:
- * `<book>.readalong-progress` sits beside the book, in the same place and with the same base name as its
- * `.readalong` transcript, so whatever already syncs the folder (OneDrive, Syncthing, a cable) carries
- * it. Each folder scan reads it, and the newer listening wins: an older phone position takes the file's,
+ * Listening progress shared with ReadAlong for Windows (or another phone) through the audiobook folder: the
+ * "progress" part of `<book>.readalong-state` (see [FolderBookState]; older versions wrote it as a file of its own,
+ * `<book>.readalong-progress`), beside the book with the same base name as its `.readalong` transcript, so
+ * whatever already syncs the folder (OneDrive, Syncthing, a cable) carries it. Each folder scan reads it, and the newer listening wins: an older phone position takes the file's,
  * a newer one rewrites the file. The phone also writes it when playback pauses.
  */
 data class FolderProgress(
@@ -92,13 +90,13 @@ data class FolderProgressLocation(val folder: String, val name: String, val file
  */
 class FolderProgressSync(private val context: Context, private val database: ReadAlongDatabase,
     private val playing: (String) -> Boolean = { false }, private val moved: suspend (String, Long) -> Unit = { _, _ -> }) {
-    private val resolver = context.contentResolver
+    private val state = FolderBookState(context)
     private val dao = database.bookDao()
 
     /** Called by each folder scan for each book it found. */
     suspend fun sync(bookId: String, location: FolderProgressLocation) = withContext(Dispatchers.IO) {
         dao.putMetadata(LibraryMetadataEntity(key(bookId), location.encode()))
-        val remote = location.file?.let { read(Uri.parse(it)) }
+        val remote = read(location)
         when (FolderProgress.direction(dao.progress(bookId)?.lastPlayedAt, remote)) {
             FolderProgress.Direction.TAKE -> if (!playing(bookId)) take(bookId, requireNotNull(remote))
             FolderProgress.Direction.WRITE -> write(bookId, location)
@@ -109,13 +107,12 @@ class FolderProgressSync(private val context: Context, private val database: Rea
     /** After listening on the phone: write the book's progress beside it, unless the file is already as new. */
     suspend fun push(bookId: String) = withContext(Dispatchers.IO) {
         val location = FolderProgressLocation.decode(dao.metadata(key(bookId))) ?: return@withContext
-        val remote = location.file?.let { read(Uri.parse(it)) }
+        val remote = read(location)
         if (FolderProgress.direction(dao.progress(bookId)?.lastPlayedAt, remote) == FolderProgress.Direction.WRITE) write(bookId, location)
     }
 
-    private fun read(uri: Uri): FolderProgress? = runCatching {
-        resolver.openInputStream(uri)?.use { input -> FolderProgress.parse(String(input.readNBytesCompat(64 * 1024 + 1), Charsets.UTF_8)) }
-    }.getOrNull()
+    private suspend fun read(location: FolderProgressLocation): FolderProgress? =
+        state.read(location, com.example.readalong.domain.link.BookStateFiles.Part.PROGRESS)?.let(FolderProgress::parse)
 
     private suspend fun take(bookId: String, remote: FolderProgress) {
         val files = database.mediaDao().audioFiles(bookId)
@@ -143,25 +140,10 @@ class FolderProgressSync(private val context: Context, private val database: Rea
         val (index, filePosition) = if (savedIndex >= 0) savedIndex to (dao.metadata("file_position:$bookId")?.toLongOrNull() ?: 0)
             else FolderProgress(0, progress.audioPositionMs, files.sumOf { it.durationMs ?: 0 }, false, null, -1, 0).locate(files) ?: (0 to 0L)
         val content = FolderProgress(playedAt, progress.audioPositionMs, files.sumOf { it.durationMs ?: 0 }, progress.isFinished,
-            files[index].name, index, filePosition, fileCount = files.size).toJson().toByteArray(Charsets.UTF_8)
-        // Folders added before this release only granted reading; those just don't send progress back.
-        try {
-            val target = location.file?.let(Uri::parse) ?: DocumentsContract.createDocument(resolver, Uri.parse(location.folder), "application/octet-stream", location.name)
-                ?: return
-            val stream = try { resolver.openOutputStream(target, "wt") } catch (_: IllegalArgumentException) { resolver.openOutputStream(target, "w") }
-            requireNotNull(stream).use { it.write(content) }
-            if (location.file == null) dao.putMetadata(LibraryMetadataEntity(key(bookId), location.copy(file = target.toString()).encode()))
-        } catch (failure: Exception) {
-            if (failure is kotlinx.coroutines.CancellationException) throw failure
-            android.util.Log.i("ReadAlong", "Progress file not written: ${failure.javaClass.simpleName}")
-        }
+            files[index].name, index, filePosition, fileCount = files.size).toJson()
+        // Folders added before write access was asked for just don't send progress back.
+        state.write(location, com.example.readalong.domain.link.BookStateFiles.Part.PROGRESS, content)
     }
 
     private fun key(bookId: String) = "folder_progress:$bookId"
-}
-
-private fun java.io.InputStream.readNBytesCompat(limit: Int): ByteArray {
-    val out = java.io.ByteArrayOutputStream(); val buffer = ByteArray(8192)
-    while (out.size() < limit) { val n = read(buffer, 0, minOf(buffer.size, limit - out.size())); if (n < 0) break; out.write(buffer, 0, n) }
-    return out.toByteArray()
 }

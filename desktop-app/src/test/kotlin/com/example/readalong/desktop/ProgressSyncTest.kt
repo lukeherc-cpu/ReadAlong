@@ -8,6 +8,7 @@ import com.example.readalong.desktop.core.ProgressSync
 import com.example.readalong.desktop.core.companionFile
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import com.example.readalong.domain.link.BookStateFiles
 import org.json.JSONObject
 import java.io.File
 import java.nio.file.Files
@@ -48,7 +49,8 @@ class ProgressSyncTest {
         library.replaceAll { listOf(local) }
         local.companionFile(ProgressSync.EXTENSION).writeText(phoneFile(updatedAt = 2_000_000))
         assertFalse(ProgressSync(library).sync(local))
-        val written = JSONObject(File(folder, "${folder.name}.readalong-progress").readText())
+        assertFalse(File(folder, "${folder.name}.readalong-progress").exists())
+        val written = JSONObject(BookStateFiles.section(File(folder, "${folder.name}.readalong-state").readText(), BookStateFiles.Part.PROGRESS)!!)
         assertEquals(AppPaths.platformName, written.getString("device"))
         assertEquals(5_000_000, written.getLong("updatedAt"))
         assertEquals("02.mp3", written.getString("file"))
