@@ -18,6 +18,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.map
 import java.io.File
 import java.security.MessageDigest
@@ -54,12 +55,14 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
     private val books = database.bookDao()
     private val folderLock = kotlinx.coroutines.sync.Mutex()
     private val importLock = kotlinx.coroutines.sync.Mutex()
-    val folders = media.observeFolders()
+    /** Saved folders, less any being removed (see [FolderRemovals]). */
+    val folders = kotlinx.coroutines.flow.combine(media.observeFolders(), FolderRemovals.folders) { saved, removing -> if (removing.isEmpty()) saved else saved.filter { it.uri !in removing } }
+    private val background = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO)
     private val mutableScanProgress = kotlinx.coroutines.flow.MutableStateFlow<ScanProgress?>(null)
     /** How far a scan has got with the books it has to add or update; null between scans and while a scan finds nothing new. */
     val scanProgress: kotlinx.coroutines.flow.StateFlow<ScanProgress?> = mutableScanProgress
     /** Book ids by saved folder uri. */
-    val folderBooks = media.observeFolderBooks().map { rows -> rows.groupBy({ it.folderUri }, { it.bookId }) }
+    val folderBooks = kotlinx.coroutines.flow.combine(media.observeFolderBooks(), FolderRemovals.folders) { rows, removing -> rows.filter { it.folderUri !in removing }.groupBy({ it.folderUri }, { it.bookId }) }
 
     suspend fun matchedEpub(bookId: String): Boolean {
         if (database.importedEpubDao().find(bookId) != null) return true
@@ -103,6 +106,7 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
         folderLock.withLock {
             media.folder(uri.toString())?.takeIf { it.mode != mode.name }?.let { dropFolderBooks(it.uri) }
             media.putFolder(FolderEntity(uri.toString(), root.name ?: "Audiobooks", mode.name, null, SCAN_INCOMPLETE))
+            FolderRemovals.finish(uri.toString())
             scanLocked(uri, explicit = restoreDeleted)
         }
     }
@@ -137,7 +141,7 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
     /** Returns what each folder's scan found, for those that could be scanned. */
     suspend fun rescanSavedFolders(onFolder: (FolderEntity?) -> Unit = {}): List<Pair<FolderEntity, ImportResult>> = withContext(Dispatchers.IO) {
         val results = mutableListOf<Pair<FolderEntity, ImportResult>>()
-        try { media.savedFolders().forEach { folder ->
+        try { media.savedFolders().filter { it.uri !in FolderRemovals.folders.value }.forEach { folder ->
             onFolder(folder)
             try { results += folder to scan(Uri.parse(folder.uri)) }
             catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
@@ -281,13 +285,30 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
 
     /** Explicit confirmation is owned by FoldersScreen. Never deletes original source documents. */
     suspend fun removeFolder(folder: FolderEntity) = withContext(Dispatchers.IO) {
-        folderLock.lock()
+        FolderRemovals.start(folder.uri)
         try {
-            dropFolderBooks(folder.uri)
-            media.removeFolder(folder.uri)
-            try { resolver.releasePersistableUriPermission(Uri.parse(folder.uri), Intent.FLAG_GRANT_READ_URI_PERMISSION) }
-            catch (_: SecurityException) { /* Access may already be revoked. */ }
-        } finally { folderLock.unlock() }
+            folderLock.withLock {
+                dropFolderBooks(folder.uri)
+                media.removeFolder(folder.uri)
+                try { resolver.releasePersistableUriPermission(Uri.parse(folder.uri), Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+                catch (_: SecurityException) { /* Access may already be revoked. */ }
+            }
+        } catch (failure: Throwable) { FolderRemovals.finish(folder.uri); throw failure }
+        // On success the uri stays hidden (its rows are gone anyway) so the list can't flicker back
+        // before Room re-emits; adding the folder again un-hides it.
+    }
+
+    /**
+     * Removes [folder] from every list now and cleans up in the background, so the user never waits
+     * on a scan in progress or on many books. If the clean-up fails the folder comes back and [onFailure] says why.
+     */
+    fun removeFolderInBackground(folder: FolderEntity, onFailure: (Exception) -> Unit = {}) {
+        FolderRemovals.start(folder.uri)
+        background.launch {
+            try { removeFolder(folder) }
+            catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+            catch (failure: Exception) { onFailure(failure) }
+        }
     }
 
     /** Takes a folder's books out of the library without marking them deleted. Hold [folderLock]. */

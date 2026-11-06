@@ -16,7 +16,9 @@ class RoomBookRepository(private val database: ReadAlongDatabase, private val se
 
     override fun observeBooks(): Flow<List<Book>> = flow {
         seedDemoLibraryOnce()
-        emitAll(dao.observeBooks().map { rows -> rows.map { it.toBook() } })
+        // Books of a folder being removed leave the list at once, before their clean-up finishes.
+        val hidden = com.example.readalong.data.importing.FolderRemovals.hiddenBooks { database.mediaDao().observeFolderBooks() }
+        emitAll(kotlinx.coroutines.flow.combine(dao.observeBooks(), hidden) { rows, gone -> rows.filter { it.book.id !in gone }.map { it.toBook() } })
     }
 
     override fun observeBook(bookId: String): Flow<Book?> = flow {
