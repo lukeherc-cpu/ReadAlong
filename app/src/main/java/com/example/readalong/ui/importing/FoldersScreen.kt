@@ -39,7 +39,12 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.readalong.data.importing.FolderMode
 import com.example.readalong.data.importing.SCAN_INCOMPLETE
+import com.example.readalong.data.local.BookBadges
 import com.example.readalong.data.local.FolderEntity
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import com.example.readalong.domain.model.Book
 import com.example.readalong.ui.components.BookCover
 
@@ -62,6 +67,8 @@ fun FoldersScreen(model: ImportViewModel, onBack: () -> Unit) {
     val app = context.applicationContext as? com.example.readalong.ReadAlongApplication
     val library by remember { app?.bookRepository?.observeBooks() ?: kotlinx.coroutines.flow.flowOf(emptyList()) }.collectAsStateWithLifecycle(emptyList())
     val booksById = remember(library) { library.associateBy { it.id } }
+    val badgeRows by remember { app?.database?.bookDao()?.observeBadges() ?: kotlinx.coroutines.flow.flowOf(emptyList()) }.collectAsStateWithLifecycle(emptyList())
+    val badges = remember(badgeRows) { badgeRows.associateBy { it.bookId } }
     var removing by remember { mutableStateOf<FolderEntity?>(null) }
     var reconnecting by remember { mutableStateOf<FolderEntity?>(null) }
     var audible by rememberSaveable { mutableStateOf(false) }
@@ -94,7 +101,7 @@ fun FoldersScreen(model: ImportViewModel, onBack: () -> Unit) {
                     items(shown, key = { it.uri }) { folder ->
                         val ids = folderBooks[folder.uri].orEmpty()
                         val covers = ids.mapNotNull(booksById::get).sortedBy { it.title.lowercase() }
-                        FolderCard(folder, covers, ids.size,
+                        FolderCard(folder, covers, ids.size, badges,
                             scanning = scanningFolder == folder.name || (busy && folder.error == SCAN_INCOMPLETE),
                             lostAccess = folder.uri !in granted, enabled = !busy,
                             onCheck = { model.rescan(folder) }, onRemove = { removing = folder },
@@ -126,7 +133,7 @@ fun FoldersScreen(model: ImportViewModel, onBack: () -> Unit) {
 }
 
 @Composable
-private fun FolderCard(folder: FolderEntity, covers: List<Book>, count: Int, scanning: Boolean, lostAccess: Boolean, enabled: Boolean,
+private fun FolderCard(folder: FolderEntity, covers: List<Book>, count: Int, badges: Map<String, BookBadges>, scanning: Boolean, lostAccess: Boolean, enabled: Boolean,
     onCheck: () -> Unit, onRemove: () -> Unit, onChooseAgain: () -> Unit, modifier: Modifier = Modifier) {
     Surface(modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surface, shadowElevation = 1.dp) {
         Column(Modifier.fillMaxWidth().animateContentSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -147,7 +154,10 @@ private fun FolderCard(folder: FolderEntity, covers: List<Book>, count: Int, sca
                 Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
             }
             if (scanning) LinearProgressIndicator(Modifier.fillMaxWidth().height(6.dp), strokeCap = androidx.compose.ui.graphics.StrokeCap.Round)
-            if (!lostAccess && covers.isNotEmpty()) CoverStrip(covers, count)
+            if (!lostAccess && covers.isNotEmpty()) {
+                CoverStrip(covers, count, badges)
+                BadgeKey()
+            }
         }
     }
 }
@@ -172,7 +182,7 @@ private fun FolderMenu(name: String, enabled: Boolean, onCheck: () -> Unit, onRe
  */
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
-private fun CoverStrip(covers: List<Book>, count: Int) {
+private fun CoverStrip(covers: List<Book>, count: Int, badges: Map<String, BookBadges>) {
     val surface = MaterialTheme.colorScheme.surface
     var expanded by rememberSaveable { mutableStateOf(false) }
     val canExpand = covers.size > STRIP
@@ -199,8 +209,11 @@ private fun CoverStrip(covers: List<Book>, count: Int) {
                 val delay = if (index < STRIP) 0 else 40 + 22 * (index - STRIP).coerceAtMost(20)
                 AnimatedVisibility(seen, Modifier.overlap(),
                     enter = fadeIn(tween(200, delay)) + scaleIn(spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = 500f), initialScale = .6f)) {
-                    Surface(shape = RoundedCornerShape(12.dp), border = BorderStroke(2.dp, surface)) {
-                        BookCover(book, Modifier.size(52.dp), showTitle = false)
+                    Box {
+                        Surface(shape = RoundedCornerShape(12.dp), border = BorderStroke(2.dp, surface)) {
+                            BookCover(book, Modifier.size(52.dp), showTitle = false)
+                        }
+                        CoverBadges(badges[book.id], Modifier.align(Alignment.BottomEnd))
                     }
                 }
             }
@@ -223,6 +236,53 @@ private fun CoverStrip(covers: List<Book>, count: Int) {
         }
     }
 }
+
+/** The corner badges on a folder cover: the ReadAlong logo for a finished ReadAlong, a book for a linked EPUB. */
+@Composable
+private fun CoverBadges(badges: BookBadges?, modifier: Modifier = Modifier) {
+    if (badges == null || (!badges.epub && !badges.readAlong)) return
+    Row(modifier.semantics(mergeDescendants = true) {
+        contentDescription = listOfNotNull("ReadAlong ready".takeIf { badges.readAlong }, "EPUB linked".takeIf { badges.epub }).joinToString(", ")
+    }, horizontalArrangement = Arrangement.spacedBy(1.dp)) {
+        if (badges.readAlong) ReadAlongBadge()
+        if (badges.epub) EpubBadge()
+    }
+}
+
+@Composable
+private fun EpubBadge() {
+    Box(Modifier.size(BADGE).clip(CircleShape).background(MaterialTheme.colorScheme.primary).border(1.5.dp, MaterialTheme.colorScheme.surface, CircleShape),
+        contentAlignment = Alignment.Center) {
+        Icon(painterResource(R.drawable.ic_book), null, Modifier.size(11.dp), tint = MaterialTheme.colorScheme.onPrimary)
+    }
+}
+
+@Composable
+private fun ReadAlongBadge() {
+    Box(Modifier.size(BADGE).clip(CircleShape).background(com.example.readalong.ui.theme.LogoPaleBlue).border(1.5.dp, MaterialTheme.colorScheme.surface, CircleShape),
+        contentAlignment = Alignment.Center) {
+        // The logo's artwork sits inside padding of its own; drawn larger so the headphones and book fill the badge.
+        androidx.compose.foundation.Image(painterResource(R.drawable.ic_readalong), null, Modifier.requiredSize(22.dp))
+    }
+}
+
+/** What the two badges mean, under the covers. */
+@Composable
+private fun BadgeKey() {
+    val style = MaterialTheme.typography.bodySmall
+    val color = MaterialTheme.colorScheme.onSurfaceVariant
+    Row(Modifier.clearAndSetSemantics { contentDescription = "Badges: book means EPUB linked, ReadAlong logo means ReadAlong ready" },
+        horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            EpubBadge(); Text("= linked EPUB", style = style, color = color)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            ReadAlongBadge(); Text("= ReadAlong ready", style = style, color = color)
+        }
+    }
+}
+
+private val BADGE = 18.dp
 
 private fun summary(count: Int, lastScanAt: Long?): String {
     val books = if (count == 1) "1 book" else "$count books"
