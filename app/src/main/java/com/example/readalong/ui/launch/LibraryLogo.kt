@@ -21,7 +21,7 @@ import com.example.readalong.R
 
 @Composable
 fun LibraryLogo(scanningFolder: String?, transcribing: Boolean = false, animate: Boolean = true, readingFolder: Boolean = false, onClick: () -> Unit = {},
-    /** "46 / 120" while a background rescan that has taken a while is under way. */
+    /** "46 / 120" while books are being read: a new library folder, or a rescan with books to add or update. */
     syncCount: String? = null) {
     val moving = (scanningFolder != null || transcribing || readingFolder) && animate && ValueAnimator.areAnimatorsEnabled()
     val page = if (moving) {
@@ -36,10 +36,11 @@ fun LibraryLogo(scanningFolder: String?, transcribing: Boolean = false, animate:
         syncNote = scanningFolder != null
         if (syncNote) { kotlinx.coroutines.delay(3_000); syncNote = false }
     }
-    val label = if (readingFolder) "Reading folder" else if (transcribing) "Transcribing" else if (syncCount != null) "Syncing $syncCount" else if (syncNote) "Syncing" else null
+    // Books being added or updated: "Reading books 3 / 30". A routine check with nothing to read keeps the brief "Syncing".
+    val label = if (syncCount != null) "Reading books $syncCount" else if (readingFolder) "Reading books" else if (transcribing) "Transcribing" else if (syncNote) "Syncing" else null
     Column(Modifier.widthIn(min = 64.dp).clickable(onClickLabel = "Open the queue", onClick = onClick).semantics(mergeDescendants = true) {
         contentDescription = "ReadAlong queue"
-        stateDescription = if (readingFolder) "Reading folder" else if (transcribing) "Transcribing" else scanningFolder?.let { "Syncing $it" + (syncCount?.let { c -> ", $c" } ?: "") } ?: "Library up to date"
+        stateDescription = if (syncCount != null) "Reading books, ${syncCount.replace(" / ", " of ")}" else if (readingFolder) "Reading books" else if (transcribing) "Transcribing" else scanningFolder?.let { "Syncing $it" } ?: "Library up to date"
     }, horizontalAlignment = Alignment.CenterHorizontally) {
         PageTurnLogo(page, Modifier.size(52.dp))
         // The label's line is always reserved (sized in sp, so large fonts aren't clipped), so the
