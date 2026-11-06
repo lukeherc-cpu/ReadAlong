@@ -34,20 +34,19 @@ class ReadAlongApplication : Application() {
         if (database.mediaDao().folder(uri.toString()) != null) audioImporter.scan(uri)
         else audioImporter.addFolder(uri, com.example.readalong.data.importing.FolderMode.LIBRARY, persistAccess = false)
     } }
-    /** The settings shared with a linked computer: accent colour, skip times, and the ReadAlong reader's theme, font and size. */
+    /** The settings shared with a linked computer: accent colour, skip times, and the ReadAlong reader's theme and font (each device keeps its own text size). */
     private val linkSettings = object : com.example.readalong.data.link.LinkSettings {
         override suspend fun read(): Map<String, String> {
             val app = appPreferences.preferences.first(); val reader = readerPreferences.preferences.first()
             return with(com.example.readalong.domain.link.SettingsSync) { mapOf(ACCENT to app.basicColor.toString(), SKIP_BACK to app.playerBack.toString(),
-                SKIP_FORWARD to app.playerForward.toString(), READER_THEME to reader.theme, READER_FONT to reader.fontFamily, READER_SIZE to reader.fontSize.toString()) }
+                SKIP_FORWARD to app.playerForward.toString(), READER_THEME to reader.theme, READER_FONT to reader.fontFamily) }
         }
         override suspend fun apply(values: Map<String, String>) { with(com.example.readalong.domain.link.SettingsSync) {
             appPreferences.update { p -> p.copy(basicColor = values[ACCENT]?.toLongOrNull() ?: p.basicColor,
                 playerBack = values[SKIP_BACK]?.toIntOrNull()?.coerceIn(1, 600) ?: p.playerBack, playerForward = values[SKIP_FORWARD]?.toIntOrNull()?.coerceIn(1, 600) ?: p.playerForward) }
             val reader = readerPreferences.preferences.first()
             readerPreferences.save(reader.copy(theme = values[READER_THEME]?.takeIf { it in setOf("DARK", "BLACK", "LIGHT", "SEPIA") } ?: reader.theme,
-                fontFamily = values[READER_FONT]?.takeIf { com.example.readalong.data.preferences.ReaderFonts.valid(it) && it != "MATCH" } ?: reader.fontFamily,
-                fontSize = values[READER_SIZE]?.toFloatOrNull()?.takeIf { it.isFinite() }?.coerceIn(16f, 32f) ?: reader.fontSize))
+                fontFamily = values[READER_FONT]?.takeIf { com.example.readalong.data.preferences.ReaderFonts.valid(it) && it != "MATCH" } ?: reader.fontFamily))
         } }
     }
     val bookRepository: BookRepository by lazy {

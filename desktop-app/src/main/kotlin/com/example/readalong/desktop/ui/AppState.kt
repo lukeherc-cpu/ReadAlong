@@ -69,7 +69,7 @@ class AppState(val scope: CoroutineScope, private val background: Boolean = true
     /** The settings shared with a linked phone (see SettingsSync). */
     private fun sharedSettings(): Map<String, String> = settingsStore.value.let { s ->
         with(com.example.readalong.domain.link.SettingsSync) { mapOf(ACCENT to s.accent.toString(), SKIP_BACK to s.skipBackSeconds.toString(),
-            SKIP_FORWARD to s.skipForwardSeconds.toString(), READER_THEME to s.readerTheme, READER_FONT to s.readerFont, READER_SIZE to s.readerSize.toString()) }
+            SKIP_FORWARD to s.skipForwardSeconds.toString(), READER_THEME to s.readerTheme, READER_FONT to s.readerFont) }
     }
 
     private fun applySharedSettings(values: Map<String, String>) = with(com.example.readalong.domain.link.SettingsSync) {
@@ -77,8 +77,7 @@ class AppState(val scope: CoroutineScope, private val background: Boolean = true
             skipBackSeconds = values[SKIP_BACK]?.toIntOrNull()?.coerceIn(1, 600) ?: s.skipBackSeconds,
             skipForwardSeconds = values[SKIP_FORWARD]?.toIntOrNull()?.coerceIn(1, 600) ?: s.skipForwardSeconds,
             readerTheme = values[READER_THEME]?.takeIf { it in setOf("DARK", "BLACK", "LIGHT", "SEPIA") } ?: s.readerTheme,
-            readerFont = values[READER_FONT]?.takeIf { it.isNotBlank() && it.length <= 80 } ?: s.readerFont,
-            readerSize = values[READER_SIZE]?.toFloatOrNull()?.takeIf { it.isFinite() }?.coerceIn(14f, 40f) ?: s.readerSize) }
+            readerFont = values[READER_FONT]?.takeIf { it.isNotBlank() && it.length <= 80 } ?: s.readerFont) }
     }
 
     /** Makes [epub] the book's EPUB, copied beside the book so it syncs with the phone. */
@@ -150,6 +149,11 @@ class AppState(val scope: CoroutineScope, private val background: Boolean = true
         // A book that is loaded but paused moves to the phone's place too.
         if (!state.playing && state.bookId in changed) library.book(state.bookId!!)?.let { player.seekTo(it.positionMs) }
     }
+
+    /** Edited titles and authors, shared with the phone. */
+    val bookInfo = BookInfoSync(library)
+    /** The book whose title and author are being edited ([EditInfoDialog]). */
+    var editingInfo by mutableStateOf<String?>(null)
 
     /** The book whose cover is being searched for online ([CoverSearchDialog]). */
     var coverSearch by mutableStateOf<String?>(null)

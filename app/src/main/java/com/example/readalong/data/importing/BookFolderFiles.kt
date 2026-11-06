@@ -7,6 +7,8 @@ import android.provider.DocumentsContract.Document
 import androidx.documentfile.provider.DocumentFile
 import com.example.readalong.data.local.LibraryMetadataEntity
 import com.example.readalong.data.local.ReadAlongDatabase
+import com.example.readalong.domain.link.BookInfo
+import com.example.readalong.domain.link.BookInfoFiles
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -62,12 +64,41 @@ class BookFolderFiles(private val context: Context, private val database: ReadAl
         last != null || !hasEdition || previous != epub.toString()
     }
 
+    /**
+     * Shares a title or author edited on either device through "<book>.readalong-info": the newer edit wins. Run by each
+     * folder scan, and after an edit here. Returns true when the folder's edit was taken.
+     */
+    suspend fun syncInfo(bookId: String): Boolean = withContext(Dispatchers.IO) {
+        val location = FolderProgressLocation.decode(dao.metadata(PROGRESS + bookId)) ?: return@withContext false
+        val book = dao.findBook(bookId) ?: return@withContext false
+        val edited = dao.metadata("override:$bookId:title") != null || dao.metadata("override:$bookId:author") != null
+        val local = if (edited) BookInfo(book.title, book.author, dao.metadata(EDITED + bookId)?.toLongOrNull() ?: 0) else null
+        val name = baseName(location) + BookInfoFiles.EXTENSION
+        val existing = child(Uri.parse(location.folder), name)
+        val file = existing?.let { uri -> runCatching { resolver.openInputStream(uri)?.use { BookInfoFiles.parse(String(it.readBytes(), Charsets.UTF_8)) } }.getOrNull() }
+        when (BookInfoFiles.direction(local, file)) {
+            BookInfoFiles.Action.TAKE -> {
+                val taken = requireNotNull(file)
+                com.example.readalong.data.book.BookActionsRepository(context, database).edit(bookId, title = taken.title, author = taken.author.orEmpty(), toFolder = false)
+                dao.putMetadata(LibraryMetadataEntity(EDITED + bookId, taken.editedAt.toString()))
+                true
+            }
+            BookInfoFiles.Action.WRITE -> {
+                val text = BookInfoFiles.encode(requireNotNull(local), "Android").toByteArray(Charsets.UTF_8)
+                write(bookId, BookInfoFiles.EXTENSION) { text.inputStream() }
+                false
+            }
+            BookInfoFiles.Action.NONE -> false
+        }
+    }
+
     private suspend fun write(bookId: String, suffix: String, open: () -> InputStream): Uri? {
         val location = FolderProgressLocation.decode(dao.metadata(PROGRESS + bookId)) ?: return null
         val folder = Uri.parse(location.folder)
         val name = baseName(location) + suffix
         return try {
-            val target = child(folder, name) ?: DocumentsContract.createDocument(resolver, folder, if (suffix == EPUB) "application/epub+zip" else "image/jpeg", name) ?: return null
+            val mime = when (suffix) { EPUB -> "application/epub+zip"; COVER -> "image/jpeg"; else -> "application/octet-stream" }
+            val target = child(folder, name) ?: DocumentsContract.createDocument(resolver, folder, mime, name) ?: return null
             val output = try { resolver.openOutputStream(target, "wt") } catch (_: IllegalArgumentException) { resolver.openOutputStream(target, "w") }
             open().use { input -> requireNotNull(output).use { input.copyTo(it, 256 * 1024) } }
             target
@@ -99,6 +130,8 @@ class BookFolderFiles(private val context: Context, private val database: ReadAl
         private const val FOLDER_EPUB = "folder_epub:"
         private const val COVER_SEEN = "folder_cover_seen:"
         private const val EPUB_SEEN = "folder_epub_seen:"
+        /** When the title or author was last edited here (or taken from the other device). */
+        const val EDITED = "override_edited_at:"
 
         /** The base name every companion file of a book shares: its folder's name, or a single-file book's own name. */
         fun baseName(location: FolderProgressLocation) = location.name.removeSuffix(FolderProgress.EXTENSION)

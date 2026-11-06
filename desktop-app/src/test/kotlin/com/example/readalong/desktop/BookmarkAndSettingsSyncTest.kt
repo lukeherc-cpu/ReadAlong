@@ -88,7 +88,7 @@ class BookmarkAndSettingsSyncTest {
 
     @Test fun computerServesAndTakesSettingsUnlessTurnedOff() {
         val (library, _) = book(File(home, "Books"))
-        var computer = mapOf("accent" to "1", "readerSize" to "22.0")
+        var computer = mapOf("accent" to "1", "readerTheme" to "DARK")
         val link = DeviceLink(scope, library, onSynced = {}, settings = { computer }, applySettings = { computer = computer + it }, file = File(home, "link.json"))
         try {
             val code = link.startPairing()
@@ -101,17 +101,23 @@ class BookmarkAndSettingsSyncTest {
             session { channel ->
                 channel.sendJson(JSONObject().put("op", "settings"))
                 assertEquals(computer, SettingsSync.decode(channel.receiveJson().getJSONObject("values")))
-                channel.sendJson(JSONObject().put("op", "set-settings").put("values", SettingsSync.encode(mapOf("readerSize" to "26.0")))); channel.receiveJson()
+                channel.sendJson(JSONObject().put("op", "set-settings").put("values", SettingsSync.encode(mapOf("readerTheme" to "SEPIA")))); channel.receiveJson()
             }
-            assertEquals("26.0", computer["readerSize"])
+            assertEquals("SEPIA", computer["readerTheme"])
             link.setSkipped(setOf("settings"))
             session { channel ->
                 channel.sendJson(JSONObject().put("op", "settings"))
                 assertTrue("settings" in FolderSyncPlan.decodeKinds(channel.receiveJson().optJSONArray("skip")))
-                channel.sendJson(JSONObject().put("op", "set-settings").put("values", SettingsSync.encode(mapOf("readerSize" to "30.0")))); channel.receiveJson()
+                channel.sendJson(JSONObject().put("op", "set-settings").put("values", SettingsSync.encode(mapOf("readerTheme" to "LIGHT")))); channel.receiveJson()
             }
-            assertEquals("26.0", computer["readerSize"])
+            assertEquals("SEPIA", computer["readerTheme"])
         } finally { link.stop() }
+    }
+
+    @Test fun textSizeIsNotShared() {
+        val sent = SettingsSync.encode(mapOf("readerFont" to "LITERATA", "readerSize" to "30.0"))
+        assertEquals(mapOf("readerFont" to "LITERATA"), SettingsSync.decode(sent))
+        assertEquals(mapOf("readerFont" to "LITERATA"), SettingsSync.merge(mapOf("readerFont" to "LITERATA", "readerSize" to "30.0"), mapOf("readerSize" to "18.0"), null))
     }
 
     @Test fun bookmarkFilesAreTheirOwnKind() {

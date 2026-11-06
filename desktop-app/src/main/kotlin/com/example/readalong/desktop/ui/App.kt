@@ -82,6 +82,7 @@ fun ReadAlongApp(app: AppState) {
             FoundDialog(app)
             UpdateDialog(app)
             CoverSearchDialog(app)
+            EditInfoDialog(app)
             SupportPrompt(app)
             SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(bottom = 96.dp))
             AnimatedVisibility(dropping, enter = fadeIn(), exit = fadeOut()) {
