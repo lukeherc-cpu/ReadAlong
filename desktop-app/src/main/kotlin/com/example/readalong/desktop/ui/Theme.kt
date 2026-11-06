@@ -108,11 +108,13 @@ object AppIcons {
 }
 
 @Composable
-fun ReadAlongTheme(accent: Long, light: Boolean = false, content: @Composable () -> Unit) {
+fun ReadAlongTheme(accent: Long, light: Boolean = false, appFont: String = "JAKARTA", accentOnly: Boolean = false, content: @Composable () -> Unit) {
     val palette = accentPalette(accent)
-    val font = Fonts.app
+    val font = Fonts.reading(appFont)
+    // Plus Jakarta Sans is drawn extra bold, as on the phone; the reading fonts keep Material's weights.
+    val extraBold = appFont == "JAKARTA"
     val base = Typography()
-    fun TextStyleCopy(style: androidx.compose.ui.text.TextStyle) = style.copy(fontFamily = font, fontWeight = FontWeight.ExtraBold, fontFeatureSettings = "tnum")
+    fun TextStyleCopy(style: androidx.compose.ui.text.TextStyle) = style.copy(fontFamily = font, fontWeight = if (extraBold) FontWeight.ExtraBold else style.fontWeight, fontFeatureSettings = "tnum")
     val typography = Typography(
         displayLarge = TextStyleCopy(base.displayLarge), displayMedium = TextStyleCopy(base.displayMedium), displaySmall = TextStyleCopy(base.displaySmall),
         headlineLarge = TextStyleCopy(base.headlineLarge.copy(fontSize = 32.sp, lineHeight = 40.sp)), headlineMedium = TextStyleCopy(base.headlineMedium),
@@ -124,7 +126,8 @@ fun ReadAlongTheme(accent: Long, light: Boolean = false, content: @Composable ()
         shapes = Shapes(small = androidx.compose.foundation.shape.RoundedCornerShape(Corners.small), medium = androidx.compose.foundation.shape.RoundedCornerShape(Corners.medium),
             large = androidx.compose.foundation.shape.RoundedCornerShape(Corners.large))) {
         // Text drawn straight on the window background (not inside a Surface) would otherwise default to black.
-        androidx.compose.runtime.CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onBackground, content = content)
+        androidx.compose.runtime.CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onBackground,
+            LocalAccentOnly provides (if (accentOnly) palette else null), content = content)
     }
 }
 
