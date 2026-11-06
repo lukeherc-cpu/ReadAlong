@@ -68,7 +68,7 @@ internal fun FirstVisitGuideDialog(page: GuidePage, finish: (Boolean) -> Unit) {
                 GuideItem(R.drawable.ic_play, "Make a ReadAlong", "Get this book's text on screen, highlighted as you listen.")
             }
             GuidePage.READER -> {
-                GuideItem(R.drawable.ic_settings, "Settings", "Adjust fonts, spacing and reading appearance.")
+                GuideItem(R.drawable.ic_text_appearance, "Text appearance", "Adjust fonts, spacing and reading appearance.")
                 GuideItem(R.drawable.ic_search, "Search", "Find words in this book.")
                 GuideRow("Reading mode", "Switch between listening along and reading on your own.") {
                     Surface(shape = RoundedCornerShape(com.example.readalong.ui.theme.Corners.medium), color = MaterialTheme.colorScheme.secondaryContainer) {

@@ -51,7 +51,7 @@ class ReadingNavigationTest {
                 click(androidx.compose.ui.geometry.Offset(8f, 8f))
             }
         }
-        compose.waitUntil(5000) { compose.onAllNodesWithContentDescription("Settings").fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(5000) { compose.onAllNodesWithContentDescription("Text appearance").fetchSemanticsNodes().isNotEmpty() }
     }
 
     @Test fun flipExpandAndSingleBackStayUsableWhileAudioAndWhistleRun() {
@@ -78,7 +78,7 @@ class ReadingNavigationTest {
             flipToPreview()
             compose.onNodeWithContentDescription("Read in full screen").performClick()
             compose.waitUntil(5000) { compose.onAllNodesWithTag("follow_passages").fetchSemanticsNodes().isNotEmpty() }
-            compose.onNodeWithContentDescription("Settings").assertDoesNotExist()
+            compose.onNodeWithContentDescription("Text appearance").assertDoesNotExist()
             compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
             compose.waitUntil(5000) { compose.onAllNodesWithContentDescription("Collapse player").fetchSemanticsNodes().isNotEmpty() }
             assertTrue(app.playback.state.value.isPlaying)
@@ -249,24 +249,24 @@ class ReadingNavigationTest {
         val bounds = layouts.single().getBoundingBox(text.indexOf("here"))
         compose.onNodeWithText(text).performTouchInput { click(bounds.center) }
         compose.waitUntil(5000) { app.playback.state.value.isPlaying && app.playback.state.value.positionMs in 5000..6500 }
-        compose.onNodeWithContentDescription("Settings").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Text appearance").assertDoesNotExist()
         val beforePause = app.playback.state.value.positionMs
         // Touch a different sentence while playing: reveal controls without pausing or seeking.
         compose.onNodeWithText(text).performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.GetTextLayoutResult) { action -> layouts.clear(); action(layouts) }
         val firstBounds = layouts.single().getBoundingBox(2)
         compose.onNodeWithText(text).performTouchInput { click(firstBounds.center) }
-        compose.waitUntil(5000) { compose.onAllNodesWithContentDescription("Settings").fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(5000) { compose.onAllNodesWithContentDescription("Text appearance").fetchSemanticsNodes().isNotEmpty() }
         assertTrue(app.playback.state.value.isPlaying)
         assertTrue(app.playback.state.value.positionMs >= beforePause)
         assertTrue(app.playback.state.value.positionMs < beforePause + 3000)
-        compose.onNodeWithContentDescription("Settings").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Text appearance").assertIsDisplayed()
         val painted = compose.onNodeWithText(text).fetchSemanticsNode().config[androidx.compose.ui.semantics.SemanticsProperties.Text].single()
         assertTrue("The whole second sentence is white", painted.spanStyles.any { it.start == split && it.end == final - 1 && it.item.color == androidx.compose.ui.graphics.Color.White })
         // With controls already visible, the next text tap seeks and returns to immersive reading.
         compose.onNodeWithText(text).performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.GetTextLayoutResult) { action -> layouts.clear(); action(layouts) }
         compose.onNodeWithText(text).performTouchInput { click(layouts.single().getBoundingBox(2).center) }
         compose.waitUntil(5000) { app.playback.state.value.isPlaying && app.playback.state.value.positionMs in 1000..2500 }
-        compose.onNodeWithContentDescription("Settings").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Text appearance").assertDoesNotExist()
         compose.runOnUiThread { app.playback.pause(); app.playback.seek(5000) }
         compose.onNodeWithContentDescription("Next sentence").performClick()
         compose.waitUntil(5000) { app.playback.state.value.positionMs == 10_000L }
@@ -277,7 +277,7 @@ class ReadingNavigationTest {
         compose.waitUntil(5000) { app.playback.state.value.positionMs == 0L }
         compose.onNodeWithContentDescription("Forward 5 seconds").performClick()
         compose.waitUntil(5000) { app.playback.state.value.positionMs == 5000L }
-        compose.onNodeWithContentDescription("Settings").performClick()
+        compose.onNodeWithContentDescription("Text appearance").performClick()
         compose.onNodeWithText("Refresh generated text").assertDoesNotExist()
         compose.runOnUiThread { app.playback.pause() }
     }
@@ -296,12 +296,12 @@ class ReadingNavigationTest {
         compose.mainClock.advanceTimeBy(2200)
         compose.onNodeWithTag("follow_passages").performTouchInput { swipeUp(startY = height * .65f, endY = height * .25f, durationMillis = 150) }
         compose.mainClock.advanceTimeBy(1200)
-        compose.onNodeWithContentDescription("Settings").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Text appearance").assertDoesNotExist()
         val after = compose.onNodeWithTag("follow_passages").fetchSemanticsNode().boundsInRoot
         assertEquals(before, after)
         compose.mainClock.autoAdvance = true
         revealControls()
-        compose.onNodeWithContentDescription("Settings").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Text appearance").assertIsDisplayed()
     }
 
     @Test fun longParagraphFollowsLaterAnchorsWithoutChangingParagraphIndex() {
@@ -391,7 +391,7 @@ class ReadingNavigationTest {
             compose.onAllNodesWithText("Follow Along", substring = false).assertCountEquals(0)
             compose.onNodeWithContentDescription("Search text").assertIsDisplayed()
             revealControls()
-            compose.onNodeWithContentDescription("Settings").performClick()
+            compose.onNodeWithContentDescription("Text appearance").performClick()
             compose.onNodeWithText("Font size", substring = true).assertExists()
             compose.onNodeWithText("Cancel").performClick()
             compose.onNodeWithContentDescription("Search text").performClick()
@@ -434,7 +434,7 @@ class ReadingNavigationTest {
             openFollow()
             revealControls()
             compose.onNodeWithText("Follow Along").assertDoesNotExist()
-            compose.onNodeWithContentDescription("Settings").performClick()
+            compose.onNodeWithContentDescription("Text appearance").performClick()
             compose.onNodeWithText("Cancel").performClick()
             compose.runOnUiThread { app.playback.pause() }
             compose.onNodeWithContentDescription("Play").assertIsDisplayed()
@@ -442,7 +442,7 @@ class ReadingNavigationTest {
             compose.waitUntil(5000) { app.playback.state.value.isPlaying }
             assertTrue("Untranscribed audio must not jump to the beginning", app.playback.state.value.positionMs in 500_000..510_000)
             revealControls()
-            compose.onNodeWithContentDescription("Settings").performClick()
+            compose.onNodeWithContentDescription("Text appearance").performClick()
             compose.onNodeWithText("Cancel").performClick()
             compose.runOnUiThread { app.playback.pause() }
             compose.waitUntil(5000) { !app.playback.state.value.isPlaying }
@@ -490,7 +490,7 @@ class ReadingNavigationTest {
             repeat(70) {
                 compose.mainClock.advanceTimeBy(16)
                 compose.onNodeWithTag("follow_passages").assertExists()
-                compose.onNodeWithContentDescription("Settings").assertExists()
+                compose.onNodeWithContentDescription("Text appearance").assertExists()
                 Thread.sleep(15)
             }
         } finally {
@@ -580,7 +580,7 @@ class ReadingNavigationTest {
                 throw AssertionError("Search selected audio at ${app.playback.state.value.positionMs}; expected ${rows[1].startMs}..${rows[1].endMs}; text ${rows[1].text}", error)
             }
             revealControls()
-            compose.onNodeWithContentDescription("Settings").performClick()
+            compose.onNodeWithContentDescription("Text appearance").performClick()
             compose.onNodeWithText("Cancel").performClick()
             compose.runOnUiThread { app.playback.pause() }
             compose.onNodeWithTag("follow_passages").performScrollToNode(hasText("♪ ♫ ♬"))
@@ -588,7 +588,7 @@ class ReadingNavigationTest {
             compose.waitUntil(5000) { app.playback.state.value.isPlaying && app.playback.state.value.positionMs < rows[1].startMs }
             assertEquals("Unmatched symbols still have no invented timestamps", -1L, runBlocking { app.database.importedEpubDao().blocks(id, app.database.importedEpubDao().find(id)!!.editionId).first { it.text == "♪ ♫ ♬" }.startMs })
             revealControls()
-            compose.onNodeWithContentDescription("Settings").performClick()
+            compose.onNodeWithContentDescription("Text appearance").performClick()
             compose.onNodeWithText("Cancel").performClick()
             compose.runOnUiThread { app.playback.pause() }
             compose.onNodeWithTag("follow_passages").performScrollToNode(hasText("♪ ♫ ♬"))

@@ -1,0 +1,8 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <!-- "Aa": the reader's text appearance (font, size, spacing, theme). -->
+    <path android:fillColor="@android:color/transparent" android:strokeColor="#FFFFFFFF"
+        android:strokeLineJoin="round" android:strokeWidth="2" android:strokeLineCap="round"
+        android:pathData="M2,19 L7.5,5 L13,19 M4.4,13.5 L10.6,13.5 M21,12 L21,19 M21,16 A2.75,2.75 0,1 1,15.5 16 A2.75,2.75 0,1 1,21 16" />
+</vector>
