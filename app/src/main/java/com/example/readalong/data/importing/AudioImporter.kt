@@ -32,7 +32,12 @@ data class FolderPreview(val uri: Uri, val name: String, val books: List<Preview
 }
 data class ImportResult(val bookIds: List<String>, val message: String, val newBookIds: List<String> = emptyList(),
     /** "<book>: <why>" for each ReadAlong beside a book that couldn't be used, so a sync can say which and why. */
-    val transcriptProblems: List<String> = emptyList())
+    val transcriptProblems: List<String> = emptyList(),
+    /** ReadAlongs found beside books and taken in by this scan. */
+    val transcriptsTaken: Int = 0)
+
+/** A folder scan under way: [done] of the [total] books it found are read. */
+data class ScanProgress(val folder: String, val done: Int, val total: Int)
 
 /** Saved on a folder while it is scanned; it stays only if the scan was cut short. */
 const val SCAN_INCOMPLETE = "Scan incomplete. Rescan to continue."
@@ -46,6 +51,9 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
     private val folderLock = kotlinx.coroutines.sync.Mutex()
     private val importLock = kotlinx.coroutines.sync.Mutex()
     val folders = media.observeFolders()
+    private val mutableScanProgress = kotlinx.coroutines.flow.MutableStateFlow<ScanProgress?>(null)
+    /** The folder being scanned and how far it has got, once its books are counted; null between scans. */
+    val scanProgress: kotlinx.coroutines.flow.StateFlow<ScanProgress?> = mutableScanProgress
     /** Book ids by saved folder uri. */
     val folderBooks = media.observeFolderBooks().map { rows -> rows.groupBy({ it.folderUri }, { it.bookId }) }
 
@@ -121,13 +129,16 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
             emptyMessage = if (groups.isEmpty()) walk.nothingFound(name) + walk.problemNote() else null)
     }
 
-    suspend fun rescanSavedFolders(onFolder: (FolderEntity?) -> Unit = {}) = withContext(Dispatchers.IO) {
+    /** Returns what each folder's scan found, for those that could be scanned. */
+    suspend fun rescanSavedFolders(onFolder: (FolderEntity?) -> Unit = {}): List<Pair<FolderEntity, ImportResult>> = withContext(Dispatchers.IO) {
+        val results = mutableListOf<Pair<FolderEntity, ImportResult>>()
         try { media.savedFolders().forEach { folder ->
             onFolder(folder)
-            try { scan(Uri.parse(folder.uri)) }
+            try { results += folder to scan(Uri.parse(folder.uri)) }
             catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
             catch (_: Exception) { /* Per-folder access errors are retained for the folders screen. */ }
         } } finally { onFolder(null) }
+        results
     }
 
     suspend fun scan(uri: Uri): ImportResult = folderLock.withLock { scanLocked(uri) }
@@ -150,9 +161,12 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
             var transcriptFailures = 0
             val transcriptProblems = mutableListOf<String>()
             var deleted = 0
+            var transcriptsTaken = 0
             // Each book stands alone: one that can't be read is named in the result, never stops the others.
             groups.filter { it.found.audio.isEmpty() && it.found.skipped.isNotEmpty() }.forEach { walk.problem(it.name, "no audio ReadAlong can play: ${Walk.counts(it.found.skipped)}") }
-            groups.filter { it.found.audio.isNotEmpty() }.forEach { group ->
+            val readable = groups.filter { it.found.audio.isNotEmpty() }
+            readable.forEachIndexed { index, group ->
+                mutableScanProgress.value = ScanProgress(saved.name, index, readable.size)
                 val found = group.found
                 coroutineContext.ensureActive()
                 try {
@@ -185,6 +199,7 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
                         if (completed && books.metadata("folder_transcript:$id") == signature) break
                         try {
                             onTranscriptFound(id, transcript.uri)
+                            transcriptsTaken++
                             books.putMetadata(LibraryMetadataEntity("folder_transcript:$id", signature))
                             books.removeMetadata("folder_transcript_error:$id")
                             break
@@ -228,13 +243,13 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
                 (if (transcriptFailures > 0) " $transcriptFailures companion transcript(s) couldn't be imported. Check that the audio files match." else "")
             // An empty result stays on the folders screen too: the status line only shows for a few seconds.
             media.putFolder(saved.copy(lastScanAt = System.currentTimeMillis(), error = if (walk.problems.isNotEmpty() || ids.isEmpty()) message else null))
-            ImportResult(ids.distinct(), message, added.distinct(), transcriptProblems)
+            ImportResult(ids.distinct(), message, added.distinct(), transcriptProblems, transcriptsTaken)
         } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
         catch (failure: Exception) {
             media.folderBooks(uri.toString()).forEach { media.mediaState(it, "MISSING") }
             media.putFolder(saved.copy(error = failure.message ?: "Couldn't scan folder. Please try again."))
             throw failure
-        }
+        } finally { mutableScanProgress.value = null }
     }
 
     /** Explicit confirmation is owned by FoldersScreen. Never deletes original source documents. */
