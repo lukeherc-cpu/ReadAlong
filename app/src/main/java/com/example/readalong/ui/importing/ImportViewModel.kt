@@ -87,6 +87,12 @@ class ImportViewModel(private val importer: AudioImporter, private val epubs: co
         null
     }
     fun dismissPreview() { mutablePreview.value = null }
+    /** No audiobooks in the chosen folder: keep it anyway as a library folder, for books added or synced into it later. */
+    fun useEmptyFolder() {
+        val chosen = mutablePreview.value ?: return
+        mutablePreview.value = null
+        folder(chosen.folder.uri, FolderMode.LIBRARY, restoreDeleted = false)
+    }
     fun confirmPreview(mode: FolderMode, restoreDeleted: Boolean) {
         val chosen = mutablePreview.value ?: return
         mutablePreview.value = null
