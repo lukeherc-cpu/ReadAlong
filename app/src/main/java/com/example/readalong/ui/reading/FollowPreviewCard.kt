@@ -197,7 +197,7 @@ fun FollowCard(state: PlaybackState, model: ReadingViewModel, onExpand: () -> Un
         Box(Modifier.fillMaxSize().then(fixed).onSizeChanged { if (square && frame?.frozen != true) frame?.previewWidthPx = it.width }.onGloballyPositioned { cardTop = it.positionInRoot().y }.retainReaderFrame(pageFrame, LocalReaderDrawFrame.current) { handoff.value }.graphicsLayer { alpha = textIn.value }) {
             androidx.compose.foundation.lazy.LazyColumn(state = list, userScrollEnabled = false,
                 modifier = Modifier.fillMaxSize().padding(top = insets.top, bottom = insets.bottom).onSizeChanged { viewport = it.height }.testTag("follow_preview"),
-                contentPadding = PaddingValues(horizontal = preferences.margin.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+                contentPadding = PaddingValues(horizontal = preferences.margin.dp), verticalArrangement = Arrangement.spacedBy(ReaderParagraphGap)) {
                 if (displayed.isEmpty() && !notStarted) item { Text("Text isn't available at this position yet. You can keep listening.", color = ink.copy(alpha = .7f)) }
                 items(displayed.size, key = { displayed[it].id }) { index ->
                     val paragraph = displayed[index]
