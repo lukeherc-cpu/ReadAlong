@@ -31,8 +31,9 @@ class ImportFlowTest {
             compose.onNodeWithTag("reading_source_epub").assertIsDisplayed()
             val left = compose.onNodeWithTag("reading_source_transcript").fetchSemanticsNode().boundsInRoot
             val right = compose.onNodeWithTag("reading_source_epub").fetchSemanticsNode().boundsInRoot
-            assertEquals(left.height, right.height, .5f)
-            assertEquals(left.width, right.width, .5f)
+            // Two weight(1f) cards share an odd number of pixels: one can be a pixel wider, never more.
+            assertEquals(left.height, right.height, 1.5f)
+            assertEquals(left.width, right.width, 1.5f)
             assertEquals("WAITING_SELECTION", runBlocking { app.database.processingDao().find(id)!!.state })
             compose.onNodeWithText("Later").performClick()
             compose.onNodeWithTag("reading_source_epub").assertDoesNotExist()
