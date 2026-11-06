@@ -63,6 +63,7 @@ fun FoldersScreen(model: ImportViewModel, onBack: () -> Unit) {
     val busy by model.busy.collectAsStateWithLifecycle()
     val message by model.message.collectAsStateWithLifecycle()
     val scanningFolder by model.scanningFolder.collectAsStateWithLifecycle()
+    val scanProgress by model.scanProgress.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val app = context.applicationContext as? com.example.readalong.ReadAlongApplication
     val library by remember { app?.bookRepository?.observeBooks() ?: kotlinx.coroutines.flow.flowOf(emptyList()) }.collectAsStateWithLifecycle(emptyList())
@@ -79,8 +80,10 @@ fun FoldersScreen(model: ImportViewModel, onBack: () -> Unit) {
         if (uri != null && folder != null) model.reconnect(folder, uri)
     }
     // Access can be taken away in Android's settings or by removing an SD card: check on every return.
+    // Read again when the folder list changes too: a folder just added from here is saved after this screen resumed.
     var granted by remember { mutableStateOf(grantedFolders(context)) }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { granted = grantedFolders(context) }
+    LaunchedEffect(folders) { granted = grantedFolders(context) }
     val shown = folders.filter { it.mode == FolderMode.LIBRARY.name }
 
     Scaffold { insets ->
@@ -101,9 +104,11 @@ fun FoldersScreen(model: ImportViewModel, onBack: () -> Unit) {
                     items(shown, key = { it.uri }) { folder ->
                         val ids = folderBooks[folder.uri].orEmpty()
                         val covers = ids.mapNotNull(booksById::get).sortedBy { it.title.lowercase() }
-                        FolderCard(folder, covers, ids.size, badges,
-                            scanning = scanningFolder == folder.name || (busy && folder.error == SCAN_INCOMPLETE),
-                            lostAccess = folder.uri !in granted, enabled = !busy,
+                        val scanning = scanningFolder == folder.name || (busy && folder.error == SCAN_INCOMPLETE)
+                        FolderCard(folder, covers, ids.size, badges, scanning = scanning,
+                            progress = scanProgress?.takeIf { scanning && it.folder == folder.name },
+                            // A folder being scanned is readable, whatever the last permission check said.
+                            lostAccess = !scanning && folder.uri !in granted, enabled = !busy,
                             onCheck = { model.rescan(folder) }, onRemove = { removing = folder },
                             onChooseAgain = { reconnecting = folder; chooseAgain.launch(Uri.parse(folder.uri)) },
                             modifier = Modifier.animateItem())
@@ -133,7 +138,8 @@ fun FoldersScreen(model: ImportViewModel, onBack: () -> Unit) {
 }
 
 @Composable
-private fun FolderCard(folder: FolderEntity, covers: List<Book>, count: Int, badges: Map<String, BookBadges>, scanning: Boolean, lostAccess: Boolean, enabled: Boolean,
+private fun FolderCard(folder: FolderEntity, covers: List<Book>, count: Int, badges: Map<String, BookBadges>, scanning: Boolean,
+    progress: com.example.readalong.data.importing.ScanProgress?, lostAccess: Boolean, enabled: Boolean,
     onCheck: () -> Unit, onRemove: () -> Unit, onChooseAgain: () -> Unit, modifier: Modifier = Modifier) {
     Surface(modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surface, shadowElevation = 1.dp) {
         Column(Modifier.fillMaxWidth().animateContentSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -142,6 +148,7 @@ private fun FolderCard(folder: FolderEntity, covers: List<Book>, count: Int, bad
                     Text(folder.name, style = MaterialTheme.typography.titleLarge)
                     when {
                         lostAccess -> Text("ReadAlong lost access to this folder", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+                        scanning && progress != null -> Text("Reading books… ${progress.done} / ${progress.total}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
                         scanning -> Text("Looking for books… found $count so far", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
                         else -> Text(summary(count, folder.lastScanAt), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
@@ -153,7 +160,8 @@ private fun FolderCard(folder: FolderEntity, covers: List<Book>, count: Int, bad
             if (!lostAccess && !scanning) folder.error?.takeIf { it != SCAN_INCOMPLETE }?.let {
                 Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
             }
-            if (scanning) LinearProgressIndicator(Modifier.fillMaxWidth().height(6.dp), strokeCap = androidx.compose.ui.graphics.StrokeCap.Round)
+            // The same bar as the library's Reading “…” line: it fills once the books are counted.
+            if (scanning) com.example.readalong.ui.library.FolderProgressBar(com.example.readalong.ui.library.animatedScanFraction(progress))
             if (!lostAccess && covers.isNotEmpty()) {
                 CoverStrip(covers, count, badges)
                 BadgeKey()
