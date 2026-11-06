@@ -41,10 +41,12 @@ fun MiniPlayer(app: AppState, modifier: Modifier = Modifier) {
     val id = state.bookId ?: return
     val book by app.library.observe(id).collectAsState(app.library.book(id))
     val b = book ?: return
-    val palette = rememberCoverPalette(b)
+    val settings by app.settingsStore.settings.collectAsState()
+    // Settings → "Match mini player to book colors"; off, the accent colour.
+    val cover = rememberCoverPalette(b)
+    val palette = if (settings.coloredMiniPlayer) cover else accentPalette(settings.accent)
     val color by animateColorAsState(lerp(palette.background, Color(0xFF15191C), .35f), tween(500))
     val clock = rememberPlaybackClock(app.player, id, b.positionMs)
-    val settings by app.settingsStore.settings.collectAsState()
     val position = clock.value
     val chapterIndex = b.chapterAt(position)
     val chapter = b.chapters.getOrNull(chapterIndex)

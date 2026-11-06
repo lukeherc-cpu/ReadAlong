@@ -34,6 +34,8 @@ val sharedSources by tasks.registering(Sync::class) {
 val sharedResources by tasks.registering(Sync::class) {
     from("../app/src/main/res/font") { include("*.ttf"); into("fonts") }
     from("../app/src/main/res/drawable") { include("ic_*.xml", "ic_launcher_foreground.xml"); exclude("ic_launcher_background*", "ic_launcher_padded*", "ic_splash*", "ic_notification*"); into("icons") }
+    // The tip jar's artwork lives in the phone's GitHub flavor.
+    from("../app/src/github/res/drawable") { include("ic_tip_jar.xml"); into("icons") }
     into(layout.buildDirectory.dir("shared-resources"))
 }
 sourceSets.main {
