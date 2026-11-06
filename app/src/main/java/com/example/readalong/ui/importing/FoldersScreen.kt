@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
+import com.example.readalong.ui.library.count
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -87,7 +88,8 @@ fun FoldersScreen(model: ImportViewModel, onBack: () -> Unit) {
     val shown = folders.filter { it.mode == FolderMode.LIBRARY.name }
 
     Scaffold { insets ->
-        PullToRefreshBox(isRefreshing = scanningFolder != null, onRefresh = model::refreshLibrary, modifier = Modifier.fillMaxSize().padding(insets)) {
+        // The circle shows only while being pulled; the folder card's own bar shows the check itself.
+        PullToRefreshBox(isRefreshing = false, onRefresh = model::refreshLibrary, modifier = Modifier.fillMaxSize().padding(insets)) {
             Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
                 IconButton(onClick = onBack, modifier = Modifier.padding(top = 8.dp)) {
                     Icon(painterResource(R.drawable.ic_back), "Back to library")
@@ -148,7 +150,7 @@ private fun FolderCard(folder: FolderEntity, covers: List<Book>, count: Int, bad
                     Text(folder.name, style = MaterialTheme.typography.titleLarge)
                     when {
                         lostAccess -> Text("ReadAlong lost access to this folder", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
-                        scanning && progress != null -> Text("Reading books… ${progress.done} / ${progress.total}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+                        scanning && progress != null -> Text("Reading books… ${progress.count()}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
                         scanning -> Text("Looking for books… found $count so far", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
                         else -> Text(summary(count, folder.lastScanAt), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }

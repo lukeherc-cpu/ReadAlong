@@ -89,7 +89,7 @@ fun LibraryScreen(
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = onAbout) { Icon(painterResource(R.drawable.ic_settings), "Settings") }
                         IconButton(onClick = onFolders) { Icon(painterResource(R.drawable.ic_bookshelf), "Audiobook folders") }
-                        Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { com.example.readalong.ui.launch.LibraryLogo(scanningFolder, transcribing, settings.animateTranscriptionLogo, readingFolder = readingFolder, onClick = onQueue, syncCount = syncProgress?.count()) }
+                        Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { com.example.readalong.ui.launch.LibraryLogo(scanningFolder, transcribing, settings.animateTranscriptionLogo, readingFolder = readingFolder, onClick = onQueue, syncCount = (syncProgress ?: scanProgress?.takeIf { readingFolder })?.count()) }
                         IconButton(onClick = { searchVisible = !searchVisible; if (!searchVisible) query = "" },
                             modifier = Modifier.onGloballyPositioned { val b = it.boundsInRoot(); iconCenter = b.center }) { Icon(painterResource(R.drawable.ic_search), "Search library") }
                         importControls()
