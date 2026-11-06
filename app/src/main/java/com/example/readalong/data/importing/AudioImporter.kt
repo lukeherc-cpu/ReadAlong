@@ -26,8 +26,12 @@ import kotlin.coroutines.coroutineContext
 enum class FolderMode { ONE_BOOK, LIBRARY }
 /** One book found by [AudioImporter.preview]; [deleted] when it was deleted from ReadAlong earlier. */
 data class PreviewBook(val name: String, val deleted: Boolean, val cover: Uri? = null, val firstAudio: Uri? = null)
-/** What a chosen folder holds, shown before it is added. */
-data class FolderPreview(val uri: Uri, val name: String, val books: List<PreviewBook>, val suggested: FolderMode, val deletedAsOneBook: Boolean, val emptyMessage: String?) {
+/**
+ * What a chosen folder holds, shown before it is added. [empty]: no audio or other unplayable files at all, e.g. a new folder for books
+ * that will be synced from ReadAlong on a computer; it can still be added as a library folder.
+ */
+data class FolderPreview(val uri: Uri, val name: String, val books: List<PreviewBook>, val suggested: FolderMode, val deletedAsOneBook: Boolean, val emptyMessage: String?,
+    val empty: Boolean = false) {
     val deletedBooks get() = books.count { it.deleted }
 }
 data class ImportResult(val bookIds: List<String>, val message: String, val newBookIds: List<String> = emptyList(),
@@ -117,7 +121,8 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
             coverImage(group.found.images)?.uri, group.found.audio.firstOrNull()?.uri) }
         FolderPreview(uri, name, found, suggested,
             deletedAsOneBook = groups.isNotEmpty() && LibraryExclusions.excluded(books, "folder:${root.uri}", groups.flatMap { g -> g.found.audio.map { it.uri } }),
-            emptyMessage = if (groups.isEmpty()) walk.nothingFound(name) + walk.problemNote() else null)
+            emptyMessage = if (groups.isEmpty()) walk.nothingFound(name) + walk.problemNote() else null,
+            empty = groups.isEmpty() && walk.skipped.isEmpty() && walk.problems.isEmpty())
     }
 
     suspend fun rescanSavedFolders(onFolder: (FolderEntity?) -> Unit = {}) = withContext(Dispatchers.IO) {
@@ -220,6 +225,13 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
                 media.removeFolder(uri.toString())
                 return@withContext ImportResult(emptyList(), "This audiobook was deleted from ReadAlong earlier.")
             }
+            // A library folder with nothing in it yet was chosen on purpose (books will be added or synced into it later):
+            // say so plainly, and don't keep it as an error on the folders screen.
+            if (ids.isEmpty() && saved.mode == FolderMode.LIBRARY.name && walk.skipped.isEmpty() && walk.problems.isEmpty() && media.folderBooks(uri.toString()).isEmpty()) {
+                val message = emptyLibraryMessage(root.name ?: "This folder")
+                media.putFolder(saved.copy(lastScanAt = System.currentTimeMillis(), error = null))
+                return@withContext ImportResult(emptyList(), message)
+            }
             val message = (if (ids.isEmpty() && failures == 0 && deleted > 0) "No new audiobooks: the $deleted here were deleted from ReadAlong earlier. To bring them back, add this folder again with Add audiobooks."
                 else if (ids.isEmpty() && failures == 0) walk.nothingFound(root.name ?: "this folder") else "${ids.size} audiobook(s) scanned.") + walk.problemNote() +
                 (if (transcriptFailures > 0) " $transcriptFailures companion transcript(s) couldn't be imported. Check that the audio files match." else "")
@@ -233,6 +245,9 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
             throw failure
         }
     }
+
+    /** An empty library folder was added or scanned. */
+    fun emptyLibraryMessage(folder: String) = "\u201c$folder\u201d is empty for now. Books you put in it, or sync from ReadAlong on your computer, will show up in your library."
 
     /** Explicit confirmation is owned by FoldersScreen. Never deletes original source documents. */
     suspend fun removeFolder(folder: FolderEntity) = withContext(Dispatchers.IO) {

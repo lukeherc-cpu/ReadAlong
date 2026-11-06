@@ -176,15 +176,21 @@ fun LinkScreen(app: ReadAlongApplication, onBack: () -> Unit) {
 private fun FolderChooser(app: ReadAlongApplication, computer: String, offered: List<RemoteFolder>, current: List<FolderPair>,
     onDone: (List<FolderPair>, List<Pair<String, String>>) -> Unit, onSkip: () -> Unit) {
     val phoneFolders by app.audioImporter.folders.collectAsStateWithLifecycle(emptyList())
+    val folderBooks by app.audioImporter.folderBooks.collectAsStateWithLifecycle(emptyMap())
     val library = phoneFolders.filter { it.mode == FolderMode.LIBRARY.name }
     val shared = offered.filter { it.shared }
-    // Remote folder id -> phone folder (uri, name); preselected from the current pairs, else a phone folder of the same name.
-    val chosen = remember(offered, library.size) {
+    // Remote folder id -> phone folder (uri, name); preselected from the current pairs, else a phone folder of the same name,
+    // else the one empty library folder (chosen at first setup to receive the computer's books) for the first folder left over.
+    val emptyFolders = library.filter { folderBooks[it.uri].isNullOrEmpty() }.map { it.uri }.toSet()
+    val chosen = remember(offered, library.size, emptyFolders) {
         mutableStateMapOf<String, Pair<String, String>>().apply {
             shared.forEach { remote ->
                 current.firstOrNull { it.remoteId == remote.id }?.let { put(remote.id, it.localUri to it.localName) }
                     ?: library.firstOrNull { it.name.equals(remote.name, ignoreCase = true) }?.let { put(remote.id, it.uri to it.name) }
             }
+            val waiting = library.singleOrNull { it.uri in emptyFolders }
+            if (current.isEmpty() && waiting != null && values.none { it.first == waiting.uri })
+                shared.firstOrNull { it.id !in this }?.let { put(it.id, waiting.uri to waiting.name) }
         }
     }
     val sendHere = remember { mutableStateMapOf<String, String>() }

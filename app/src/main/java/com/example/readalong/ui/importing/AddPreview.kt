@@ -56,9 +56,20 @@ fun AddPreviewDialog(model: ImportViewModel, origin: String, onAdded: () -> Unit
     var restore by remember(shown, mode) { mutableStateOf(everythingDeleted) }
 
     if (shown.emptyMessage != null) {
-        com.example.readalong.ui.components.IllustratedDialog("No audiobooks found", model::dismissPreview, actions = {
-            TextButton(onClick = model::dismissPreview) { Text("OK") }
-        }) { Text(shown.emptyMessage, style = MaterialTheme.typography.bodyLarge) }
+        // Nothing to add yet, but the folder can still be the library: books put in it later, or synced from
+        // ReadAlong on a computer (Settings › Link a computer), show up on their own.
+        com.example.readalong.ui.components.IllustratedDialog(if (shown.empty) "This folder is empty" else "No audiobooks found", model::dismissPreview, actions = {
+            TextButton(onClick = model::dismissPreview) { Text("Choose another") }
+            Button(onClick = { model.useEmptyFolder(); onAdded() }, modifier = Modifier.testTag("use_empty_folder")) { Text("Use this folder") }
+        }) {
+            if (shown.empty) Text("You can still use \u201c${shown.name}\u201d as your library folder. Books you put in it, or sync from ReadAlong on your computer, will show up in your library.",
+                style = MaterialTheme.typography.bodyLarge)
+            else {
+                Text(shown.emptyMessage, style = MaterialTheme.typography.bodyLarge)
+                Text("You can still use it as your library folder: audiobooks added to it later will show up in your library.",
+                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
         return
     }
     val count = shown.books.size
