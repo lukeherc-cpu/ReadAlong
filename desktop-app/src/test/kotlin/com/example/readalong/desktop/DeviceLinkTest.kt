@@ -182,4 +182,19 @@ class DeviceLinkTest {
             assertTrue(session() > asked)
         } finally { link.stop() }
     }
+
+    /** Copies the phone cut short (everything after the last full 256 KB frame was lost) are copied again, once. */
+    @Test fun shortCopiesFromOlderPhonesAreFetchedAgain() {
+        val frame = LinkChannel.FRAME_DATA
+        val pkg = "Glass Castle/Glass Castle.readalong"; val progress = "Dune/Dune.readalong-state"; val audio = "Dune/01.mp3"; val same = "Dune/02.mp3"
+        val local = listOf(SyncFile(pkg, 3 * frame, 10), SyncFile(progress, 0, 10), SyncFile(audio, 40 * frame, 10), SyncFile(same, 500, 10))
+        val remote = listOf(SyncFile(pkg, 3 * frame + 9_000, 20), SyncFile(progress, 700, 20), SyncFile(audio, 40 * frame + 5, 20), SyncFile(same, 500, 20))
+        val record = (local zip remote).associate { (l, r) -> l.path to SyncedState(l.size, l.modified, r.size, r.modified) }
+        assertEquals(setOf(SyncAction.Download(pkg), SyncAction.Download(progress), SyncAction.Download(audio)), FolderSyncPlan.plan(local, remote, record).toSet())
+        // Once whole, nothing more to do.
+        val fixed = remote.map { it.copy(modified = 30) }
+        assertTrue(FolderSyncPlan.plan(fixed, remote, FolderSyncPlan.settled(fixed, remote, record)).isEmpty())
+        // A phone file that is simply different (not the computer's cut at a frame) is left to the usual rules.
+        assertFalse(FolderSyncPlan.shortCopy(SyncedState(frame + 1, 1, 2 * frame, 1)))
+    }
 }

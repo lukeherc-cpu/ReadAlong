@@ -93,6 +93,7 @@ object FolderSyncPlan {
                     val localChanged = last == null || l.size != last.localSize || l.modified != last.localModified
                     val remoteChanged = last == null || r.size != last.remoteSize || r.modified != last.remoteModified
                     when {
+                        !localChanged && !remoteChanged && shortCopy(last!!) -> actions += SyncAction.Download(path)
                         last == null && l.size == r.size -> Unit // Already the same file on both sides.
                         localChanged && !remoteChanged -> actions += SyncAction.Upload(path)
                         remoteChanged && !localChanged -> actions += SyncAction.Download(path)
@@ -104,6 +105,15 @@ object FolderSyncPlan {
         // Small files first, so progress and transcripts arrive before a long audiobook copy.
         return actions.sortedBy { (mine[it.path] ?: theirs[it.path])?.size ?: 0 }
     }
+
+    /**
+     * Phones up to 0.47.0 lost the end of each file they copied from the computer: everything after the last
+     * full [LinkChannel] frame (256 KB) of it, so a small file arrived empty and a `.readalong` without the end
+     * that makes it a zip. Such a copy is recognized by its record: the phone's size is the computer's rounded
+     * down to a whole frame. Copied again once, it is whole.
+     */
+    fun shortCopy(last: SyncedState): Boolean =
+        last.localSize < last.remoteSize && last.localSize == last.remoteSize / LinkChannel.FRAME_DATA * LinkChannel.FRAME_DATA
 
     /** The record to keep after a sync: every file both sides now have. */
     fun settled(local: List<SyncFile>, remote: List<SyncFile>, previous: Map<String, SyncedState>): Map<String, SyncedState> {

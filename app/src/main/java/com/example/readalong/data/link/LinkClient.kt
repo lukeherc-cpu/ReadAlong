@@ -71,6 +71,7 @@ class LinkClient private constructor(private val socket: Socket, private val cha
         val head = channel.receiveJson()
         val size = head.getLong("size")
         channel.receiveStream(target, size) { progress(it, size) }
+        target.flush()
         return SyncFile(path, size, head.getLong("modified"))
     }
 
