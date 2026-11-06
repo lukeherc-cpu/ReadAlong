@@ -5,10 +5,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -25,6 +22,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.layout
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.readalong.R
@@ -118,66 +116,56 @@ internal fun ReadAlongStatusPill(book: Book, job: ProcessingJobEntity?, estimate
         waitingForCharging -> "ReadAlong $percent% · waiting for charging"
         job?.state == "WAITING_QUEUE" -> "ReadAlong $percent% · waiting in queue"
         job?.state == "FAILED" -> "ReadAlong stopped at $percent% · tap"
-        !active -> "ReadAlong paused at $percent% · tap to continue"
+        !active -> "ReadAlong paused at $percent%"
         left != null -> "Making ReadAlong · $percent% · $left left"
         else -> "Making ReadAlong · $percent%"
     }
+    // Tapping the words opens the queue, except where they ask for something only this book can do.
     val tap: () -> Unit = when {
         job?.state == "WAITING_MODEL" -> onModel
-        waitingForCharging -> reading::allowBatteryForThirtyMinutes
         job?.state == "FAILED" -> ({ stoppedChoices = true })
-        !active -> reading::prepareReadable
         else -> onQueue
     }
     if (stoppedChoices && job?.state == "FAILED") StoppedReadAlongDialog(job, percent, execution?.diagnostics,
         onRetry = { stoppedChoices = false; reading.prepareReadable() },
         onRebuild = { stoppedChoices = false; reading.rebuildTranscription() },
         onDismiss = { stoppedChoices = false })
-    // It starts as just its progress ring. Tapping the ring grows it into the full pill, in place, and a
-    // swipe to the left shrinks it back. Tapping the open pill does what it says.
+    // It starts as just its progress ring. Tapping the ring grows it into the full pill, in place, and
+    // tapping the ring again shrinks it back. Tapping the words does what they say (usually: the queue).
     var open by rememberSaveable(book.id) { mutableStateOf(false) }
     // Something that needs a tap (the speech model, or a stop) opens it.
     LaunchedEffect(job?.state) { if (job?.state in listOf("FAILED", "WAITING_MODEL")) open = true }
     // One value drives the whole change, so width, ring and text move together without a bounce.
     val grow by androidx.compose.animation.core.animateFloatAsState(if (open) 1f else 0f,
         androidx.compose.animation.core.spring(dampingRatio = 1f, stiffness = 260f), label = "ReadAlong pill")
-    val density = androidx.compose.ui.platform.LocalDensity.current
-    val swipe = with(density) { 24.dp.toPx() }
     Surface(modifier.testTag("readalong_status"), shape = RoundedCornerShape(50), color = Color.Black.copy(alpha = .62f), contentColor = Color.White) {
-        Row(Modifier
-            .pointerInput(open) {
-                if (!open) return@pointerInput
-                var moved = 0f
-                detectHorizontalDragGestures(onDragStart = { moved = 0f }) { change, amount ->
-                    change.consume()
-                    moved += amount
-                    if (moved < -swipe) open = false
-                }
+        Row(Modifier.height(36.dp), verticalAlignment = Alignment.CenterVertically) {
+            // The ring: a 36 dp circle that is the whole pill when folded.
+            Box(Modifier.size(36.dp).clip(androidx.compose.foundation.shape.CircleShape)
+                .clickable(onClickLabel = if (open) "Minimize" else "Show ReadAlong progress") { open = !open }
+                .testTag("readalong_ring")
+                .semantics { contentDescription = if (open) "Minimize ReadAlong progress" else label },
+                contentAlignment = Alignment.Center) {
+                val ring = lerp(20.dp, 17.dp, grow)
+                if (active && !waitingForCharging) CircularProgressIndicator(progress = { percent / 100f }, modifier = Modifier.size(ring), strokeWidth = 2.dp,
+                    color = Color.White, trackColor = Color.White.copy(alpha = .25f))
+                else Icon(painterResource(R.drawable.ic_highlighted_book), null, Modifier.size(ring))
             }
-            .clickable(onClickLabel = if (open) label else "Show ReadAlong progress", onClick = { if (open) tap() else open = true })
-            .height(36.dp)
-            .padding(start = lerp(8.dp, 10.dp, grow), end = lerp(8.dp, 14.dp, grow))
-            .semantics {
-                contentDescription = label
-                if (open) customActions = listOf(androidx.compose.ui.semantics.CustomAccessibilityAction("Minimize") { open = false; true })
-            },
-            verticalAlignment = Alignment.CenterVertically) {
-            val ring = lerp(20.dp, 17.dp, grow)
-            if (active && !waitingForCharging) CircularProgressIndicator(progress = { percent / 100f }, modifier = Modifier.size(ring), strokeWidth = 2.dp,
-                color = Color.White, trackColor = Color.White.copy(alpha = .25f))
-            else Icon(painterResource(R.drawable.ic_highlighted_book), null, Modifier.size(ring))
-            // The label is measured at full width and shown through a window that widens with [grow];
-            // it fades in over the second half of the growth and out over the first half of the shrink.
-            if (grow > 0f) Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier
-                    .clipToBounds()
-                    .layout { measurable, constraints ->
-                        val placeable = measurable.measure(constraints.copy(minWidth = 0))
-                        val gap = 8.dp.roundToPx()
-                        val width = ((placeable.width + gap) * grow).toInt()
-                        layout(width, placeable.height) { placeable.placeRelative(gap, 0) }
-                    }
-                    .graphicsLayer { alpha = ((grow - .35f) / .65f).coerceIn(0f, 1f) })
+            // The words are measured at full width and shown through a window that widens with [grow];
+            // they fade in over the second half of the growth and out over the first half of the shrink.
+            if (grow > 0f) Box(Modifier
+                .clipToBounds()
+                .layout { measurable, constraints ->
+                    val placeable = measurable.measure(constraints.copy(minWidth = 0))
+                    layout((placeable.width * grow).toInt(), placeable.height) { placeable.placeRelative(0, 0) }
+                }
+                .fillMaxHeight()
+                .then(if (open) Modifier.clickable(onClickLabel = label, onClick = tap) else Modifier)
+                .testTag("readalong_label"),
+                contentAlignment = Alignment.CenterStart) {
+                Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(start = 2.dp, end = 14.dp).graphicsLayer { alpha = ((grow - .35f) / .65f).coerceIn(0f, 1f) })
+            }
         }
     }
 }
