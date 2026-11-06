@@ -435,15 +435,18 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
                 exit = fadeOut(tween(ModeSwitchMillis - 60)) + slideOutVertically(tween(ModeSwitchMillis, easing = ReaderMotionEasing)) { it }) {
             Surface(color = colors.surface, contentColor = colors.onSurface, tonalElevation = 3.dp, modifier = Modifier.graphicsLayer { alpha = chromeIn.value }) {
                 Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 8.dp, vertical = 12.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                        IconButton(onClick = { moveSentence(-1) }, modifier = Modifier.size(52.dp)) { Icon(painterResource(R.drawable.ic_previous_sentence), "Previous sentence", Modifier.size(28.dp)) }
-                        TextButton(onClick = { skipFive(-1) }, contentPadding = PaddingValues(4.dp)) {
-                            Icon(painterResource(R.drawable.ic_rewind), "Back ${appSettings.readerBack} seconds", Modifier.size(28.dp)); Text("${appSettings.readerBack}s")
+                        // One icon size across the bar; the skip times read as quiet labels so only Play carries the accent.
+                        val skipColors = ButtonDefaults.textButtonColors(contentColor = colors.onSurfaceVariant)
+                        val skipStyle = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Medium)
+                        IconButton(onClick = { moveSentence(-1) }, modifier = Modifier.size(52.dp)) { Icon(painterResource(R.drawable.ic_previous_sentence), "Previous sentence", Modifier.size(24.dp)) }
+                        TextButton(onClick = { skipFive(-1) }, contentPadding = PaddingValues(4.dp), colors = skipColors) {
+                            Icon(painterResource(R.drawable.ic_rewind), "Back ${appSettings.readerBack} seconds", Modifier.size(24.dp), tint = colors.onSurface); Text("${appSettings.readerBack}s", style = skipStyle)
                         }
                         FilledIconButton(onClick = playback::toggle, modifier = Modifier.size(64.dp)) { com.example.readalong.ui.components.PlayPauseIcon(state.isPlaying, Modifier.size(34.dp)) }
-                        TextButton(onClick = { skipFive(1) }, contentPadding = PaddingValues(4.dp)) {
-                            Text("${appSettings.readerForward}s"); Icon(painterResource(R.drawable.ic_forward), "Forward ${appSettings.readerForward} seconds", Modifier.size(28.dp))
+                        TextButton(onClick = { skipFive(1) }, contentPadding = PaddingValues(4.dp), colors = skipColors) {
+                            Text("${appSettings.readerForward}s", style = skipStyle); Icon(painterResource(R.drawable.ic_forward), "Forward ${appSettings.readerForward} seconds", Modifier.size(24.dp), tint = colors.onSurface)
                         }
-                        IconButton(onClick = { moveSentence(1) }, modifier = Modifier.size(52.dp)) { Icon(painterResource(R.drawable.ic_next_sentence), "Next sentence", Modifier.size(28.dp)) }
+                        IconButton(onClick = { moveSentence(1) }, modifier = Modifier.size(52.dp)) { Icon(painterResource(R.drawable.ic_next_sentence), "Next sentence", Modifier.size(24.dp)) }
                 }
             }
             }
@@ -474,7 +477,7 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
                 else if (renderedCount == 0 && items.loadState.refresh !is LoadState.Loading) Text(version?.message ?: "Your ReadAlong is being made. Text appears here as it's ready; you can keep listening.", Modifier.padding(24.dp))
                 LazyColumn(Modifier.weight(1f).nestedScroll(scroll).smoothWheelScroll(list) { following = false; userScrolled = true }.testTag("follow_passages"), state = list,
                     contentPadding = PaddingValues(start = preferences.margin.dp + columnInset, end = preferences.margin.dp + columnInset,
-                        top = 64.dp + cutoutTop, bottom = if (readingOnly) 24.dp else 100.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+                        top = 64.dp + cutoutTop, bottom = if (readingOnly) 24.dp else 100.dp), verticalArrangement = Arrangement.spacedBy(ReaderParagraphGap)) {
                     if (renderedCount == 0 && items.loadState.refresh is LoadState.Loading) item { PassageSkeleton() }
                     items(renderedCount, key = { index ->
                         val paragraph = if (fallbackPage != null) fallbackPage[index] else if (index < items.itemCount) items.peek(index) else null
@@ -534,11 +537,11 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
             if (panel == "search") Box(Modifier.fillMaxSize().padding(top = 64.dp + cutoutTop).background(colors.surface)) {
                     // Same look as the library search: accent progress line, a result count and rising cards.
                     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-                        SearchProgressLine(searching, searchAccent, Modifier.padding(top = 4.dp, bottom = 6.dp))
+                        SearchProgressLine(searching, searchAccent, Modifier.padding(top = 4.dp, bottom = 8.dp))
                         if (searchQuery.isNotBlank()) searchNotice?.let { Text(it, Modifier.padding(horizontal = 8.dp, vertical = 4.dp), style = MaterialTheme.typography.bodyMedium) }
                         searchError?.let { Text(it, Modifier.padding(8.dp), style = MaterialTheme.typography.bodyMedium) }
                         if (searchQuery.isNotBlank() && !searching && searchError == null) SearchCountLabel(searchResults.size, capped = searchResults.size >= 20)
-                        LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
+                        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
                             itemsIndexed(searchResults, key = { _, it -> "${it.segment.id}:${it.offset}" }) { index, result ->
                                 val chapterTitle = chapters.firstOrNull { it.id == result.segment.chapterId }?.title
                                 val meta = listOfNotNull(chapterTitle, result.audioMs?.let { clockTime(it) } ?: "No audio match").joinToString(" · ")
@@ -571,7 +574,7 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
                         onClose = { panel = null; searchQuery = ""; model.search("") }, accent = searchAccent,
                         modifier = Modifier.weight(5f).padding(horizontal = 4.dp), testTag = "reader_search")
                     else IconButton(onClick = { panel = "search" }) { Icon(painterResource(R.drawable.ic_search), "Search text") }
-                    IconButton(onClick = { panel = "appearance" }) { Icon(painterResource(R.drawable.ic_settings), "Settings") }
+                    IconButton(onClick = { panel = "appearance" }) { Icon(painterResource(R.drawable.ic_text_appearance), "Text appearance") }
                 }
                 }
 
@@ -582,7 +585,7 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
                 enter = fadeIn(tween(160)) + androidx.compose.animation.scaleIn(tween(220, easing = ReaderMotionEasing), initialScale = .9f),
                 exit = fadeOut(tween(120)) + androidx.compose.animation.scaleOut(tween(160), targetScale = .9f)) {
                 FilledTonalButton(colors = ButtonDefaults.filledTonalButtonColors(containerColor = palette.preview, contentColor = Color.White),
-                    onClick = { following = true }) { Text("Return to current position") }
+                    onClick = { following = true }) { Text("Return to current position", fontWeight = FontWeight.Medium) }
             }
 
             }
@@ -632,8 +635,16 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
                 }) { Text("Listen only") } },
                 dismissButton = { TextButton(onClick = { untranscribedChapter = null }) { Text("Cancel") } })
         }
+        // The chapter on screen (in ReadAlong mode, the one being read aloud while following) gets a tick.
+        val currentChapterId = if (panel == "contents") remember(chapters) {
+            val shown = list.firstVisibleItemIndex.takeIf { it < items.itemCount }?.let { items.peek(it)?.chapterId }
+            shown ?: if (!readingOnly) chapters.lastOrNull { it.startMs in 0..state.positionMs }?.id else null
+        } else null
         if (panel == "contents") AlertDialog(onDismissRequest = { panel = null }, title = { Text("Contents") }, text = {
-            LazyColumn { items(chapters, key = { it.id }) { chapter -> TextButton(enabled = if (readingOnly) chapter.readable else chapter.readerIndex != null || chapter.startMs >= 0, onClick = {
+            LazyColumn { items(chapters, key = { it.id }) { chapter -> val current = chapter.id == currentChapterId
+                TextButton(shape = androidx.compose.foundation.shape.RoundedCornerShape(com.example.readalong.ui.theme.Corners.small),
+                colors = ButtonDefaults.textButtonColors(containerColor = if (current) colors.onSurface.copy(alpha = .08f) else Color.Transparent, contentColor = colors.onSurface),
+                modifier = Modifier.fillMaxWidth().semantics { if (current) stateDescription = "Current chapter" }, enabled = if (readingOnly) chapter.readable else chapter.readerIndex != null || chapter.startMs >= 0, onClick = {
                 if (chapter.readerIndex != null) {
                     playback.pause(); model.openEpubSection(chapter.readerIndex)
                     if (!readingOnly && chapter.startMs >= 0) playback.seek(chapter.startMs)
@@ -648,9 +659,12 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
                         model.openReaderAt(chapter.startMs)
                     }
                 }; panel = null
-            }) { Column(Modifier.fillMaxWidth()) {
-                Text(chapter.title)
-                if (!readingOnly) Text(chapter.status, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }) { Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(chapter.title, fontWeight = FontWeight.Normal)
+                    if (!readingOnly) Text(chapter.status, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                if (current) Icon(painterResource(R.drawable.ic_check), null, Modifier.padding(start = 8.dp).size(20.dp), tint = colors.primary)
             } } } }
         }, confirmButton = { TextButton(onClick = { panel = null }) { Text("Close") } })
     }
@@ -658,6 +672,9 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
 
 private fun com.example.readalong.domain.model.TranscriptSegment.anchorAt(offset: Int) =
     anchors.firstOrNull { if (imported) offset >= it.start && offset < it.end else offset < it.end }
+
+/** Space between paragraphs, shared by the reader and its preview card so the handoff between them doesn't shift the text. */
+internal val ReaderParagraphGap = 16.dp
 
 /** Sepia paper and its dark brown ink, shared by ReadAlong and Read only. */
 internal val SepiaPaper = Color(0xFFF0E6D2)
