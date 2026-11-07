@@ -8,7 +8,7 @@ import java.net.URL
 
 /**
  * Downloads one Audible title and leaves a plain, playable file behind: "Title.m4b" (or ".mp3" for
- * podcast episodes). A multi-part book becomes a folder of parts. Downloads resume where they
+ * podcast episodes). Old multi-part books come down as one file too, under the parent ASIN. Downloads resume where they
  * stopped, and nothing appears under the final name until it's fully decrypted.
  */
 object AudibleDownloader {
