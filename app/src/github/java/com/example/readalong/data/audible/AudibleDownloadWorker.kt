@@ -18,7 +18,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/** Downloads and unlocks one Audible book, adds it to the library and queues its ReadAlong. */
+/** Downloads and unlocks one Audible book, saves it in a library folder and queues its ReadAlong. */
 class AudibleDownloadWorker(context: Context, parameters: WorkerParameters) : CoroutineWorker(context, parameters) {
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
         val store = AudibleStore.get(applicationContext)
@@ -35,9 +35,10 @@ class AudibleDownloadWorker(context: Context, parameters: WorkerParameters) : Co
                 if (percent != shown) { shown = percent; showProgress(book.title, fraction) }
             }
             val app = applicationContext as ReadAlongApplication
-            val imported = app.audioImporter.importFiles(store.uris(files), persistAccess = false)
+            // Into the library folder (or ReadAlong's own "Audible Audiobooks" folder) as a book folder of its own.
+            val imported = AudibleLibraryFolder(applicationContext, app.audioImporter).place(AudibleDownloader.safeName(book.title), files)
             // Into the transcription queue behind whatever is already there, like choosing "Later" for a new book.
-            imported.bookIds.forEach { app.processing.chooseImportPriority(it, first = false) }
+            imported.newBookIds.forEach { app.processing.chooseImportPriority(it, first = false) }
             store.finished(asin)
             Result.success()
         } catch (cancelled: CancellationException) {

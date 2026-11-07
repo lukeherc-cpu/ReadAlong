@@ -1,7 +1,6 @@
 package com.example.readalong.data.audible
 
 import android.content.Context
-import androidx.core.content.FileProvider
 import androidx.work.*
 import com.example.readalong.audible.AudibleAccount
 import com.example.readalong.audible.AudibleBook
@@ -20,8 +19,8 @@ sealed interface AudibleDownload {
 }
 
 /**
- * The Audible sign-in, the last synced library and the downloaded books, all in the app's private
- * storage. Downloads run in [AudibleDownloadWorker] so they carry on when ReadAlong is closed.
+ * The Audible sign-in, the last synced library and downloads in progress, in the app's private
+ * storage. Finished books move to a library folder (see [AudibleLibraryFolder]). Downloads run in [AudibleDownloadWorker] so they carry on when ReadAlong is closed.
  */
 class AudibleStore(private val context: Context) {
     private val home = File(context.filesDir, "audible").apply { mkdirs() }
@@ -62,9 +61,6 @@ class AudibleStore(private val context: Context) {
     private fun downloaded(asin: String) = File(folder(asin), DONE).exists()
     /** Marks a book whose every part is downloaded and imported. */
     fun finished(asin: String) { File(folder(asin), DONE).createNewFile(); report(asin, AudibleDownload.Done) }
-
-    /** Content URIs for a finished book's files, in order, for the normal importer. */
-    fun uris(files: List<File>) = files.map { FileProvider.getUriForFile(context, "${context.packageName}.files", it) }
 
     fun report(asin: String, state: AudibleDownload) = mutableDownloads.update { it + (asin to state) }
 
