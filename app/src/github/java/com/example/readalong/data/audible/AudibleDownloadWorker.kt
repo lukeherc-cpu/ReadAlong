@@ -44,7 +44,7 @@ class AudibleDownloadWorker(context: Context, parameters: WorkerParameters) : Co
                 folder.place(name, files)
             }
             // Into the transcription queue behind whatever is already there, like choosing "Later" for a new book.
-            imported.newBookIds.forEach { app.processing.chooseImportPriority(it, first = false) }
+            folder.downloadedBooks(imported, book.title).forEach { app.processing.chooseImportPriority(it, first = false) }
             store.finished(asin)
             Result.success()
         } catch (cancelled: CancellationException) {
