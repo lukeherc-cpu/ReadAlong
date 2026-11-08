@@ -422,8 +422,10 @@ class ProcessingRepository(private val context: Context, private val database: R
         if (database.processingDao().unfinished().isNotEmpty()) database.bookDao().putMetadata(LibraryMetadataEntity("transcription_queue_running", "true"))
         lock.withLock { withContext(Dispatchers.IO) {
             database.processingDao().orderedQueue().filter { ProcessingState.of(it.state).active }.drop(MAX_ACTIVE).forEach { defer(it) }
+            // Books paused for a new speech model wait for the person's Resume (it starts over with the new model).
             database.processingDao().registeredQueue().filter { it.state == "CANCELLED" &&
-                database.bookDao().metadata("paused_notification:${it.bookId}") != "true" }.forEach {
+                database.bookDao().metadata("paused_notification:${it.bookId}") != "true" &&
+                (database.bookDao().findBook(it.bookId)?.isDemo == true || model.find(it.engineId) != null) }.forEach {
                 database.processingDao().put(it.copy(state = "WAITING_QUEUE"))
             }
         } }
