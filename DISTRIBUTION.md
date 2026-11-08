@@ -30,7 +30,7 @@ Publish a tagged source revision, upload the matching GitHub APK, and verify the
 
 ## Audible import
 
-Audible sign-in and import (`app/src/github/.../audible`, `data/audible`, `ui/audible`) ship in the `github` flavor and the desktop apps only. The `play` flavor keeps the LibriSync instructions dialog and contains no Audible sign-in code. The desktop build compiles the same engine from the `github` source set.
+Audible sign-in and import (`app/src/audible/.../audible`, `data/audible`, `ui/audible`) ship in both the `github` and `play` flavors and in the desktop apps. The shared `app/src/audible` source set is added to both flavors in `app/build.gradle.kts`, and the desktop build compiles the same engine from it.
 
 The engine is GPL-3.0 code ported from LibriSync and Libation, whose authors have not granted the Needle Runtime Linking Exception. A GitHub release therefore needs the Needle runtime's source available as part of its Corresponding Source: link the runtime's published Apache-2.0 source and version in the release notes, or attach it.
 
