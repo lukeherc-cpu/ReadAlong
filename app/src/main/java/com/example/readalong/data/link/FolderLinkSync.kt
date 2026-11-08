@@ -124,14 +124,15 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
 
     /**
      * While ReadAlong is open: every minute, sees whether the computer is reachable and syncs when it says it has
-     * something new since the last sync, or the last sync is more than ten minutes old. Runs until cancelled.
+     * something new since the last sync, or the last sync is more than thirty minutes old. Runs until cancelled.
      */
     suspend fun watch(syncNow: () -> Unit) = withContext(Dispatchers.IO) {
         while (true) {
             val s = store.value
             if (s.computer != null && s.pairs.isNotEmpty() && mutableProgress.value == null && !lock.isLocked) {
                 val change = runCatching { connect().use { it.computerChanged } }.getOrNull()
-                val stale = (s.lastSyncAt ?: 0) < System.currentTimeMillis() - 10 * 60_000
+                // The computer says when it has news; a full sync and rescan without news is only a safety net.
+                val stale = (s.lastSyncAt ?: 0) < System.currentTimeMillis() - 30 * 60_000
                 if (change != null && (change > s.seenChange || stale)) syncNow()
             }
             kotlinx.coroutines.delay(60_000)
