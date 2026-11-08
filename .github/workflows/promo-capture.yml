@@ -31,6 +31,11 @@ jobs:
       - name: Build app and tests
         run: ./gradlew --no-configuration-cache assembleGithubDebug assembleGithubDebugAndroidTest
 
+      - name: Fetch covers
+        run: |
+          pip install pillow >/dev/null
+          mkdir -p promo-in/covers && python3 tools/promo/covers.py promo-in
+
       - name: Run on emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -46,7 +51,8 @@ jobs:
             adb install -r -g app/build/outputs/apk/github/debug/app-github-debug.apk
             adb install -r -g app/build/outputs/apk/androidTest/github/debug/app-github-debug-androidTest.apk
             adb shell mkdir -p /sdcard/Download/readalong-promo/covers
-            adb push tools/promo/covers/. /sdcard/Download/readalong-promo/covers/
+            adb push promo-in/covers/. /sdcard/Download/readalong-promo/covers/
+            adb push promo-in/titles.txt /sdcard/Download/readalong-promo/titles.txt
             adb shell settings put system screen_off_timeout 1800000
             adb shell "cmd overlay enable com.android.internal.systemui.navbar.gestural" || true
             adb shell "settings put global sysui_demo_allowed 1; am broadcast -a com.android.systemui.demo -e command enter; am broadcast -a com.android.systemui.demo -e command clock -e hhmm 0941; am broadcast -a com.android.systemui.demo -e command battery -e level 100 -e plugged false; am broadcast -a com.android.systemui.demo -e command network -e wifi show -e level 4; am broadcast -a com.android.systemui.demo -e command notifications -e visible false" || true
