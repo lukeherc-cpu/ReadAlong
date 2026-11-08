@@ -32,6 +32,20 @@ class LibraryImporter(private val library: LibraryStore, private val transcripts
     /** The library folders that are rescanned. */
     val folders: List<String> get() = library.folders.value
     fun book(id: String) = library.book(id)
+    val books: StateFlow<List<LibraryBook>> get() = library.books
+
+    /**
+     * Moves the files of the books [ids] with [move] and rescans, with no other scan in between. The books are marked
+     * missing once moved, so the rescan finds each by its files in the new place and it keeps its id, position,
+     * bookmarks and ReadAlong. Nothing changes when [move] returns false.
+     */
+    suspend fun relocate(ids: List<String>, move: () -> Boolean): Boolean = locked {
+        if (!move()) return@locked false
+        ids.forEach { id -> library.update(id) { it.copy(missing = true) } }
+        val roots = library.folders.value.map(::File).filter { it.isDirectory }
+        importFound(roots.flatMap { Scanner.scan(it) }, roots, adding = false)
+        true
+    }
 
     /** What [folder] holds, before anything is added: the books a library scan would find there. */
     suspend fun preview(folder: File): List<FoundBook> = withContext(Dispatchers.IO) { Scanner.scan(folder) }
