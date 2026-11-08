@@ -29,6 +29,10 @@ class LibraryImporter(private val library: LibraryStore, private val transcripts
         importFound(paths.flatMap { Scanner.scan(it) }, scannedRoots = emptyList(), adding = true)
     }
 
+    /** The library folders that are rescanned. */
+    val folders: List<String> get() = library.folders.value
+    fun book(id: String) = library.book(id)
+
     /** What [folder] holds, before anything is added: the books a library scan would find there. */
     suspend fun preview(folder: File): List<FoundBook> = withContext(Dispatchers.IO) { Scanner.scan(folder) }
 
