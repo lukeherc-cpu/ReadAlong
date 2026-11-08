@@ -1,0 +1,38 @@
+# XcodeGen spec for the iPhone app (xcodegen generate). The Kotlin side is ReadAlongKit.framework, linked by
+# ./gradlew -p ios-app linkReleaseFrameworkIosArm64 before Xcode builds (see .github/workflows/ios.yml).
+name: ReadAlong
+options:
+  deploymentTarget:
+    iOS: "16.0"
+settings:
+  base:
+    MARKETING_VERSION: ${READALONG_VERSION}
+    CURRENT_PROJECT_VERSION: "1"
+targets:
+  ReadAlong:
+    type: application
+    platform: iOS
+    sources: [Sources]
+    info:
+      path: Info.plist
+      properties:
+        CFBundleDisplayName: ReadAlong
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        UILaunchScreen: {}
+        UIRequiresFullScreen: false
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        UIBackgroundModes: [audio]
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
+        CADisableMinimumFrameDurationOnPhone: true
+        NSLocalNetworkUsageDescription: ReadAlong finds your computer on Wi-Fi to sync books and transcripts.
+        NSBonjourServices: [_readalong._tcp]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.lukeherc-cpu.readalong
+        TARGETED_DEVICE_FAMILY: "1,2"
+        FRAMEWORK_SEARCH_PATHS: $(SRCROOT)/../build/bin/iosArm64/releaseFramework
+        OTHER_LDFLAGS: [-framework, ReadAlongKit, -lsqlite3]
+        ENABLE_BITCODE: NO
+        CODE_SIGNING_ALLOWED: NO
