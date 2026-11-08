@@ -99,11 +99,9 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
     val pickEpub = rememberEpubPicker(reading)
     val epub by reading.importedEdition.collectAsStateWithLifecycle()
     Scaffold(containerColor = Color.Transparent, contentColor = colors.onSurface) { insets ->
-        Column(
-            Modifier.fillMaxSize()
-                .padding(insets),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
+        // Upright, the top bar takes its own strip above the player. Sideways it floats over the top
+        // instead, so the cover can use the full height of the screen.
+        val topBar: @Composable () -> Unit = {
             // A grab handle, like the pop-up sheets: tap it or pull down to close the player. The touch
             // area is the whole top bar's height and most of its width, and any pull that is mostly
             // downward counts (a diagonal thumb swipe too), as does a short quick flick.
@@ -118,7 +116,7 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                 val threshold = with(density) { 40.dp.toPx() }
                 val flick = with(density) { 16.dp.toPx() }
                 val flickSpeed = with(density) { 700.dp.toPx() }
-                Box(Modifier.align(Alignment.Center).size(width = 180.dp, height = if (landscape) 44.dp else 56.dp)
+                Box(Modifier.align(Alignment.Center).size(width = if (landscape) 120.dp else 180.dp, height = if (landscape) 44.dp else 56.dp)
                     .pointerInput(Unit) {
                         val tracker = androidx.compose.ui.input.pointer.util.VelocityTracker()
                         var x = 0f; var y = 0f; var closed = false
@@ -156,19 +154,24 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                     }
                 }
             }
-            // Sideways, leave as much room under the content as the top bar takes above it, so the cover
-            // and controls sit in the vertical middle of the screen instead of being pushed down by the bar.
-            BoxWithConstraints(Modifier.weight(1f).widthIn(max = 960.dp).fillMaxWidth().padding(horizontal = 24.dp)
-                .padding(bottom = if (landscape) 48.dp else 0.dp)) {
+        }
+        // Sideways, use the same inset on both sides (top/bottom and left/right) so the player is centred
+        // on the physical screen, not nudged by a status bar or camera cutout on one edge only.
+        val dir = androidx.compose.ui.platform.LocalLayoutDirection.current
+        val sideIn = maxOf(insets.calculateStartPadding(dir), insets.calculateEndPadding(dir))
+        val edgeIn = maxOf(insets.calculateTopPadding(), insets.calculateBottomPadding())
+        Box(Modifier.fillMaxSize().padding(if (landscape) PaddingValues(horizontal = sideIn, vertical = edgeIn) else insets)) {
+        Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
+            if (!landscape) topBar()
+            BoxWithConstraints(Modifier.weight(1f).widthIn(max = 960.dp).fillMaxWidth().padding(horizontal = if (landscape) 0.dp else 24.dp)) {
                 val wide = maxWidth >= 640.dp
                 // Sideways on a phone the height is tight, so the controls get smaller type and buttons.
                 val compact = wide && maxHeight < 440.dp
-                // Sideways, the cover fills the height it has (but never more than ~45% of the width).
-                // The controls get the same width as the cover, and the pair sits in the middle of the
-                // screen: the gap between them lines up with the grab handle and both outer margins match.
-                val wideGap = 40.dp
-                val wideCover = minOf(360.dp, maxHeight - 8.dp, maxWidth * 0.45f).coerceAtLeast(160.dp)
-                val wideControls = maxOf(wideCover, 320.dp).coerceAtMost(maxWidth - wideCover - wideGap)
+                // Wide, the screen splits into two equal halves: the cover sits in the middle of the left
+                // half and the controls in the middle of the right half, both centred top to bottom. The
+                // cover fills the height it has, less 20dp above and below (and at most ~45% of the width).
+                val wideCover = minOf(360.dp, maxHeight - if (landscape) 40.dp else 8.dp, maxWidth * 0.45f).coerceAtLeast(160.dp)
+                val wideControls = maxOf(wideCover, 320.dp).coerceAtMost(maxWidth / 2 - 24.dp)
                 val artwork: @Composable () -> Unit = {
                     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         if (book.mediaState == "MISSING") Surface(shape = RoundedCornerShape(com.example.readalong.ui.theme.Corners.medium), color = colors.errorContainer) {
@@ -255,16 +258,20 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                 readingError?.let { Text(it, color = colors.error, style = MaterialTheme.typography.bodySmall) }
                 if (!wide) Spacer(Modifier.height(12.dp))
                 }
-                if (wide) Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(wideGap, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.width(wideCover).fillMaxHeight(), contentAlignment = Alignment.Center) { artwork() }
-                    // Centred against the cover; scrolls only if a very short window still can't fit it all.
-                    Column(Modifier.width(wideControls).verticalScroll(androidx.compose.foundation.rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(if (compact) 2.dp else 6.dp), content = controls)
+                if (wide) Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) { Box(Modifier.width(wideCover)) { artwork() } }
+                    // Scrolls only if a very short window still can't fit it all.
+                    Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
+                        Column(Modifier.width(wideControls).verticalScroll(androidx.compose.foundation.rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(if (compact) 2.dp else 6.dp), content = controls)
+                    }
                 } else Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     artwork()
                     controls()
                 }
             }
+        }
+        if (landscape) topBar()
         }
     }
     if (showBuffering) LinearProgressIndicator(Modifier.align(Alignment.TopCenter).fillMaxWidth().height(2.dp).semantics { contentDescription = "Buffering audio" })
