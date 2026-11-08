@@ -143,6 +143,7 @@ private fun AudibleLibrary(store: AudibleStore, account: AudibleAccount, onChoos
     var message by remember { mutableStateOf<String?>(null) }
     var query by remember { mutableStateOf("") }
     var signingOut by remember { mutableStateOf(false) }
+    var confirmAll by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     fun sync() {
         if (syncing) return
@@ -166,6 +167,19 @@ private fun AudibleLibrary(store: AudibleStore, account: AudibleAccount, onChoos
             }
             // Books already downloaded elsewhere (LibriSync, Libation, a computer) come in as a library folder.
             OutlinedButton(onClick = onChooseFolder) { Text("Add audiobook folder") }
+            val remaining = remember(library, downloads) { library.filter { book -> downloads[book.asin].let { it == null || it is AudibleDownload.Failed } } }
+            val active = downloads.values.any { it is AudibleDownload.Queued || it is AudibleDownload.Running }
+            if (remaining.isNotEmpty() || active) Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (remaining.isNotEmpty()) Button(onClick = { confirmAll = true }) { Text("Download all (${remaining.size})") }
+                if (active) TextButton(onClick = store::cancel) { Text("Stop downloads") }
+            }
+            if (confirmAll) {
+                val hours = remaining.sumOf { it.runtimeMinutes } / 60
+                AlertDialog(onDismissRequest = { confirmAll = false }, title = { Text("Download ${remaining.size} ${if (remaining.size == 1) "book" else "books"}?") },
+                    text = { Text("They download one at a time${if (hours > 0) ", about $hours hours of listening" else ""}, and keep going when ReadAlong is closed. Each one appears in your library as soon as it's done.") },
+                    confirmButton = { TextButton(onClick = { confirmAll = false; store.downloadAll(remaining.map { it.asin }) }) { Text("Download all") } },
+                    dismissButton = { TextButton(onClick = { confirmAll = false }) { Text("Cancel") } })
+            }
             OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth(), placeholder = { Text("Search your Audible library") }, singleLine = true)
             if (syncing) LinearProgressIndicator(Modifier.fillMaxWidth())
             message?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant) }

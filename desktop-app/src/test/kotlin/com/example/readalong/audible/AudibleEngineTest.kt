@@ -82,7 +82,9 @@ class AudibleEngineTest {
                              {"asin":"B0SER","relationship_to_product":"parent","relationship_type":"series","sort":"1"}]}""")
         val book = AudibleClient.parseBook(item)!!
         assertEquals("A. Writer, B. Writer", book.authors)
-        assertEquals(listOf("B0P1", "B0P2"), book.downloadAsins)
+        assertEquals(listOf("B0P1", "B0P2"), book.parts)
+        // Audible 404s licence requests for part ASINs, so even a multi-part book downloads by its parent ASIN.
+        assertEquals(listOf("B0PARENT"), book.downloadAsins)
         assertEquals(listOf(book), AudibleBook.listFromJson(AudibleBook.listToJson(listOf(book))))
         assertEquals(null, AudibleClient.parseBook(JSONObject("""{"asin":"B0POD","content_delivery_type":"PodcastParent"}""")))
         assertEquals("Book One Part 1 of 2", AudibleDownloader.safeName("Book: One / Part 1 of 2?"))

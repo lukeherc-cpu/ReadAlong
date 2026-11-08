@@ -11,6 +11,7 @@ import com.example.readalong.data.local.FolderEntity
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.withLock
 
 class ImportViewModel(private val importer: AudioImporter, private val epubs: com.example.readalong.data.epub.ImportedEpubRepository? = null, private val processing: com.example.readalong.data.processing.ProcessingRepository? = null) : ViewModel() {
     private val mutableBusy = MutableStateFlow(false)
@@ -124,8 +125,16 @@ class ImportViewModel(private val importer: AudioImporter, private val epubs: co
     private val mutableScanningFolder = MutableStateFlow<String?>(null)
     val scanningFolder = mutableScanningFolder.asStateFlow()
     private var autoScan: kotlinx.coroutines.Job? = null
+    private var lastAutoScan = 0L
+    /**
+     * Rescans saved folders when ReadAlong comes back to the screen. Flicking between apps rescanned
+     * a large library every time; a scan within the last 30 seconds is enough.
+     */
     fun refreshLibrary() {
         if (autoScan?.isActive == true) return
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (lastAutoScan != 0L && now - lastAutoScan < 30_000) return
+        lastAutoScan = now
         autoScan = viewModelScope.launch {
             while (busy.value) kotlinx.coroutines.delay(150)
             try { syncedNote(importer.rescanSavedFolders { mutableScanningFolder.value = it?.name })?.let { mutableSynced.tryEmit(it) } }
@@ -142,15 +151,21 @@ class ImportViewModel(private val importer: AudioImporter, private val epubs: co
         }
     }
     fun clearMessage() { showMessage(null) }
+    /** One at a time, in order: a folder picked while an EPUB is still being added waits for it instead of being dropped. */
+    private val actions = kotlinx.coroutines.sync.Mutex()
+    private var waiting = 0
     private fun action(pendingMessage: String = "Reading audio metadata…", work: suspend () -> String?) {
-        if (busy.value) return
+        if (busy.value) showMessage("Still adding the last one. This starts next.")
+        waiting++
         viewModelScope.launch {
-            mutableBusy.value = true
-            showMessage(pendingMessage)
-            try { showMessage(work()) }
-            catch (cancelled: CancellationException) { throw cancelled }
-            catch (failure: Exception) { showMessage(failure.message ?: "Couldn't add that audio. Please try again.") }
-            finally { mutableBusy.value = false }
+            actions.withLock {
+                mutableBusy.value = true
+                showMessage(pendingMessage)
+                try { showMessage(work()) }
+                catch (cancelled: CancellationException) { throw cancelled }
+                catch (failure: Exception) { showMessage(failure.message ?: "Couldn't add that audio. Please try again.") }
+                finally { if (--waiting == 0) mutableBusy.value = false }
+            }
         }
     }
     companion object {

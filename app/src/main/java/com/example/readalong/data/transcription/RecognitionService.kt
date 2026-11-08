@@ -41,6 +41,20 @@ open class RecognitionService : Service() {
             activeRequest = message.data.getString("requestId") ?: return
             busy = true; cancelled.set(false)
             try { reply.send(Message.obtain(null, PROGRESS).apply { arg1 = -1 }) } catch (_: RemoteException) { }
+            // The native call reports nothing until it ends. While this process keeps using the CPU it is working,
+            // so the app's stall watchdog hears a heartbeat; threads starved of CPU send none and are restarted.
+            var cpuBefore = android.os.Process.getElapsedCpuTime()
+            val request = activeRequest
+            val heartbeat = object : Runnable {
+                override fun run() {
+                    if (!busy || activeRequest != request) return
+                    val cpu = android.os.Process.getElapsedCpuTime()
+                    if (cpu - cpuBefore >= HEARTBEAT_CPU_MS) try { reply.send(Message.obtain(null, HEARTBEAT)) } catch (_: RemoteException) { }
+                    cpuBefore = cpu
+                    handler.postDelayed(this, HEARTBEAT_MS)
+                }
+            }
+            handler.postDelayed(heartbeat, HEARTBEAT_MS)
             executor.execute {
                 try {
                     val result = WhistleNative.transcribe(model, pcm).toString(Charsets.UTF_8)
@@ -75,7 +89,12 @@ open class RecognitionService : Service() {
         // Allow a quick rebind before exiting the idle process to release native weights.
         RecognitionProcessLifetime.destroyed()
     }
-    companion object { const val RECOGNIZE = 1; const val CANCEL = 2; const val RESULT = 3; const val PROGRESS = 4 }
+    companion object {
+        const val RECOGNIZE = 1; const val CANCEL = 2; const val RESULT = 3; const val PROGRESS = 4; const val HEARTBEAT = 5
+        private const val HEARTBEAT_MS = 10_000L
+        /** CPU time used in a heartbeat period that counts as working (a fifth of one core). */
+        private const val HEARTBEAT_CPU_MS = 2_000L
+    }
 }
 class ModelValidationService : RecognitionService()
 

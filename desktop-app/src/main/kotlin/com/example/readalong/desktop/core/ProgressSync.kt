@@ -1,6 +1,7 @@
 package com.example.readalong.desktop.core
 
 import com.example.readalong.domain.link.BookStateFiles
+import com.example.readalong.domain.link.ProgressMerge
 import org.json.JSONObject
 import java.io.File
 import kotlin.math.abs
@@ -22,7 +23,19 @@ data class SharedProgress(val device: String, val updatedAt: Long, val positionM
  * of its "<book>.readalong-state" (see [BookState]), which the phone also reads and writes on each folder scan
  * and when playback pauses. The most recent listening wins.
  */
-class ProgressSync(private val library: LibraryStore) {
+class ProgressSync(private val library: LibraryStore, private val seenFile: File = File(AppPaths.data, "progress-seen.properties")) {
+    /** What both sides said at the end of each book's last sync (see [ProgressMerge]), so clock differences don't decide. */
+    private val seen = java.util.Properties().apply { runCatching { seenFile.inputStream().use { load(it) } } }
+
+    @Synchronized private fun remember(bookId: String, remoteAt: Long?, localAt: Long?) {
+        seen.setProperty(bookId, ProgressMerge.encodeSeen(remoteAt, localAt))
+        runCatching {
+            val temporary = File(seenFile.parentFile, seenFile.name + ".tmp")
+            temporary.outputStream().use { seen.store(it, null) }
+            java.nio.file.Files.move(temporary.toPath(), seenFile.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING, java.nio.file.StandardCopyOption.ATOMIC_MOVE)
+        }
+    }
+
     /** Takes newer positions from the shared files and refreshes files that are older than this computer's. [playing] is left alone. */
     fun syncAll(playing: String?): List<String> =
         library.books.value.filter { it.id != playing && it.parts.isNotEmpty() && sync(it) }.map { it.id }
@@ -30,20 +43,26 @@ class ProgressSync(private val library: LibraryStore) {
     /** Syncs one book; returns true when its position came from the shared file. */
     fun sync(book: LibraryBook): Boolean {
         val shared = BookState.read(book, BookStateFiles.Part.PROGRESS)?.let { runCatching { parse(it) }.getOrNull() }
-        val local = book.lastPlayedAt ?: 0L
-        if (shared != null && shared.updatedAt > local + 2_000) {
-            val position = resolve(book, shared) ?: return false
-            library.update(book.id) { it.copy(positionMs = position, finished = shared.finished, lastPlayedAt = shared.updatedAt) }
-            return true
+        val local = book.lastPlayedAt?.takeIf { it > 0 }
+        val (seenRemote, seenLocal) = ProgressMerge.decodeSeen(synchronized(this) { seen.getProperty(book.id) }) ?: (null to null)
+        when (ProgressMerge.decide(local, shared?.updatedAt, seenRemote, seenLocal)) {
+            ProgressMerge.Direction.TAKE -> {
+                val taken = requireNotNull(shared)
+                val position = resolve(book, taken) ?: return false
+                library.update(book.id) { it.copy(positionMs = position, finished = taken.finished, lastPlayedAt = taken.updatedAt) }
+                remember(book.id, taken.updatedAt, taken.updatedAt)
+                return true
+            }
+            ProgressMerge.Direction.WRITE -> write(book)
+            ProgressMerge.Direction.NONE -> Unit
         }
-        if (local > 0 && (shared == null || local > shared.updatedAt + 2_000)) write(book)
         return false
     }
 
     /** Records this computer's position for the phone; quietly does nothing where the folder can't be written. */
     fun write(book: LibraryBook) {
         if (book.parts.isEmpty() || book.lastPlayedAt == null) return
-        runCatching { BookState.write(book, BookStateFiles.Part.PROGRESS, encode(book)) }
+        runCatching { BookState.write(book, BookStateFiles.Part.PROGRESS, encode(book)) }.onSuccess { remember(book.id, book.lastPlayedAt, book.lastPlayedAt) }
     }
 
     companion object {

@@ -110,7 +110,7 @@ fun FoldersScreen(model: ImportViewModel, onBack: () -> Unit) {
                         FolderCard(folder, covers, ids.size, badges, scanning = scanning,
                             progress = scanProgress?.takeIf { scanning && it.folder == folder.name },
                             // A folder being scanned is readable, whatever the last permission check said.
-                            lostAccess = !scanning && folder.uri !in granted, enabled = !busy,
+                            lostAccess = !scanning && folder.uri !in granted && !com.example.readalong.data.importing.OwnFolderProvider.isOwn(context, folder.uri), enabled = !busy,
                             onCheck = { model.rescan(folder) }, onRemove = { removing = folder },
                             onChooseAgain = { reconnecting = folder; chooseAgain.launch(Uri.parse(folder.uri)) },
                             modifier = Modifier.animateItem())

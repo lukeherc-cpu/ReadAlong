@@ -29,6 +29,10 @@ class LibraryImporter(private val library: LibraryStore, private val transcripts
         importFound(paths.flatMap { Scanner.scan(it) }, scannedRoots = emptyList(), adding = true)
     }
 
+    /** The library folders that are rescanned. */
+    val folders: List<String> get() = library.folders.value
+    fun book(id: String) = library.book(id)
+
     /** What [folder] holds, before anything is added: the books a library scan would find there. */
     suspend fun preview(folder: File): List<FoundBook> = withContext(Dispatchers.IO) { Scanner.scan(folder) }
 
@@ -61,15 +65,24 @@ class LibraryImporter(private val library: LibraryStore, private val transcripts
         val added = mutableListOf<String>()
         mutableState.value = ScanState(true, "Looking for audiobooks…", found.size, adding)
         val keys = found.map { it.key }.toSet()
-        // Books under a rescanned folder whose files are gone leave the library.
-        library.replaceAll { list -> list.filterNot { book -> scannedRoots.any { root -> book.parts.firstOrNull()?.path?.startsWith(root.path) == true } && book.key !in keys && book.parts.none { File(it.path).isFile } } }
+        // Books under a rescanned folder whose files are gone are marked missing, never dropped: a sync tool renaming a
+        // folder for a moment, or an unplugged drive, mustn't cost the position, bookmarks and ReadAlong (the phone keeps them too).
+        library.replaceAll { list -> list.map { book ->
+            val gone = scannedRoots.any { root -> book.parts.firstOrNull()?.path?.startsWith(root.path) == true } && book.key !in keys && book.parts.none { File(it.path).isFile }
+            if (gone != book.missing && (gone || book.parts.any { File(it.path).isFile })) book.copy(missing = gone) else book
+        } }
         for ((index, item) in found.withIndex()) {
             currentCoroutineContext().ensureActive()
-            val id = Scanner.bookId(item.key)
-            val existing = library.book(id)
+            // A book that moved (another drive, a renamed folder) is the missing book with the same files: it keeps its id.
+            val existing = library.book(Scanner.bookId(item.key)) ?: library.books.value.firstOrNull { it.key == item.key }
+                ?: library.books.value.firstOrNull { it.missing && sameAudio(it, item) }
+            val id = existing?.id ?: Scanner.bookId(item.key)
             val unchanged = existing != null && existing.parts.map { it.path } == item.audio.map { it.path } &&
                 existing.parts.zip(item.audio).all { (part, file) -> part.size == file.length() && part.modified == file.lastModified() }
-            if (unchanged) { adoptCompanions(existing!!, item); continue }
+            if (unchanged) {
+                if (existing!!.missing) library.update(id) { it.copy(missing = false) }
+                adoptCompanions(library.book(id) ?: existing, item); continue
+            }
             mutableState.value = ScanState(true, "Adding ${item.name} (${index + 1} of ${found.size})", found.size, adding)
             val book = runCatching { build(id, item, existing) }.getOrElse {
                 System.err.println("ReadAlong: skipped ${item.name}: ${it.message}"); null
@@ -115,6 +128,10 @@ class LibraryImporter(private val library: LibraryStore, private val transcripts
             }
     }
 
+    /** Same file names and sizes, in the same order: the same audiobook, wherever it is now. */
+    private fun sameAudio(book: LibraryBook, item: FoundBook): Boolean =
+        book.parts.size == item.audio.size && book.parts.zip(item.audio).all { (part, file) -> part.name.equals(file.name, ignoreCase = true) && part.size == file.length() }
+
     private fun build(id: String, item: FoundBook, existing: LibraryBook?): LibraryBook {
         val probed = item.audio.mapIndexed { i, file -> MediaProbe.probe(file, wantCover = i == 0 && item.images.isEmpty()) }
         var offset = 0L
@@ -132,11 +149,12 @@ class LibraryImporter(private val library: LibraryStore, private val transcripts
             val name = image.nameWithoutExtension.lowercase()
             (if (name in setOf("cover", "folder", "front")) 1L shl 40 else 0L) + image.length()
         }?.path ?: probed.first().cover?.let { bytes -> File(AppPaths.covers, "$id.img").apply { writeBytes(bytes) }.path }
+        // After a move the old cover and EPUB paths may point at the old place.
         return LibraryBook(id, existing?.title ?: title, existing?.author ?: author, item.key, item.folder?.path, parts, chapters,
-            existing?.coverPath ?: cover, existing?.epubPath ?: item.epubs.firstOrNull()?.path,
+            existing?.coverPath?.takeIf { File(it).isFile } ?: cover, existing?.epubPath?.takeIf { File(it).isFile } ?: item.epubs.firstOrNull()?.path,
             positionMs = existing?.positionMs?.coerceAtMost(offset) ?: 0, finished = existing?.finished ?: false,
             lastPlayedAt = existing?.lastPlayedAt, addedAt = existing?.addedAt ?: System.currentTimeMillis(),
             bookmarks = existing?.bookmarks.orEmpty(), textSource = existing?.textSource ?: if (item.epubs.isNotEmpty()) "EPUB" else "GENERATED",
-            speed = existing?.speed ?: 1f, removedBookmarks = existing?.removedBookmarks.orEmpty())
+            speed = existing?.speed ?: 1f, removedBookmarks = existing?.removedBookmarks.orEmpty(), editedAt = existing?.editedAt)
     }
 }

@@ -13,15 +13,17 @@ object TranscriptionEstimate {
     private const val DEVICE_KEY = "transcription_rate:device"
     /** Before anything is measured: roughly a fifth of real time on a recent phone. */
     private const val DEFAULT_RATE = 0.2
-    suspend fun record(database: ReadAlongDatabase, job: ProcessingJobEntity, audioMs: Long, elapsedMs: Long) {
+    suspend fun record(database: ReadAlongDatabase, job: ProcessingJobEntity, audioMs: Long, elapsedMs: Long) =
+        record(database, job.bookId, job.sourceFingerprint, job.engineId, audioMs, elapsedMs)
+    suspend fun record(database: ReadAlongDatabase, bookId: String, sourceFingerprint: String?, engineId: String, audioMs: Long, elapsedMs: Long) {
         if (audioMs <= 0 || elapsedMs <= 0) return
-        val old = database.bookDao().metadata(key(job.bookId))?.let { runCatching { JSONObject(it) }.getOrNull() }
-        val same = old?.optString("fingerprint") == job.sourceFingerprint && old?.optString("engine") == job.engineId
+        val old = database.bookDao().metadata(key(bookId))?.let { runCatching { JSONObject(it) }.getOrNull() }
+        val same = old?.optString("fingerprint") == sourceFingerprint && old?.optString("engine") == engineId
         val rate = elapsedMs.toDouble() / audioMs
         val average = if (same) old!!.optDouble("rate", rate) * .75 + rate * .25 else rate
         val count = if (same) old!!.optInt("count") + 1 else 1
-        database.bookDao().putMetadata(LibraryMetadataEntity(key(job.bookId), JSONObject()
-            .put("fingerprint", job.sourceFingerprint).put("engine", job.engineId).put("rate", average).put("count", count).toString()))
+        database.bookDao().putMetadata(LibraryMetadataEntity(key(bookId), JSONObject()
+            .put("fingerprint", sourceFingerprint).put("engine", engineId).put("rate", average).put("count", count).toString()))
         val device = database.bookDao().metadata(DEVICE_KEY)?.toDoubleOrNull()
         database.bookDao().putMetadata(LibraryMetadataEntity(DEVICE_KEY, (if (device == null) rate else device * .9 + rate * .1).toString()))
     }

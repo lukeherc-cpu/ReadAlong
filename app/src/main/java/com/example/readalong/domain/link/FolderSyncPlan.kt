@@ -94,7 +94,9 @@ object FolderSyncPlan {
                     val remoteChanged = last == null || r.size != last.remoteSize || r.modified != last.remoteModified
                     when {
                         !localChanged && !remoteChanged && shortCopy(last!!) -> actions += SyncAction.Download(path)
-                        last == null && l.size == r.size -> Unit // Already the same file on both sides.
+                        // Same audio on both sides. Small companion files (progress, bookmarks) can match in size while
+                        // holding different things, so the newer one wins as when both changed.
+                        last == null && l.size == r.size && (isAudio(path) || kotlin.math.abs(l.modified - r.modified) <= SAME_TIME_MS) -> Unit
                         localChanged && !remoteChanged -> actions += SyncAction.Upload(path)
                         remoteChanged && !localChanged -> actions += SyncAction.Download(path)
                         localChanged && remoteChanged && !isAudio(path) -> actions += if (l.modified >= r.modified) SyncAction.Upload(path) else SyncAction.Download(path)
@@ -104,6 +106,21 @@ object FolderSyncPlan {
         }
         // Small files first, so progress and transcripts arrive before a long audiobook copy.
         return actions.sortedBy { (mine[it.path] ?: theirs[it.path])?.size ?: 0 }
+    }
+
+    /** Modification times this close are the same save (file systems round them differently). */
+    const val SAME_TIME_MS = 2_000L
+
+    /** Audio changed on both sides since the last sync: [plan] leaves both alone, and the sync result names them. */
+    fun conflicts(local: List<SyncFile>, remote: List<SyncFile>, synced: Map<String, SyncedState>): List<String> {
+        val theirs = remote.associateBy { it.path }
+        return local.filter { isAudio(it.path) && syncable(it.path) }.mapNotNull { l ->
+            val r = theirs[l.path] ?: return@mapNotNull null
+            val last = synced[l.path] ?: return@mapNotNull null
+            val localChanged = l.size != last.localSize || l.modified != last.localModified
+            val remoteChanged = r.size != last.remoteSize || r.modified != last.remoteModified
+            l.path.takeIf { localChanged && remoteChanged && !(l.size == r.size && l.modified == r.modified) }
+        }
     }
 
     /**
