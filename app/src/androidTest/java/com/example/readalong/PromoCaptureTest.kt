@@ -50,7 +50,7 @@ class PromoCaptureTest {
         var prefs by mutableStateOf(AppPreferences(batteryWarningSeen = true, setupStage = 3))
         val play = object : PlaybackControls {
             val mutable = MutableStateFlow(PlaybackState(bookId = "demo-night-orchard", positionMs = 24_000, durationMs = 216_000,
-                chapters = listOf(PlaybackChapter(0,"The orchard gate",0,72_000),PlaybackChapter(1,"Across the river",72_000,72_000),PlaybackChapter(2,"A new beginning",144_000,72_000))))
+                chapters = listOf(PlaybackChapter(0,"Chapter 1",0,72_000),PlaybackChapter(1,"Chapter 2",72_000,72_000),PlaybackChapter(2,"Chapter 3",144_000,72_000))))
             override val state = mutable.asStateFlow()
             override fun select(book: Book) { }
             override fun pause() { mutable.value = mutable.value.copy(isPlaying = false) }
@@ -76,10 +76,15 @@ class PromoCaptureTest {
             app.appPreferences.update { prefs }
             app.readerPreferences.save(ReaderPreferences(fontFamily="LORA", fontSize=21f, lineSpacing=1.6f, theme="DARK"))
             app.bookReaderPreferences.save(ReaderPreferences(fontFamily="LORA", fontSize=21f, lineSpacing=1.6f, theme="LIGHT"))
+            // Optional real titles for the covers pushed beside them (promo only): one "Title|Author" per line.
+            val realBooks = runCatching { android.os.ParcelFileDescriptor.AutoCloseInputStream(automation.executeShellCommand("cat /sdcard/Download/readalong-promo/titles.txt")).bufferedReader().readLines()
+                .mapNotNull { line -> line.split("|").takeIf { it.size == 2 }?.let { it[0].trim() to it[1].trim() } } }.getOrDefault(emptyList())
             val entities = com.example.readalong.data.book.DemoBooks.books.mapIndexed { i,b ->
                 val file = File(File(app.filesDir,"covers").apply { mkdirs() },"promo-original-$i.png"); files += file
                 android.os.ParcelFileDescriptor.AutoCloseInputStream(automation.executeShellCommand("cat /sdcard/Download/readalong-promo/covers/cover-$i.png")).use { input -> file.outputStream().use { input.copyTo(it) } }
-                b.copy(coverUri=FileProvider.getUriForFile(app,"${app.packageName}.files",file).toString(),durationMs=if(i==0)216_000 else b.durationMs)
+                val real = realBooks.getOrNull(i)
+                b.copy(coverUri=FileProvider.getUriForFile(app,"${app.packageName}.files",file).toString(),durationMs=if(i==0)216_000 else b.durationMs,
+                    title=real?.first ?: b.title, author=real?.second ?: b.author)
             }
             db.bookDao().insertBooks(entities)
             db.bookDao().insertProgress(com.example.readalong.data.book.DemoBooks.progress.map { if(it.bookId=="demo-night-orchard") it.copy(audioPositionMs=24_000) else it })
@@ -142,7 +147,7 @@ class PromoCaptureTest {
             androidx.test.espresso.Espresso.pressBack()
             compose.onNodeWithText("1.0×").performScrollTo().performClick();capture("speed")
             androidx.test.espresso.Espresso.pressBack()
-            TranscriptRepository(db).addBookmark(book.id,24_000,"The orchard gate")
+            TranscriptRepository(db).addBookmark(book.id,24_000,"Chapter 1")
             compose.onNodeWithContentDescription("Bookmarks").performScrollTo().performClick();capture("bookmarks")
             androidx.test.espresso.Espresso.pressBack()
             compose.onNodeWithContentDescription("Chapters").performScrollTo().performClick();capture("chapters")
@@ -156,7 +161,7 @@ class PromoCaptureTest {
             compose.waitUntil(10_000){reading.readOnly.value};capture("read-only-light")
             app.bookReaderPreferences.save(ReaderPreferences(fontFamily="LORA",fontSize=21f,theme="DARK"));capture("read-only-dark")
             compose.runOnIdle { reading.setReadOnly(false,24_000) };show("appearance");capture("appearance")
-            show("queue");compose.waitUntil(10_000){compose.onAllNodesWithText("The Night Orchard").fetchSemanticsNodes().isNotEmpty()};capture("queue")
+            show("queue");compose.waitUntil(10_000){compose.onAllNodesWithText(entities[0].title).fetchSemanticsNodes().isNotEmpty()};capture("queue")
             show("settings");capture("settings")
             show("model");capture("model")
             show("background");capture("background")
