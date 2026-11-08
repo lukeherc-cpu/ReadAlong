@@ -23,10 +23,10 @@ class AudibleLibraryFolder(private val context: Context, private val importer: A
     private val resolver = context.contentResolver
 
     /**
-     * A book already moved into ReadAlong's own folder by an earlier try whose scan didn't finish, so a
+     * A book already saved in ReadAlong's own folder by an earlier try whose scan didn't finish, so a
      * retry only scans again instead of asking Audible for another licence and downloading it again.
      */
-    fun alreadyPlaced(title: String): List<File> = File(OwnFolderProvider.base(context), title).listFiles().orEmpty()
+    fun alreadyPlaced(title: String): List<File> = OwnFolderProvider.locate(context, title).listFiles().orEmpty()
         .filter { it.isFile && it.length() > 0 && it.extension.lowercase() in setOf("m4b", "mp3") }.sortedBy { it.name }
 
     /** Scans ReadAlong's own folder, adding it to the library first if it isn't there yet. */
@@ -36,28 +36,16 @@ class AudibleLibraryFolder(private val context: Context, private val importer: A
             else importer.addFolder(tree, FolderMode.LIBRARY, persistAccess = false)
     }
 
-    /** Moves [files] (a finished download, in order) into the book's folder and scans the library folder. */
+    /** Copies [files] (a finished download, in order) into the book's folder, scans the library folder, then deletes the download. */
     suspend fun place(title: String, files: List<File>): ImportResult {
         val writable = resolver.persistedUriPermissions.filter { it.isWritePermission }.map { it.uri.toString() }.toSet()
         val chosen = importer.folders.first().firstOrNull { it.mode == FolderMode.LIBRARY.name && it.uri in writable }
-        return if (chosen != null) {
-            val tree = Uri.parse(chosen.uri)
-            copyInto(tree, title, files)
-            importer.scan(tree).also { files.forEach { it.delete() } }
-        } else {
-            val book = File(OwnFolderProvider.base(context), title).apply { mkdirs() }
-            files.forEach { file -> move(file, File(book, file.name)) }
-            scanOwn()
-        }
-    }
-
-    private fun move(from: File, to: File) {
-        if (to.isFile && to.length() == from.length()) { from.delete(); return }
-        if (from.renameTo(to)) return
-        val partial = File(to.parentFile, to.name + OwnFolderProvider.PARTIAL)
-        from.copyTo(partial, overwrite = true)
-        if (!partial.renameTo(to)) throw IOException("Couldn't save ${to.name}.")
-        from.delete()
+        // ReadAlong's own folder goes through its provider too, which keeps names unique and the folder in one place.
+        val tree = chosen?.let { Uri.parse(it.uri) } ?: OwnFolderProvider.treeUri(context)
+        copyInto(tree, title, files)
+        val result = if (chosen != null) importer.scan(tree) else scanOwn()
+        files.forEach { it.delete() }
+        return result
     }
 
     /** Copies into a folder the person chose. A copy cut short is deleted, so a scan never finds half a book. */
