@@ -67,6 +67,8 @@ class RecognitionConnection(private val context: Context, private val service: C
             val stall = Runnable {
                 if (continuation.isActive) {
                     continuation.resumeWith(Result.failure(IOException("Speech recognition stalled for ${limit / 1000} s. Retrying in a fresh session.")))
+                    // Stop the stuck native work (CANCEL ends that process), as a timeout's cancellation does.
+                    runCatching { remote?.send(Message.obtain(null, RecognitionService.CANCEL).apply { data = Bundle().apply { putString("requestId", requestId) } }) }
                     if (bound.compareAndSet(true, false)) runCatching { context.unbindService(connection) }
                 }
             }
