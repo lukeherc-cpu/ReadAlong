@@ -47,8 +47,10 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.lukeherc-cpu.readalong
         TARGETED_DEVICE_FAMILY: "1,2"
         FRAMEWORK_SEARCH_PATHS: $(SRCROOT)/../build/bin/iosArm64/releaseFramework
+        "FRAMEWORK_SEARCH_PATHS[sdk=iphonesimulator*]": $(SRCROOT)/../build/bin/iosSimulatorArm64/releaseFramework
         # whisper.cpp (built by the workflow from Whisper/CMakeLists.txt) and the system libraries the Kotlin side uses.
         LIBRARY_SEARCH_PATHS: $(SRCROOT)/../build/whisper-ios
+        "LIBRARY_SEARCH_PATHS[sdk=iphonesimulator*]": $(SRCROOT)/../build/whisper-ios-sim
         SWIFT_OBJC_BRIDGING_HEADER: Sources/BridgingHeader.h
         OTHER_LDFLAGS: [-framework, ReadAlongKit, -lsqlite3, -lz, -lc++, -lreadalong_whisper_all,
           -framework, Metal, -framework, MetalKit, -framework, Accelerate, -framework, AVFoundation, -framework, MediaPlayer,
