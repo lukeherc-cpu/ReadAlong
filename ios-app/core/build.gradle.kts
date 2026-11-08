@@ -14,7 +14,7 @@ val shared = "../../app/src/main/java/com/example/readalong"
 val sharedSources by tasks.registering(Sync::class) {
     from(shared) {
         include("domain/**")
-        include("data/transcription/TimedRecognitionResult.kt", "data/transcription/WhistleResult.kt")
+        include("data/transcription/TimedRecognitionResult.kt", "data/transcription/WhistleResult.kt", "data/link/LinkClient.kt")
     }
     from("../../app/src/github/java/com/example/readalong") {
         include("audible/**")
