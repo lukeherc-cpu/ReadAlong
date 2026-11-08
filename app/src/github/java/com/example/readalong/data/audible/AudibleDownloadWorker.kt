@@ -28,15 +28,19 @@ class AudibleDownloadWorker(context: Context, parameters: WorkerParameters) : Co
         try {
             setForeground(foreground(book.title, null))
             var shown = -1
-            val files = AudibleDownloader.download(AudibleClient(account, store::save), book, store.folder(asin)) { stage, fraction ->
-                if (isStopped) throw CancellationException()
-                store.report(asin, AudibleDownload.Running(stage, fraction))
-                val percent = (fraction * 100).toInt()
-                if (percent != shown) { shown = percent; showProgress(book.title, fraction) }
-            }
             val app = applicationContext as ReadAlongApplication
-            // Into the library folder (or ReadAlong's own "Audible Audiobooks" folder) as a book folder of its own.
-            val imported = AudibleLibraryFolder(applicationContext, app.audioImporter).place(AudibleDownloader.safeName(book.title), files)
+            val folder = AudibleLibraryFolder(applicationContext, app.audioImporter)
+            val name = AudibleDownloader.safeName(book.title)
+            val imported = if (folder.alreadyPlaced(name).isNotEmpty()) folder.scanOwn() else {
+                val files = AudibleDownloader.download(AudibleClient(account, store::save), book, store.folder(asin)) { stage, fraction ->
+                    if (isStopped) throw CancellationException()
+                    store.report(asin, AudibleDownload.Running(stage, fraction))
+                    val percent = (fraction * 100).toInt()
+                    if (percent != shown) { shown = percent; showProgress(book.title, fraction) }
+                }
+                // Into the library folder (or ReadAlong's own "Audible Audiobooks" folder) as a book folder of its own.
+                folder.place(name, files)
+            }
             // Into the transcription queue behind whatever is already there, like choosing "Later" for a new book.
             imported.newBookIds.forEach { app.processing.chooseImportPriority(it, first = false) }
             store.finished(asin)
