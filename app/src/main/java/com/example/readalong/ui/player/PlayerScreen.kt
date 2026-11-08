@@ -156,7 +156,10 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                     }
                 }
             }
-            BoxWithConstraints(Modifier.weight(1f).widthIn(max = 960.dp).fillMaxWidth().padding(horizontal = 24.dp)) {
+            // Sideways, leave as much room under the content as the top bar takes above it, so the cover
+            // and controls sit in the vertical middle of the screen instead of being pushed down by the bar.
+            BoxWithConstraints(Modifier.weight(1f).widthIn(max = 960.dp).fillMaxWidth().padding(horizontal = 24.dp)
+                .padding(bottom = if (landscape) 48.dp else 0.dp)) {
                 val wide = maxWidth >= 640.dp
                 // Sideways on a phone the height is tight, so the controls get smaller type and buttons.
                 val compact = wide && maxHeight < 440.dp
@@ -164,7 +167,7 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                 // The controls get the same width as the cover, and the pair sits in the middle of the
                 // screen: the gap between them lines up with the grab handle and both outer margins match.
                 val wideGap = 40.dp
-                val wideCover = minOf(360.dp, maxHeight - 16.dp, maxWidth * 0.45f).coerceAtLeast(160.dp)
+                val wideCover = minOf(360.dp, maxHeight - 8.dp, maxWidth * 0.45f).coerceAtLeast(160.dp)
                 val wideControls = maxOf(wideCover, 320.dp).coerceAtMost(maxWidth - wideCover - wideGap)
                 val artwork: @Composable () -> Unit = {
                     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
