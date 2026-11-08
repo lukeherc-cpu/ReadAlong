@@ -29,7 +29,7 @@ fun preparationExecution(context: Context, database: ReadAlongDatabase, bookId: 
         else {
             val work = manager.getWorkInfoById(UUID.fromString(job.workId)).get()
             val serviceRunning = AudiobookTranscriptionService.running(bookId, job.workId)
-            val active = ProcessingState.valueOf(job.state).active
+            val active = ProcessingState.of(job.state).active
             val battery = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
             val level = battery?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
             val scale = battery?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1

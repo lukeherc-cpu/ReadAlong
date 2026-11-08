@@ -15,4 +15,8 @@ interface TranscriptionEngine {
 enum class ProcessingState {
     WAITING_SELECTION, WAITING_MODEL, WAITING_QUEUE, QUEUED, PROCESSING, PARTIAL_READY, GENERATING_EPUB, READY, PREVIEW_READY, CANCELLED, FAILED;
     val active get() = this in setOf(QUEUED, PROCESSING, PARTIAL_READY, GENERATING_EPUB)
+    companion object {
+        /** A state saved by a newer (or older) ReadAlong that this one doesn't know reads as failed, never as a crash. */
+        fun of(name: String): ProcessingState = entries.firstOrNull { it.name == name } ?: FAILED
+    }
 }

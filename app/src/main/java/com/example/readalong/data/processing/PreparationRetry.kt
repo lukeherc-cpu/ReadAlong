@@ -71,7 +71,7 @@ object PreparationRetry {
             generateSequence(failure) { it.cause }.take(12).joinToString("\n") { cause ->
                 cause.javaClass.simpleName + ": " + cause.stackTrace.filter { it.className.startsWith("com.example.readalong") }.take(8).joinToString(" ")
             }))
-        if (!ProcessingState.valueOf(job.state).active || !transient(failure)) return@withTransaction Decision.NotRetryable
+        if (!ProcessingState.of(job.state).active || !transient(failure)) return@withTransaction Decision.NotRetryable
         val key = "preparation_retry:$bookId"
         val prefix = "$workId:${job.completedUnits}:"
         val old = database.bookDao().metadata(key)
