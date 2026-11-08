@@ -39,6 +39,8 @@ jobs:
           ./gradlew -p ios-app --console=plain :core:iosSimulatorArm64Test 2>&1 | tee ci-results/tests.log
 
       - name: Build the Kotlin framework
+        # Also after failed tests, so one run reports both test failures and compile errors.
+        if: ${{ !cancelled() }}
         run: |
           set -o pipefail
           mkdir -p ci-results
