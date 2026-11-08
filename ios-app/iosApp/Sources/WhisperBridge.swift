@@ -4,7 +4,7 @@ import ReadAlongKit
 
 /// whisper.cpp for the Kotlin side (WhisperNative.kt): each call goes straight to the C functions in
 /// Whisper/readalong_whisper.cpp. Handles and the sample buffer cross as plain addresses.
-final class WhisperBridge: NSObject, WhisperEngine {
+final class WhisperBridge: NSObject, WhisperCalls {
     override init() {
         super.init()
         rw_init(0)

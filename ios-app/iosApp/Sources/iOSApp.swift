@@ -8,7 +8,7 @@ struct ReadAlongApp: App {
 
     init() {
         // Before the Kotlin app starts, so its transcription queue finds whisper.cpp.
-        WhisperNative.shared.engine = WhisperBridge()
+        WhisperKt.installWhisper(calls: WhisperBridge())
     }
 
     var body: some Scene {
