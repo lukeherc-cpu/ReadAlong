@@ -170,6 +170,8 @@ class JSONObject() {
     override fun hashCode() = map.hashCode()
 
     companion object {
+        // Hidden from the framework header, where NULL is a C macro.
+        @OptIn(kotlin.experimental.ExperimentalObjCRefinement::class) @kotlin.native.HiddenFromObjC
         val NULL: Any = Null
         fun quote(s: String?): String = if (s == null) "\"\"" else StringBuilder().also { quote(s, it) }.toString()
         fun numberToString(n: Number) = org.json.numberToString(n)
