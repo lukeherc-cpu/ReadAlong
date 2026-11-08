@@ -136,8 +136,6 @@ kotlin {
         target.binaries.framework {
             baseName = "ReadAlongKit"
             isStatic = true
-            // Swift implements the engine's WhisperEngine and installs it in WhisperNative (iosApp/Sources).
-            export(project(":engine"))
         }
     }
     sourceSets {
