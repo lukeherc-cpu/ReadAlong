@@ -75,8 +75,8 @@ suppress it.
 -- ggml version: 0.15.1
 -- ggml commit:  48f628a
 -- Found JNI: C:/hostedtoolcache/windows/Java_Temurin-Hotspot_jdk/21.0.13-9.0/x64/include  found components: JVM
--- Configuring done (6.8s)
--- Generating done (0.2s)
+-- Configuring done (10.0s)
+-- Generating done (0.4s)
 -- Build files have been written to: D:/a/ReadAlong/ReadAlong/desktop-app/native/build
       C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\Tools\MSVC\14.51.36231\include\type_traits(1811,98):
       the template instantiation context (the oldest one first) is
@@ -119,19 +119,19 @@ suppress it.
   Building Custom Rule D:/a/ReadAlong/ReadAlong/desktop-app/native/CMakeLists.txt
   Building Custom Rule D:/a/ReadAlong/ReadAlong/desktop-app/native/CMakeLists.txt
 total 83900
-drwxr-xr-x 1 runneradmin 197121        0 Nov  8 01:58 .
-drwxr-xr-x 1 runneradmin 197121        0 Nov  8 01:58 ..
--rwxr-xr-x 1 runneradmin 197121   855552 Nov  8 01:58 ggml-base.dll
--rwxr-xr-x 1 runneradmin 197121   964096 Nov  8 01:58 ggml-cpu-alderlake.dll
--rwxr-xr-x 1 runneradmin 197121  1007616 Nov  8 01:58 ggml-cpu-cannonlake.dll
--rwxr-xr-x 1 runneradmin 197121  1005056 Nov  8 01:58 ggml-cpu-cascadelake.dll
--rwxr-xr-x 1 runneradmin 197121   965120 Nov  8 01:58 ggml-cpu-haswell.dll
--rwxr-xr-x 1 runneradmin 197121  1005056 Nov  8 01:58 ggml-cpu-icelake.dll
--rwxr-xr-x 1 runneradmin 197121   956416 Nov  8 01:58 ggml-cpu-sandybridge.dll
--rwxr-xr-x 1 runneradmin 197121  1007616 Nov  8 01:58 ggml-cpu-skylakex.dll
--rwxr-xr-x 1 runneradmin 197121   946176 Nov  8 01:58 ggml-cpu-sse42.dll
--rwxr-xr-x 1 runneradmin 197121   950784 Nov  8 01:58 ggml-cpu-x64.dll
--rwxr-xr-x 1 runneradmin 197121 73863680 Nov  8 01:58 ggml-vulkan.dll
--rwxr-xr-x 1 runneradmin 197121   183808 Nov  8 01:58 ggml.dll
--rwxr-xr-x 1 runneradmin 197121   260096 Nov  8 01:58 readalong_whisper.dll
--rwxr-xr-x 1 runneradmin 197121  1914368 Nov  8 01:58 whisper.dll
+drwxr-xr-x 1 runneradmin 197121        0 Nov  8 02:19 .
+drwxr-xr-x 1 runneradmin 197121        0 Nov  8 02:19 ..
+-rwxr-xr-x 1 runneradmin 197121   855552 Nov  8 02:19 ggml-base.dll
+-rwxr-xr-x 1 runneradmin 197121   964096 Nov  8 02:19 ggml-cpu-alderlake.dll
+-rwxr-xr-x 1 runneradmin 197121  1007616 Nov  8 02:19 ggml-cpu-cannonlake.dll
+-rwxr-xr-x 1 runneradmin 197121  1005056 Nov  8 02:19 ggml-cpu-cascadelake.dll
+-rwxr-xr-x 1 runneradmin 197121   965120 Nov  8 02:19 ggml-cpu-haswell.dll
+-rwxr-xr-x 1 runneradmin 197121  1005056 Nov  8 02:19 ggml-cpu-icelake.dll
+-rwxr-xr-x 1 runneradmin 197121   956416 Nov  8 02:19 ggml-cpu-sandybridge.dll
+-rwxr-xr-x 1 runneradmin 197121  1007616 Nov  8 02:19 ggml-cpu-skylakex.dll
+-rwxr-xr-x 1 runneradmin 197121   946176 Nov  8 02:19 ggml-cpu-sse42.dll
+-rwxr-xr-x 1 runneradmin 197121   950784 Nov  8 02:19 ggml-cpu-x64.dll
+-rwxr-xr-x 1 runneradmin 197121 73863680 Nov  8 02:19 ggml-vulkan.dll
+-rwxr-xr-x 1 runneradmin 197121   183808 Nov  8 02:19 ggml.dll
+-rwxr-xr-x 1 runneradmin 197121   260096 Nov  8 02:19 readalong_whisper.dll
+-rwxr-xr-x 1 runneradmin 197121  1914368 Nov  8 02:19 whisper.dll
