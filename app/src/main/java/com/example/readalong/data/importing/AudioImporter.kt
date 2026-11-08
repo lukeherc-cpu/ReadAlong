@@ -311,8 +311,15 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
             folderLock.withLock {
                 dropFolderBooks(folder.uri)
                 media.removeFolder(folder.uri)
-                try { resolver.releasePersistableUriPermission(Uri.parse(folder.uri), Intent.FLAG_GRANT_READ_URI_PERMISSION) }
-                catch (_: SecurityException) { /* Access may already be revoked. */ }
+                // Folders are opened for reading and writing (companion files), so both grants go; Android caps how many apps may keep.
+                try { resolver.releasePersistableUriPermission(Uri.parse(folder.uri), Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION) }
+                catch (_: SecurityException) {
+                    try { resolver.releasePersistableUriPermission(Uri.parse(folder.uri), Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+                    catch (_: SecurityException) { /* Access may already be revoked. */ }
+                }
+                // A removed folder stops syncing with the computer too; otherwise the next sync would add it straight back.
+                (context.applicationContext as? com.example.readalong.ReadAlongApplication)?.takeIf { it.database === database }?.folderLink?.store
+                    ?.update { state -> state.copy(pairs = state.pairs.filterNot { it.localUri == folder.uri }) }
             }
         } catch (failure: Throwable) { FolderRemovals.finish(folder.uri); throw failure }
         // On success the uri stays hidden (its rows are gone anyway) so the list can't flicker back
