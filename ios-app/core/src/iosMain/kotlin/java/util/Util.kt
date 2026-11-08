@@ -102,3 +102,57 @@ object Objects {
 }
 
 class ConcurrentModificationException(message: String? = null) : RuntimeException(message)
+
+/** java.util.Properties: key=value lines, as ProgressSync reads and writes them. */
+class Properties {
+    private val map = LinkedHashMap<String, String>()
+    fun getProperty(key: String): String? = map[key]
+    fun getProperty(key: String, fallback: String): String = map[key] ?: fallback
+    fun setProperty(key: String, value: String): Any? = map.put(key, value)
+    fun remove(key: String) = map.remove(key)
+    fun stringPropertyNames(): Set<String> = map.keys.toSet()
+    val size get() = map.size
+    fun load(input: java.io.InputStream) {
+        input.readAllBytes().decodeToString().lines().forEach { raw ->
+            val line = raw.trimStart()
+            if (line.isEmpty() || line.startsWith("#") || line.startsWith("!")) return@forEach
+            val at = line.indexOfFirst { it == '=' || it == ':' }
+            if (at < 0) map[unescape(line.trim())] = "" else map[unescape(line.substring(0, at).trim())] = unescape(line.substring(at + 1).trimStart())
+        }
+    }
+    fun store(out: java.io.OutputStream, comments: String?) {
+        val text = buildString {
+            comments?.let { append("#").append(it).append('\n') }
+            map.forEach { (k, v) -> append(escape(k, true)).append('=').append(escape(v, false)).append('\n') }
+        }
+        out.write(text.encodeToByteArray())
+    }
+    private fun escape(s: String, key: Boolean) = buildString {
+        s.forEachIndexed { i, c ->
+            when {
+                c == '\\' -> append("\\\\")
+                c == '\n' -> append("\\n"); c == '\r' -> append("\\r"); c == '\t' -> append("\\t")
+                c == '=' || c == ':' || c == '#' || c == '!' -> append('\\').append(c)
+                c == ' ' && (key || i == 0) -> append("\\ ")
+                c.code > 0x7e || c.code < 0x20 -> append("\\u").append(c.code.toString(16).padStart(4, '0'))
+                else -> append(c)
+            }
+        }
+    }
+    private fun unescape(s: String) = buildString {
+        var i = 0
+        while (i < s.length) {
+            val c = s[i]
+            if (c == '\\' && i + 1 < s.length) {
+                val n = s[i + 1]
+                when (n) {
+                    'n' -> append('\n'); 'r' -> append('\r'); 't' -> append('\t')
+                    'u' -> { if (i + 5 < s.length) { append(s.substring(i + 2, i + 6).toInt(16).toChar()); i += 4 } }
+                    else -> append(n)
+                }
+                i += 2
+            } else { append(c); i++ }
+        }
+    }
+}
+

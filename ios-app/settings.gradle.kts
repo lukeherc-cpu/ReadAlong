@@ -13,4 +13,4 @@ dependencyResolutionManagement {
     }
 }
 rootProject.name = "ReadAlong-iOS"
-include(":core")
+include(":core", ":engine")

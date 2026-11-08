@@ -42,4 +42,29 @@ class Instant private constructor(private val epochMs: Long) : Comparable<Instan
     }
 }
 
+class Duration private constructor(private val ms: Long) : Comparable<Duration> {
+    fun toMillis() = ms
+    val seconds: Long get() = ms / 1000
+    fun getSeconds() = seconds
+    override fun compareTo(other: Duration) = ms.compareTo(other.ms)
+    companion object {
+        val ZERO = Duration(0)
+        fun ofMillis(ms: Long) = Duration(ms)
+        fun ofSeconds(s: Long) = Duration(s * 1000)
+        fun ofMinutes(m: Long) = Duration(m * 60_000)
+        fun ofHours(h: Long) = Duration(h * 3_600_000)
+        fun between(a: Instant, b: Instant) = Duration(b.toEpochMilli() - a.toEpochMilli())
+    }
+}
+
+/** Only `LocalDateTime.now()` in log lines: ISO local time text. */
+class LocalDateTime private constructor(private val text: String) {
+    override fun toString() = text
+    companion object {
+        fun now(): LocalDateTime = LocalDateTime(NSDateFormatter().apply {
+            locale = NSLocale(localeIdentifier = "en_US_POSIX"); dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSS"
+        }.stringFromDate(NSDate()))
+    }
+}
+
 private object Math { fun floorDiv(a: Long, b: Long): Long { val q = a / b; return if ((a % b != 0L) && ((a xor b) < 0)) q - 1 else q } }

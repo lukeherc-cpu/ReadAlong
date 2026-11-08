@@ -12,7 +12,11 @@ val sharedSources by tasks.registering(Sync::class) {
         include("domain/**")
         include("data/transcription/TimedRecognitionResult.kt", "data/transcription/WhistleResult.kt")
     }
-    from("../../app/src/github/java/com/example/readalong") { include("audible/**") }
+    from("../../app/src/github/java/com/example/readalong") {
+        include("audible/**")
+        // On Android and desktop the Audible engine and the app that uses it are one module; here they are two.
+        filter { line -> line.replace(Regex("^(\\s*)internal "), "$1") }
+    }
     filter { line -> if (line.startsWith("package ")) "$line\n\nimport com.example.readalong.compat.*" else line }
     into(layout.buildDirectory.dir("shared/com/example/readalong"))
 }

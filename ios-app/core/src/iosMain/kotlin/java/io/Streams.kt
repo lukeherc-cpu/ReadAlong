@@ -136,3 +136,30 @@ class DataOutputStream(out: OutputStream) : FilterOutputStream(out) {
     fun writeChars(s: String) { s.forEach { writeShort(it.code) } }
     fun writeUTF(s: String) { val b = s.encodeToByteArray(); require(b.size <= 0xffff); writeShort(b.size); out.write(b) }
 }
+
+abstract class Reader : Closeable {
+    abstract fun read(buf: CharArray, off: Int, len: Int): Int
+    open fun readText(): String { val sb = StringBuilder(); val b = CharArray(8192); while (true) { val n = read(b, 0, b.size); if (n < 0) break; sb.appendRange(b, 0, n) }; return sb.toString() }
+    override fun close() {}
+}
+class StringReader(private val s: String) : Reader() {
+    private var pos = 0
+    override fun read(buf: CharArray, off: Int, len: Int): Int {
+        if (pos >= s.length) return -1
+        val n = minOf(len, s.length - pos); s.toCharArray(buf, off, pos, pos + n); pos += n; return n
+    }
+    override fun readText(): String = s.substring(pos).also { pos = s.length }
+}
+class StringWriter : Closeable {
+    private val sb = StringBuilder()
+    fun write(s: String) { sb.append(s) }
+    fun append(s: CharSequence): StringWriter = apply { sb.append(s) }
+    override fun toString() = sb.toString()
+    override fun close() {}
+}
+class PrintWriter(private val w: StringWriter) : Closeable {
+    fun println(s: Any?) { w.write("$s\n") }
+    fun print(s: Any?) { w.write("$s") }
+    fun flush() {}
+    override fun close() {}
+}
