@@ -32,8 +32,6 @@
         <receiver android:name=".data.transcription.PauseTranscriptionReceiver" android:exported="false" />
         <service android:name=".data.processing.AudiobookTranscriptionService" android:foregroundServiceType="dataSync|mediaProcessing" android:exported="false" />
         <service android:name=".data.transcription.ModelValidationService" android:process=":model_validation" android:exported="false" />
-        <service android:name=".data.transcription.SecondRecognitionService" android:process=":recognition_2" android:exported="false" />
-        <service android:name=".data.transcription.ThirdRecognitionService" android:process=":recognition_3" android:exported="false" />
         <service android:name=".data.transcription.RecognitionService" android:process=":recognition" android:exported="false" />
         <service android:name="androidx.work.impl.foreground.SystemForegroundService" android:foregroundServiceType="dataSync|mediaProcessing" tools:node="merge" />
         <service android:name=".playback.AudiobookService" android:foregroundServiceType="mediaPlayback" android:exported="true">
