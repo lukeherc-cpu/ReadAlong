@@ -64,6 +64,11 @@ class DeviceLinkTest {
         // Audio changed on both sides is left alone.
         val bothAudio = FolderSyncPlan.plan(listOf(SyncFile("a.mp3", 1, 9)), listOf(SyncFile("a.mp3", 2, 9)), mapOf("a.mp3" to SyncedState(3, 1, 3, 1)))
         assertTrue(bothAudio.isEmpty())
+        // ...and named, so the person can choose.
+        assertEquals(listOf("a.mp3"), FolderSyncPlan.conflicts(listOf(SyncFile("a.mp3", 1, 9)), listOf(SyncFile("a.mp3", 2, 9)), mapOf("a.mp3" to SyncedState(3, 1, 3, 1))))
+        // Two state files of the same size at the first sync aren't assumed equal: the newer one wins.
+        assertEquals(listOf(SyncAction.Download("Dune/Dune.readalong-state")),
+            FolderSyncPlan.plan(listOf(SyncFile("Dune/Dune.readalong-state", 412, day)), listOf(SyncFile("Dune/Dune.readalong-state", 412, 3 * day)), emptyMap()))
         assertEquals(record, FolderSyncPlan.decode(FolderSyncPlan.encode(record)))
     }
 

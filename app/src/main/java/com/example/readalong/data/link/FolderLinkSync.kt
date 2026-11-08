@@ -82,6 +82,7 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
                 var copied = 0; var failed = 0
                 val problems = mutableListOf<String>()
                 val lost = mutableListOf<String>()
+                conflicts.clear()
                 var change = 0L
                 connect().use { client ->
                     change = client.computerChanged
@@ -112,6 +113,10 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
                     0 -> ""
                     1 -> " A ReadAlong couldn't be used: ${problems.single()}"
                     else -> " ${problems.size} ReadAlongs couldn't be used, e.g. ${problems.first()}"
+                } + when (conflicts.size) {
+                    0 -> ""
+                    1 -> " ${conflicts.single().substringAfterLast('/')} changed on both devices and was left as it is on each; keep the one you want and delete the other."
+                    else -> " ${conflicts.size} audio files changed on both devices and were left alone, e.g. ${conflicts.first().substringAfterLast('/')}."
                 } + when (lost.size) {
                     0 -> ""
                     else -> " ReadAlong can no longer open ${lost.joinToString()}: choose the folder again in Folders."
@@ -163,6 +168,9 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
         return client
     }
 
+    /** Audio changed on both sides in this sync, reported in its result. Guarded by [lock]. */
+    private val conflicts = mutableListOf<String>()
+
     private suspend fun syncPair(client: LinkClient, pair: FolderPair): Pair<Int, Int> {
         val tree = Uri.parse(pair.localUri)
         val rootId = DocumentsContract.getTreeDocumentId(tree)
@@ -182,6 +190,7 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
         val held = recorded.filterKeys { !FolderSyncPlan.included(it, skipped) }
         val previous = recorded - held.keys
         val actions = FolderSyncPlan.plan(local.values.map { it.file }, remote, previous)
+        conflicts += FolderSyncPlan.conflicts(local.values.map { it.file }, remote, previous).map { "${pair.localName}/$it" }
         val localNow = local.mapValues { it.value.file }.toMutableMap()
         val remoteNow = remote.associateBy { it.path }.toMutableMap()
         var copied = 0; var failed = 0
