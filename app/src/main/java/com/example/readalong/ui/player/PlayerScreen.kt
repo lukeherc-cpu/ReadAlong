@@ -7,6 +7,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.*
@@ -73,6 +74,7 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
     val readerTheme = reading.preferences.collectAsStateWithLifecycle().value.theme
     val colors = com.example.readalong.ui.theme.playerScheme(palette).copy(secondaryContainer = palette.preview)
     val screenHeight = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
+    val landscape = androidx.compose.ui.platform.LocalConfiguration.current.let { it.screenWidthDp > it.screenHeightDp }
     MaterialTheme(colorScheme = colors) {
     Box(Modifier.fillMaxSize().background(palette.background)) {
     val showBuffering by produceState(false, state.isLoading) {
@@ -116,7 +118,7 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                 val threshold = with(density) { 40.dp.toPx() }
                 val flick = with(density) { 16.dp.toPx() }
                 val flickSpeed = with(density) { 700.dp.toPx() }
-                Box(Modifier.align(Alignment.Center).size(width = 180.dp, height = 56.dp)
+                Box(Modifier.align(Alignment.Center).size(width = 180.dp, height = if (landscape) 44.dp else 56.dp)
                     .pointerInput(Unit) {
                         val tracker = androidx.compose.ui.input.pointer.util.VelocityTracker()
                         var x = 0f; var y = 0f; var closed = false
@@ -156,8 +158,11 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
             }
             BoxWithConstraints(Modifier.weight(1f).widthIn(max = 960.dp).fillMaxWidth().padding(horizontal = 24.dp)) {
                 val wide = maxWidth >= 640.dp
-                // Sideways, the cover fits the height it has and sits in the middle of its half.
-                val wideCover = minOf(360.dp, maxHeight - 16.dp).coerceAtLeast(160.dp)
+                // Sideways on a phone the height is tight, so the controls get smaller type and buttons.
+                val compact = wide && maxHeight < 440.dp
+                // Sideways, the cover fills the height it has (but never more than ~45% of the width),
+                // and the controls take the rest, so both side margins match.
+                val wideCover = minOf(360.dp, maxHeight - 16.dp, maxWidth * 0.45f).coerceAtLeast(160.dp)
                 val artwork: @Composable () -> Unit = {
                     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         if (book.mediaState == "MISSING") Surface(shape = RoundedCornerShape(com.example.readalong.ui.theme.Corners.medium), color = colors.errorContainer) {
@@ -198,15 +203,16 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                     }
                 }
                 val controls: @Composable ColumnScope.() -> Unit = {
-                com.example.readalong.ui.components.MarqueeTitle(book.title, Modifier.fillMaxWidth(), MaterialTheme.typography.headlineMedium)
-                Text(state.chapterTitle, style = MaterialTheme.typography.titleMedium, color = colors.onSurfaceVariant)
+                com.example.readalong.ui.components.MarqueeTitle(book.title, Modifier.fillMaxWidth(), if (compact) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.headlineMedium)
+                Text(state.chapterTitle, style = if (compact) MaterialTheme.typography.titleSmall else MaterialTheme.typography.titleMedium, color = colors.onSurfaceVariant,
+                    maxLines = if (wide) 1 else Int.MAX_VALUE, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                 val sliderColors = SliderDefaults.colors(thumbColor = colors.primary, activeTrackColor = colors.primary, inactiveTrackColor = colors.onSurface.copy(alpha = .18f))
                 Slider(
                     value = if (dragging) draggedPosition else chapterPosition.toFloat().coerceAtMost(chapterDuration.toFloat()),
                     onValueChange = { dragging = true; draggedPosition = it },
                     onValueChangeFinished = { playback.seek(start + draggedPosition.toLong()); dragging = false },
                     valueRange = 0f..chapterDuration.toFloat(),
-                    modifier = Modifier.semantics { contentDescription = "Seek within chapter" },
+                    modifier = Modifier.then(if (compact) Modifier.height(32.dp) else Modifier).semantics { contentDescription = "Seek within chapter" },
                     // A plain round thumb on one continuous rounded track (no split thumb, gap or end dot).
                     thumb = { Box(Modifier.size(18.dp).background(colors.primary, CircleShape)) },
                     track = { sliderState -> SliderDefaults.Track(sliderState = sliderState, modifier = Modifier.height(5.dp), colors = sliderColors,
@@ -222,8 +228,8 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                 Row(Modifier.fillMaxWidth().padding(vertical = if (wide) 2.dp else 12.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
                     PlayerAction("Rewind ${appSettings.playerBack} seconds", R.drawable.ic_rewind, "${appSettings.playerBack}", { playback.skip(-appSettings.playerBack * 1000L) })
                     val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
-                    FilledIconButton(onClick = { haptics.performHapticFeedback(if (state.isPlaying) androidx.compose.ui.hapticfeedback.HapticFeedbackType.ToggleOff else androidx.compose.ui.hapticfeedback.HapticFeedbackType.ToggleOn); playback.toggle() }, modifier = Modifier.size(76.dp), shape = CircleShape) {
-                        com.example.readalong.ui.components.PlayPauseIcon(state.isPlaying, Modifier.size(36.dp))
+                    FilledIconButton(onClick = { haptics.performHapticFeedback(if (state.isPlaying) androidx.compose.ui.hapticfeedback.HapticFeedbackType.ToggleOff else androidx.compose.ui.hapticfeedback.HapticFeedbackType.ToggleOn); playback.toggle() }, modifier = Modifier.size(if (compact) 64.dp else 76.dp), shape = CircleShape) {
+                        com.example.readalong.ui.components.PlayPauseIcon(state.isPlaying, Modifier.size(if (compact) 30.dp else 36.dp))
                     }
                     PlayerAction("Forward ${appSettings.playerForward} seconds", R.drawable.ic_forward, "${appSettings.playerForward}", { playback.skip(appSettings.playerForward * 1000L) })
                 }
@@ -243,9 +249,11 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                 readingError?.let { Text(it, color = colors.error, style = MaterialTheme.typography.bodySmall) }
                 if (!wide) Spacer(Modifier.height(12.dp))
                 }
-                if (wide) Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(32.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.weight(0.9f).fillMaxHeight(), contentAlignment = Alignment.Center) { artwork() }
-                    Column(Modifier.weight(1.1f), verticalArrangement = Arrangement.spacedBy(6.dp), content = controls)
+                if (wide) Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(40.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.width(wideCover).fillMaxHeight(), contentAlignment = Alignment.Center) { artwork() }
+                    // Centred against the cover; scrolls only if a very short window still can't fit it all.
+                    Column(Modifier.weight(1f).verticalScroll(androidx.compose.foundation.rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(if (compact) 2.dp else 6.dp), content = controls)
                 } else Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     artwork()
                     controls()
