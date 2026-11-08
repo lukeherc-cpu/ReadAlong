@@ -114,6 +114,10 @@ class CompanionSyncTest {
                 channel.sendJson(JSONObject().put("op", "done")); channel.receive()
             }
             assertFalse(File(books, "Dune/Other.epub").exists())
+            // The computer finishes the connection (and saves the phone's "last seen") after the phone has gone: wait for
+            // that save before reading the file again, or the read races it.
+            val deadline = System.currentTimeMillis() + 10_000
+            while (link.state.value.devices.none { it.lastSeen != null } && System.currentTimeMillis() < deadline) Thread.sleep(20)
             assertEquals(setOf("epub"), DeviceLink(scope, library, {}, file = File(home, "link.json")).state.value.skipped)
         } finally { link.stop() }
     }
