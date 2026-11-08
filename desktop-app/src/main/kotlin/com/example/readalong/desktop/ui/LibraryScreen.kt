@@ -251,7 +251,7 @@ private fun BookTile(app: AppState, book: LibraryBook, making: Float?, queued: B
             if (app.settingsStore.settings.collectAsState().value.showTitleAndAuthor) {
             Spacer(Modifier.height(10.dp))
             Text(book.title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            val detail = listOfNotNull(book.author, if (book.progress in .005f..0.995f && !book.finished) "${(book.progress * 100).toInt()}%" else null).joinToString(" · ")
+            val detail = listOfNotNull(if (book.missing) "Files missing" else null, book.author, if (book.progress in .005f..0.995f && !book.finished) "${(book.progress * 100).toInt()}%" else null).joinToString(" · ")
             if (detail.isNotEmpty()) Text(detail, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }

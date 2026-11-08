@@ -225,12 +225,20 @@ class ImportedEpubRepository(private val context: Context, private val database:
         if (pending >= 2) return@withContext
         val work = OneTimeWorkRequestBuilder<EpubAlignmentWorker>().setInputData(workDataOf("bookId" to bookId))
             .setConstraints(Constraints.Builder().setRequiresStorageNotLow(true).build())
-            .setBackoffCriteria(BackoffPolicy.LINEAR, 30, TimeUnit.SECONDS).addTag("epub-alignment").build()
+            .setBackoffCriteria(BackoffPolicy.LINEAR, 30, TimeUnit.SECONDS).addTag("epub-alignment")
+            // Waiting here, not inside the worker, keeps a long gap out of the worker's ten-minute run limit.
+            .setInitialDelay(alignmentDelayMs(bookId), TimeUnit.MILLISECONDS).build()
         manager.enqueueUniqueWork("epub-alignment:$bookId", ExistingWorkPolicy.APPEND_OR_REPLACE, work).result.get()
     } }
     internal suspend fun alignmentDelayMs(bookId: String, now: Long = System.currentTimeMillis()): Long {
         val last = database.bookDao().metadata("epub_alignment_published:$bookId")?.toLongOrNull() ?: return 0
-        return (30_000L - (now - last)).coerceIn(0, 30_000L)
+        // Each pass matches the whole book so far, so while the ReadAlong is still being made the passes are spaced
+        // by how much text there is (about a minute per thousand passages, up to ten minutes): the total work stays
+        // close to linear instead of growing with the square of the book. The pass at completion is never held back.
+        val transcribing = database.processingDao().find(bookId)?.state?.let { com.example.readalong.domain.transcription.ProcessingState.of(it).active } == true
+        val segments = database.bookDao().metadata("epub_alignment_segments:$bookId")?.toLongOrNull() ?: 0
+        val interval = if (transcribing) (segments * 60L).coerceIn(30_000L, 600_000L) else 30_000L
+        return (interval - (now - last)).coerceIn(0, interval)
     }
     suspend fun recover() { dao.all().forEach { edition ->
         try { upgradeContents(edition.bookId) }
@@ -355,7 +363,10 @@ class ImportedEpubRepository(private val context: Context, private val database:
                 else -> "${(result.coverage * 100).toInt()}% of available transcript words matched · ${result.matchedSegments}/${result.totalSegments} passages. Short unmatched gaps between timed passages use estimated timing."
             }
             database.bookDao().putMetadata(LibraryMetadataEntity("epub_alignment_version:$bookId", "${initial.editionId}:$ALIGNMENT_FORMAT_VERSION"))
-            if (snapshot.second.isNotEmpty()) database.bookDao().putMetadata(LibraryMetadataEntity("epub_alignment_published:$bookId", System.currentTimeMillis().toString()))
+            if (snapshot.second.isNotEmpty()) {
+                database.bookDao().putMetadata(LibraryMetadataEntity("epub_alignment_published:$bookId", System.currentTimeMillis().toString()))
+                database.bookDao().putMetadata(LibraryMetadataEntity("epub_alignment_segments:$bookId", snapshot.second.size.toString()))
+            }
             dao.put(latest.copy(state = state, message = message, alignedRevision = snapshot.first, matchedSegments = result.matchedSegments,
                 totalSegments = result.totalSegments, matchedTokens = result.matchedTokens, totalTokens = result.totalTokens, updatedAt = System.currentTimeMillis()))
             true
@@ -373,7 +384,7 @@ class EpubAlignmentWorker(context: Context, parameters: WorkerParameters) : Coro
         val editionId = app.database.importedEpubDao().find(bookId)?.editionId
         if (!alignment.tryLock()) return Result.retry()
         return try {
-            delay(app.importedEpub.alignmentDelayMs(bookId))
+            delay(app.importedEpub.alignmentDelayMs(bookId).coerceAtMost(30_000L))
             if (withTimeout(8 * 60_000L) { app.importedEpub.align(bookId) }) {
                 // The last checkpoint can arrive during computation or publication.
                 app.importedEpub.requestAlignment(bookId)

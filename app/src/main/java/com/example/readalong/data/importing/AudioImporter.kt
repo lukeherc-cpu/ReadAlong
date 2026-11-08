@@ -32,7 +32,11 @@ data class PreviewBook(val name: String, val deleted: Boolean, val cover: Uri? =
  * that will be synced from ReadAlong on a computer; it can still be added as a library folder.
  */
 data class FolderPreview(val uri: Uri, val name: String, val books: List<PreviewBook>, val suggested: FolderMode, val deletedAsOneBook: Boolean, val emptyMessage: String?,
-    val empty: Boolean = false) {
+    val empty: Boolean = false,
+    /** How the folder is already saved in the library, or null when it's new. Adding it in the other mode replaces its books. */
+    val savedMode: FolderMode? = null,
+    /** Books from this folder now in the library, and how many of them have a ReadAlong or listening progress that a mode switch would delete. */
+    val savedBooks: Int = 0, val savedWork: Int = 0) {
     val deletedBooks get() = books.count { it.deleted }
 }
 data class ImportResult(val bookIds: List<String>, val message: String, val newBookIds: List<String> = emptyList(),
@@ -132,10 +136,18 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
         val suggested = if (groups.size >= 2 && !discs && !numbered) FolderMode.LIBRARY else FolderMode.ONE_BOOK
         val found = groups.map { group -> PreviewBook(group.name ?: "Audiobook", LibraryExclusions.excluded(books, group.key, group.found.audio.map { it.uri }),
             coverImage(group.found.images)?.uri, group.found.audio.firstOrNull()?.uri) }
-        FolderPreview(uri, name, found, suggested,
+        // A folder already in the library opens in the mode it was saved with: the other mode replaces its books.
+        val saved = media.folder(uri.toString())?.let { folder -> runCatching { FolderMode.valueOf(folder.mode) }.getOrNull() }
+        val savedIds = if (saved != null) media.folderBooks(uri.toString()) else emptyList()
+        val savedWork = savedIds.count { id ->
+            database.processingDao().find(id)?.let { it.completedUnits > 0 || it.state == "READY" } == true ||
+                (books.progress(id)?.let { it.audioPositionMs > 0 || it.isFinished } == true)
+        }
+        FolderPreview(uri, name, found, saved ?: suggested,
             deletedAsOneBook = groups.isNotEmpty() && LibraryExclusions.excluded(books, "folder:${root.uri}", groups.flatMap { g -> g.found.audio.map { it.uri } }),
             emptyMessage = if (groups.isEmpty()) walk.nothingFound(name) + walk.problemNote() else null,
-            empty = groups.isEmpty() && walk.skipped.isEmpty() && walk.problems.isEmpty())
+            empty = groups.isEmpty() && walk.skipped.isEmpty() && walk.problems.isEmpty(),
+            savedMode = saved, savedBooks = savedIds.size, savedWork = savedWork)
     }
 
     /** Returns what each folder's scan found, for those that could be scanned. */
@@ -147,6 +159,13 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
             catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
             catch (_: Exception) { /* Per-folder access errors are retained for the folders screen. */ }
         } } finally { onFolder(null) }
+        // Books finished since the last scan get their .readalong beside them, so a computer (by the link, OneDrive,
+        // Syncthing...) gets the text instead of transcribing again. Never fails the scan.
+        (context.applicationContext as? com.example.readalong.ReadAlongApplication)?.takeIf { it.database === database }?.let { app ->
+            try { com.example.readalong.data.link.TranscriptPackageWriter(app, database, app.folderLink.store).writeAll() }
+            catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+            catch (failure: Exception) { android.util.Log.i("ReadAlong", "ReadAlong files not saved after scan: ${failure.javaClass.simpleName}") }
+        }
         results
     }
 
@@ -218,11 +237,14 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
                         val signature = "${transcript.uri}:${transcript.length()}:${transcript.lastModified()}"
                         val completed = database.processingDao().find(id)?.let { it.state == "READY" && it.sourceFingerprint == com.example.readalong.data.processing.TranscriptionPlan.fingerprint(database, id) } == true
                         if (completed && books.metadata("folder_transcript:$id") == signature) break
+                        // Removed or rebuilt on purpose: the same file isn't brought back until it changes.
+                        if (books.metadata("folder_transcript_declined:$id") == signature) break
                         try {
                             onTranscriptFound(id, transcript.uri)
                             transcriptsTaken++
                             books.putMetadata(LibraryMetadataEntity("folder_transcript:$id", signature))
                             books.removeMetadata("folder_transcript_error:$id")
+                            books.removeMetadata("folder_transcript_declined:$id")
                             break
                         } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
                         catch (failure: Exception) {
@@ -296,8 +318,15 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
             folderLock.withLock {
                 dropFolderBooks(folder.uri)
                 media.removeFolder(folder.uri)
-                try { resolver.releasePersistableUriPermission(Uri.parse(folder.uri), Intent.FLAG_GRANT_READ_URI_PERMISSION) }
-                catch (_: SecurityException) { /* Access may already be revoked. */ }
+                // Folders are opened for reading and writing (companion files), so both grants go; Android caps how many apps may keep.
+                try { resolver.releasePersistableUriPermission(Uri.parse(folder.uri), Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION) }
+                catch (_: SecurityException) {
+                    try { resolver.releasePersistableUriPermission(Uri.parse(folder.uri), Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+                    catch (_: SecurityException) { /* Access may already be revoked. */ }
+                }
+                // A removed folder stops syncing with the computer too; otherwise the next sync would add it straight back.
+                (context.applicationContext as? com.example.readalong.ReadAlongApplication)?.takeIf { it.database === database }?.folderLink?.store
+                    ?.update { state -> state.copy(pairs = state.pairs.filterNot { it.localUri == folder.uri }) }
             }
         } catch (failure: Throwable) { FolderRemovals.finish(folder.uri); throw failure }
         // On success the uri stays hidden (its rows are gone anyway) so the list can't flicker back
@@ -379,7 +408,11 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
         require(owners.size <= 1) { "These files already belong to different books. Open them from your library." }
         val id = owners.singleOrNull() ?: stableId(key)
         val previousFiles = media.audioFiles(id)
-        if (known.size == sources.size && known.all { it.durationMs != null }) {
+        val selected = sources.associateBy { sourceIdentity(it.uri) }
+        // A folder scan lists every file the book has there: files deleted or renamed since are dropped,
+        // so the player and transcription never reach for audio that's gone.
+        val stale = if (folderUri == null) emptyList() else previousFiles.filter { it.folderUri == folderUri && sourceIdentity(Uri.parse(it.uri)) !in selected }
+        if (stale.isEmpty() && known.size == sources.size && known.all { it.durationMs != null }) {
             return database.withTransaction {
                 if (LibraryExclusions.excluded(books, key, sources.map { it.uri }) || books.findBook(id) == null) return@withTransaction null
                 if (books.findBook(id)?.mediaState != "AVAILABLE") media.mediaState(id, "AVAILABLE")
@@ -387,8 +420,8 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
                 id to false
             }
         }
-        val selected = sources.associateBy { sourceIdentity(it.uri) }
-        val combined = previousFiles.filter { sourceIdentity(Uri.parse(it.uri)) !in selected }
+        val staleIds = stale.map { it.id }.toSet()
+        val combined = previousFiles.filter { it.id !in staleIds && sourceIdentity(Uri.parse(it.uri)) !in selected }
             .map { Source(Uri.parse(it.uri), it.name) } + sources
         val ordered = combined.distinctBy { sourceIdentity(it.uri) }.sortedWith { a, b -> audioNameComparator.compare(a.orderingName, b.orderingName).takeIf { it != 0 } ?: a.uri.toString().compareTo(b.uri.toString()) }
         val metadata = ordered.mapNotNull {
@@ -423,6 +456,7 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
                 books.metadata("override:$id:author")?.ifEmpty { null } ?: first.author.takeIf { books.metadata("override:$id:author") == null }, cover, null, duration,
                 old?.addedAt ?: System.currentTimeMillis(), false, old?.coverStyle ?: 0, "AVAILABLE")))
             books.insertProgress(listOf(BookProgressEntity(id)))
+            if (staleIds.isNotEmpty()) media.deleteAudio(staleIds.toList())
             val files = metadata.mapIndexed { index, item ->
                 val retained = bySource[sourceIdentity(item.source.uri)]
                 AudioFileEntity(retained?.id ?: stableId(item.source.uri.toString()), id,
