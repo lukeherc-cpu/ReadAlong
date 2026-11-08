@@ -401,7 +401,11 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
         require(owners.size <= 1) { "These files already belong to different books. Open them from your library." }
         val id = owners.singleOrNull() ?: stableId(key)
         val previousFiles = media.audioFiles(id)
-        if (known.size == sources.size && known.all { it.durationMs != null }) {
+        val selected = sources.associateBy { sourceIdentity(it.uri) }
+        // A folder scan lists every file the book has there: files deleted or renamed since are dropped,
+        // so the player and transcription never reach for audio that's gone.
+        val stale = if (folderUri == null) emptyList() else previousFiles.filter { it.folderUri == folderUri && sourceIdentity(Uri.parse(it.uri)) !in selected }
+        if (stale.isEmpty() && known.size == sources.size && known.all { it.durationMs != null }) {
             return database.withTransaction {
                 if (LibraryExclusions.excluded(books, key, sources.map { it.uri }) || books.findBook(id) == null) return@withTransaction null
                 if (books.findBook(id)?.mediaState != "AVAILABLE") media.mediaState(id, "AVAILABLE")
@@ -409,8 +413,8 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
                 id to false
             }
         }
-        val selected = sources.associateBy { sourceIdentity(it.uri) }
-        val combined = previousFiles.filter { sourceIdentity(Uri.parse(it.uri)) !in selected }
+        val staleIds = stale.map { it.id }.toSet()
+        val combined = previousFiles.filter { it.id !in staleIds && sourceIdentity(Uri.parse(it.uri)) !in selected }
             .map { Source(Uri.parse(it.uri), it.name) } + sources
         val ordered = combined.distinctBy { sourceIdentity(it.uri) }.sortedWith { a, b -> audioNameComparator.compare(a.orderingName, b.orderingName).takeIf { it != 0 } ?: a.uri.toString().compareTo(b.uri.toString()) }
         val metadata = ordered.mapNotNull {
@@ -445,6 +449,7 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
                 books.metadata("override:$id:author")?.ifEmpty { null } ?: first.author.takeIf { books.metadata("override:$id:author") == null }, cover, null, duration,
                 old?.addedAt ?: System.currentTimeMillis(), false, old?.coverStyle ?: 0, "AVAILABLE")))
             books.insertProgress(listOf(BookProgressEntity(id)))
+            if (staleIds.isNotEmpty()) media.deleteAudio(staleIds.toList())
             val files = metadata.mapIndexed { index, item ->
                 val retained = bySource[sourceIdentity(item.source.uri)]
                 AudioFileEntity(retained?.id ?: stableId(item.source.uri.toString()), id,
