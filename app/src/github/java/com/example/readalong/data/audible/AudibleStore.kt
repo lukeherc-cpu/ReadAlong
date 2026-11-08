@@ -60,7 +60,33 @@ class AudibleStore(private val context: Context) {
     fun folder(asin: String) = File(books, asin)
     private fun downloaded(asin: String) = File(folder(asin), DONE).exists()
     /** Marks a book whose every part is downloaded and imported. */
-    fun finished(asin: String) { File(folder(asin), DONE).createNewFile(); report(asin, AudibleDownload.Done) }
+    fun finished(asin: String, bookIds: List<String>) {
+        File(folder(asin), DONE).apply { parentFile?.mkdirs() }.writeText(bookIds.joinToString("\n"))
+        report(asin, AudibleDownload.Done)
+    }
+
+    /** Takes a book back to "Download": its marker goes, any file left in its download folder stays for Download to reuse. */
+    fun forget(asin: String) {
+        File(folder(asin), DONE).delete()
+        mutableDownloads.update { it - asin }
+    }
+
+    /** Books marked done by a ReadAlong before 0.49.0, whose files are still in the download folder (see [AudibleLibraryFolder.adoptOldDownloads]). */
+    fun oldDownloads(): List<String> = books.listFiles().orEmpty().filter { dir ->
+        downloaded(dir.name) && File(dir, DONE).readText().isBlank() && dir.listFiles().orEmpty().any { it.isFile && it.extension.lowercase() in setOf("m4b", "mp3") }
+    }.map { it.name }
+
+    /**
+     * "In your library" only for books that are: a book deleted from the library goes back to Download.
+     * Markers from before book ids were saved in them are kept as they are.
+     */
+    suspend fun reconcile(exists: suspend (String) -> Boolean) {
+        for ((asin, state) in downloads.value) {
+            if (state != AudibleDownload.Done) continue
+            val ids = runCatching { File(folder(asin), DONE).readLines().filter { it.isNotBlank() } }.getOrDefault(emptyList())
+            if (ids.isNotEmpty() && ids.none { exists(it) }) forget(asin)
+        }
+    }
 
     fun report(asin: String, state: AudibleDownload) = mutableDownloads.update { it + (asin to state) }
 

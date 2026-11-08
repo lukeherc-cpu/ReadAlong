@@ -158,6 +158,15 @@ private fun AudibleLibrary(store: AudibleStore, account: AudibleAccount, onChoos
         }
     }
     LaunchedEffect(account.customerId) { if (library.isEmpty()) sync() }
+    val appContext = LocalContext.current.applicationContext
+    // Books from older versions move into the folder, and a book deleted from the library shows Download again.
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.IO) {
+            val app = appContext as com.example.readalong.ReadAlongApplication
+            runCatching { com.example.readalong.data.audible.AudibleLibraryFolder(appContext, app.audioImporter).adoptOldDownloads(store) }
+            store.reconcile { app.database.bookDao().findBook(it) != null }
+        }
+    }
     Column(Modifier.fillMaxSize()) {
         Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Signed in${if (account.customerName.isNotEmpty()) " as ${account.customerName}" else ""} · ${account.locale.label}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)

@@ -104,14 +104,14 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
      * come back. Choosing a folder in the other mode than it was saved with replaces its books, e.g.
      * a whole library that was added by mistake as one book is split into its books.
      */
-    suspend fun addFolder(uri: Uri, mode: FolderMode, persistAccess: Boolean = true, restoreDeleted: Boolean = mode == FolderMode.ONE_BOOK): ImportResult = withContext(Dispatchers.IO) {
+    suspend fun addFolder(uri: Uri, mode: FolderMode, persistAccess: Boolean = true, restoreDeleted: Boolean = mode == FolderMode.ONE_BOOK, restore: Set<String> = emptySet()): ImportResult = withContext(Dispatchers.IO) {
         if (persistAccess) persist(uri)
         val root = requireNotNull(DocumentFile.fromTreeUri(context, uri)) { "Couldn't open this folder." }
         folderLock.withLock {
             media.folder(uri.toString())?.takeIf { it.mode != mode.name }?.let { dropFolderBooks(it.uri) }
             media.putFolder(FolderEntity(uri.toString(), root.name ?: "Audiobooks", mode.name, null, SCAN_INCOMPLETE))
             FolderRemovals.finish(uri.toString())
-            scanLocked(uri, explicit = restoreDeleted)
+            scanLocked(uri, explicit = restoreDeleted, restore = restore)
         }
     }
 
@@ -169,11 +169,12 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
         results
     }
 
-    suspend fun scan(uri: Uri): ImportResult = folderLock.withLock { scanLocked(uri) }
+    /** [restore]: names of book folders the person asked for again (an Audible download), which come back even if deleted earlier. */
+    suspend fun scan(uri: Uri, restore: Set<String> = emptySet()): ImportResult = folderLock.withLock { scanLocked(uri, restore = restore) }
 
     suspend fun bookCount(folderUri: String): Int = withContext(Dispatchers.IO) { media.folderBooks(folderUri).size }
 
-    private suspend fun scanLocked(uri: Uri, explicit: Boolean = false): ImportResult = withContext(Dispatchers.IO) {
+    private suspend fun scanLocked(uri: Uri, explicit: Boolean = false, restore: Set<String> = emptySet()): ImportResult = withContext(Dispatchers.IO) {
         val saved = requireNotNull(media.folder(uri.toString())) { "Folder is no longer saved." }
         try {
             media.putFolder(saved.copy(error = SCAN_INCOMPLETE))
@@ -210,7 +211,7 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
                 val found = group.found
                 coroutineContext.ensureActive()
                 try {
-                    val (id, isNew) = importGroup(found.audio, group.key, uri.toString(), group.name, explicit, coverImage(found.images)?.uri, index) ?: run { deleted++; return@forEach }
+                    val (id, isNew) = importGroup(found.audio, group.key, uri.toString(), group.name, explicit || group.name in restore, coverImage(found.images)?.uri, index) ?: run { deleted++; return@forEach }
                     ids += id; if (isNew) added += id
                     // Companion files share a base name: the book's folder, or a single-file book's own name.
                     val base = (if (group.key.startsWith("file:")) group.name else group.home?.name ?: group.name).orEmpty().ifBlank { "Audiobook" }
