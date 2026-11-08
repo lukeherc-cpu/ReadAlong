@@ -2,6 +2,7 @@ package com.example.readalong.desktop.link
 
 import com.example.readalong.desktop.core.AppPaths
 import com.example.readalong.desktop.core.LibraryStore
+import com.example.readalong.desktop.core.readTextRetrying
 import com.example.readalong.desktop.core.writeAtomically
 import com.example.readalong.domain.link.FolderSyncPlan
 import com.example.readalong.domain.link.LinkChannel
@@ -267,7 +268,8 @@ class DeviceLink(private val scope: CoroutineScope, private val library: Library
         val fresh = LinkState(LinkChannel.newId(), computerName())
         if (!file.isFile) return fresh.also { save(it) }
         return runCatching {
-            val o = JSONObject(file.readText())
+            // A failed read would set link.json aside and unlink every phone, so a read that clashes with a save is retried.
+            val o = JSONObject(file.readTextRetrying())
             val devices = o.optJSONArray("devices") ?: JSONArray()
             LinkState(o.getString("deviceId"), o.optString("name").ifBlank { computerName() },
                 List(devices.length()) { i -> devices.getJSONObject(i).let { d ->
