@@ -124,8 +124,16 @@ class ImportViewModel(private val importer: AudioImporter, private val epubs: co
     private val mutableScanningFolder = MutableStateFlow<String?>(null)
     val scanningFolder = mutableScanningFolder.asStateFlow()
     private var autoScan: kotlinx.coroutines.Job? = null
+    private var lastAutoScan = 0L
+    /**
+     * Rescans saved folders when ReadAlong comes back to the screen. Flicking between apps rescanned
+     * a large library every time; a scan within the last 30 seconds is enough.
+     */
     fun refreshLibrary() {
         if (autoScan?.isActive == true) return
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (lastAutoScan != 0L && now - lastAutoScan < 30_000) return
+        lastAutoScan = now
         autoScan = viewModelScope.launch {
             while (busy.value) kotlinx.coroutines.delay(150)
             try { syncedNote(importer.rescanSavedFolders { mutableScanningFolder.value = it?.name })?.let { mutableSynced.tryEmit(it) } }
