@@ -54,6 +54,10 @@ jobs:
             adb push promo-in/covers/. /sdcard/Download/readalong-promo/covers/
             adb push promo-in/titles.txt /sdcard/Download/readalong-promo/titles.txt
             adb shell settings put system screen_off_timeout 1800000
+            # A busy emulator's launcher throws "isn't responding" dialogs over the app; it isn't needed here.
+            adb shell settings put global anr_show_background 0 || true
+            adb shell pm disable-user --user 0 com.google.android.apps.nexuslauncher || true
+            sleep 45
             adb shell "cmd overlay enable com.android.internal.systemui.navbar.gestural" || true
             adb shell "settings put global sysui_demo_allowed 1; am broadcast -a com.android.systemui.demo -e command enter; am broadcast -a com.android.systemui.demo -e command clock -e hhmm 0941; am broadcast -a com.android.systemui.demo -e command battery -e level 100 -e plugged false; am broadcast -a com.android.systemui.demo -e command network -e wifi show -e level 4; am broadcast -a com.android.systemui.demo -e command notifications -e visible false" || true
             (adb shell screenrecord --bit-rate 20000000 --time-limit 180 /sdcard/Download/promo-run.mp4 &) ; sleep 2
