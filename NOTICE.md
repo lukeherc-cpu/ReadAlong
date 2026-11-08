@@ -14,7 +14,7 @@ own licenses and notices.
 
 Audible import (GitHub build and desktop apps)
 The Audible sign-in, library, download and decryption code in
-app/src/github/java/com/example/readalong/audible is ported from LibriSync
+app/src/audible/java/com/example/readalong/audible is ported from LibriSync
 (Copyright (C) 2025 Henning Berge, GPL-3.0-or-later,
 https://github.com/Promises/LibriSync), itself a port of Libation (Copyright
 Libation contributors, GPL-3.0, https://github.com/rmcrackan/Libation). That
