@@ -1,0 +1,77 @@
+name: ReadAlong for iPhone
+
+# Builds the iPhone app (ios-app/): whisper.cpp as an XCFramework with Metal, the Kotlin framework, then an
+# unsigned .ipa. There is no Apple Developer account, so the .ipa is signed on install by AltStore or
+# Sideloadly with the user's own Apple ID (ios-app/README.md).
+on:
+  push:
+    paths: ["ios-app/**", ".github/workflows/ios.yml", "app/src/main/java/com/example/readalong/domain/**", "app/src/github/java/com/example/readalong/audible/**"]
+  workflow_dispatch:
+  # release.yml calls this after publishing the APK, to add the .ipa to the same release.
+  workflow_call:
+    inputs:
+      release:
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+env:
+  WHISPER_CPP_VERSION: v1.8.7
+
+jobs:
+  ios:
+    runs-on: macos-15
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build the Kotlin framework
+        run: |
+          set -o pipefail
+          mkdir -p ci-results
+          ./gradlew -p ios-app --console=plain linkReleaseFrameworkIosArm64 2>&1 | tee ci-results/gradle.log
+
+      - name: Build the app
+        run: |
+          set -o pipefail
+          brew install xcodegen
+          version=$(grep -oE 'versionName = "[^"]+"' app/build.gradle.kts | cut -d'"' -f2)
+          cd ios-app/iosApp
+          READALONG_VERSION="${version%%-*}" xcodegen generate
+          xcodebuild -project ReadAlong.xcodeproj -scheme ReadAlong -configuration Release -sdk iphoneos \
+            -destination generic/platform=iOS -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build 2>&1 | tee ../../ci-results/xcode.log | tail -60
+
+      - name: Package the unsigned .ipa
+        run: |
+          version=$(grep -oE 'versionName = "[^"]+"' app/build.gradle.kts | cut -d'"' -f2)
+          mkdir -p Payload dist
+          cp -R ios-app/iosApp/build/Build/Products/Release-iphoneos/ReadAlong.app Payload/
+          zip -qry "dist/ReadAlong-$version.ipa" Payload
+          ls -la dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ReadAlong-ipa
+          path: dist/*.ipa
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-ci-results
+          path: ci-results
+
+      - name: Attach to the release
+        if: ${{ inputs.release }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(grep -oE 'versionName = "[^"]+"' app/build.gradle.kts | cut -d'"' -f2)
+          gh release upload "v$version" dist/*.ipa --clobber
