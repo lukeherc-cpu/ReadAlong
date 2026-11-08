@@ -26,7 +26,9 @@ class AudibleDownloadWorker(context: Context, parameters: WorkerParameters) : Co
         val book = store.book(asin) ?: return@withContext Result.failure()
         val account = store.account.value ?: return@withContext Result.failure().also { store.report(asin, AudibleDownload.Failed("Sign in to Audible again.")) }
         try {
-            setForeground(foreground(book.title, null))
+            // Android can refuse a foreground start while ReadAlong is in the background (a long Download all
+            // queue): the download still runs, it just shows no notification until the next book.
+            runCatching { setForeground(foreground(book.title, null)) }
             var shown = -1
             val app = applicationContext as ReadAlongApplication
             val folder = AudibleLibraryFolder(applicationContext, app.audioImporter)

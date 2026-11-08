@@ -74,6 +74,12 @@ class AudibleStore(private val context: Context) {
         WorkManager.getInstance(context).enqueueUniqueWork(QUEUE, ExistingWorkPolicy.APPEND_OR_REPLACE, request)
     }
 
+    /** Queues every book in [asins] that isn't downloaded, queued or downloading yet, in order. */
+    fun downloadAll(asins: List<String>) {
+        val current = downloads.value
+        asins.filter { asin -> current[asin].let { it == null || it is AudibleDownload.Failed } }.forEach(::download)
+    }
+
     fun cancel() {
         WorkManager.getInstance(context).cancelUniqueWork(QUEUE)
         mutableDownloads.update { current -> current.filterValues { it == AudibleDownload.Done || it is AudibleDownload.Failed } }
