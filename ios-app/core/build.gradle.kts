@@ -6,6 +6,10 @@ plugins {
 // files desktop-app compiles). The Java and Android library calls in them resolve to the small iOS versions in
 // src/iosMain/kotlin/java, javax and org, so the phone's files need no edits. Each copied file also gets
 // `import com.example.readalong.compat.*`, for the few JVM-only standard library calls (String.format, Charsets).
+// Kotlin/Native's regex engine knows the letter and mark categories only by their long names (IsL, IsM), where
+// the JVM also accepts the short ones the phone's code uses.
+val unicodeClasses: (String) -> String = { line -> line.replace("\\\\p{L}", "\\\\p{IsL}").replace("\\\\p{M}", "\\\\p{IsM}") }
+
 val shared = "../../app/src/main/java/com/example/readalong"
 val sharedSources by tasks.registering(Sync::class) {
     from(shared) {
@@ -18,6 +22,7 @@ val sharedSources by tasks.registering(Sync::class) {
         filter { line -> line.replace(Regex("^(\\s*)internal "), "$1") }
     }
     filter { line -> if (line.startsWith("package ")) "$line\n\nimport com.example.readalong.compat.*" else line }
+    filter(unicodeClasses)
     into(layout.buildDirectory.dir("shared/com/example/readalong"))
 }
 
@@ -30,6 +35,7 @@ val sharedTests by tasks.registering(Sync::class) {
         exclude("domain/TranscriptIndexTest.kt") // uses @Test(expected = ...), which kotlin.test has no form of
     }
     filter { line -> if (line.startsWith("package ")) "$line\n\nimport com.example.readalong.compat.*" else line }
+    filter(unicodeClasses)
     into(layout.buildDirectory.dir("shared-tests/com/example/readalong"))
 }
 
@@ -57,5 +63,16 @@ kotlin {
             languageSettings.optIn("kotlin.time.ExperimentalTime")
             languageSettings.optIn("kotlin.concurrent.atomics.ExperimentalAtomicApi")
         }
+    }
+}
+
+tasks.withType<org.jetbrains.kotlin.gradle.targets.native.tasks.KotlinNativeTest>().configureEach {
+    // These two read the developer's own books when present and skip otherwise; kotlin.test has no skip.
+    filter.excludeTestsMatching("*.privateReferenceWhenProvidedPreservesMusicalGlyphsWithoutBundlingItsText")
+    filter.excludeTestsMatching("*.optionalPrivateCollectionMatchesIndependentlyProbedChapterCounts")
+    testLogging {
+        events("failed")
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+        showStackTraces = false
     }
 }
