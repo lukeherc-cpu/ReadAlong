@@ -6,9 +6,9 @@ plugins {
 // files desktop-app compiles). The Java and Android library calls in them resolve to the small iOS versions in
 // src/iosMain/kotlin/java, javax and org, so the phone's files need no edits. Each copied file also gets
 // `import com.example.readalong.compat.*`, for the few JVM-only standard library calls (String.format, Charsets).
-// Kotlin/Native's regex engine knows the letter and mark categories only by their long names (IsL, IsM), where
-// the JVM also accepts the short ones the phone's code uses.
-val unicodeClasses: (String) -> String = { line -> line.replace("\\\\p{L}", "\\\\p{IsL}").replace("\\\\p{M}", "\\\\p{IsM}") }
+// Kotlin/Native's regex engine has no \p{N} (any number); it does know its parts Nd, Nl and No. Every use in the
+// phone's code is inside a character class, where the three together mean the same.
+val unicodeClasses: (String) -> String = { line -> line.replace("\\\\p{N}", "\\\\p{Nd}\\\\p{Nl}\\\\p{No}") }
 
 val shared = "../../app/src/main/java/com/example/readalong"
 val sharedSources by tasks.registering(Sync::class) {
