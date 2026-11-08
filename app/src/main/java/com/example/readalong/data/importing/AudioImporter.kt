@@ -159,6 +159,13 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
             catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
             catch (_: Exception) { /* Per-folder access errors are retained for the folders screen. */ }
         } } finally { onFolder(null) }
+        // Books finished since the last scan get their .readalong beside them, so a computer (by the link, OneDrive,
+        // Syncthing...) gets the text instead of transcribing again. Never fails the scan.
+        (context.applicationContext as? com.example.readalong.ReadAlongApplication)?.takeIf { it.database === database }?.let { app ->
+            try { com.example.readalong.data.link.TranscriptPackageWriter(app, database, app.folderLink.store).writeAll() }
+            catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+            catch (failure: Exception) { android.util.Log.i("ReadAlong", "ReadAlong files not saved after scan: ${failure.javaClass.simpleName}") }
+        }
         results
     }
 
