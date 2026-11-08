@@ -23,7 +23,11 @@ sealed interface UpdateStatus {
  * whenever Check for updates is pressed. Nothing is downloaded or installed without the person choosing to.
  */
 class UpdateService(private val scope: CoroutineScope, private val settings: SettingsStore,
-    val current: String = System.getProperty("readalong.version") ?: "dev",
+    // The packaged app passes the version as a JVM flag; the build also writes it into the jar, so a launch without
+    // the flag still knows it (with neither, "dev" turns update offers off).
+    val current: String = System.getProperty("readalong.version")
+        ?: UpdateService::class.java.getResourceAsStream("/readalong-version.txt")?.use { it.readBytes().decodeToString().trim() }?.ifBlank { null }
+        ?: "dev",
     private val fetch: () -> AppRelease? = { UpdateCheck.fetchLatest("ReadAlong-Desktop/$current") }) {
     private val mutableStatus = MutableStateFlow<UpdateStatus>(UpdateStatus.Idle)
     val status: StateFlow<UpdateStatus> = mutableStatus
@@ -42,8 +46,9 @@ class UpdateService(private val scope: CoroutineScope, private val settings: Set
         if (mutableStatus.value == UpdateStatus.Checking) return
         mutableStatus.value = UpdateStatus.Checking
         val result = withContext(Dispatchers.IO) { runCatching { fetch() } }
-        settings.update { it.copy(lastUpdateCheck = System.currentTimeMillis()) }
         result.onSuccess { latest ->
+            // Only a check that reached GitHub counts: offline at start-up tries again next time.
+            settings.update { it.copy(lastUpdateCheck = System.currentTimeMillis()) }
             val available = UpdateCheck.offer(current, latest, skipped = if (manual) null else settings.value.skippedVersion)
             mutableStatus.value = if (available != null) UpdateStatus.Available(available) else UpdateStatus.UpToDate
             if (available != null) mutableOffer.value = available
@@ -55,4 +60,6 @@ class UpdateService(private val scope: CoroutineScope, private val settings: Set
     fun later() { mutableOffer.value = null }
     fun skip(release: AppRelease) { settings.update { it.copy(skippedVersion = release.version.toString()) }; mutableOffer.value = null }
     fun downloadUrl(release: AppRelease) = release.desktopDownload()
+    /** Flatpak installs update through the software center (or `flatpak update`), not a downloaded file. */
+    val flatpak: Boolean = System.getenv("FLATPAK_ID") != null
 }
