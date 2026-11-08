@@ -41,6 +41,8 @@ data class AppRelease(val version: AppVersion, val tag: String, val pageUrl: Str
     fun desktopDownload(os: String = System.getProperty("os.name").orEmpty(), arch: String = System.getProperty("os.arch").orEmpty()): String {
         val lower = os.lowercase()
         val wanted = when {
+            // The iPhone app is sideloaded (AltStore or Sideloadly re-sign it), so it gets the release page.
+            lower == "ios" -> emptyList()
             lower.contains("win") -> listOf("Windows.msi", "Windows-portable.zip")
             lower.contains("mac") -> if (arch == "aarch64" || arch == "arm64") listOf("macOS-AppleSilicon.dmg") else listOf("macOS-Intel.dmg")
             else -> listOf("Linux.flatpak", "Linux-x86_64.tar.gz")

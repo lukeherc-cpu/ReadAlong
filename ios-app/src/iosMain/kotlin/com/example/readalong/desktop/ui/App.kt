@@ -15,6 +15,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 
 /** The iPhone app's content (the desktop window's, without drag and drop or keyboard shortcuts): screens slide and fade into each other; the mini player stays at the bottom. */
 @Composable
@@ -26,7 +30,7 @@ fun ReadAlongApp(app: AppState) {
     val focused = androidx.compose.ui.platform.LocalWindowInfo.current.isWindowFocused
     LaunchedEffect(focused) { if (focused) app.syncProgress() }
     ReadAlongTheme(settings.accent, settings.light, settings.appFont, accentOnly = settings.alwaysAccent) {
-        Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).edgeSwipeBack(app)) {
             // Clear of the notch, the Dynamic Island and the home indicator; the background still reaches the edges.
             Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
                 AnimatedContent(app.screen, Modifier.weight(1f), transitionSpec = {
@@ -57,6 +61,36 @@ fun ReadAlongApp(app: AppState) {
             EditInfoDialog(app)
             SupportPrompt(app)
             SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(bottom = 96.dp))
+        }
+    }
+}
+
+/**
+ * iOS's back gesture: a swipe in from the left edge goes back a screen, like the back arrow at the top. Watches in
+ * the Initial pass and only consumes a swipe that started at the edge and moved right, so other gestures still work.
+ */
+private fun Modifier.edgeSwipeBack(app: AppState): Modifier = pointerInput(app) {
+    val edge = 24.dp.toPx()
+    val distance = 72.dp.toPx()
+    awaitEachGesture {
+        val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+        if (down.position.x > edge || app.screen == Screen.Library) return@awaitEachGesture
+        while (true) {
+            val event = awaitPointerEvent(PointerEventPass.Initial)
+            val change = event.changes.firstOrNull { it.id == down.id } ?: break
+            if (!change.pressed) break
+            val dx = change.position.x - down.position.x
+            val dy = change.position.y - down.position.y
+            if (kotlin.math.abs(dy) > distance && kotlin.math.abs(dy) > dx) break
+            if (dx > distance) {
+                app.back()
+                while (true) {
+                    val rest = awaitPointerEvent(PointerEventPass.Initial)
+                    rest.changes.forEach { it.consume() }
+                    if (rest.changes.none { it.pressed }) break
+                }
+                break
+            }
         }
     }
 }

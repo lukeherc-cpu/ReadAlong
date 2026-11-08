@@ -52,6 +52,7 @@ jobs:
           ./gradlew -p ios-app --console=plain linkReleaseFrameworkIosArm64 2>&1 | tee ci-results/gradle.log
 
       - name: Build whisper.cpp for iPhone (Metal + Accelerate)
+        if: ${{ !cancelled() }}
         run: |
           set -o pipefail
           git clone -q --depth 1 --branch "$WHISPER_CPP_VERSION" https://github.com/ggml-org/whisper.cpp ../whisper.cpp
