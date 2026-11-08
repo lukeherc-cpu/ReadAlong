@@ -41,11 +41,22 @@ class AudibleLibraryFolder(private val context: Context, private val importer: A
         val writable = resolver.persistedUriPermissions.filter { it.isWritePermission }.map { it.uri.toString() }.toSet()
         val chosen = importer.folders.first().firstOrNull { it.mode == FolderMode.LIBRARY.name && it.uri in writable }
         // ReadAlong's own folder goes through its provider too, which keeps names unique and the folder in one place.
-        val tree = chosen?.let { Uri.parse(it.uri) } ?: OwnFolderProvider.treeUri(context)
-        copyInto(tree, title, files)
-        val result = if (chosen != null) importer.scan(tree) else scanOwn()
+        // A chosen folder that can't take the book (full, removed SD card, access withdrawn) falls back to the own folder.
+        val inChosen = chosen != null && runCatching { copyInto(Uri.parse(chosen.uri), title, files) }.isSuccess
+        if (!inChosen) copyInto(OwnFolderProvider.treeUri(context), title, files)
+        val result = if (inChosen) importer.scan(Uri.parse(chosen!!.uri)) else scanOwn()
         files.forEach { it.delete() }
         return result
+    }
+
+    /**
+     * The new books from [result] that are this download, so only it joins the transcription queue: a
+     * library folder scan also adds anything else that arrived in that folder since the last scan.
+     */
+    suspend fun downloadedBooks(result: ImportResult, title: String): List<String> {
+        val wanted = setOf(title.lowercase(), com.example.readalong.audible.AudibleDownloader.safeName(title).lowercase())
+        val matching = result.newBookIds.filter { importer.title(it).lowercase() in wanted }
+        return matching.ifEmpty { result.newBookIds.takeIf { it.size == 1 }.orEmpty() }
     }
 
     /** Copies into a folder the person chose. A copy cut short is deleted, so a scan never finds half a book. */
