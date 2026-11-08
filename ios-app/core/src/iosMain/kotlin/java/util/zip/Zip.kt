@@ -93,8 +93,8 @@ class ZipFile(file: File) : Closeable {
     fun size() = map.size
     fun getEntry(name: String): ZipEntry? = map[name]
 
-    fun getInputStream(entry: ZipEntry): InputStream {
-        val e = map[entry.name] ?: throw ZipException("no such entry ${entry.name}")
+    fun getInputStream(entry: ZipEntry?): InputStream {
+        val e = map[entry?.name ?: throw NullPointerException("entry")] ?: throw ZipException("no such entry ${entry.name}")
         val header = readAt(e.localHeaderOffset, 30)
         if (u32(header, 0) != 0x04034b50L) throw ZipException("invalid LOC header")
         val dataAt = e.localHeaderOffset + 30 + u16(header, 26) + u16(header, 28)

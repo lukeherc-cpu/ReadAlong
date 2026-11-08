@@ -109,12 +109,16 @@ object Math {
 }
 
 object System {
+    val err = PrintStreamLike { kotlin.io.println(it.trimEnd()) }
+    val out = PrintStreamLike { kotlin.io.println(it.trimEnd()) }
+    private val properties = HashMap<String, String>()
+    fun setProperty(key: String, value: String): String? = properties.put(key, value)
     fun currentTimeMillis(): Long = (platform.Foundation.NSDate().timeIntervalSince1970 * 1000).toLong()
     fun nanoTime(): Long = platform.posix.clock_gettime_nsec_np(platform.posix.CLOCK_UPTIME_RAW.toUInt()).toLong()
     fun arraycopy(src: ByteArray, srcPos: Int, dest: ByteArray, destPos: Int, length: Int) { src.copyInto(dest, destPos, srcPos, srcPos + length) }
     fun arraycopy(src: ShortArray, srcPos: Int, dest: ShortArray, destPos: Int, length: Int) { src.copyInto(dest, destPos, srcPos, srcPos + length) }
     fun arraycopy(src: FloatArray, srcPos: Int, dest: FloatArray, destPos: Int, length: Int) { src.copyInto(dest, destPos, srcPos, srcPos + length) }
-    fun getProperty(key: String): String? = when (key) { "os.name" -> "iOS"; "line.separator" -> "\n"; else -> null }
+    fun getProperty(key: String): String? = properties[key] ?: when (key) { "os.name" -> "iOS"; "line.separator" -> "\n"; else -> null }
     fun getProperty(key: String, fallback: String): String = getProperty(key) ?: fallback
     fun lineSeparator() = "\n"
     fun identityHashCode(o: Any?): Int = o?.hashCode() ?: 0
@@ -123,6 +127,14 @@ object System {
 
 object Thread {
     fun sleep(ms: Long) { platform.posix.usleep((ms * 1000).toUInt()) }
+    fun interface UncaughtExceptionHandler { fun uncaughtException(thread: CurrentThread, error: Throwable) }
+    private var handler: UncaughtExceptionHandler? = null
+    fun getDefaultUncaughtExceptionHandler(): UncaughtExceptionHandler? = handler
+    @OptIn(kotlin.experimental.ExperimentalNativeApi::class)
+    fun setDefaultUncaughtExceptionHandler(h: UncaughtExceptionHandler?) {
+        handler = h
+        if (h != null) kotlin.native.setUnhandledExceptionHook { error -> h.uncaughtException(CurrentThread, error) }
+    }
     fun currentThread() = CurrentThread
     object CurrentThread { val isInterrupted get() = false; fun interrupt() {} ; val name get() = "ios" }
     fun interrupted() = false
@@ -189,18 +201,34 @@ private fun fixed(v: Double, decimals: Int): String {
     return if (negative && units != 0L) "-$text" else text
 }
 
-/** A JVM-style lock statement: the shared code's critical sections are tiny, so a spin lock per object suffices. */
-private val locks = HashMap<Int, AtomicInt>()
-private val registry = AtomicInt(0)
-inline fun <R> synchronized(lock: Any, block: () -> R): R {
-    val l = lockFor(lock)
-    while (!l.compareAndSet(0, 1)) platform.posix.sched_yield()
-    try { return block() } finally { l.value = 0 }
+/**
+ * JVM monitors (synchronized blocks and @Synchronized methods) as one app-wide recursive lock. The shared code's
+ * critical sections are tiny bookkeeping, and a single reentrant lock can't deadlock the way per-object locks
+ * taken in different orders could.
+ */
+@PublishedApi internal val monitor = platform.Foundation.NSRecursiveLock()
+inline fun <R> synchronized(@Suppress("UNUSED_PARAMETER") lock: Any, block: () -> R): R {
+    monitor.lock()
+    try { return block() } finally { monitor.unlock() }
 }
-@PublishedApi internal fun lockFor(o: Any): AtomicInt {
-    val key = o.hashCode() xor (o::class.hashCode() * 31)
-    while (!registry.compareAndSet(0, 1)) platform.posix.sched_yield()
-    try { return locks.getOrPut(key) { AtomicInt(0) } } finally { registry.value = 0 }
+
+/** Marks a method the build wraps in [synchronized] (engine/build.gradle.kts rewrites `@Synchronized fun`). */
+@Target(AnnotationTarget.FUNCTION, AnnotationTarget.PROPERTY_GETTER, AnnotationTarget.PROPERTY_SETTER)
+annotation class Synchronized
+
+/** Kotlin/Native keeps Dispatchers.IO internal; the build points the shared code here instead. */
+@OptIn(kotlinx.coroutines.DelicateCoroutinesApi::class, kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+val IoDispatcher: kotlinx.coroutines.CoroutineDispatcher by lazy { kotlinx.coroutines.newFixedThreadPoolContext(24, "readalong-io") }
+
+val Any.javaClass: KotlinClassName get() = KotlinClassName(this::class.simpleName ?: "Object", this::class.qualifiedName ?: "Object")
+class KotlinClassName(val simpleName: String, val name: String)
+
+fun Throwable.printStackTrace(writer: java.io.PrintWriter) { writer.println(stackTraceToString()) }
+
+class PrintStreamLike(private val write: (String) -> Unit) {
+    fun println(s: Any? = "") = write("$s\n")
+    fun print(s: Any?) = write("$s")
+    fun flush() {}
 }
 
 object Character {

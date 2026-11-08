@@ -52,6 +52,10 @@ fun File.appendBytes(bytes: ByteArray) = FileOutputStream(this, append = true).u
 fun File.inputStream(): FileInputStream = FileInputStream(this)
 fun File.outputStream(): FileOutputStream = FileOutputStream(this)
 fun File.forEachLine(action: (String) -> Unit) = readLines().forEach(action)
+fun <T> File.useLines(@Suppress("UNUSED_PARAMETER") charset: Charset = Charsets.UTF_8, block: (Sequence<String>) -> T): T = bufferedReader().useLines(block)
+fun ByteArray.inputStream(): ByteArrayInputStream = ByteArrayInputStream(this)
+fun ByteArray.inputStream(offset: Int, length: Int): ByteArrayInputStream = ByteArrayInputStream(this, offset, length)
+fun String.byteInputStream(): ByteArrayInputStream = ByteArrayInputStream(encodeToByteArray())
 fun File.deleteRecursively(): Boolean {
     if (isDirectory) listFiles()?.forEach { it.deleteRecursively() }
     return delete() || !exists()

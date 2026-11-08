@@ -11,8 +11,9 @@ class File(path: String) : Comparable<File> {
 
     val path: String = normalize(path)
     val name: String get() = path.substringAfterLast('/')
-    val parent: String? get() = path.substringBeforeLast('/', "").let { if (it.isEmpty()) (if (path.startsWith("/") && path != "/") "/" else null) else it }
-    val parentFile: File? get() = parent?.let(::File)
+    // Java returns null at the root; the apps never ask a root for its parent, and Kotlin sees Java's as non-null.
+    val parent: String get() = path.substringBeforeLast('/', "").ifEmpty { if (path.startsWith("/")) "/" else "." }
+    val parentFile: File get() = File(parent)
     val absolutePath: String get() = if (path.startsWith("/")) path else join(NSFileManager.defaultManager.currentDirectoryPath, path)
     val absoluteFile: File get() = File(absolutePath)
     val canonicalPath: String get() = (absolutePath as NSString).stringByStandardizingPath
@@ -42,6 +43,9 @@ class File(path: String) : Comparable<File> {
     fun mkdir(): Boolean = mkdir(path, 0x1ed.convert()) == 0
     fun mkdirs(): Boolean = if (isDirectory) false else NSFileManager.defaultManager.createDirectoryAtPath(path, true, null, null)
     fun renameTo(dest: File): Boolean = rename(path, dest.path) == 0
+    fun setReadable(@Suppress("UNUSED_PARAMETER") readable: Boolean, @Suppress("UNUSED_PARAMETER") ownerOnly: Boolean = true) = true
+    fun setWritable(@Suppress("UNUSED_PARAMETER") writable: Boolean, @Suppress("UNUSED_PARAMETER") ownerOnly: Boolean = true) = true
+    fun setExecutable(@Suppress("UNUSED_PARAMETER") executable: Boolean, @Suppress("UNUSED_PARAMETER") ownerOnly: Boolean = true) = true
     fun createNewFile(): Boolean {
         val fd = open(path, O_CREAT or O_EXCL or O_WRONLY, 0x1a4)
         if (fd < 0) return false
