@@ -49,8 +49,8 @@ class PromoCaptureTest {
         var page by mutableStateOf("library")
         var prefs by mutableStateOf(AppPreferences(batteryWarningSeen = true, setupStage = 3, longPressTipHidden = true, homeGuideHidden = true, playerGuideHidden = true, readerGuideHidden = true, readAlongExplained = true, supportPromptOff = true))
         val play = object : PlaybackControls {
-            val mutable = MutableStateFlow(PlaybackState(bookId = "demo-night-orchard", positionMs = 24_000, durationMs = 216_000,
-                chapters = listOf(PlaybackChapter(0,"Chapter 1",0,72_000),PlaybackChapter(1,"Chapter 2",72_000,72_000),PlaybackChapter(2,"Chapter 3",144_000,72_000))))
+            val mutable = MutableStateFlow(PlaybackState(bookId = "demo-night-orchard", positionMs = 24_000, durationMs = 57_600_000,
+                chapters = listOf(PlaybackChapter(0,"Chapter 1",0,2_400_000),PlaybackChapter(1,"Chapter 2",2_400_000,2_400_000),PlaybackChapter(2,"Chapter 3",4_800_000,2_400_000))))
             override val state = mutable.asStateFlow()
             override fun select(book: Book) { }
             override fun pause() { mutable.value = mutable.value.copy(isPlaying = false) }
@@ -62,7 +62,7 @@ class PromoCaptureTest {
             override fun speed(value: Float) { mutable.value = mutable.value.copy(speed = value) }
             override fun sleep(minutes: Int?) { }
             override fun sleepAtChapterEnd() { }
-            override fun chapter(index: Int) { seek(index * 72_000L) }
+            override fun chapter(index: Int) { seek(index * 2_400_000L) }
         }
         val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
         fun capture(name: String) {
@@ -83,7 +83,7 @@ class PromoCaptureTest {
                 val file = File(File(app.filesDir,"covers").apply { mkdirs() },"promo-original-$i.png"); files += file
                 android.os.ParcelFileDescriptor.AutoCloseInputStream(automation.executeShellCommand("cat /sdcard/Download/readalong-promo/covers/cover-$i.png")).use { input -> file.outputStream().use { input.copyTo(it) } }
                 val real = realBooks.getOrNull(i)
-                b.copy(coverUri=FileProvider.getUriForFile(app,"${app.packageName}.files",file).toString(),durationMs=if(i==0)216_000 else b.durationMs,
+                b.copy(coverUri=FileProvider.getUriForFile(app,"${app.packageName}.files",file).toString(),durationMs=if(i==0)57_600_000 else b.durationMs,
                     title=real?.first ?: b.title, author=real?.second ?: b.author)
             }
             db.bookDao().insertBooks(entities)
@@ -152,8 +152,8 @@ class PromoCaptureTest {
             runCatching { androidx.test.espresso.Espresso.pressBack() }.onFailure { android.util.Log.w("PromoCapture", "step failed: ${it.message}") }
             runCatching { compose.onNodeWithContentDescription("Chapters").also{n->runCatching{n.performScrollTo()}}.performClick();capture("chapters") }.onFailure { android.util.Log.w("PromoCapture", "step failed: ${it.message}") }
             runCatching { androidx.test.espresso.Espresso.pressBack() }.onFailure { android.util.Log.w("PromoCapture", "step failed: ${it.message}") }
-            runCatching { compose.onNodeWithText("More",substring=false).also{n->runCatching{n.performScrollTo()}}.performClick() }.onFailure { android.util.Log.w("PromoCapture", "step failed: ${it.message}") }
-            runCatching { runCatching{compose.onNodeWithText("Copy transcription diagnostics",substring=false).performScrollTo()};capture("more");androidx.test.espresso.Espresso.pressBack() }.onFailure { android.util.Log.w("PromoCapture", "step failed: ${it.message}") }
+            runCatching { compose.onNodeWithContentDescription("More options").performClick() }.onFailure { android.util.Log.w("PromoCapture", "step failed: ${it.message}") }
+            runCatching { runCatching{compose.onNodeWithText("Copy transcription diagnostics",substring=false).performScrollTo()};capture("more") }.onFailure { android.util.Log.w("PromoCapture", "step failed: ${it.message}") }
             runCatching { show("queue");compose.waitUntil(10_000){compose.onAllNodesWithText(entities[0].title).fetchSemanticsNodes().isNotEmpty()};capture("queue") }.onFailure { android.util.Log.w("PromoCapture", "step failed: ${it.message}") }
             runCatching { show("settings");capture("settings") }.onFailure { android.util.Log.w("PromoCapture", "step failed: ${it.message}") }
             runCatching { show("model");capture("model") }.onFailure { android.util.Log.w("PromoCapture", "step failed: ${it.message}") }
