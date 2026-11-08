@@ -8,8 +8,18 @@ import kotlinx.coroutines.flow.Flow
 data class ProcessingJobEntity(@PrimaryKey val bookId: String, val workId: String, val engineId: String,
     val state: String, val completedUnits: Int, val totalUnits: Int, val message: String?, val updatedAt: Long, val planJson: String? = null, val sourceFingerprint: String? = null, @ColumnInfo(defaultValue = "0") val queuePosition: Long = 0)
 
+/** A job without its plan (which can be large): enough to check that a run still owns it. */
+data class ProcessingJobCheck(val bookId: String, val workId: String, val engineId: String, val state: String, val completedUnits: Int, val sourceFingerprint: String?)
+
 @Dao
 interface ProcessingDao {
+    @Query("SELECT bookId, workId, engineId, state, completedUnits, sourceFingerprint FROM processing_jobs WHERE bookId = :bookId")
+    suspend fun check(bookId: String): ProcessingJobCheck?
+    /** Progress and status without rewriting the plan JSON every chunk. */
+    @Query("UPDATE processing_jobs SET state = :state, completedUnits = :completedUnits, message = :message, updatedAt = :updatedAt WHERE bookId = :bookId AND workId = :workId")
+    suspend fun progress(bookId: String, workId: String, state: String, completedUnits: Int, message: String?, updatedAt: Long): Int
+    @Query("UPDATE processing_jobs SET state = :state, message = :message, updatedAt = :updatedAt WHERE bookId = :bookId AND workId = :workId")
+    suspend fun status(bookId: String, workId: String, state: String, message: String?, updatedAt: Long): Int
     @Query("SELECT * FROM processing_jobs WHERE bookId = :bookId")
     fun observe(bookId: String): Flow<ProcessingJobEntity?>
     @Query("SELECT * FROM processing_jobs WHERE bookId = :bookId")

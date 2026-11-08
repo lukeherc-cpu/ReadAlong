@@ -38,9 +38,17 @@ val sharedResources by tasks.registering(Sync::class) {
     from("../app/src/github/res/drawable") { include("ic_tip_jar.xml"); into("icons") }
     into(layout.buildDirectory.dir("shared-resources"))
 }
+// The version inside the jar too, for launches without -Dreadalong.version (see UpdateService).
+val versionResource by tasks.registering {
+    val out = layout.buildDirectory.dir("version-resource")
+    inputs.property("version", appVersion)
+    outputs.dir(out)
+    doLast { out.get().file("readalong-version.txt").asFile.apply { parentFile.mkdirs(); writeText(appVersion) } }
+}
 sourceSets.main {
     kotlin.srcDir(sharedSources.map { layout.buildDirectory.dir("shared").get() })
     resources.srcDir(sharedResources.map { layout.buildDirectory.dir("shared-resources").get() })
+    resources.srcDir(versionResource.map { layout.buildDirectory.dir("version-resource").get() })
 }
 
 // FFmpeg decodes every audiobook format; only the natives for the platform being packaged are bundled.

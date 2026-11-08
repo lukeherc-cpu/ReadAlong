@@ -18,11 +18,11 @@ import androidx.compose.ui.unit.dp
 import com.example.readalong.data.importing.ScanProgress
 import com.example.readalong.ui.components.animatedFraction
 
-/**
- * "34 / 120 remaining", the one count format every progress view uses. "remaining" because the total is only
- * the books still to be added or updated, not the whole library.
- */
-fun ScanProgress.count() = "$done / $total remaining"
+/** "34 / 120", the fraction under the library logo, where there is no room for more. */
+fun ScanProgress.count() = "$done / $total"
+
+/** "34 / 120 remaining" where there is room: "remaining" because the total is only the books still to add or update. */
+fun ScanProgress.remaining() = "${count()} remaining"
 
 private fun ScanProgress.fraction() = if (total == 0) 0f else done.toFloat() / total
 
@@ -39,7 +39,7 @@ fun ReadingFolderLine(progress: ScanProgress, modifier: Modifier = Modifier) {
             Text("Reading “${progress.folder}”", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.width(12.dp))
-            Text(progress.count(), style = figures, color = MaterialTheme.colorScheme.primary, maxLines = 1)
+            Text(progress.remaining(), style = figures, color = MaterialTheme.colorScheme.primary, maxLines = 1)
         }
         Spacer(Modifier.height(8.dp))
         FolderProgressBar(fraction)

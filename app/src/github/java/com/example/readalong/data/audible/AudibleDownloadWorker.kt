@@ -18,7 +18,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/** Downloads and unlocks one Audible book, adds it to the library and queues its ReadAlong. */
+/** Downloads and unlocks one Audible book, saves it in a library folder and queues its ReadAlong. */
 class AudibleDownloadWorker(context: Context, parameters: WorkerParameters) : CoroutineWorker(context, parameters) {
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
         val store = AudibleStore.get(applicationContext)
@@ -26,19 +26,28 @@ class AudibleDownloadWorker(context: Context, parameters: WorkerParameters) : Co
         val book = store.book(asin) ?: return@withContext Result.failure()
         val account = store.account.value ?: return@withContext Result.failure().also { store.report(asin, AudibleDownload.Failed("Sign in to Audible again.")) }
         try {
-            setForeground(foreground(book.title, null))
+            // Android can refuse a foreground start while ReadAlong is in the background (a long Download all
+            // queue): the download still runs, it just shows no notification until the next book.
+            runCatching { setForeground(foreground(book.title, null)) }
             var shown = -1
-            val files = AudibleDownloader.download(AudibleClient(account, store::save), book, store.folder(asin)) { stage, fraction ->
-                if (isStopped) throw CancellationException()
-                store.report(asin, AudibleDownload.Running(stage, fraction))
-                val percent = (fraction * 100).toInt()
-                if (percent != shown) { shown = percent; showProgress(book.title, fraction) }
-            }
             val app = applicationContext as ReadAlongApplication
-            val imported = app.audioImporter.importFiles(store.uris(files), persistAccess = false)
+            val folder = AudibleLibraryFolder(applicationContext, app.audioImporter)
+            val name = AudibleDownloader.safeName(book.title)
+            // Books downloaded by a ReadAlong before 0.49.0 move into the folder first, keeping their progress.
+            runCatching { folder.adoptOldDownloads(store) }
+            val ids = if (folder.alreadyPlaced(name).isNotEmpty()) folder.addPlaced(name) else {
+                val files = AudibleDownloader.download(AudibleClient(account, store::save), book, store.folder(asin)) { stage, fraction ->
+                    if (isStopped) throw CancellationException()
+                    store.report(asin, AudibleDownload.Running(stage, fraction))
+                    val percent = (fraction * 100).toInt()
+                    if (percent != shown) { shown = percent; showProgress(book.title, fraction) }
+                }
+                // Into the library folder (or ReadAlong's own "Audible Audiobooks" folder) as a book folder of its own.
+                folder.place(name, files)
+            }
             // Into the transcription queue behind whatever is already there, like choosing "Later" for a new book.
-            imported.bookIds.forEach { app.processing.chooseImportPriority(it, first = false) }
-            store.finished(asin)
+            ids.filter { app.database.processingDao().find(it) == null }.forEach { app.processing.chooseImportPriority(it, first = false) }
+            store.finished(asin, ids)
             Result.success()
         } catch (cancelled: CancellationException) {
             store.report(asin, AudibleDownload.Failed("Download stopped. Tap Download to continue."))

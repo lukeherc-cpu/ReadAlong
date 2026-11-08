@@ -23,7 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
-import com.example.readalong.ui.library.count
+import com.example.readalong.ui.library.remaining
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -110,7 +110,7 @@ fun FoldersScreen(model: ImportViewModel, onBack: () -> Unit) {
                         FolderCard(folder, covers, ids.size, badges, scanning = scanning,
                             progress = scanProgress?.takeIf { scanning && it.folder == folder.name },
                             // A folder being scanned is readable, whatever the last permission check said.
-                            lostAccess = !scanning && folder.uri !in granted, enabled = !busy,
+                            lostAccess = !scanning && folder.uri !in granted && !com.example.readalong.data.importing.OwnFolderProvider.isOwn(context, folder.uri), enabled = !busy,
                             onCheck = { model.rescan(folder) }, onRemove = { removing = folder },
                             onChooseAgain = { reconnecting = folder; chooseAgain.launch(Uri.parse(folder.uri)) },
                             modifier = Modifier.animateItem())
@@ -150,7 +150,7 @@ private fun FolderCard(folder: FolderEntity, covers: List<Book>, count: Int, bad
                     Text(folder.name, style = MaterialTheme.typography.titleLarge)
                     when {
                         lostAccess -> Text("ReadAlong lost access to this folder", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
-                        scanning && progress != null -> Text("Reading books… ${progress.count()}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+                        scanning && progress != null -> Text("Reading books… ${progress.remaining()}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
                         scanning -> Text("Looking for books… found $count so far", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
                         else -> Text(summary(count, folder.lastScanAt), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }

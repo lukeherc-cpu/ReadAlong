@@ -71,7 +71,7 @@ class AudiobookService : MediaSessionService() {
                         val item = files[index]
                         files = files.toMutableList().apply { set(index, item.copy(durationMs = duration)) }
                         // Saving a corrected duration is optional; a storage error must not stop playback.
-                        scope.launch { try { database.mediaDao().duration(item.id, duration) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { } }
+                        scope.launch { try { com.example.readalong.data.processing.TranscriptionPlan.correctDuration(database, item.bookId, item.id, duration) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { } }
                     }
                 }
                 override fun onPlayerError(failure: PlaybackException) {

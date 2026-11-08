@@ -17,8 +17,8 @@ sealed interface AudibleDownload {
 
 /**
  * Libation's workflow inside ReadAlong: sign in to Audible, list the library, download, unlock and add
- * books. The engine is shared with the phone (app/src/github/.../audible). The sign-in, the library list
- * and the downloaded books live in ReadAlong's data folder; finished books join the library and the queue.
+ * books. The engine is shared with the phone (app/src/github/.../audible). The sign-in and the library list live
+ * in ReadAlong's data folder; finished books move into a library folder and join the library and the queue.
  */
 class AudibleService(private val scope: CoroutineScope, private val importer: LibraryImporter, private val transcription: TranscriptionService) {
     private val home = File(AppPaths.data, "audible").apply { mkdirs() }
@@ -107,8 +107,15 @@ class AudibleService(private val scope: CoroutineScope, private val importer: Li
                     ensureActive()
                     report(asin, AudibleDownload.Running(stage, fraction))
                 }
-                // A multi-part book is a folder of parts: the scanner reads that folder as one book.
-                val added = importer.add(listOf(if (files.size > 1) files.first().parentFile else files.single()), remember = false)
+                val placed = place(book, files)
+                val added = if (placed != null) {
+                    // In a library folder the book is found like any other, so link sync carries it and its ReadAlong to the phone.
+                    val root = placed.absolutePath + File.separator
+                    importer.rescan().filter { id -> importer.book(id)?.parts?.firstOrNull()?.path?.startsWith(root) == true }
+                } else {
+                    // A multi-part book is a folder of parts: the scanner reads that folder as one book.
+                    importer.add(listOf(if (files.size > 1) files.first().parentFile else files.single()), remember = false)
+                }
                 added.forEach { transcription.enqueue(it) }
                 File(folder, DONE).createNewFile()
                 report(asin, AudibleDownload.Done)
@@ -123,6 +130,32 @@ class AudibleService(private val scope: CoroutineScope, private val importer: Li
             } catch (failure: Exception) {
                 report(asin, AudibleDownload.Failed(failure.message ?: "The download didn't finish."))
             }
+        }
+    }
+
+    /**
+     * Moves a finished download into the first library folder that can be written, as "<Title>/<Title>.m4b" (or the
+     * parts in "<Title>/"), the same layout as the phone. Null when there is no such folder: the book then stays in
+     * ReadAlong's data folder as before.
+     */
+    private fun place(book: AudibleBook, files: List<File>): File? {
+        val root = importer.folders.map(::File).firstOrNull { it.isDirectory && it.canWrite() } ?: return null
+        val name = AudibleDownloader.safeName(book.title)
+        val target = File(root, name).let { if (it.exists() && it.listFiles().orEmpty().isNotEmpty()) File(root, "$name (${book.asin})") else it }
+        return runCatching {
+            target.mkdirs()
+            for (file in files) {
+                val destination = File(target, file.name)
+                try { java.nio.file.Files.move(file.toPath(), destination.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING) }
+                catch (_: java.io.IOException) {
+                    // Another drive: copy, then remove the download.
+                    file.copyTo(destination, overwrite = true); file.delete()
+                }
+            }
+            target
+        }.getOrElse { failure ->
+            System.err.println("ReadAlong: Audible book kept in the data folder: ${failure.message}")
+            null
         }
     }
 
