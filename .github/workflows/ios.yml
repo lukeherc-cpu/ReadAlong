@@ -84,6 +84,31 @@ jobs:
           zip -qry "dist/ReadAlong-$version.ipa" Payload
           ls -la dist
 
+      # A smoke test: the same app built for the simulator must start and stay up, with a screenshot to look at.
+      - name: Start the app on the simulator
+        if: ${{ !cancelled() }}
+        run: |
+          set -o pipefail
+          ./gradlew -p ios-app --console=plain linkReleaseFrameworkIosSimulatorArm64 2>&1 | tail -5
+          cmake -S ios-app/iosApp/Whisper -B ../whisper-sim-build -DCMAKE_BUILD_TYPE=Release -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_SYSROOT=iphonesimulator \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=16.0 -DWHISPER_CPP="$(cd ../whisper.cpp && pwd)" > /dev/null
+          cmake --build ../whisper-sim-build --target readalong_whisper -j 4 2>&1 | tail -3
+          mkdir -p ios-app/build/whisper-ios-sim
+          libtool -static -o ios-app/build/whisper-ios-sim/libreadalong_whisper_all.a $(find ../whisper-sim-build -name '*.a')
+          cd ios-app/iosApp
+          xcodebuild -project ReadAlong.xcodeproj -scheme ReadAlong -configuration Release -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' -derivedDataPath build-sim ARCHS=arm64 ONLY_ACTIVE_ARCH=NO \
+            CODE_SIGNING_ALLOWED=NO build 2>&1 | tee ../../ci-results/xcode-sim.log | tail -20
+          device=$(xcrun simctl list devices available | grep -m1 -oE 'iPhone [0-9]+ \(([A-F0-9-]+)\)' | grep -oE '[A-F0-9-]{36}')
+          xcrun simctl boot "$device"
+          xcrun simctl install "$device" build-sim/Build/Products/Release-iphonesimulator/ReadAlong.app
+          xcrun simctl launch --console-pty "$device" io.github.lukeherc-cpu.readalong > ../../ci-results/simulator-console.log 2>&1 &
+          sleep 25
+          xcrun simctl io "$device" screenshot ../../ci-results/simulator-library.png
+          tail -40 ../../ci-results/simulator-console.log
+          # Still running after 25 seconds, or the launch crashed.
+          xcrun simctl spawn "$device" launchctl list | grep -q readalong || { echo "ReadAlong isn't running on the simulator"; exit 1; }
+
       - uses: actions/upload-artifact@v4
         with:
           name: ReadAlong-ipa
