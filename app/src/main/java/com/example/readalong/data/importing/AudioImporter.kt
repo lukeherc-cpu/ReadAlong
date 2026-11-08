@@ -32,7 +32,11 @@ data class PreviewBook(val name: String, val deleted: Boolean, val cover: Uri? =
  * that will be synced from ReadAlong on a computer; it can still be added as a library folder.
  */
 data class FolderPreview(val uri: Uri, val name: String, val books: List<PreviewBook>, val suggested: FolderMode, val deletedAsOneBook: Boolean, val emptyMessage: String?,
-    val empty: Boolean = false) {
+    val empty: Boolean = false,
+    /** How the folder is already saved in the library, or null when it's new. Adding it in the other mode replaces its books. */
+    val savedMode: FolderMode? = null,
+    /** Books from this folder now in the library, and how many of them have a ReadAlong or listening progress that a mode switch would delete. */
+    val savedBooks: Int = 0, val savedWork: Int = 0) {
     val deletedBooks get() = books.count { it.deleted }
 }
 data class ImportResult(val bookIds: List<String>, val message: String, val newBookIds: List<String> = emptyList(),
@@ -132,10 +136,18 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
         val suggested = if (groups.size >= 2 && !discs && !numbered) FolderMode.LIBRARY else FolderMode.ONE_BOOK
         val found = groups.map { group -> PreviewBook(group.name ?: "Audiobook", LibraryExclusions.excluded(books, group.key, group.found.audio.map { it.uri }),
             coverImage(group.found.images)?.uri, group.found.audio.firstOrNull()?.uri) }
-        FolderPreview(uri, name, found, suggested,
+        // A folder already in the library opens in the mode it was saved with: the other mode replaces its books.
+        val saved = media.folder(uri.toString())?.let { folder -> runCatching { FolderMode.valueOf(folder.mode) }.getOrNull() }
+        val savedIds = if (saved != null) media.folderBooks(uri.toString()) else emptyList()
+        val savedWork = savedIds.count { id ->
+            database.processingDao().find(id)?.let { it.completedUnits > 0 || it.state == "READY" } == true ||
+                (books.progress(id)?.let { it.audioPositionMs > 0 || it.isFinished } == true)
+        }
+        FolderPreview(uri, name, found, saved ?: suggested,
             deletedAsOneBook = groups.isNotEmpty() && LibraryExclusions.excluded(books, "folder:${root.uri}", groups.flatMap { g -> g.found.audio.map { it.uri } }),
             emptyMessage = if (groups.isEmpty()) walk.nothingFound(name) + walk.problemNote() else null,
-            empty = groups.isEmpty() && walk.skipped.isEmpty() && walk.problems.isEmpty())
+            empty = groups.isEmpty() && walk.skipped.isEmpty() && walk.problems.isEmpty(),
+            savedMode = saved, savedBooks = savedIds.size, savedWork = savedWork)
     }
 
     /** Returns what each folder's scan found, for those that could be scanned. */
@@ -218,11 +230,14 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
                         val signature = "${transcript.uri}:${transcript.length()}:${transcript.lastModified()}"
                         val completed = database.processingDao().find(id)?.let { it.state == "READY" && it.sourceFingerprint == com.example.readalong.data.processing.TranscriptionPlan.fingerprint(database, id) } == true
                         if (completed && books.metadata("folder_transcript:$id") == signature) break
+                        // Removed or rebuilt on purpose: the same file isn't brought back until it changes.
+                        if (books.metadata("folder_transcript_declined:$id") == signature) break
                         try {
                             onTranscriptFound(id, transcript.uri)
                             transcriptsTaken++
                             books.putMetadata(LibraryMetadataEntity("folder_transcript:$id", signature))
                             books.removeMetadata("folder_transcript_error:$id")
+                            books.removeMetadata("folder_transcript_declined:$id")
                             break
                         } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
                         catch (failure: Exception) {
