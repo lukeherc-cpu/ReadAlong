@@ -31,6 +31,7 @@ fun MainViewController(): UIViewController {
                 created.scope.launch(com.example.readalong.compat.IoDispatcher) { runCatching { created.importer.rescan() } }
             }
             app = created
+            if (Tour.requested) Tour.run(created)
         }
     }
     return ComposeUIViewController { ReadAlongApp(state) }
