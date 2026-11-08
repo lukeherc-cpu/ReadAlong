@@ -99,10 +99,7 @@ class BookFolderFiles(private val context: Context, private val database: ReadAl
         val name = baseName(location) + suffix
         return try {
             val mime = when (suffix) { EPUB -> "application/epub+zip"; COVER -> "image/jpeg"; else -> "application/octet-stream" }
-            val target = child(folder, name) ?: DocumentsContract.createDocument(resolver, folder, mime, name) ?: return null
-            val output = try { resolver.openOutputStream(target, "wt") } catch (_: IllegalArgumentException) { resolver.openOutputStream(target, "w") }
-            open().use { input -> requireNotNull(output).use { input.copyTo(it, 256 * 1024) } }
-            target
+            SafWrite.replace(resolver, folder, child(folder, name), name, mime) { output -> open().use { input -> input.copyTo(output, 256 * 1024) } }
         } catch (failure: Exception) {
             if (failure is kotlinx.coroutines.CancellationException) throw failure
             // Folders added before write access was asked for, or a provider that refuses: the copy in the app still works.
