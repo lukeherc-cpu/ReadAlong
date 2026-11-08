@@ -49,7 +49,7 @@ class AudiobookTranscriptionService : Service() {
             scope.launch {
                 try {
                     val job = app.database.processingDao().find(book)
-                    if (job != null && (job.state in setOf("CANCELLED", "FAILED", "WAITING_QUEUE") || ProcessingState.valueOf(job.state).active))
+                    if (job != null && (job.state in setOf("CANCELLED", "FAILED", "WAITING_QUEUE") || ProcessingState.of(job.state).active))
                         app.processing.transcribeNext(book)
                 } catch (cancelled: CancellationException) { throw cancelled }
                 catch (failure: Exception) {
@@ -125,7 +125,7 @@ class AudiobookTranscriptionService : Service() {
                     var failed: Exception? = null
                     while (!complete && currentCoroutineContext().isActive) {
                         val job = app.database.processingDao().find(book)
-                        if (job == null || job.workId != workId || !ProcessingState.valueOf(job.state).active || !app.processing.isTurn(book, workId)) { stop = true; break }
+                        if (job == null || job.workId != workId || !ProcessingState.of(job.state).active || !app.processing.isTurn(book, workId)) { stop = true; break }
                         if (ChargingPolicy.shouldWait(app)) { app.processing.waitForCharging(book, workId); stop = true; break }
                         if (!wakeLock.isHeld) wakeLock.acquire(6 * 60 * 60_000L)
                         if (resources.tooHot()) {
@@ -183,7 +183,7 @@ class AudiobookTranscriptionService : Service() {
         var left = delayMs
         while (left > 0) {
             val job = app.database.processingDao().find(book) ?: return
-            if (job.workId != workId || !ProcessingState.valueOf(job.state).active) return
+            if (job.workId != workId || !ProcessingState.of(job.state).active) return
             val attempt = job.message?.let { Regex("attempt (\\d+ of \\d+)").find(it)?.groupValues?.get(1) }
             status(book, workId, "QUEUED", "Hit a snag. Trying again in ${(left + 999) / 1000} s" +
                 (attempt?.let { " (attempt $it)" } ?: "") + ". Progress is saved.")
@@ -242,7 +242,7 @@ class AudiobookTranscriptionService : Service() {
 
     private suspend fun status(book: String, workId: String, state: String, message: String) = app.database.withTransaction {
         val current = app.database.processingDao().find(book) ?: return@withTransaction
-        if (current.workId == workId && (ProcessingState.valueOf(current.state).active || state == "FAILED" && current.state == "FAILED"))
+        if (current.workId == workId && (ProcessingState.of(current.state).active || state == "FAILED" && current.state == "FAILED"))
             app.database.processingDao().put(current.copy(state = state, message = message, updatedAt = System.currentTimeMillis()))
     }
     override fun onTimeout(startId: Int, fgsType: Int) {

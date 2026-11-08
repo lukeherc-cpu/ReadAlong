@@ -16,7 +16,7 @@ class ReadableVersionWorker(context: Context, parameters: WorkerParameters) : Co
         val bookId = inputData.getString("bookId") ?: return Result.failure()
         val app = applicationContext as ReadAlongApplication
         val current = app.database.processingDao().find(bookId) ?: return Result.success()
-        if (current.workId != id.toString() || !ProcessingState.valueOf(current.state).active) return Result.success()
+        if (current.workId != id.toString() || !ProcessingState.of(current.state).active) return Result.success()
         // Avoid several books loading/decoding concurrently or spending their job budgets waiting for inference.
         if (AudiobookTranscriptionService.running(bookId, id.toString())) return Result.success()
         val result = try {
@@ -61,7 +61,7 @@ class ReadableVersionWorker(context: Context, parameters: WorkerParameters) : Co
                     WorkManager.getInstance(applicationContext).getWorkInfoById(id).get()?.state == WorkInfo.State.CANCELLED
                 if (cancelledByApp && !ChargingPolicy.shouldWait(app)) app.database.withTransaction {
                     val job = app.database.processingDao().find(bookId)
-                    if (job?.workId == id.toString() && ProcessingState.valueOf(job.state).active) {
+                    if (job?.workId == id.toString() && ProcessingState.of(job.state).active) {
                         app.database.processingDao().put(job.copy(state = "CANCELLED",
                             message = "Preparation paused. Completed text, audio and saved positions remain available.", updatedAt = System.currentTimeMillis()))
                     }
@@ -102,7 +102,7 @@ class ReadableVersionWorker(context: Context, parameters: WorkerParameters) : Co
             withTimeout(15_000) {
                 while (!AudiobookTranscriptionService.running(bookId, id.toString())) {
                     val latest = app.database.processingDao().find(bookId)
-                    if (latest == null || latest.workId != id.toString() || !ProcessingState.valueOf(latest.state).active) break
+                    if (latest == null || latest.workId != id.toString() || !ProcessingState.of(latest.state).active) break
                     delay(50)
                 }
             }
@@ -118,7 +118,7 @@ class ReadableVersionWorker(context: Context, parameters: WorkerParameters) : Co
 
     private suspend fun fail(app: ReadAlongApplication, bookId: String, message: String) = app.database.withTransaction {
         val job = app.database.processingDao().find(bookId)
-        if (job?.workId == id.toString() && ProcessingState.valueOf(job.state).active)
+        if (job?.workId == id.toString() && ProcessingState.of(job.state).active)
             app.database.processingDao().put(job.copy(state = "FAILED", message = message, updatedAt = System.currentTimeMillis()))
     }
 

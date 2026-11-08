@@ -45,8 +45,9 @@ private object PhoneUpdates {
         if (manualCheck) manual.value = "Checking…"
         try {
             val result = withContext(Dispatchers.IO) { runCatching { UpdateCheck.fetchLatest("ReadAlong-Android/${BuildConfig.VERSION_NAME}") } }
-            prefs.edit().putLong("last_check", System.currentTimeMillis()).apply()
             result.onSuccess { latest ->
+                // Only a check that reached GitHub counts: offline at launch tries again next time.
+                prefs.edit().putLong("last_check", System.currentTimeMillis()).apply()
                 val available = UpdateCheck.offer(BuildConfig.VERSION_NAME, latest, skipped = if (manualCheck) null else prefs.getString("skipped", null))
                 offer.value = available
                 if (manualCheck) manual.value = if (available != null) null else "ReadAlong ${BuildConfig.VERSION_NAME} is the latest version."
@@ -68,6 +69,7 @@ fun UpdatePrompt() {
 @Composable
 private fun UpdateDialog(release: AppRelease) {
     val uriHandler = LocalUriHandler.current
+    val context = LocalContext.current
     val colors = MaterialTheme.colorScheme
     androidx.compose.ui.window.Dialog(onDismissRequest = { PhoneUpdates.offer.value = null }) {
         Surface(Modifier.fillMaxWidth().testTag("update_dialog"), shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp), color = colors.surfaceContainerHigh) {
@@ -81,6 +83,10 @@ private fun UpdateDialog(release: AppRelease) {
                 }, Modifier.fillMaxWidth().height(52.dp).testTag("update_download")) { Text("Download", style = MaterialTheme.typography.titleMedium) }
                 FilledTonalButton(onClick = { PhoneUpdates.offer.value = null }, Modifier.fillMaxWidth().height(52.dp).testTag("update_later")) {
                     Text("Later", style = MaterialTheme.typography.titleMedium)
+                }
+                // Not offered again automatically until a newer version is out; Check now in Settings still shows it.
+                TextButton(onClick = { PhoneUpdates.skip(context, release) }, Modifier.testTag("update_skip")) {
+                    Text("Skip ${release.version}", style = MaterialTheme.typography.titleSmall)
                 }
             }
         }

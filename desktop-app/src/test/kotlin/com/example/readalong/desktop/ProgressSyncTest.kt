@@ -34,12 +34,12 @@ class ProgressSyncTest {
         val local = book(folder, lastPlayedAt = 1_000_000)
         library.replaceAll { listOf(local) }
         local.companionFile(ProgressSync.EXTENSION).writeText(phoneFile(updatedAt = 2_000_000))
-        assertTrue(ProgressSync(library).sync(local))
+        assertTrue(ProgressSync(library, File(folder, "progress-seen.properties")).sync(local))
         val synced = library.book("b1")!!
         assertEquals(690_000, synced.positionMs)   // 02.mp3 starts at 10:00, plus 1:30 into it
         assertEquals(2_000_000, synced.lastPlayedAt)
         // Taking it doesn't bounce it back: nothing newer to write.
-        assertFalse(ProgressSync(library).sync(synced))
+        assertFalse(ProgressSync(library, File(folder, "progress-seen.properties")).sync(synced))
     }
 
     @Test fun newerComputerPositionIsWrittenForThePhone() {
@@ -48,7 +48,7 @@ class ProgressSyncTest {
         val local = book(folder, lastPlayedAt = 5_000_000, positionMs = 650_000)
         library.replaceAll { listOf(local) }
         local.companionFile(ProgressSync.EXTENSION).writeText(phoneFile(updatedAt = 2_000_000))
-        assertFalse(ProgressSync(library).sync(local))
+        assertFalse(ProgressSync(library, File(folder, "progress-seen.properties")).sync(local))
         assertFalse(File(folder, "${folder.name}.readalong-progress").exists())
         val written = JSONObject(BookStateFiles.section(File(folder, "${folder.name}.readalong-state").readText(), BookStateFiles.Part.PROGRESS)!!)
         assertEquals(AppPaths.platformName, written.getString("device"))
