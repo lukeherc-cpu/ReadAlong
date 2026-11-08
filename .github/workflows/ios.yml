@@ -46,6 +46,19 @@ jobs:
           mkdir -p ci-results
           ./gradlew -p ios-app --console=plain linkReleaseFrameworkIosArm64 2>&1 | tee ci-results/gradle.log
 
+      - name: Build whisper.cpp for iPhone (Metal + Accelerate)
+        run: |
+          set -o pipefail
+          git clone -q --depth 1 --branch "$WHISPER_CPP_VERSION" https://github.com/ggml-org/whisper.cpp ../whisper.cpp
+          cmake -S ios-app/iosApp/Whisper -B ../whisper-ios-build -DCMAKE_BUILD_TYPE=Release -DCMAKE_SYSTEM_NAME=iOS \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=16.0 -DWHISPER_CPP="$(cd ../whisper.cpp && pwd)" 2>&1 | tee ci-results/whisper.log
+          cmake --build ../whisper-ios-build --target readalong_whisper -j 4 2>&1 | tail -30 | tee -a ci-results/whisper.log
+          mkdir -p ios-app/build/whisper-ios
+          libs=$(find ../whisper-ios-build -name '*.a' | sort)
+          echo "$libs" | tee -a ci-results/whisper.log
+          libtool -static -o ios-app/build/whisper-ios/libreadalong_whisper_all.a $libs
+          nm -gU ios-app/build/whisper-ios/libreadalong_whisper_all.a 2>/dev/null | grep -c " T _rw_" | tee -a ci-results/whisper.log
+
       - name: Build the app
         run: |
           set -o pipefail

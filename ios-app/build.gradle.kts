@@ -56,11 +56,32 @@ fun asyncPickers(line: String): String {
     return out
 }
 
+// Dispatchers.IO is JVM-only; the iOS IoDispatcher is a thread pool of the same purpose.
+val ioDispatcher: (String) -> String = { line -> line.replace(Regex("(\\bkotlinx\\.coroutines\\.)?\\bDispatchers\\.IO\\b"), "com.example.readalong.compat.IoDispatcher") }
+
+// Kotlin can't smart-cast a property declared in another module, and the desktop's model classes are in :engine here.
+val crossModuleCasts: (String) -> String = { line ->
+    line.replace("File(book.epubPath).name", "File(book.epubPath!!).name").replace("seekBook(app, bookId, entry.startMs)", "seekBook(app, bookId, entry.startMs!!)")
+}
+
+// The desktop's access-ordered LinkedHashMap caches, as the iOS LruMap (Kotlin/Native's LinkedHashMap is final).
+val lruCache = Regex("""object : LinkedHashMap<(.+?)>\(\d+, \.75f, true\) \{\s*override fun removeEldestEntry\([^)]*\)\s*=\s*size > (\d+)\s*}""")
+val accessOrdered = Regex("""LinkedHashMap<(.+?)>\(\d+, \.75f, true\)""")
+
 val desktopSources by tasks.registering(Sync::class) {
     from(desktop) { include("ui/**"); exclude(iosOwn) }
     filter(compatImport)
     filter(::asyncPickers)
+    filter(ioDispatcher)
+    filter(crossModuleCasts)
     into(layout.buildDirectory.dir("desktop/com/example/readalong/desktop"))
+    doLast {
+        fileTree(destinationDir).matching { include("**/*.kt") }.forEach { f ->
+            val text = f.readText()
+            val rewritten = accessOrdered.replace(lruCache.replace(text) { "LruMap<${it.groupValues[1]}>(${it.groupValues[2]})" }) { "LruMap<${it.groupValues[1]}>(Int.MAX_VALUE)" }
+            if (rewritten != text) f.writeText(rewritten)
+        }
+    }
 }
 // The phone's reading UI pieces the desktop app also compiles (see desktop-app/build.gradle.kts).
 val phoneSources by tasks.registering(Sync::class) {
@@ -87,6 +108,8 @@ kotlin {
         target.binaries.framework {
             baseName = "ReadAlongKit"
             isStatic = true
+            // Swift implements the engine's WhisperEngine and installs it in WhisperNative (iosApp/Sources).
+            export(project(":engine"))
         }
     }
     sourceSets {
@@ -94,7 +117,7 @@ kotlin {
             kotlin.srcDir(desktopSources.map { layout.buildDirectory.dir("desktop").get() })
             kotlin.srcDir(phoneSources.map { layout.buildDirectory.dir("phone").get() })
             dependencies {
-                implementation(project(":engine"))
+                api(project(":engine"))
                 implementation(compose.runtime)
                 implementation(compose.foundation)
                 implementation(compose.material3)

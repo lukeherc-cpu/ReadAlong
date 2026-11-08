@@ -7,7 +7,7 @@ import org.jetbrains.skia.ColorAlphaType
 import org.jetbrains.skia.Image
 import org.jetbrains.skia.ImageInfo
 
-class BufferedImage internal constructor(internal var image: Image) {
+class BufferedImage internal constructor(var image: Image) {
     constructor(width: Int, height: Int, @Suppress("UNUSED_PARAMETER") type: Int) : this(blank(width, height))
     val width: Int get() = image.width
     val height: Int get() = image.height

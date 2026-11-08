@@ -46,7 +46,7 @@ fun coverMenu(app: AppState, book: LibraryBook): List<ContextMenuItem> = listOf(
 
 fun chooseCoverFile(app: AppState, book: LibraryBook) {
     pickImage { file ->
-        app.scope.launch(Dispatchers.IO) {
+        app.scope.launch(com.example.readalong.compat.IoDispatcher) {
             runCatching {
                 val bytes = file.readBytes()
                 require(InternetCovers.readable(bytes)) { "That file isn't an image ReadAlong can read." }
@@ -112,7 +112,7 @@ fun CoverSearchDialog(app: AppState) {
                                         scope.launch {
                                             try {
                                                 val bytes = InternetCovers.download(cover.url)
-                                                withContext(Dispatchers.IO) { setCover(app, book, bytes) }
+                                                withContext(com.example.readalong.compat.IoDispatcher) { setCover(app, book, bytes) }
                                                 close()
                                             } catch (cancelled: CancellationException) { throw cancelled }
                                             catch (failure: Exception) { error = failure.message ?: "That cover couldn't be downloaded." }
@@ -139,7 +139,7 @@ fun CoverSearchDialog(app: AppState) {
 @Composable
 private fun CoverResult(cover: InternetCovers.Cover, busy: Boolean, enabled: Boolean, onPick: () -> Unit) {
     val image by produceState<ImageBitmap?>(null, cover.url) {
-        value = runCatching { withContext(Dispatchers.IO) { org.jetbrains.skia.Image.makeFromEncoded(InternetCovers.download(cover.url)).toComposeImageBitmap() } }.getOrNull()
+        value = runCatching { withContext(com.example.readalong.compat.IoDispatcher) { org.jetbrains.skia.Image.makeFromEncoded(InternetCovers.download(cover.url)).toComposeImageBitmap() } }.getOrNull()
     }
     val interaction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     val hovered by interaction.collectIsHoveredAsState()
