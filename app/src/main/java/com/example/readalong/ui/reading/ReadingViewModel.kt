@@ -79,7 +79,6 @@ class ReadingViewModel(val bookId: String, val database: ReadAlongDatabase, priv
         database.bookDao().putMetadata(com.example.readalong.data.local.LibraryMetadataEntity("epub_prompt:$bookId", "true"))
         if (dontAskAgain) database.bookDao().putMetadata(com.example.readalong.data.local.LibraryMetadataEntity("hide_missing_epub", "true"))
     }
-    fun startPreparationIfNeeded() = action { processing.ensureStarted(bookId) }
     fun addEpub(uri: android.net.Uri) = action {
         mutableImportBusy.value = true
         try { requireNotNull(imported).import(bookId, uri) }

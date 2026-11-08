@@ -73,7 +73,7 @@ class ProcessingRepository(private val context: Context, private val database: R
             ProcessingJobEntity(bookId, UUID.randomUUID().toString(), SpeechModelStore.ID, "WAITING_SELECTION", 0, 0,
                 "Ready to play. Make a ReadAlong from the player whenever you like.", System.currentTimeMillis()))
     }
-    /** Opening the listening book promotes eligible work; explicit pauses and finished books remain intact. */
+    /** Promotes eligible work without starting paused or finished books (used by the instrumented tests). */
     suspend fun ensureStarted(bookId: String) = prepare(bookId, onlyIfNeeded = true,
         first = database.bookDao().metadata("keep_queue_order:$bookId") != "true")
     suspend fun chooseImportPriority(bookId: String, first: Boolean) {
@@ -457,4 +457,3 @@ class ProcessingRepository(private val context: Context, private val database: R
 
 }
 
-class TranscriptionLimitException : IllegalStateException("One book is transcribed at a time. Others wait in the queue.")

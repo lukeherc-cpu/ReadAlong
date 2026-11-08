@@ -18,5 +18,3 @@ internal object RecognitionSlots {
         try { block(services[slot]) } finally { withContext(NonCancellable) { lock.withLock { used[slot] = false } } }
     }
 }
-class SecondRecognitionService : RecognitionService()
-class ThirdRecognitionService : RecognitionService()
