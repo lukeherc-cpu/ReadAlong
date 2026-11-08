@@ -32,6 +32,9 @@ android {
         }
         create("play") {
             dimension = "distribution"
+            // Google Play refuses com.example ids. The GitHub build keeps com.example.readalong so it still updates
+            // over what people have installed; the Play build is a separate app with its own id.
+            applicationId = "io.github.lukeherc_cpu.readalong"
             buildConfigField("boolean", "TIP_JAR_ENABLED", "false")
             buildConfigField("String", "KOFI_URL", "\"\"")
         }
