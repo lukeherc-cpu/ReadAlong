@@ -46,6 +46,7 @@ fun ByteArray.toString(charset: Charset): String = decode(this, 0, size, charset
 fun String(bytes: ByteArray, charset: Charset): String = decode(bytes, 0, bytes.size, charset)
 fun String(bytes: ByteArray, offset: Int, length: Int, charset: Charset): String = decode(bytes, offset, length, charset)
 fun String(bytes: ByteArray): String = bytes.decodeToString()
+fun String(bytes: ByteArray, offset: Int, length: Int): String = bytes.decodeToString(offset, offset + length)
 fun String(chars: CharArray): String = chars.concatToString()
 fun String(chars: CharArray, offset: Int, length: Int): String = chars.concatToString(offset, offset + length)
 
