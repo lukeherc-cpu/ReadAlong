@@ -92,11 +92,21 @@ class ProcessingRepository(private val context: Context, private val database: R
     }
     /** Explicit repair after an engine/timing update or a stopped ReadAlong; opening a book never invokes this. */
     suspend fun rebuild(bookId: String) {
+        declineFolderTranscript(bookId)
         cancel(bookId)
         forgetAudioCaches(bookId)
         listOf("preparation_retry:$bookId", "preparation_failure:$bookId", "stop_notification:$bookId").forEach { database.bookDao().removeMetadata(it) }
         clearStoppedNotification(bookId)
         prepare(bookId, first = true, fromBeginning = true)
+    }
+    /**
+     * The ReadAlong file beside the book was already taken in; after Remove or Rebuild the next folder scan
+     * must not bring the same file straight back. A newer file (a different signature) is still imported.
+     */
+    private suspend fun declineFolderTranscript(bookId: String) = withContext(Dispatchers.IO) {
+        database.bookDao().metadata("folder_transcript:$bookId")?.let {
+            database.bookDao().putMetadata(LibraryMetadataEntity("folder_transcript_declined:$bookId", it))
+        }
     }
     /** Saved MP3 frame positions are keyed by file, not book, so they outlive Delete book unless dropped here. */
     suspend fun forgetAudioCaches(bookId: String) = withContext(Dispatchers.IO) {
@@ -381,6 +391,7 @@ class ProcessingRepository(private val context: Context, private val database: R
      * again. Audio, an added EPUB's own text and the listening position are kept.
      */
     suspend fun removeTranscript(bookId: String) {
+        declineFolderTranscript(bookId)
         cancel(bookId)
         lock.withLock { withContext(Dispatchers.IO) {
             database.withTransaction {
