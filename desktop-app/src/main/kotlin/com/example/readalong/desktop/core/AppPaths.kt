@@ -43,7 +43,29 @@ object AppPaths {
 /** Writes through a temporary file, so a crash or power loss never leaves half a file. */
 fun File.writeAtomically(text: String) {
     parentFile?.mkdirs()
-    val temporary = File(parentFile, "$name.tmp")
-    temporary.writeText(text)
-    java.nio.file.Files.move(temporary.toPath(), toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING, java.nio.file.StandardCopyOption.ATOMIC_MOVE)
+    // Each write has its own temporary file, so two threads saving the same file can't move each other's half-written copy.
+    val temporary = File(parentFile, "$name.${java.util.UUID.randomUUID()}.tmp")
+    try {
+        temporary.writeText(text)
+        // Windows refuses to replace a file another thread or program (a reader, an antivirus scan) has open for a moment: try again briefly.
+        var attempt = 0
+        while (true) {
+            try {
+                java.nio.file.Files.move(temporary.toPath(), toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING, java.nio.file.StandardCopyOption.ATOMIC_MOVE)
+                break
+            } catch (busy: java.nio.file.FileSystemException) {
+                if (busy is java.nio.file.NoSuchFileException || ++attempt >= 10) throw busy
+                Thread.sleep(20L * attempt)
+            }
+        }
+    } finally { temporary.delete() }
+}
+
+/** Reads a small file another thread may be replacing: on Windows a read can fail while the replace is under way. */
+fun File.readTextRetrying(): String {
+    var attempt = 0
+    while (true) {
+        try { return readText() }
+        catch (busy: java.io.IOException) { if (++attempt >= 10 || !exists()) throw busy; Thread.sleep(20L * attempt) }
+    }
 }
