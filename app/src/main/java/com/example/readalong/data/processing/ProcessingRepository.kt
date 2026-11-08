@@ -30,7 +30,7 @@ class ProcessingRepository(private val context: Context, private val database: R
     }
     suspend fun recoverInterrupted(bookId: String, expectedWorkId: String, reason: String = "Your ReadAlong was interrupted.") = lock.withLock { withContext(Dispatchers.IO) {
         val current = database.processingDao().find(bookId) ?: return@withContext
-        if (current.workId != expectedWorkId || !ProcessingState.valueOf(current.state).active || AudiobookTranscriptionService.running(bookId, expectedWorkId)) return@withContext
+        if (current.workId != expectedWorkId || !ProcessingState.of(current.state).active || AudiobookTranscriptionService.running(bookId, expectedWorkId)) return@withContext
         val next = request(bookId)
         database.processingDao().put(current.copy(workId = next.id.toString(), state = "QUEUED",
             message = if (ChargingPolicy.shouldWait(context)) "Waiting for charging. Progress is saved; it continues when you plug in."
@@ -55,7 +55,7 @@ class ProcessingRepository(private val context: Context, private val database: R
     internal suspend fun handoffToForeground(bookId: String, expectedWorkId: String): Boolean = lock.withLock {
         withContext(Dispatchers.IO) {
             val job = database.processingDao().find(bookId) ?: return@withContext false
-            if (job.workId != expectedWorkId || !ProcessingState.valueOf(job.state).active || !isTurn(bookId, expectedWorkId)) return@withContext false
+            if (job.workId != expectedWorkId || !ProcessingState.of(job.state).active || !isTurn(bookId, expectedWorkId)) return@withContext false
             if (AudiobookTranscriptionService.running(bookId, expectedWorkId)) return@withContext true
             if (ChargingPolicy.shouldWait(context)) return@withContext false
             val book = database.bookDao().findBook(bookId) ?: return@withContext false
@@ -121,7 +121,7 @@ class ProcessingRepository(private val context: Context, private val database: R
     }
     suspend fun isTurn(bookId: String, workId: String): Boolean = database.withTransaction {
         val job = database.processingDao().find(bookId)
-        job?.workId == workId && ProcessingState.valueOf(job.state).active && database.processingDao().orderedQueue().filter { ProcessingState.valueOf(it.state).active }.take(MAX_ACTIVE).any { it.bookId == bookId }
+        job?.workId == workId && ProcessingState.of(job.state).active && database.processingDao().orderedQueue().filter { ProcessingState.of(it.state).active }.take(MAX_ACTIVE).any { it.bookId == bookId }
     }
     suspend fun move(bookId: String, direction: Int) = lock.withLock { withContext(Dispatchers.IO) {
         require(direction == -1 || direction == 1)
@@ -136,7 +136,7 @@ class ProcessingRepository(private val context: Context, private val database: R
     } }
     /** Reset a waiting worker's backoff without interrupting a running audio chunk. */
     private suspend fun wakeFirst(userInitiated: Boolean = false) {
-        for (candidate in database.processingDao().orderedQueue().filter { ProcessingState.valueOf(it.state).active }.take(MAX_ACTIVE)) {
+        for (candidate in database.processingDao().orderedQueue().filter { ProcessingState.of(it.state).active }.take(MAX_ACTIVE)) {
             val bookId = candidate.bookId
             val old = database.processingDao().find(bookId) ?: continue
             if (AudiobookTranscriptionService.running(bookId, old.workId)) continue
@@ -145,7 +145,7 @@ class ProcessingRepository(private val context: Context, private val database: R
             val next = request(bookId, userInitiated)
             database.withTransaction {
                 val latest = database.processingDao().find(bookId)
-                if (latest?.workId == old.workId && ProcessingState.valueOf(latest.state).active)
+                if (latest?.workId == old.workId && ProcessingState.of(latest.state).active)
                     database.processingDao().put(latest.copy(workId = next.id.toString(), state = "QUEUED"))
             }
             if (database.processingDao().find(bookId)?.workId == next.id.toString())
@@ -201,12 +201,12 @@ class ProcessingRepository(private val context: Context, private val database: R
             if (application?.database === database) com.example.readalong.data.transcription.AutomaticModelDownload.ensure(context, model, requestedForBook = true)
             return@withContext
         }
-        if (!fromBeginning && !book.isDemo && old != null && ProcessingState.valueOf(old.state).active && AudiobookTranscriptionService.running(bookId, old.workId)) {
+        if (!fromBeginning && !book.isDemo && old != null && ProcessingState.of(old.state).active && AudiobookTranscriptionService.running(bookId, old.workId)) {
             if (first || userInitiated) database.processingDao().position(bookId, queuePosition)
             return@withContext
         }
         val currentWork = manager.getWorkInfosForUniqueWork(name(bookId)).get().any { !it.state.isFinished }
-        if (!recoverMissing && !userInitiated && currentWork && old != null && ProcessingState.valueOf(old.state).active) {
+        if (!recoverMissing && !userInitiated && currentWork && old != null && ProcessingState.of(old.state).active) {
             if (first || userInitiated) database.processingDao().position(bookId, queuePosition)
             if (first || userInitiated) wakeFirst(userInitiated)
             return@withContext
@@ -219,7 +219,7 @@ class ProcessingRepository(private val context: Context, private val database: R
                 database.bookDao().removeMetadata("paused_notification:$bookId")
                 val fingerprint = TranscriptionPlan.fingerprint(database, bookId)
                 val continuable = !fromBeginning && old?.engineId == engineId && old.planJson != null &&
-                    (old.state in listOf("CANCELLED", "FAILED", "WAITING_MODEL", "WAITING_SELECTION", "WAITING_QUEUE") || ProcessingState.valueOf(old.state).active)
+                    (old.state in listOf("CANCELLED", "FAILED", "WAITING_MODEL", "WAITING_SELECTION", "WAITING_QUEUE") || ProcessingState.of(old.state).active)
                 // Only file lengths changed (playing the book corrects them): keep the finished work on the new plan.
                 val rebased = if (continuable && !book.isDemo && old!!.sourceFingerprint != null && old.sourceFingerprint != fingerprint)
                     TranscriptionPlan.rebase(database, old) else null
@@ -253,7 +253,7 @@ class ProcessingRepository(private val context: Context, private val database: R
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (failure: Exception) {
             val current = database.processingDao().find(bookId)
-            if (current?.workId == request.id.toString() && ProcessingState.valueOf(current.state).active) {
+            if (current?.workId == request.id.toString() && ProcessingState.of(current.state).active) {
                 database.processingDao().put(current.copy(state = "QUEUED", message = "Android delayed the start. Your ReadAlong will continue from where it left off.", updatedAt = System.currentTimeMillis()))
                 manager.enqueueUniqueWork(name(bookId), ExistingWorkPolicy.REPLACE, request).result.get()
             } else database.processingDao().put((current ?: ProcessingJobEntity(bookId, request.id.toString(), engineId, "FAILED", 0, 0, null, 0))
@@ -264,7 +264,7 @@ class ProcessingRepository(private val context: Context, private val database: R
     /** Append before the current worker succeeds; Room records the intent first for crash recovery. */
     suspend fun continuePreparation(bookId: String, workId: String, cooldownMs: Long = 0) = lock.withLock { withContext(NonCancellable + Dispatchers.IO) {
         val current = database.processingDao().find(bookId) ?: return@withContext
-        if (current.workId != workId || !ProcessingState.valueOf(current.state).active) return@withContext
+        if (current.workId != workId || !ProcessingState.of(current.state).active) return@withContext
         val next = request(bookId, cooldownMs = cooldownMs)
         database.processingDao().put(current.copy(workId = next.id.toString(), state = "QUEUED",
             message = if (ChargingPolicy.shouldWait(context)) "Waiting for charging. Progress is saved; it continues when you plug in."
@@ -276,7 +276,7 @@ class ProcessingRepository(private val context: Context, private val database: R
     /** Release the foreground service while power is unavailable; WorkManager survives process death. */
     suspend fun waitForCharging(bookId: String, workId: String) = lock.withLock { withContext(Dispatchers.IO) {
         val current = database.processingDao().find(bookId) ?: return@withContext
-        if (current.workId != workId || !ProcessingState.valueOf(current.state).active) return@withContext
+        if (current.workId != workId || !ProcessingState.of(current.state).active) return@withContext
         val next = request(bookId)
         database.processingDao().put(current.copy(workId = next.id.toString(), state = "QUEUED",
             message = "Waiting for charging. Progress is saved; it continues when you plug in.", updatedAt = System.currentTimeMillis()))
@@ -312,7 +312,7 @@ class ProcessingRepository(private val context: Context, private val database: R
     private suspend fun resumeFromPower(bookId: String) = lock.withLock { withContext(Dispatchers.IO) {
         if (ChargingPolicy.shouldWait(context)) return@withContext
         val current = database.processingDao().find(bookId) ?: return@withContext
-        if (!ProcessingState.valueOf(current.state).active || current.message?.startsWith("Waiting for charging") != true) return@withContext
+        if (!ProcessingState.of(current.state).active || current.message?.startsWith("Waiting for charging") != true) return@withContext
         // Expedited WorkManager work is allowed from a power broadcast even when a
         // foreground-service launch would be restricted by Android in the background.
         val next = request(bookId, expedite = true)
@@ -358,8 +358,8 @@ class ProcessingRepository(private val context: Context, private val database: R
         database.bookDao().putMetadata(LibraryMetadataEntity("paused_notification:$bookId", "true"))
         database.withTransaction {
             val job = database.processingDao().find(bookId) ?: return@withTransaction
-            if (ProcessingState.valueOf(job.state).active) database.bookDao().putMetadata(LibraryMetadataEntity("transcription_queue_running", "false"))
-            if (ProcessingState.valueOf(job.state).active || job.state in setOf("WAITING_MODEL", "WAITING_QUEUE")) database.processingDao().put(job.copy(state = "CANCELLED",
+            if (ProcessingState.of(job.state).active) database.bookDao().putMetadata(LibraryMetadataEntity("transcription_queue_running", "false"))
+            if (ProcessingState.of(job.state).active || job.state in setOf("WAITING_MODEL", "WAITING_QUEUE")) database.processingDao().put(job.copy(state = "CANCELLED",
                 message = "Paused. Progress so far is kept.", updatedAt = System.currentTimeMillis()))
         }
         manager.cancelUniqueWork(name(bookId)).result.get()
@@ -421,7 +421,7 @@ class ProcessingRepository(private val context: Context, private val database: R
         // Migrate old simultaneous jobs into waiting entries, retaining all saved chunks and order.
         if (database.processingDao().unfinished().isNotEmpty()) database.bookDao().putMetadata(LibraryMetadataEntity("transcription_queue_running", "true"))
         lock.withLock { withContext(Dispatchers.IO) {
-            database.processingDao().orderedQueue().filter { ProcessingState.valueOf(it.state).active }.drop(MAX_ACTIVE).forEach { defer(it) }
+            database.processingDao().orderedQueue().filter { ProcessingState.of(it.state).active }.drop(MAX_ACTIVE).forEach { defer(it) }
             database.processingDao().registeredQueue().filter { it.state == "CANCELLED" &&
                 database.bookDao().metadata("paused_notification:${it.bookId}") != "true" }.forEach {
                 database.processingDao().put(it.copy(state = "WAITING_QUEUE"))
@@ -431,7 +431,7 @@ class ProcessingRepository(private val context: Context, private val database: R
             if (database.bookDao().findBook(job.bookId)?.isDemo == false && model.find(job.engineId) == null) {
                 lock.withLock {
                     val latest = database.processingDao().find(job.bookId)
-                    if (latest != null && model.find(latest.engineId) == null && ProcessingState.valueOf(latest.state).active) {
+                    if (latest != null && model.find(latest.engineId) == null && ProcessingState.of(latest.state).active) {
                         database.processingDao().put(latest.copy(state = "CANCELLED",
                             message = "ReadAlong has a new speech model. Resume to make this book's ReadAlong with it; your listening position is kept.", updatedAt = System.currentTimeMillis()))
                         withContext(Dispatchers.IO) { manager.cancelUniqueWork(name(job.bookId)).result.get() }
