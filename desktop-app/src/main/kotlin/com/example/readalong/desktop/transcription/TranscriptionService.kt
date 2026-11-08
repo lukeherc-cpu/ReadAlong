@@ -66,7 +66,11 @@ class TranscriptionService(private val scope: CoroutineScope, private val librar
     val devices: StateFlow<List<Device>?> = mutableDevices
     private val mutableMessages = MutableSharedFlow<String>(extraBufferCapacity = 8)
     val messages: SharedFlow<String> = mutableMessages
-    private val mutableErrors = MutableStateFlow(emptyMap<String, String>())
+    /** Why each stopped book stopped, kept beside queue.json so a restart still shows it under Stopped. */
+    private val errorsFile = File(AppPaths.data, "errors.json")
+    private val mutableErrors = MutableStateFlow(runCatching {
+        org.json.JSONObject(errorsFile.readText()).let { o -> o.keys().asSequence().associateWith { o.getString(it) } }
+    }.getOrDefault(emptyMap()))
     val errors: StateFlow<Map<String, String>> = mutableErrors
     private val finishedFile = File(AppPaths.data, "queue-finished.json")
     private val mutableFinished = MutableStateFlow(loadList(finishedFile))
@@ -105,7 +109,7 @@ class TranscriptionService(private val scope: CoroutineScope, private val librar
 
     /** Adds [bookId] to the queue (first, if [now]) and starts working. */
     fun enqueue(bookId: String, now: Boolean = false) {
-        mutableErrors.update { it - bookId }
+        updateErrors { it - bookId }
         if (bookId in mutableFinished.value) { mutableFinished.update { it - bookId }; saveFinished() }
         mutableQueue.update { queue -> if (now) listOf(bookId) + (queue - bookId) else if (bookId in queue) queue else queue + bookId }
         saveQueue()
@@ -137,12 +141,12 @@ class TranscriptionService(private val scope: CoroutineScope, private val librar
         if (mutableJob.value != null && mutableQueue.value.firstOrNull() != mutableJob.value?.bookId) restart()
     }
     /** Takes a stopped book off the queue's "Stopped" list; whatever it made so far stays. */
-    fun dismissError(bookId: String) = mutableErrors.update { it - bookId }
+    fun dismissError(bookId: String) = updateErrors { it - bookId }
     /** A finished ReadAlong arrived from the phone: the book leaves the queue and shows under "Transcribed", as if made here. */
     fun imported(bookId: String) {
         if (mutableJob.value?.bookId == bookId) restart()
         mutableQueue.update { it - bookId }; saveQueue()
-        mutableErrors.update { it - bookId }
+        updateErrors { it - bookId }
         mutableFinished.update { listOf(bookId) + (it - bookId) }; saveFinished()
     }
     /** Takes a finished book off the queue's "Transcribed" list; its ReadAlong stays. */
@@ -171,7 +175,7 @@ class TranscriptionService(private val scope: CoroutineScope, private val librar
                 mutableMessages.tryEmit("Your ReadAlong of ${book.title} is ready.")
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (failure: Exception) {
-                mutableErrors.update { it + (bookId to (failure.message ?: "Transcription stopped.")) }
+                updateErrors { it + (bookId to (failure.message ?: "Transcription stopped.")) }
                 mutableQueue.update { it - bookId }; saveQueue()
                 mutableMessages.tryEmit("ReadAlong stopped for ${book.title}: ${failure.message}")
             } finally { mutableJob.value = null }
@@ -399,6 +403,10 @@ class TranscriptionService(private val scope: CoroutineScope, private val librar
     private fun loadQueue(): List<String> = loadList(queueFile)
     private fun loadList(file: File): List<String> = runCatching { JSONArray(file.readText()).let { a -> List(a.length()) { a.getString(it) } } }.getOrDefault(emptyList())
     private fun saveFinished() = runCatching { finishedFile.writeAtomically(JSONArray(mutableFinished.value).toString()) }
+    private fun updateErrors(change: (Map<String, String>) -> Map<String, String>) {
+        mutableErrors.update(change)
+        runCatching { errorsFile.writeAtomically(org.json.JSONObject(mutableErrors.value).toString()) }
+    }
     private fun saveQueue() = runCatching { queueFile.writeAtomically(JSONArray(mutableQueue.value).toString()) }
 
     private companion object {
