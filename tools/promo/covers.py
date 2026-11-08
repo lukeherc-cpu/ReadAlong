@@ -11,8 +11,11 @@ for i, (title, author) in enumerate(BOOKS):
     docs = json.loads(get("https://openlibrary.org/search.json?" + urllib.parse.urlencode({"title": title, "author": author, "limit": 5, "fields": "title,cover_i,edition_count"})))["docs"]
     cover = next(d["cover_i"] for d in docs if d.get("cover_i"))
     img = Image.open(io.BytesIO(get(f"https://covers.openlibrary.org/b/id/{cover}-L.jpg"))).convert("RGB")
-    # Audiobook covers are square: centre-crop the print cover.
-    w, h = img.size; s = min(w, h); img = img.crop(((w - s) // 2, (h - s) // 2, (w - s) // 2 + s, (h - s) // 2 + s))
+    # Audiobook covers are square: the whole print cover, centred on a blurred, enlarged copy of itself.
+    from PIL import ImageFilter
+    w, h = img.size; s = max(w, h)
+    back = img.resize((s, s)).filter(ImageFilter.GaussianBlur(s // 18))
+    back.paste(img, ((s - w) // 2, (s - h) // 2)); img = back
     img.save(f"{OUT}/covers/cover-{i}.png"); print(title, cover, img.size)
     lines.append(f"{title}|{author}")
 open(f"{OUT}/titles.txt", "w").write("\n".join(lines) + "\n")
