@@ -57,7 +57,9 @@ fun asyncPickers(line: String): String {
 }
 
 // Dispatchers.IO is JVM-only; the iOS IoDispatcher is a thread pool of the same purpose.
-val ioDispatcher: (String) -> String = { line -> line.replace(Regex("(\\bkotlinx\\.coroutines\\.)?\\bDispatchers\\.IO\\b"), "com.example.readalong.compat.IoDispatcher") }
+val ioDispatcher: (String) -> String = { line -> line.replace(Regex("(\\bkotlinx\\.coroutines\\.)?\\bDispatchers\\.IO\\b"), "com.example.readalong.compat.IoDispatcher")
+    // A JVM platform type there; never null on iOS either.
+    .replace("System.getProperty(\"user.home\")", "System.getProperty(\"user.home\")!!") }
 
 // Kotlin can't smart-cast a property declared in another module, and the desktop's model classes are in :engine here.
 val crossModuleCasts: (String) -> String = { line ->

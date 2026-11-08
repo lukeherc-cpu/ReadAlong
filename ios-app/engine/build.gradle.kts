@@ -16,7 +16,9 @@ val iosOwn = listOf(
 val compatImport: (String) -> String = { line -> if (line.startsWith("package ")) "$line\n\nimport com.example.readalong.compat.*" else line }
 
 /** Kotlin/Native keeps Dispatchers.IO internal, so the shared code's IO work goes to compat's IoDispatcher. */
-val ioDispatcher: (String) -> String = { line -> line.replace(Regex("(\\bkotlinx\\.coroutines\\.)?\\bDispatchers\\.IO\\b"), "com.example.readalong.compat.IoDispatcher") }
+val ioDispatcher: (String) -> String = { line -> line.replace(Regex("(\\bkotlinx\\.coroutines\\.)?\\bDispatchers\\.IO\\b"), "com.example.readalong.compat.IoDispatcher")
+    // A JVM platform type there; never null on iOS either.
+    .replace("System.getProperty(\"user.home\")", "System.getProperty(\"user.home\")!!") }
 
 /**
  * `@Synchronized fun x(…) { … }` and `@Synchronized fun x(…) = …` take the JVM object's monitor; there is no such

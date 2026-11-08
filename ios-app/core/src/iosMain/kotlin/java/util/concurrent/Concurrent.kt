@@ -22,8 +22,8 @@ class CancellationException(message: String? = null) : IllegalStateException(mes
 internal inline fun <R> NSRecursiveLock.locked(block: () -> R): R { lock(); try { return block() } finally { unlock() } }
 
 class ConcurrentHashMap<K, V>(initial: Int = 16) : MutableMap<K, V> {
-    private val map = HashMap<K, V>(initial)
-    private val lock = NSRecursiveLock()
+    @PublishedApi internal val map = HashMap<K, V>(initial)
+    @PublishedApi internal val lock = NSRecursiveLock()
     override val size: Int get() = lock.locked { map.size }
     override fun isEmpty() = lock.locked { map.isEmpty() }
     override fun containsKey(key: K) = lock.locked { map.containsKey(key) }
@@ -38,7 +38,8 @@ class ConcurrentHashMap<K, V>(initial: Int = 16) : MutableMap<K, V> {
     override val values: MutableCollection<V> get() = lock.locked { map.values.toMutableList() }
     override val entries: MutableSet<MutableMap.MutableEntry<K, V>> get() = lock.locked { LinkedHashMap(map).entries }
     fun putIfAbsent(key: K, value: V): V? = lock.locked { map[key] ?: run { map[key] = value; null } }
-    fun getOrPut(key: K, defaultValue: () -> V): V = lock.locked { map.getOrPut(key, defaultValue) }
+    // Inline like the standard library's getOrPut, so the block may `return` from the caller.
+    inline fun getOrPut(key: K, defaultValue: () -> V): V { lock.lock(); try { return map.getOrPut(key, defaultValue) } finally { lock.unlock() } }
     fun computeIfAbsent(key: K, f: (K) -> V): V = lock.locked { map.getOrPut(key) { f(key) } }
     fun compute(key: K, f: (K, V?) -> V?): V? = lock.locked { val v = f(key, map[key]); if (v == null) map.remove(key) else map[key] = v; v }
     fun merge(key: K, value: V, f: (V, V) -> V?): V? = lock.locked { val old = map[key]; val v = if (old == null) value else f(old, value); if (v == null) map.remove(key) else map[key] = v; v }

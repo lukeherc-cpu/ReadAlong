@@ -119,7 +119,7 @@ object System {
     fun arraycopy(src: ByteArray, srcPos: Int, dest: ByteArray, destPos: Int, length: Int) { src.copyInto(dest, destPos, srcPos, srcPos + length) }
     fun arraycopy(src: ShortArray, srcPos: Int, dest: ShortArray, destPos: Int, length: Int) { src.copyInto(dest, destPos, srcPos, srcPos + length) }
     fun arraycopy(src: FloatArray, srcPos: Int, dest: FloatArray, destPos: Int, length: Int) { src.copyInto(dest, destPos, srcPos, srcPos + length) }
-    fun getProperty(key: String): String? = properties[key] ?: when (key) { "os.name" -> "iOS"; "line.separator" -> "\n"; else -> null }
+    fun getProperty(key: String): String? = properties[key] ?: when (key) { "os.name" -> "iOS"; "line.separator" -> "\n"; "user.home" -> platform.Foundation.NSHomeDirectory(); else -> null }
     fun getProperty(key: String, fallback: String): String = getProperty(key) ?: fallback
     fun lineSeparator() = "\n"
     fun identityHashCode(o: Any?): Int = o?.hashCode() ?: 0
