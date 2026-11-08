@@ -68,12 +68,40 @@ val crossModuleCasts: (String) -> String = { line ->
 val lruCache = Regex("""object : LinkedHashMap<(.+?)>\(\d+, \.75f, true\) \{\s*override fun removeEldestEntry\([^)]*\)\s*=\s*size > (\d+)\s*}""")
 val accessOrdered = Regex("""LinkedHashMap<(.+?)>\(\d+, \.75f, true\)""")
 
+// Desktop wording that doesn't fit an iPhone: dropping files on a window, keyboard shortcuts, "this computer",
+// and linking a phone (the iPhone links to a computer instead).
+val phoneWording = listOf(
+    "Text(\"Or drop folders and files on the window\"" to "if (false) Text(\"\"",
+    "Text(\"Drop a folder here to add it\"" to "if (false) Text(\"\"",
+    "Text(\"or drop it here\"" to "if (false) Text(\"\"",
+    "Audiobooks already on this computer" to "Audiobooks in the Files app",
+    "They're saved on this computer and added" to "They're saved on this iPhone and added",
+    "Sign in in the window that opened." to "Sign in on the page that opened.",
+    "copy that page's address (Ctrl+L, then Ctrl+C) and" to "copy that page's address and",
+    "\"Sync to phone\"" to "\"Sync with computer\"",
+    "Your phone will sync within a minute while ReadAlong is open on it and on the same Wi-Fi." to "Syncing with your computer…",
+    "Put it beside the audiobook on your phone and rescan." to "It's in the Files app under ReadAlong › Exports.",
+    "on this computer. \"" to "on this iPhone. \"",
+    "Checking this computer's graphics card…" to "Checking this iPhone's graphics…",
+    "No graphics card that ReadAlong can use was found, so it transcribes on the processor. Updating the graphics driver can help." to
+        "This iPhone transcribes on its processor.",
+    "\"Link a phone\"" to "\"Link a computer\"",
+    "with ReadAlong on your phone\"" to "with ReadAlong on your computer\"",
+    "in the format the phone app imports. When the same folder is on your phone, " to "in the format ReadAlong on a computer or Android imports. When the same folder is synced there, ",
+    "its library scan picks the transcript up, so the phone doesn't need" to "its library scan picks the transcript up, so it doesn't need",
+    " (Esc)\"" to "\"",
+    "Search (\${AppPaths.shortcutKey}F)" to "Search",
+    "Hint(\"Keyboard: Space plays and pauses, ← and → skip, Esc goes back, \${AppPaths.shortcutKey}F searches the text.\")" to "Unit",
+)
+val iphoneWording: (String) -> String = { line -> phoneWording.fold(line) { text, (desktopText, phoneText) -> text.replace(desktopText, phoneText) } }
+
 val desktopSources by tasks.registering(Sync::class) {
     from(desktop) { include("ui/**"); exclude(iosOwn) }
     filter(compatImport)
     filter(::asyncPickers)
     filter(ioDispatcher)
     filter(crossModuleCasts)
+    filter(iphoneWording)
     into(layout.buildDirectory.dir("desktop/com/example/readalong/desktop"))
     doLast {
         fileTree(destinationDir).matching { include("**/*.kt") }.forEach { f ->

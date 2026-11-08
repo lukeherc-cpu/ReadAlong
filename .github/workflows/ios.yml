@@ -17,6 +17,11 @@ on:
 permissions:
   contents: write
 
+# A newer push replaces a run still going on the same branch (a release run is never cancelled).
+concurrency:
+  group: ios-${{ github.ref }}-${{ inputs.release && 'release' || 'build' }}
+  cancel-in-progress: ${{ !inputs.release }}
+
 env:
   WHISPER_CPP_VERSION: v1.8.7
 
