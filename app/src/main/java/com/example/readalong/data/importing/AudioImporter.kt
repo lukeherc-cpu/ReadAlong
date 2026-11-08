@@ -117,7 +117,7 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
      */
     suspend fun preview(uri: Uri): FolderPreview = withContext(Dispatchers.IO) {
         val root = requireNotNull(DocumentFile.fromTreeUri(context, uri)) { "Couldn't open this folder." }
-        check(root.exists() && root.canRead()) { "Couldn't read this folder. Choose it again." }
+        check(readable(root)) { "Couldn't read this folder. Choose it again." }
         val name = root.name ?: "Audiobooks"
         val top = FolderEntry.folder(root.uri, root.name)
         val walk = Walk(resolver)
@@ -159,7 +159,7 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
         try {
             media.putFolder(saved.copy(error = SCAN_INCOMPLETE))
             val root = requireNotNull(DocumentFile.fromTreeUri(context, uri))
-            check(root.exists() && root.canRead()) { "Folder access was lost. Add this folder again to restore access." }
+            check(readable(root)) { "Folder access was lost. Add this folder again to restore access." }
             val top = FolderEntry.folder(root.uri, root.name)
             val walk = Walk(resolver)
             val groups = if (saved.mode == FolderMode.ONE_BOOK.name) listOf(Group("folder:${top.uri}", top.name, collect(top, walk), top)) else libraryGroups(top, walk)
@@ -279,6 +279,12 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
             throw failure
         } finally { mutableScanProgress.value = null }
     }
+
+    /**
+     * A folder ReadAlong can read. `canRead()` asks Android for a permission grant, and ReadAlong's own
+     * folder ([OwnFolderProvider]) never has one: the app reaches its own provider directly.
+     */
+    private fun readable(root: DocumentFile) = root.exists() && (OwnFolderProvider.isOwn(context, root.uri.toString()) || root.canRead())
 
     /** An empty library folder was added or scanned. */
     fun emptyLibraryMessage(folder: String) = "\u201c$folder\u201d is empty for now. Books you put in it, or sync from ReadAlong on your computer, will show up in your library."

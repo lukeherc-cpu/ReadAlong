@@ -22,6 +22,20 @@ import java.io.IOException
 class AudibleLibraryFolder(private val context: Context, private val importer: AudioImporter) {
     private val resolver = context.contentResolver
 
+    /**
+     * A book already moved into ReadAlong's own folder by an earlier try whose scan didn't finish, so a
+     * retry only scans again instead of asking Audible for another licence and downloading it again.
+     */
+    fun alreadyPlaced(title: String): List<File> = File(OwnFolderProvider.base(context), title).listFiles().orEmpty()
+        .filter { it.isFile && it.length() > 0 && it.extension.lowercase() in setOf("m4b", "mp3") }.sortedBy { it.name }
+
+    /** Scans ReadAlong's own folder, adding it to the library first if it isn't there yet. */
+    suspend fun scanOwn(): ImportResult {
+        val tree = OwnFolderProvider.treeUri(context)
+        return if (importer.folders.first().any { it.uri == tree.toString() }) importer.scan(tree)
+            else importer.addFolder(tree, FolderMode.LIBRARY, persistAccess = false)
+    }
+
     /** Moves [files] (a finished download, in order) into the book's folder and scans the library folder. */
     suspend fun place(title: String, files: List<File>): ImportResult {
         val writable = resolver.persistedUriPermissions.filter { it.isWritePermission }.map { it.uri.toString() }.toSet()
@@ -33,9 +47,7 @@ class AudibleLibraryFolder(private val context: Context, private val importer: A
         } else {
             val book = File(OwnFolderProvider.base(context), title).apply { mkdirs() }
             files.forEach { file -> move(file, File(book, file.name)) }
-            val tree = OwnFolderProvider.treeUri(context)
-            if (importer.folders.first().any { it.uri == tree.toString() }) importer.scan(tree)
-            else importer.addFolder(tree, FolderMode.LIBRARY, persistAccess = false)
+            scanOwn()
         }
     }
 
