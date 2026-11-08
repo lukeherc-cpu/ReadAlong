@@ -197,6 +197,10 @@ class AppState(val scope: CoroutineScope, private val background: Boolean = true
     }
 
     fun play(bookId: String) {
+        library.book(bookId)?.takeIf { it.missing && it.parts.none { part -> File(part.path).isFile } }?.let {
+            messages.tryEmit("The audio files of ${it.title} weren't found. Reconnect the drive, or add the folder where they are now.")
+            return
+        }
         if (player.state.value.bookId == bookId) player.play()
         else { library.book(bookId)?.let { runCatching { progress.sync(it) } }; player.open(bookId) }
     }
