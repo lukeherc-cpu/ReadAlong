@@ -102,9 +102,18 @@ fun AddPreviewDialog(model: ImportViewModel, origin: String, onAdded: () -> Unit
                 Text(label, style = MaterialTheme.typography.bodyLarge)
             }
         }
+        // Already in the library the other way: switching replaces its books, and with them what was made for them.
+        val replacing = shown.savedMode != null && shown.savedMode != mode && shown.savedBooks > 0
+        if (replacing) Text(
+            (if (shown.savedMode == FolderMode.LIBRARY) "This folder is in your library as ${shown.savedBooks} books. Adding it as one book replaces them."
+                else "This folder is in your library as one book. Adding it as separate books replaces it.") +
+                (if (shown.savedWork > 0) " Their ReadAlongs, listening positions and bookmarks will be deleted." else ""),
+            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().testTag("replace_warning"))
         Button(onClick = { model.confirmPreview(mode, restore); onAdded() }, enabled = deleted == 0 || restore || !everythingDeleted,
-            modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).testTag("confirm_add"), shape = RoundedCornerShape(28.dp)) {
-            Text(if (library) "Add $count books" else "Add book", style = MaterialTheme.typography.titleMedium)
+            modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).testTag("confirm_add"), shape = RoundedCornerShape(28.dp),
+            colors = if (replacing) ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error, contentColor = MaterialTheme.colorScheme.onError) else ButtonDefaults.buttonColors()) {
+            Text(if (replacing) (if (library) "Replace with $count books" else "Replace with 1 book") else if (library) "Add $count books" else "Add book", style = MaterialTheme.typography.titleMedium)
         }
         when {
             library -> TextButton(onClick = { mode = FolderMode.ONE_BOOK }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("as_one_book")) { Text("It's really one book") }

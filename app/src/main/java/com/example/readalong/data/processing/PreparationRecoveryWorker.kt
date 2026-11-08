@@ -13,7 +13,7 @@ class PreparationRecoveryWorker(context: Context, parameters: WorkerParameters) 
         val expected = inputData.getString("workId") ?: return Result.success()
         val app = applicationContext as ReadAlongApplication
         val job = app.database.processingDao().find(book) ?: return Result.success()
-        if (job.workId != expected || !ProcessingState.valueOf(job.state).active) return Result.success()
+        if (job.workId != expected || !ProcessingState.of(job.state).active) return Result.success()
         return try {
             if (AudiobookTranscriptionService.running(book, expected)) app.processing.guardForeground(book, expected, append = true)
             else app.processing.recoverInterrupted(book, expected)

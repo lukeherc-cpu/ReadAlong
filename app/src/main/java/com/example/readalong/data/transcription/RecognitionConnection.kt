@@ -8,6 +8,8 @@ import java.io.IOException
 import java.util.concurrent.atomic.AtomicBoolean
 
 class RecognitionConnection(private val context: Context, private val service: Class<out RecognitionService>? = null) {
+    /** Chunks recognized through this connection (one session). */
+    private var chunks = 0
     companion object {
         const val CONNECT_TIMEOUT_MS = 30_000L
         private val recentMs = ArrayDeque<Long>()
@@ -41,9 +43,14 @@ class RecognitionConnection(private val context: Context, private val service: C
     suspend fun transcribe(model: File, pcm: File, backend: String = "whistle", onMetrics: (LongArray) -> Unit = {}, onProgress: (Int) -> Unit = {}): String {
         if (service == null) return withSession { it.transcribe(model, pcm, backend, onMetrics, onProgress) }
         val limit = stallLimitMs()
+        // The first chunk of a session includes starting the process and mapping the model: it doesn't set the pace.
+        val first = chunks++ == 0
         val started = SystemClock.elapsedRealtime()
+        // Stalled means no progress from the recognizer for [limit], not a chunk slower than recent ones:
+        // a warm phone running slowly but steadily is left to finish. The hard ceiling still catches a hang.
+        val ceiling = limit * 4
         val result = try { withContext(Dispatchers.Main) {
-        withTimeout(limit) { suspendCancellableCoroutine<String> { continuation ->
+        withTimeout(ceiling) { suspendCancellableCoroutine<String> { continuation ->
             val requestId = java.util.UUID.randomUUID().toString()
             var remote: Messenger? = null
             val bound = AtomicBoolean(false)
@@ -57,11 +64,23 @@ class RecognitionConnection(private val context: Context, private val service: C
                     if (bound.compareAndSet(true, false)) runCatching { context.unbindService(connection) }
                 }
             }
-            fun unbind() { main.removeCallbacks(watchdog); if (bound.compareAndSet(true, false)) runCatching { context.unbindService(connection) } }
+            val stall = Runnable {
+                if (continuation.isActive) {
+                    continuation.resumeWith(Result.failure(IOException("Speech recognition stalled for ${limit / 1000} s. Retrying in a fresh session.")))
+                    // Stop the stuck native work (CANCEL ends that process), as a timeout's cancellation does.
+                    runCatching { remote?.send(Message.obtain(null, RecognitionService.CANCEL).apply { data = Bundle().apply { putString("requestId", requestId) } }) }
+                    if (bound.compareAndSet(true, false)) runCatching { context.unbindService(connection) }
+                }
+            }
+            fun unbind() { main.removeCallbacks(watchdog); main.removeCallbacks(stall); if (bound.compareAndSet(true, false)) runCatching { context.unbindService(connection) } }
             val reply = Messenger(object : Handler(Looper.getMainLooper()) {
                 override fun handleMessage(message: Message) {
                     if (message.what == RecognitionService.PROGRESS) {
-                        if (continuation.isActive) onProgress(message.arg1)
+                        if (continuation.isActive) { onProgress(message.arg1); main.removeCallbacks(stall); main.postDelayed(stall, limit) }
+                        return
+                    }
+                    if (message.what == RecognitionService.HEARTBEAT) {
+                        if (continuation.isActive) { main.removeCallbacks(stall); main.postDelayed(stall, limit) }
                         return
                     }
                     if (message.what != RecognitionService.RESULT) return
@@ -95,7 +114,7 @@ class RecognitionConnection(private val context: Context, private val service: C
             }
             bound.set(context.bindService(Intent(context, service), connection, Context.BIND_AUTO_CREATE or Context.BIND_IMPORTANT))
             if (!bound.get()) continuation.resumeWith(Result.failure(IOException("Couldn't start the speech model.")))
-            else main.postDelayed(watchdog, CONNECT_TIMEOUT_MS)
+            else { main.postDelayed(watchdog, CONNECT_TIMEOUT_MS); main.postDelayed(stall, limit) }
             continuation.invokeOnCancellation {
                 Handler(Looper.getMainLooper()).post {
                     runCatching { remote?.send(Message.obtain(null, RecognitionService.CANCEL).apply { data = Bundle().apply { putString("requestId", requestId) } }) }
@@ -104,9 +123,9 @@ class RecognitionConnection(private val context: Context, private val service: C
             }
         } }
         } } catch (stalled: TimeoutCancellationException) {
-            throw IOException("Speech recognition stalled for ${limit / 1000} s. Retrying in a fresh session.")
+            throw IOException("Speech recognition stalled for ${ceiling / 1000} s. Retrying in a fresh session.")
         }
-        record(SystemClock.elapsedRealtime() - started)
+        if (!first) record(SystemClock.elapsedRealtime() - started)
         return result
     }
 }

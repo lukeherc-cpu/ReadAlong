@@ -35,11 +35,19 @@ private fun UpdateBody(app: AppState, release: AppRelease) {
         Icon(AppIcons.get("ic_readalong"), null, Modifier.size(72.dp), tint = androidx.compose.ui.graphics.Color.Unspecified)
         Text("Update available", style = MaterialTheme.typography.headlineSmall)
         Spacer(Modifier.height(4.dp))
-        PillButton("Download", {
-            if (!openBrowser(app.updates.downloadUrl(release))) app.messages.tryEmit("Open ${release.pageUrl} to download the update.")
-            app.updates.later()
-        }, Modifier.fillMaxWidth().height(48.dp))
-        PillButton("Later", app.updates::later, Modifier.fillMaxWidth().height(48.dp), filled = false)
+        if (app.updates.flatpak) {
+            Text("ReadAlong ${release.version} is out. Update it from your software center, or run flatpak update.",
+                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            PillButton("OK", app.updates::later, Modifier.fillMaxWidth().height(48.dp))
+        } else {
+            PillButton("Download", {
+                if (!openBrowser(app.updates.downloadUrl(release))) app.messages.tryEmit("Open ${release.pageUrl} to download the update.")
+                app.updates.later()
+            }, Modifier.fillMaxWidth().height(48.dp))
+            PillButton("Later", app.updates::later, Modifier.fillMaxWidth().height(48.dp), filled = false)
+        }
+        // Not offered again automatically until a newer version is out; Check for updates still shows it.
+        TextButton({ app.updates.skip(release) }) { Text("Skip ${release.version}") }
     }
 }
 
@@ -65,7 +73,8 @@ fun UpdatesSettings(app: AppState) {
                     filled = false, enabled = status != UpdateStatus.Checking)
                 when (val s = status) {
                     UpdateStatus.UpToDate -> Text("ReadAlong ${app.updates.current} is the latest version.", style = MaterialTheme.typography.bodyMedium)
-                    is UpdateStatus.Available -> TextButton({ openBrowser(app.updates.downloadUrl(s.release)) }) { Text("Download ReadAlong ${s.release.version}") }
+                    is UpdateStatus.Available -> if (app.updates.flatpak) Text("ReadAlong ${s.release.version} is out: update it from your software center.")
+                        else TextButton({ openBrowser(app.updates.downloadUrl(s.release)) }) { Text("Download ReadAlong ${s.release.version}") }
                     is UpdateStatus.Failed -> Text(s.message, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
                     else -> {}
                 }

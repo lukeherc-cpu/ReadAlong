@@ -11,7 +11,6 @@ import com.example.readalong.domain.transcription.TranscriptionInput
 import kotlinx.coroutines.*
 import org.json.JSONObject
 import java.io.File
-import java.security.MessageDigest
 import java.util.UUID
 import java.util.zip.ZipFile
 
@@ -57,12 +56,8 @@ class DesktopTranscriptImporter(private val context: Context, private val databa
                 var offset = 0L
                 for (file in libraryFiles) {
                     canonicalOffsets[file.id] = offset; offset += requireNotNull(file.durationMs)
-                    val hash = MessageDigest.getInstance("SHA-256"); var size = 0L
-                    requireNotNull(context.contentResolver.openInputStream(Uri.parse(file.uri))).use { input ->
-                        val buffer = ByteArray(256 * 1024)
-                        while (true) { ensureActive(); val n = input.read(buffer); if (n < 0) break; size += n; hash.update(buffer, 0, n) }
-                    }
-                    val key = "$size:" + hash.digest().joinToString("") { "%02x".format(it) }
+                    val (size, sha256) = com.example.readalong.data.link.AudioHashes.sha256(context, database, file.uri)
+                    val key = "$size:$sha256"
                     hashes.getOrPut(key) { mutableListOf() }.add(file)
                 }
                 val files = mutableListOf<AudioFileEntity>()

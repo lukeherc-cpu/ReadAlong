@@ -78,9 +78,7 @@ class FolderBookState(context: Context) {
     }
 
     private fun save(folder: Uri, existing: Uri?, name: String, text: String) {
-        val target = existing ?: DocumentsContract.createDocument(resolver, folder, "application/octet-stream", name) ?: error("$name couldn't be created.")
-        val stream = try { resolver.openOutputStream(target, "wt") } catch (_: IllegalArgumentException) { resolver.openOutputStream(target, "w") }
-        requireNotNull(stream).use { it.write(text.toByteArray(Charsets.UTF_8)) }
+        SafWrite.replace(resolver, folder, existing, name, "application/octet-stream") { it.write(text.toByteArray(Charsets.UTF_8)) }
     }
 
     private fun text(uri: Uri): String? = runCatching {

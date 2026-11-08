@@ -81,11 +81,16 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
             try {
                 var copied = 0; var failed = 0
                 val problems = mutableListOf<String>()
+                val lost = mutableListOf<String>()
+                conflicts.clear()
                 var change = 0L
                 connect().use { client ->
                     change = client.computerChanged
                     for (pair in pairs) {
-                        val (done, failures) = syncPair(client, pair)
+                        // A folder this phone can no longer open (permission revoked, card removed) is reported and
+                        // skipped; the other pairs still sync.
+                        val (done, failures) = try { syncPair(client, pair) }
+                            catch (lostAccess: FolderAccessLost) { lost += pair.localName; continue }
                         copied += done; failed += failures
                     }
                     syncSettings(client)
@@ -93,6 +98,7 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
                 // Every paired folder, even when nothing was copied: a ReadAlong that couldn't be used before is tried
                 // again, and books, covers and titles that arrived some other way show up too.
                 for (pair in pairs) {
+                    if (pair.localName in lost) continue
                     coroutineContext.ensureActive()
                     mutableProgress.value = SyncProgress("Updating your library from ${pair.localName}…")
                     try { problems += rescan(Uri.parse(pair.localUri)) }
@@ -107,6 +113,13 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
                     0 -> ""
                     1 -> " A ReadAlong couldn't be used: ${problems.single()}"
                     else -> " ${problems.size} ReadAlongs couldn't be used, e.g. ${problems.first()}"
+                } + when (conflicts.size) {
+                    0 -> ""
+                    1 -> " ${conflicts.single().substringAfterLast('/')} changed on both devices and was left as it is on each; keep the one you want and delete the other."
+                    else -> " ${conflicts.size} audio files changed on both devices and were left alone, e.g. ${conflicts.first().substringAfterLast('/')}."
+                } + when (lost.size) {
+                    0 -> ""
+                    else -> " ReadAlong can no longer open ${lost.joinToString()}: choose the folder again in Folders."
                 }
                 store.update { it.copy(lastSyncAt = System.currentTimeMillis(), lastResult = result, seenChange = maxOf(it.seenChange, change)) }
                 result
@@ -116,14 +129,15 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
 
     /**
      * While ReadAlong is open: every minute, sees whether the computer is reachable and syncs when it says it has
-     * something new since the last sync, or the last sync is more than ten minutes old. Runs until cancelled.
+     * something new since the last sync, or the last sync is more than thirty minutes old. Runs until cancelled.
      */
     suspend fun watch(syncNow: () -> Unit) = withContext(Dispatchers.IO) {
         while (true) {
             val s = store.value
             if (s.computer != null && s.pairs.isNotEmpty() && mutableProgress.value == null && !lock.isLocked) {
                 val change = runCatching { connect().use { it.computerChanged } }.getOrNull()
-                val stale = (s.lastSyncAt ?: 0) < System.currentTimeMillis() - 10 * 60_000
+                // The computer says when it has news; a full sync and rescan without news is only a safety net.
+                val stale = (s.lastSyncAt ?: 0) < System.currentTimeMillis() - 30 * 60_000
                 if (change != null && (change > s.seenChange || stale)) syncNow()
             }
             kotlinx.coroutines.delay(60_000)
@@ -154,9 +168,17 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
         return client
     }
 
+    /** Audio changed on both sides in this sync, reported in its result. Guarded by [lock]. */
+    private val conflicts = mutableListOf<String>()
+
     private suspend fun syncPair(client: LinkClient, pair: FolderPair): Pair<Int, Int> {
         val tree = Uri.parse(pair.localUri)
         val rootId = DocumentsContract.getTreeDocumentId(tree)
+        // An unreadable tree would look empty, and an empty folder reads as "every book was deleted here".
+        val readable = try {
+            resolver.query(DocumentsContract.buildChildDocumentsUriUsingTree(tree, rootId), arrayOf(Document.COLUMN_DOCUMENT_ID), null, null, null)?.use { true } ?: false
+        } catch (_: SecurityException) { false } catch (_: IllegalArgumentException) { false }
+        if (!readable) throw FolderAccessLost()
         mutableProgress.value = SyncProgress("Comparing ${pair.localName}…")
         val remote = client.list(pair.remoteId).toMutableList()
         // Kinds turned off on either side (Settings › Sync) are left alone on both.
@@ -168,6 +190,7 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
         val held = recorded.filterKeys { !FolderSyncPlan.included(it, skipped) }
         val previous = recorded - held.keys
         val actions = FolderSyncPlan.plan(local.values.map { it.file }, remote, previous)
+        conflicts += FolderSyncPlan.conflicts(local.values.map { it.file }, remote, previous).map { "${pair.localName}/$it" }
         val localNow = local.mapValues { it.value.file }.toMutableMap()
         val remoteNow = remote.associateBy { it.path }.toMutableMap()
         var copied = 0; var failed = 0
@@ -214,7 +237,10 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
         val columns = arrayOf(Document.COLUMN_DOCUMENT_ID, Document.COLUMN_DISPLAY_NAME, Document.COLUMN_MIME_TYPE, Document.COLUMN_SIZE, Document.COLUMN_LAST_MODIFIED)
         while (pending.isNotEmpty()) {
             val (id, prefix) = pending.removeFirst()
-            resolver.query(DocumentsContract.buildChildDocumentsUriUsingTree(tree, id), columns, null, null, null)?.use { cursor ->
+            val children = try { resolver.query(DocumentsContract.buildChildDocumentsUriUsingTree(tree, id), columns, null, null, null) }
+                catch (_: SecurityException) { throw FolderAccessLost() }
+            // A folder that can't be listed mid-walk would read as deleted books: stop instead.
+            (children ?: throw FolderAccessLost()).use { cursor ->
                 while (cursor.moveToNext()) {
                     val child = cursor.getString(0); val name = cursor.getString(1) ?: continue
                     val path = if (prefix.isEmpty()) name else "$prefix/$name"
@@ -242,9 +268,17 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
             val received = resolver.openOutputStream(temporary, "w")?.buffered(256 * 1024)?.use { output -> client.get(pair.remoteId, path, output, progress) } ?: throw IOException("Couldn't write $name.")
             // Never put a short copy in place of the real file: the next sync tries again.
             stat(temporary)?.let { if (it.size != received.size) throw IOException("Only ${it.size} of ${received.size} bytes of $name arrived.") }
-            child(tree, parent, name)?.let { (existing, _) -> DocumentsContract.deleteDocument(resolver, DocumentsContract.buildDocumentUriUsingTree(tree, existing)) }
-            val final = runCatching { DocumentsContract.renameDocument(resolver, temporary, name) }.getOrNull()
-                ?: copyInto(parentUri, temporary, name)
+            // The old copy steps aside (not deleted) until the new one has its name, so a failed rename loses nothing.
+            val existing = child(tree, parent, name)?.let { DocumentsContract.buildDocumentUriUsingTree(tree, it.first) }
+            val aside = existing?.let { runCatching { DocumentsContract.renameDocument(resolver, it, ".$name.readalong-old") }.getOrNull() }
+            if (existing != null && aside == null) DocumentsContract.deleteDocument(resolver, existing)
+            val final = try {
+                runCatching { DocumentsContract.renameDocument(resolver, temporary, name) }.getOrNull() ?: copyInto(parentUri, temporary, name)
+            } catch (failure: Exception) {
+                aside?.let { runCatching { DocumentsContract.renameDocument(resolver, it, name) } }
+                throw failure
+            }
+            aside?.let { runCatching { DocumentsContract.deleteDocument(resolver, it) } }
             val stat = stat(final) ?: SyncFile(path, received.size, System.currentTimeMillis())
             return received to stat.copy(path = path)
         } finally { runCatching { if (stat(temporary) != null) DocumentsContract.deleteDocument(resolver, temporary) } }
@@ -269,3 +303,6 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
         }
     }.getOrNull()
 }
+
+/** The phone can no longer list a paired folder; the pair is skipped instead of read as empty. */
+private class FolderAccessLost : Exception()
