@@ -130,10 +130,13 @@ private fun AudibleLibrary(app: AppState, name: String, store: String) {
     val syncing by audible.syncing.collectAsState()
     var query by remember { mutableStateOf("") }
     var signingOut by remember { mutableStateOf(false) }
+    var confirmAll by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     LaunchedEffect(Unit) { if (library.isEmpty()) audible.sync() }
+    val remaining = remember(library, downloads) { library.filter { book -> downloads[book.asin].let { it == null || it is AudibleDownload.Failed || it == AudibleDownload.Removed } } }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("Signed in${if (name.isNotEmpty()) " as $name" else ""} · $store", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+        if (remaining.isNotEmpty()) PillButton("Download all (${remaining.size})", { confirmAll = true })
         if (downloads.values.any { it is AudibleDownload.Queued || it is AudibleDownload.Running }) PillButton("Stop downloads", audible::cancelDownloads, filled = false)
         PillButton(if (syncing) "Refreshing…" else "Refresh library", audible::sync, filled = false, enabled = !syncing)
         PillButton("Sign out", { signingOut = true }, filled = false)
@@ -148,6 +151,13 @@ private fun AudibleLibrary(app: AppState, name: String, store: String) {
     LazyColumn(Modifier.widthIn(max = 860.dp).fillMaxWidth().smoothWheelScroll(list), state = list,
         verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(vertical = 12.dp)) {
         items(shown, key = { it.asin }) { book -> AudibleRow(book, downloads[book.asin]) { audible.download(book.asin) } }
+    }
+    if (confirmAll) {
+        val hours = remaining.sumOf { it.runtimeMinutes } / 60
+        AlertDialog({ confirmAll = false }, title = { Text("Download ${remaining.size} ${if (remaining.size == 1) "book" else "books"}?") },
+            text = { Text("They download one at a time${if (hours > 0) ", about $hours hours of listening" else ""}, while ReadAlong is open. Each one appears in your library as soon as it's done.") },
+            confirmButton = { TextButton({ confirmAll = false; audible.downloadAll(remaining.map { it.asin }) }) { Text("Download all") } },
+            dismissButton = { TextButton({ confirmAll = false }) { Text("Cancel") } })
     }
     if (signingOut) AlertDialog({ signingOut = false }, title = { Text("Sign out of Audible?") },
         text = { Text("ReadAlong is removed from your Amazon devices. Books you've already imported stay in your library.") },
@@ -177,10 +187,12 @@ private fun AudibleRow(book: AudibleBook, state: AudibleDownload?, onDownload: (
                 is AudibleDownload.Failed -> Text(state.reason, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                 AudibleDownload.Queued -> Text("Waiting to download", style = MaterialTheme.typography.bodySmall)
                 AudibleDownload.Done -> Text("In your library", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                AudibleDownload.Removed -> Text("Removed from your library", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 null -> if (book.runtimeMinutes > 0) Text("${book.runtimeMinutes / 60}h ${book.runtimeMinutes % 60}m", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        if (state == null || state is AudibleDownload.Failed) PillButton(if (state == null) "Download" else "Retry", onDownload, filled = false)
+        if (state == null || state is AudibleDownload.Failed || state == AudibleDownload.Removed)
+            PillButton(when (state) { null -> "Download"; AudibleDownload.Removed -> "Download again"; else -> "Retry" }, onDownload, filled = false)
     }
 }
 
