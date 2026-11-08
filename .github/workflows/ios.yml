@@ -100,6 +100,9 @@ jobs:
           xcodebuild -project ReadAlong.xcodeproj -scheme ReadAlong -configuration Release -sdk iphonesimulator \
             -destination 'generic/platform=iOS Simulator' -derivedDataPath build-sim ARCHS=arm64 ONLY_ACTIVE_ARCH=NO \
             CODE_SIGNING_ALLOWED=NO build 2>&1 | tee ../../ci-results/xcode-sim.log | tail -20
+          mkdir -p ../../dist
+          # The simulator build on its own, for Appetize.io or Xcode's Simulator (the .ipa only runs on a real iPhone).
+          (cd build-sim/Build/Products/Release-iphonesimulator && zip -qry ../../../../../../dist/ReadAlong-simulator.zip ReadAlong.app)
           cd ../..
           ios-app/iosApp/ci/simulator-tour.sh ios-app/iosApp/build-sim/Build/Products/Release-iphonesimulator/ReadAlong.app ci-results
 
@@ -107,6 +110,12 @@ jobs:
         with:
           name: ReadAlong-ipa
           path: dist/*.ipa
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: ReadAlong-simulator
+          path: dist/ReadAlong-simulator.zip
 
       - uses: actions/upload-artifact@v4
         if: always()
