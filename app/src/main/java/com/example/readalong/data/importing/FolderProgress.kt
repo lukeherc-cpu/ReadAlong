@@ -5,6 +5,7 @@ import androidx.room.withTransaction
 import com.example.readalong.data.local.AudioFileEntity
 import com.example.readalong.data.local.LibraryMetadataEntity
 import com.example.readalong.data.local.ReadAlongDatabase
+import com.example.readalong.domain.link.ProgressMerge
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -64,10 +65,10 @@ data class FolderProgress(
         }.getOrNull()
 
         /** Where [local] (last played at [localAt], null if never) and [remote] disagree, which way to copy. */
-        fun direction(localAt: Long?, remote: FolderProgress?): Direction = when {
-            remote != null && remote.updatedAt > (localAt ?: 0) + SAME_MS -> Direction.TAKE
-            localAt != null && (remote == null || localAt > remote.updatedAt + SAME_MS) -> Direction.WRITE
-            else -> Direction.NONE
+        fun direction(localAt: Long?, remote: FolderProgress?): Direction = when (ProgressMerge.byClock(localAt, remote?.updatedAt)) {
+            ProgressMerge.Direction.TAKE -> Direction.TAKE
+            ProgressMerge.Direction.WRITE -> Direction.WRITE
+            ProgressMerge.Direction.NONE -> Direction.NONE
         }
     }
     enum class Direction { TAKE, WRITE, NONE }
@@ -97,18 +98,26 @@ class FolderProgressSync(private val context: Context, private val database: Rea
     suspend fun sync(bookId: String, location: FolderProgressLocation) = withContext(Dispatchers.IO) {
         dao.putMetadata(LibraryMetadataEntity(key(bookId), location.encode()))
         val remote = read(location)
-        when (FolderProgress.direction(dao.progress(bookId)?.lastPlayedAt, remote)) {
-            FolderProgress.Direction.TAKE -> if (!playing(bookId)) take(bookId, requireNotNull(remote))
-            FolderProgress.Direction.WRITE -> write(bookId, location)
-            FolderProgress.Direction.NONE -> Unit
+        when (decide(bookId, remote)) {
+            ProgressMerge.Direction.TAKE -> if (!playing(bookId)) take(bookId, requireNotNull(remote))
+            ProgressMerge.Direction.WRITE -> write(bookId, location)
+            ProgressMerge.Direction.NONE -> Unit
         }
     }
+
+    /** By what changed since the last sync, so a computer clock running fast can't override newer listening here. */
+    private suspend fun decide(bookId: String, remote: FolderProgress?): ProgressMerge.Direction {
+        val seen = ProgressMerge.decodeSeen(dao.metadata(seenKey(bookId)))
+        return ProgressMerge.decide(dao.progress(bookId)?.lastPlayedAt, remote?.updatedAt, seen?.first, seen?.second)
+    }
+    private suspend fun remember(bookId: String, remoteAt: Long?, localAt: Long?) =
+        dao.putMetadata(LibraryMetadataEntity(seenKey(bookId), ProgressMerge.encodeSeen(remoteAt, localAt)))
 
     /** After listening on the phone: write the book's progress beside it, unless the file is already as new. */
     suspend fun push(bookId: String) = withContext(Dispatchers.IO) {
         val location = FolderProgressLocation.decode(dao.metadata(key(bookId))) ?: return@withContext
         val remote = read(location)
-        if (FolderProgress.direction(dao.progress(bookId)?.lastPlayedAt, remote) == FolderProgress.Direction.WRITE) write(bookId, location)
+        if (decide(bookId, remote) == ProgressMerge.Direction.WRITE) write(bookId, location)
     }
 
     private suspend fun read(location: FolderProgressLocation): FolderProgress? =
@@ -128,6 +137,7 @@ class FolderProgressSync(private val context: Context, private val database: Rea
             dao.putMetadata(LibraryMetadataEntity("file:$bookId", files[index].id))
             dao.putMetadata(LibraryMetadataEntity("file_position:$bookId", filePosition.toString()))
         }
+        remember(bookId, remote.updatedAt, remote.updatedAt)
         moved(bookId, position)
     }
 
@@ -142,8 +152,9 @@ class FolderProgressSync(private val context: Context, private val database: Rea
         val content = FolderProgress(playedAt, progress.audioPositionMs, files.sumOf { it.durationMs ?: 0 }, progress.isFinished,
             files[index].name, index, filePosition, fileCount = files.size).toJson()
         // Folders added before write access was asked for just don't send progress back.
-        state.write(location, com.example.readalong.domain.link.BookStateFiles.Part.PROGRESS, content)
+        if (state.write(location, com.example.readalong.domain.link.BookStateFiles.Part.PROGRESS, content)) remember(bookId, playedAt, playedAt)
     }
 
     private fun key(bookId: String) = "folder_progress:$bookId"
+    private fun seenKey(bookId: String) = "folder_progress_seen:$bookId"
 }

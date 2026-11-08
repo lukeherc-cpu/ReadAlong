@@ -30,8 +30,9 @@ class ReadAlongApplication : Application() {
         com.example.readalong.data.link.FolderLinkSync(this, links, beforeSync = {
             if (com.example.readalong.domain.link.FolderSyncPlan.Kind.TRANSCRIPT.id !in links.value.skipped) com.example.readalong.data.link.TranscriptPackageWriter(this, database, links).writeAll() },
             settings = linkSettings) { uri ->
-        // A phone folder chosen only for syncing joins the library too.
-        (if (database.mediaDao().folder(uri.toString()) != null) audioImporter.scan(uri)
+        // A phone folder chosen only for syncing joins the library too, unless it was removed while this sync ran.
+        if (links.value.pairs.none { it.localUri == uri.toString() }) emptyList()
+        else (if (database.mediaDao().folder(uri.toString()) != null) audioImporter.scan(uri)
         else audioImporter.addFolder(uri, com.example.readalong.data.importing.FolderMode.LIBRARY, persistAccess = false)).transcriptProblems
     } }
     /** The settings shared with a linked computer: accent colour, skip times, and the ReadAlong reader's theme and font (each device keeps its own text size). */
@@ -65,6 +66,8 @@ class ReadAlongApplication : Application() {
         com.example.readalong.data.diagnostics.CrashDiagnostics.install(this)
         com.example.readalong.data.diagnostics.BackgroundFailures.install(this)
         if (processName != packageName) return
+        // Audible books saved in ReadAlong's own storage by 0.49.0/0.49.1 move to shared Documents, where an uninstall can't delete them.
+        Thread({ runCatching { com.example.readalong.data.importing.OwnFolderProvider.migrate(this) } }, "own-folder-migration").start()
         // The launcher icon and launch colors switch once no ReadAlong screen is showing (see LaunchAppearance).
         registerActivityLifecycleCallbacks(object : android.app.Application.ActivityLifecycleCallbacks {
             override fun onActivityStarted(activity: android.app.Activity) = com.example.readalong.ui.launch.LaunchAppearance.activityStarted()

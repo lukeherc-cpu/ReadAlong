@@ -15,8 +15,8 @@ android {
         applicationId = "com.example.readalong"
         minSdk = 26
         targetSdk = 37
-        versionCode = 86
-        versionName = "0.48.3"
+        versionCode = 91
+        versionName = "0.50.1"
 
         ndk { abiFilters += providers.gradleProperty("readalongAbi").orNull?.let { listOf(it) } ?: listOf("arm64-v8a") }
         externalNativeBuild { cmake { arguments += "-DANDROID_STL=c++_shared" } }
@@ -32,6 +32,9 @@ android {
         }
         create("play") {
             dimension = "distribution"
+            // Google Play refuses com.example ids. The GitHub build keeps com.example.readalong so it still updates
+            // over what people have installed; the Play build is a separate app with its own id.
+            applicationId = "io.github.lukeherc_cpu.readalong"
             buildConfigField("boolean", "TIP_JAR_ENABLED", "false")
             buildConfigField("String", "KOFI_URL", "\"\"")
         }

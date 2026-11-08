@@ -1,5 +1,6 @@
 package com.example.readalong.data.processing
 
+import androidx.room.withTransaction
 import com.example.readalong.data.local.*
 import com.example.readalong.data.reading.DemoTranscript
 import com.example.readalong.domain.transcription.TranscriptionInput
@@ -37,6 +38,21 @@ object TranscriptionPlan {
             database.mediaDao().chapters(bookId).forEach { put(org.json.JSONArray(listOf(it.id, it.fileId, it.ordinal, it.startMs, it.endMs))) }
         }.toString()
         return java.security.MessageDigest.getInstance("SHA-256").digest(identity.toByteArray()).joinToString("") { "%02x".format(it) }
+    }
+    /**
+     * The player measured [fileId]'s real length. A finished ReadAlong stays finished when the change can't move
+     * any text: it is within [LENGTH_TOLERANCE_MS], or it is the book's last file. Without this, playing a book once
+     * made its ReadAlong look out of date, so the ReadAlong file beside it was imported again on every scan.
+     */
+    suspend fun correctDuration(database: ReadAlongDatabase, bookId: String, fileId: String, durationMs: Long) = database.withTransaction {
+        val files = database.mediaDao().audioFiles(bookId)
+        val file = files.firstOrNull { it.id == fileId } ?: return@withTransaction
+        if (file.durationMs == durationMs) return@withTransaction
+        val job = database.processingDao().find(bookId)
+        val wasCurrent = job?.state == "READY" && job.sourceFingerprint == fingerprint(database, bookId)
+        database.mediaDao().duration(fileId, durationMs)
+        val harmless = file.durationMs?.let { kotlin.math.abs(it - durationMs) <= LENGTH_TOLERANCE_MS } == true || files.last().id == fileId
+        if (wasCurrent && harmless) database.processingDao().put(requireNotNull(job).copy(sourceFingerprint = fingerprint(database, bookId)))
     }
     /** What finished work survives a change in file lengths. [discardFromMs] is where saved text must be redone from. */
     data class Carry(val completedUnits: Int, val discardFromMs: Long?)

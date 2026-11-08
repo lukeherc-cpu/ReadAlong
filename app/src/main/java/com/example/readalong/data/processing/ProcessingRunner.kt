@@ -52,7 +52,7 @@ class ProcessingRunner(private val database: ReadAlongDatabase, private val epub
             // plan JSON) for every completed chunk makes late-book one-unit batches quadratic.
             for (index in initial.completedUnits until units.size) {
                 val input = units[index]
-                val job = current(bookId, workId)
+                val job = owned(bookId, workId)
                 if (index < job.completedUnits) continue
                 update(bookId, workId, ProcessingState.PROCESSING, if (book.isDemo) "Preparing sample chapter ${index + 1} of ${units.size}." else "Transcribing chunk ${index + 1} of ${units.size} with ${com.example.readalong.domain.transcription.SpeechModels.find(engine.id)?.name ?: "Offline speech model"}…")
                 val segments = engine.transcribe(input).toList() // A real unit contains at most 30 seconds of audio.
@@ -61,7 +61,7 @@ class ProcessingRunner(private val database: ReadAlongDatabase, private val epub
                 TranscriptIndex(segments) // Validates canonical interval ordering before committing.
                 check(segments.all { it.bookId == bookId && it.chapterId == input.chapterId && it.startMs >= input.startMs && it.endMs <= input.endMs })
                 database.withTransaction {
-                    val latest = current(bookId, workId)
+                    val latest = owned(bookId, workId)
                     if (latest.sourceFingerprint != TranscriptionPlan.fingerprint(database, bookId)) throw PlanOutdated()
                     val reading = database.readingDao()
                     val version = reading.findVersion(bookId) ?: ReadableVersionEntity(bookId, "PARTIAL_READY", null, 0, chapterEnds.size, null, 0)
@@ -70,8 +70,8 @@ class ProcessingRunner(private val database: ReadAlongDatabase, private val epub
                     reading.putVersion(version.copy(state = "PARTIAL_READY", completedChapters = chapterEnds.values.count { it <= index }, totalChapters = chapterEnds.size,
                         message = "${chapterEnds.values.count { it <= index }} of ${chapterEnds.size} chapters prepared. You can listen everywhere and read available text.",
                         transcriptRevision = version.transcriptRevision + 1, updatedAt = System.currentTimeMillis()))
-                    jobs.put(latest.copy(state = ProcessingState.PARTIAL_READY.name, completedUnits = index + 1,
-                        message = if (book.isDemo) "${index + 1} of ${units.size} sample chapters prepared." else "${index + 1} of ${units.size} chunks transcribed.", updatedAt = System.currentTimeMillis()))
+                    jobs.progress(bookId, workId, ProcessingState.PARTIAL_READY.name, index + 1,
+                        if (book.isDemo) "${index + 1} of ${units.size} sample chapters prepared." else "${index + 1} of ${units.size} chunks transcribed.", System.currentTimeMillis())
                 }
                 val publishBegan = android.os.SystemClock.elapsedRealtime()
                 epub.publishReadingRange(input)
@@ -79,7 +79,7 @@ class ProcessingRunner(private val database: ReadAlongDatabase, private val epub
                 // Persist a rolling rate beside the checkpoint; no recognition timestamps are changed.
                 val unitEnded = android.os.SystemClock.elapsedRealtime()
                 if (!book.isDemo) try {
-                    TranscriptionEstimate.record(database, job, input.endMs - input.startMs, unitEnded - unitBegan)
+                    TranscriptionEstimate.record(database, job.bookId, job.sourceFingerprint, job.engineId, input.endMs - input.startMs, unitEnded - unitBegan)
                 } catch (cancelled: CancellationException) { throw cancelled }
                 catch (_: Exception) { /* Estimates are optional; never fail a saved transcription. */ }
                 unitBegan = unitEnded
@@ -108,7 +108,7 @@ class ProcessingRunner(private val database: ReadAlongDatabase, private val epub
             android.util.Log.w("ReadAlong", "Readable pipeline failed: ${failure.javaClass.simpleName}")
             database.withTransaction {
                 val latest = jobs.find(bookId)
-                if (latest?.workId == workId && ProcessingState.valueOf(latest.state).active) {
+                if (latest?.workId == workId && ProcessingState.of(latest.state).active) {
                     if (failure is AudioLayoutChanged) database.importedEpubDao().invalidateAudioMapping(bookId)
                     jobs.put(latest.copy(state = if (PreparationRetry.transient(failure)) ProcessingState.QUEUED.name else ProcessingState.FAILED.name,
                         message = if (failure is AudioLayoutChanged) "The audio file order, duration or chapter boundaries changed. Retry preparation to build a new plan. The saved edition and listening position are preserved." else if (failure is com.example.readalong.data.transcription.SpeechPreparationException) failure.explanation
@@ -120,12 +120,18 @@ class ProcessingRunner(private val database: ReadAlongDatabase, private val epub
     }
     private suspend fun current(bookId: String, workId: String): ProcessingJobEntity {
         val job = database.processingDao().find(bookId)
-        if (job?.workId != workId || !ProcessingState.valueOf(job.state).active) throw CancellationException("Run cancelled or superseded")
+        if (job?.workId != workId || !ProcessingState.of(job.state).active) throw CancellationException("Run cancelled or superseded")
+        return job
+    }
+    /** Like [current], without reading the plan: called for every chunk. */
+    private suspend fun owned(bookId: String, workId: String): com.example.readalong.data.local.ProcessingJobCheck {
+        val job = database.processingDao().check(bookId)
+        if (job?.workId != workId || !ProcessingState.of(job.state).active) throw CancellationException("Run cancelled or superseded")
         return job
     }
     private suspend fun update(bookId: String, workId: String, state: ProcessingState, message: String) = database.withTransaction {
-        val latest = current(bookId, workId)
-        database.processingDao().put(latest.copy(state = state.name, message = message, updatedAt = System.currentTimeMillis()))
+        owned(bookId, workId)
+        database.processingDao().status(bookId, workId, state.name, message, System.currentTimeMillis())
         if (state == ProcessingState.READY) database.readingDao().findVersion(bookId)?.let { version ->
             database.readingDao().putVersion(version.copy(state = if (database.bookDao().findBook(bookId)?.isDemo == true) "DEMO_READY" else "READY", message = message, updatedAt = System.currentTimeMillis()))
         }

@@ -39,6 +39,8 @@ data class LibraryBook(
     val removedBookmarks: List<String> = emptyList(),
     /** When the person last edited the title or author (here or on the phone); null if never. Shared through BookInfoSync. */
     val editedAt: Long? = null,
+    /** Its audio files weren't found at the last scan. Kept (position, bookmarks, ReadAlong) until the person removes it. */
+    val missing: Boolean = false,
 ) {
     val durationMs: Long get() = parts.sumOf { it.durationMs }
     fun asBook() = Book(id, title, author, coverPath, null, durationMs, positionMs, finished, lastPlayedAt, addedAt)
@@ -105,7 +107,7 @@ class LibraryStore(private val file: File = AppPaths.library, private val scope:
             .put("parts", JSONArray(b.parts.map { JSONObject().put("path", it.path).put("duration", it.durationMs).put("offset", it.offsetMs).put("size", it.size).put("modified", it.modified) }))
             .put("chapters", JSONArray(b.chapters.map { JSONObject().put("title", it.title).put("start", it.startMs) }))
             .put("bookmarks", JSONArray(b.bookmarks.map { JSONObject().put("id", it.id).put("position", it.positionMs).put("name", it.name).put("created", it.createdAt) }))
-            .put("removedBookmarks", JSONArray(b.removedBookmarks)).put("editedAt", b.editedAt)
+            .put("removedBookmarks", JSONArray(b.removedBookmarks)).put("editedAt", b.editedAt).put("missing", b.missing)
 
         fun decode(o: JSONObject): LibraryBook {
             fun JSONObject.text(name: String) = if (has(name) && !isNull(name)) getString(name) else null
@@ -117,7 +119,7 @@ class LibraryStore(private val file: File = AppPaths.library, private val scope:
                 o.optLong("added"), o.list("bookmarks") { Bookmark(it.getLong("position"), it.getString("name"), it.optLong("created")).let { b -> it.text("id")?.let { id -> b.copy(id = id) } ?: b } },
                 o.optString("textSource", "GENERATED"), o.optDouble("speed", 1.0).toFloat(),
                 o.optJSONArray("removedBookmarks")?.let { a -> List(a.length()) { a.getString(it) } }.orEmpty(),
-                if (o.has("editedAt") && !o.isNull("editedAt")) o.getLong("editedAt") else null)
+                if (o.has("editedAt") && !o.isNull("editedAt")) o.getLong("editedAt") else null, o.optBoolean("missing"))
         }
     }
 }

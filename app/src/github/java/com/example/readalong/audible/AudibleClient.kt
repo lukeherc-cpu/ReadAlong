@@ -9,10 +9,14 @@ import javax.crypto.Cipher
 import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
-/** A title in the person's Audible library. [parts] lists the part ASINs of an old multi-part book, in order. */
+/**
+ * A title in the person's Audible library. [parts] lists the part ASINs of an old multi-part book, in order.
+ * They're kept for reference only: Audible no longer licenses part ASINs ("Audio Part asins are no longer
+ * supported", HTTP 404) and serves the whole book as one file under the parent ASIN instead.
+ */
 data class AudibleBook(val asin: String, val title: String, val authors: String, val narrators: String,
     val runtimeMinutes: Int, val coverUrl: String?, val purchaseDate: String, val parts: List<String> = emptyList()) {
-    val downloadAsins get() = parts.ifEmpty { listOf(asin) }
+    val downloadAsins get() = listOf(asin)
 
     fun toJson(): JSONObject = JSONObject().put("asin", asin).put("title", title).put("authors", authors).put("narrators", narrators)
         .put("runtimeMinutes", runtimeMinutes).put("coverUrl", coverUrl ?: JSONObject.NULL).put("purchaseDate", purchaseDate).put("parts", JSONArray(parts))

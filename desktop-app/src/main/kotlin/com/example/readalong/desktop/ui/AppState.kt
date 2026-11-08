@@ -197,12 +197,26 @@ class AppState(val scope: CoroutineScope, private val background: Boolean = true
     }
 
     fun play(bookId: String) {
+        library.book(bookId)?.takeIf { it.missing && it.parts.none { part -> File(part.path).isFile } }?.let {
+            messages.tryEmit("The audio files of ${it.title} weren't found. Reconnect the drive, or add the folder where they are now.")
+            return
+        }
         if (player.state.value.bookId == bookId) player.play()
         else { library.book(bookId)?.let { runCatching { progress.sync(it) } }; player.open(bookId) }
     }
 
-    private val readers = HashMap<String, ReaderModel>()
-    fun reader(bookId: String): ReaderModel = readers.getOrPut(bookId) { ReaderModel(bookId, this) }
+    /** The last few books' readers, most recently used last. Each one rebuilds its text (and re-matches an EPUB) while it lives. */
+    private val readers = LinkedHashMap<String, ReaderModel>(8, .75f, true)
+    fun reader(bookId: String): ReaderModel = synchronized(readers) {
+        readers.getOrPut(bookId) { ReaderModel(bookId, this) }.also {
+            // Books opened earlier in the session stop working in the background; the playing book's reader is kept.
+            while (readers.size > MAX_READERS) {
+                val eldest = readers.keys.firstOrNull { it != bookId && it != player.state.value.bookId } ?: break
+                readers.remove(eldest)?.close()
+            }
+        }
+    }
+    private companion object { const val MAX_READERS = 4 }
 
     fun shutdown() {
         val current = player.state.value.bookId
@@ -224,8 +238,12 @@ class ReaderModel(val bookId: String, private val app: AppState) {
     private val mutableError = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = mutableError
 
+    private val job: Job
+    /** Stops rebuilding this book's text; a new model is made if the book is opened again. */
+    fun close() = job.cancel()
+
     init {
-        app.scope.launch(Dispatchers.Default) {
+        job = app.scope.launch(Dispatchers.Default) {
             app.library.observe(bookId).map { it?.textSource to it?.epubPath }.distinctUntilChanged().collectLatest { source ->
                 val epub = source.second?.let(::File)?.takeIf { source.first == "EPUB" && it.isFile }
                 app.transcripts.revisions.map { it[bookId] ?: 0 }.distinctUntilChanged().conflate().collect {
