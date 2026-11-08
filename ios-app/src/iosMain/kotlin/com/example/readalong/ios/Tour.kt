@@ -1,5 +1,7 @@
 package com.example.readalong.ios
 
+import com.example.readalong.compat.*
+
 import com.example.readalong.desktop.ui.AppState
 import com.example.readalong.desktop.ui.Screen
 import kotlinx.coroutines.delay
@@ -15,15 +17,18 @@ import platform.Foundation.NSProcessInfo
 object Tour {
     val requested: Boolean get() = NSProcessInfo.processInfo.environment["READALONG_TOUR"] != null
 
-    private fun say(text: String) = println("TOUR $text")
-    private suspend fun shot(name: String, settle: Long = 4_000) { delay(settle); println("TOUR-SHOT $name"); delay(2_500) }
+    // The app's console output reaches the workflow late, so the steps also go to Documents/tour.log, which it polls.
+    private val log = java.io.File(platform.Foundation.NSHomeDirectory() + "/Documents/tour.log")
+    private fun mark(line: String) { println(line); runCatching { log.appendText(line + "\n") } }
+    private fun say(text: String) = mark("TOUR $text")
+    private suspend fun shot(name: String, settle: Long = 4_000) { delay(settle); mark("TOUR-SHOT $name"); delay(3_000) }
 
     fun run(app: AppState) = app.scope.launch {
         say("started")
         val book = withTimeoutOrNull(60_000) {
             while (app.library.books.value.isEmpty()) { runCatching { app.importer.rescan() }; delay(2_000) }
             app.library.books.value.first()
-        } ?: run { say("FAILED no book in the library"); println("TOUR-DONE"); return@launch }
+        } ?: run { say("FAILED no book in the library"); mark("TOUR-DONE"); return@launch }
         say("book ${book.title} (${book.durationMs} ms, ${book.chapters.size} chapters)")
         shot("1-library", 6_000)
 
@@ -60,6 +65,6 @@ object Tour {
         shot("9-audible")
         app.home()
         shot("10-library-after", 3_000)
-        println("TOUR-DONE")
+        mark("TOUR-DONE")
     }
 }

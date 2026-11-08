@@ -35,21 +35,24 @@ recorder=$!
 sleep 2
 SIMCTL_CHILD_READALONG_TOUR=1 xcrun simctl launch --console-pty "$device" "$bundle" > "$out/tour/console.log" 2>&1 &
 
+progress="$data/Documents/tour.log"
+rm -f "$progress"; touch "$progress"
 taken=""
 for second in $(seq 1 600); do
   sleep 1
-  for name in $(grep -oE 'TOUR-SHOT [^[:space:]]+' "$out/tour/console.log" | awk '{print $2}'); do
+  for name in $(grep -oE 'TOUR-SHOT [^[:space:]]+' "$progress" | awk '{print $2}'); do
     case " $taken " in *" $name "*) continue ;; esac
     xcrun simctl io "$device" screenshot "$out/tour/$name.png" > /dev/null 2>&1 && echo "Screenshot $name after ${second}s"
     taken="$taken $name"
   done
-  grep -q TOUR-DONE "$out/tour/console.log" && break
+  grep -q TOUR-DONE "$progress" && break
   if ! xcrun simctl spawn "$device" launchctl list | grep -q "$bundle"; then echo "ReadAlong stopped running after ${second}s"; break; fi
 done
 sleep 2
 kill -INT $recorder; wait $recorder 2> /dev/null
 
-echo "---- app output ----"; grep -E 'TOUR|ReadAlong|rror|xception' "$out/tour/console.log" | tail -80
+echo "---- tour ----"; cat "$progress"; cp "$progress" "$out/tour/"
+echo "---- app output ----"; grep -E 'ReadAlong|rror|xception' "$out/tour/console.log" | grep -v '^TOUR' | tail -60
 # Crash reports, if any.
 ls ~/Library/Logs/DiagnosticReports 2> /dev/null | grep -i readalong && for f in ~/Library/Logs/DiagnosticReports/*ReadAlong*; do head -80 "$f"; done
 
@@ -57,12 +60,12 @@ for shot in "$out"/tour/*.png; do
   [ -f "$shot" ] || continue
   small="${shot%.png}-small.jpg"
   sips -Z 640 -s format jpeg -s formatOptions 55 "$shot" --out "$small" > /dev/null
-  echo "TOUR-FILE-BEGIN $(basename "$small")"; base64 -i "$small"; echo "TOUR-FILE-END"
+  echo "TOUR-FILE-BEGIN $(basename "$small")"; base64 -b 76 -i "$small"; echo "TOUR-FILE-END"
 done
 if [ -f "$out/tour/tour.mp4" ]; then
   avconvert --preset Preset640x480 --source "$out/tour/tour.mp4" --output "$out/tour/tour-small.mp4" > /dev/null 2>&1 || cp "$out/tour/tour.mp4" "$out/tour/tour-small.mp4"
   ls -la "$out/tour/tour.mp4" "$out/tour/tour-small.mp4"
   size=$(stat -f %z "$out/tour/tour-small.mp4")
-  if [ "$size" -lt 12000000 ]; then echo "TOUR-FILE-BEGIN tour-small.mp4"; base64 -i "$out/tour/tour-small.mp4"; echo "TOUR-FILE-END"; fi
+  if [ "$size" -lt 12000000 ]; then echo "TOUR-FILE-BEGIN tour-small.mp4"; base64 -b 76 -i "$out/tour/tour-small.mp4"; echo "TOUR-FILE-END"; fi
 fi
-grep -q TOUR-DONE "$out/tour/console.log" && ! grep -q "TOUR FAILED" "$out/tour/console.log"
+grep -q TOUR-DONE "$progress" && ! grep -q "TOUR FAILED" "$progress"

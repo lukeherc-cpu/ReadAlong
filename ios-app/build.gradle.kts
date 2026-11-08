@@ -16,7 +16,7 @@ version = appVersion
 val desktop = "../desktop-app/src/main/kotlin/com/example/readalong/desktop"
 val iosOwn = listOf(
     "ui/App.kt", "ui/SmoothWheel.kt", "ui/CoverSearch.kt", "ui/Dialogs.kt",
-    "ui/PhoneLink.kt", "ui/AudibleSignInWindow.kt", "ui/WindowsTitleBar.kt",
+    "ui/PhoneLink.kt", "ui/AudibleSignInWindow.kt", "ui/WindowsTitleBar.kt", "ui/MiniPlayer.kt",
 )
 val compatImport: (String) -> String = { line -> if (line.startsWith("package ")) "$line\n\nimport com.example.readalong.compat.*" else line }
 
@@ -108,7 +108,10 @@ val desktopSources by tasks.registering(Sync::class) {
     doLast {
         fileTree(destinationDir).matching { include("**/*.kt") }.forEach { f ->
             val text = f.readText()
-            val rewritten = accessOrdered.replace(lruCache.replace(text) { "LruMap<${it.groupValues[1]}>(${it.groupValues[2]})" }) { "LruMap<${it.groupValues[1]}>(Int.MAX_VALUE)" }
+            var phone = text
+            if (f.name == "SettingsScreen.kt") phone = phone.replace("Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {\n                    AccentPalettes.forEach",
+                "FlowRow(Modifier.widthIn(max = 128.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {\n                    AccentPalettes.forEach")
+            val rewritten = accessOrdered.replace(lruCache.replace(phone) { "LruMap<${it.groupValues[1]}>(${it.groupValues[2]})" }) { "LruMap<${it.groupValues[1]}>(Int.MAX_VALUE)" }
             if (rewritten != text) f.writeText(rewritten)
         }
     }
@@ -157,6 +160,7 @@ kotlin {
             languageSettings.optIn("kotlinx.cinterop.ExperimentalForeignApi")
             languageSettings.optIn("kotlinx.cinterop.BetaInteropApi")
             languageSettings.optIn("kotlin.time.ExperimentalTime")
+            languageSettings.optIn("androidx.compose.foundation.layout.ExperimentalLayoutApi")
         }
     }
 }
