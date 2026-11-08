@@ -32,6 +32,12 @@ jobs:
           java-version: "21"
       - uses: gradle/actions/setup-gradle@v4
 
+      - name: Phone unit tests on the iOS simulator
+        run: |
+          set -o pipefail
+          mkdir -p ci-results
+          ./gradlew -p ios-app --console=plain :core:iosSimulatorArm64Test 2>&1 | tee ci-results/tests.log
+
       - name: Build the Kotlin framework
         run: |
           set -o pipefail
@@ -66,7 +72,9 @@ jobs:
         if: always()
         with:
           name: ios-ci-results
-          path: ci-results
+          path: |
+            ci-results
+            ios-app/core/build/reports/tests
 
       - name: Attach to the release
         if: ${{ inputs.release }}
