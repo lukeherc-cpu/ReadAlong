@@ -44,6 +44,8 @@ interface MediaDao {
     @Upsert suspend fun putAudio(files: List<AudioFileEntity>)
     @Query("DELETE FROM audio_files WHERE bookId = :bookId")
     suspend fun clearAudio(bookId: String)
+    @Query("DELETE FROM audio_files WHERE id IN (:ids)")
+    suspend fun deleteAudio(ids: List<String>)
     @Query("SELECT DISTINCT bookId FROM audio_files WHERE folderUri = :uri")
     suspend fun folderBooks(uri: String): List<String>
     @Query("UPDATE books SET mediaState = :state WHERE id = :bookId")
