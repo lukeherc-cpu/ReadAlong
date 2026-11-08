@@ -11,6 +11,7 @@ import com.example.readalong.data.local.FolderEntity
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.withLock
 
 class ImportViewModel(private val importer: AudioImporter, private val epubs: com.example.readalong.data.epub.ImportedEpubRepository? = null, private val processing: com.example.readalong.data.processing.ProcessingRepository? = null) : ViewModel() {
     private val mutableBusy = MutableStateFlow(false)
@@ -150,15 +151,21 @@ class ImportViewModel(private val importer: AudioImporter, private val epubs: co
         }
     }
     fun clearMessage() { showMessage(null) }
+    /** One at a time, in order: a folder picked while an EPUB is still being added waits for it instead of being dropped. */
+    private val actions = kotlinx.coroutines.sync.Mutex()
+    private var waiting = 0
     private fun action(pendingMessage: String = "Reading audio metadata…", work: suspend () -> String?) {
-        if (busy.value) return
+        if (busy.value) showMessage("Still adding the last one. This starts next.")
+        waiting++
         viewModelScope.launch {
-            mutableBusy.value = true
-            showMessage(pendingMessage)
-            try { showMessage(work()) }
-            catch (cancelled: CancellationException) { throw cancelled }
-            catch (failure: Exception) { showMessage(failure.message ?: "Couldn't add that audio. Please try again.") }
-            finally { mutableBusy.value = false }
+            actions.withLock {
+                mutableBusy.value = true
+                showMessage(pendingMessage)
+                try { showMessage(work()) }
+                catch (cancelled: CancellationException) { throw cancelled }
+                catch (failure: Exception) { showMessage(failure.message ?: "Couldn't add that audio. Please try again.") }
+                finally { if (--waiting == 0) mutableBusy.value = false }
+            }
         }
     }
     companion object {
