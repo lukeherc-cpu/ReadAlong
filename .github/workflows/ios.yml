@@ -106,6 +106,9 @@ jobs:
           sleep 25
           xcrun simctl io "$device" screenshot ../../ci-results/simulator-library.png
           tail -40 ../../ci-results/simulator-console.log
+          # A small copy in the log too, for reading the result without downloading the artifacts.
+          sips -Z 360 -s format jpeg -s formatOptions 60 ../../ci-results/simulator-library.png --out ../../ci-results/simulator-small.jpg > /dev/null
+          echo "SCREENSHOT-BEGIN"; base64 -i ../../ci-results/simulator-small.jpg; echo "SCREENSHOT-END"
           # Still running after 25 seconds, or the launch crashed.
           xcrun simctl spawn "$device" launchctl list | grep -q readalong || { echo "ReadAlong isn't running on the simulator"; exit 1; }
 
