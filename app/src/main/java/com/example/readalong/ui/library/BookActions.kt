@@ -44,6 +44,13 @@ class BookActionsViewModel(private val app: ReadAlongApplication) : ViewModel() 
             throw failure
         }
     }
+    fun epub(book: Book) = app.importedEpub.observe(book.id)
+    /** Links the chosen EPUB to this book, the same way one found beside the audio is: it's matched to the ReadAlong as that's made. */
+    fun addEpub(book: Book, uri: Uri, onAdded: () -> Unit) = action {
+        app.importedEpub.import(book.id, uri)
+        android.widget.Toast.makeText(app, "EPUB added. It's matched to the audio as the ReadAlong is made.", android.widget.Toast.LENGTH_LONG).show()
+        onAdded()
+    }
     fun dismissError() { error.value = null }
     private fun action(work: suspend () -> Unit) { viewModelScope.launch {
         if (busy.value) return@launch
@@ -66,6 +73,8 @@ fun BookActions(book: Book, model: BookActionsViewModel, onDismiss: () -> Unit) 
     var delete by remember { mutableStateOf(false) }
     val busy by model.busy.collectAsStateWithLifecycle()
     val error by model.error.collectAsStateWithLifecycle()
+    val epub by remember(book.id) { model.epub(book) }.collectAsStateWithLifecycle(null)
+    val epubPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let { uri -> model.addEpub(book, uri, onDismiss) } }
     val cover = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let { uri -> model.edit(book, cover = uri) } }
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -75,9 +84,12 @@ fun BookActions(book: Book, model: BookActionsViewModel, onDismiss: () -> Unit) 
             }
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-            listOf("Title", "Author", "Cover from file system", "Cover from internet", "Mark as not started", "Mark as finished", "Delete book").forEach { label ->
+            // Adding the matching EPUB comes first: it's what a long-press on a book is most often for.
+            val epubLabel = if (epub == null) "Add matching EPUB" else "Replace matching EPUB"
+            listOfNotNull(epubLabel.takeUnless { book.isDemo }, "Title", "Author", "Cover from file system", "Cover from internet", "Mark as not started", "Mark as finished", "Delete book").forEach { label ->
                 TextButton(enabled = !busy, modifier = Modifier.fillMaxWidth(), onClick = {
                     when (label) {
+                        epubLabel -> epubPicker.launch(arrayOf("application/epub+zip", "application/octet-stream"))
                         "Title", "Author" -> { edit = label; value = if (label == "Title") book.title else book.author.orEmpty() }
                         "Cover from file system" -> cover.launch(arrayOf("image/*"))
                         "Cover from internet" -> internetCover = true
