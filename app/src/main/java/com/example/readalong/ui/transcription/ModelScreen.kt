@@ -56,6 +56,6 @@ fun ModelScreen(model: ModelViewModel, onBack: () -> Unit) {
     } }
     if (confirmRemove) AlertDialog(onDismissRequest = { confirmRemove = false }, title = { Text("Remove the speech model?") },
         text = { Text("You won't be able to make new ReadAlongs until you download it again. Your audiobooks, ReadAlongs, EPUBs and listening positions are kept.") },
-        confirmButton = { TextButton(onClick = { confirmRemove = false; model.remove() }) { Text("Remove") } },
+        confirmButton = { TextButton(onClick = { confirmRemove = false; model.remove() }) { Text("Remove", color = MaterialTheme.colorScheme.error) } },
         dismissButton = { TextButton(onClick = { confirmRemove = false }) { Text("Keep") } })
 }

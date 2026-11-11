@@ -1,5 +1,7 @@
 package com.example.readalong.ui.library
 
+import com.example.readalong.ui.components.userMessage
+
 import android.graphics.Bitmap
 import android.graphics.Canvas as BitmapCanvas
 import android.graphics.Paint
@@ -52,7 +54,7 @@ fun InternetCoverPicker(title: String, onDismiss: () -> Unit, onSave: (Uri) -> U
         busy = true; error = null
         try { covers = InternetCovers.search(query); if (covers.isEmpty()) error = "No covers found. Try the book title and author." }
         catch (cancelled: CancellationException) { throw cancelled }
-        catch (e: Exception) { error = e.message ?: "Couldn't search for covers." }
+        catch (e: Exception) { error = e.userMessage("Couldn't search for covers. Check your connection.") }
         finally { busy = false }
     } }
     fun clamp(bitmap: Bitmap, requested: Offset, scale: Float): Offset {
@@ -75,7 +77,7 @@ fun InternetCoverPicker(title: String, onDismiss: () -> Unit, onSave: (Uri) -> U
                                 busy = true; error = null
                                 try { selected = InternetCovers.image(cover.url); zoom = 1f; pan = Offset.Zero }
                                 catch (cancelled: CancellationException) { throw cancelled }
-                                catch (e: Exception) { error = e.message ?: "Couldn't load this cover." }
+                                catch (e: Exception) { error = e.userMessage("Couldn't load this cover") }
                                 finally { busy = false }
                             } }) {
                                 CoverThumbnail(cover.url)
@@ -125,7 +127,7 @@ fun InternetCoverPicker(title: String, onDismiss: () -> Unit, onSave: (Uri) -> U
                             }
                             onSave(uri)
                         } catch (cancelled: CancellationException) { throw cancelled }
-                        catch (e: Exception) { error = e.message ?: "Couldn't save the cover." }
+                        catch (e: Exception) { error = e.userMessage("Couldn't save the cover") }
                         finally { busy = false }
                     } }) { Text("Use cover") }
                 }

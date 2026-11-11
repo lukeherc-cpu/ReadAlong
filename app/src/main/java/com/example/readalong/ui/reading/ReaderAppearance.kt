@@ -1,5 +1,7 @@
 package com.example.readalong.ui.reading
 
+import com.example.readalong.ui.components.userMessage
+
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
@@ -40,7 +42,7 @@ internal fun ReaderAppearance(value: ReaderPreferences, onDismiss: () -> Unit, b
                 val imported = ReaderFonts.import(context, uri)
                 fontImports = ReaderFonts.imported(context)
                 draft = draft.copy(fontFamily = imported.first, useEpubFonts = false)
-            } catch (failure: Exception) { importError = failure.message ?: "Couldn't import this font." }
+            } catch (failure: Exception) { importError = failure.userMessage("Couldn't import this font") }
             finally { importing = false }
         }
     }

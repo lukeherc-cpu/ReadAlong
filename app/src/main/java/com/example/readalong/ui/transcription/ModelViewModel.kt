@@ -1,5 +1,7 @@
 package com.example.readalong.ui.transcription
 
+import com.example.readalong.ui.components.userMessage
+
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -64,7 +66,7 @@ class ModelViewModel(private val context: Context, private val store: SpeechMode
         viewModelScope.launch {
             try { mutableError.value = null; block() }
             catch (cancelled: CancellationException) { throw cancelled }
-            catch (failure: Exception) { mutableError.value = failure.message ?: "Couldn't change the speech model. Check free space and try again." }
+            catch (failure: Exception) { mutableError.value = failure.userMessage("Couldn't change the speech model. Check free space and try again.") }
         }
     }
     companion object {

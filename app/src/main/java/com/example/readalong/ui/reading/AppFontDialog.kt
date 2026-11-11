@@ -1,5 +1,7 @@
 package com.example.readalong.ui.reading
 
+import com.example.readalong.ui.components.userMessage
+
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
@@ -27,7 +29,7 @@ internal fun AppFontDialog(value: String, onDismiss: () -> Unit, onSave: (String
                 draft = ReaderFonts.import(context, uri).first
                 imports = ReaderFonts.imported(context)
             } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
-            catch (failure: Exception) { error = failure.message ?: "Couldn't import this font." }
+            catch (failure: Exception) { error = failure.userMessage("Couldn't import this font") }
             finally { busy = false }
         }
     }
