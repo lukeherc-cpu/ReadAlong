@@ -26,8 +26,8 @@ val sharedSources by tasks.registering(Sync::class) {
         include("ui/components/PlayPauseIcon.kt", "ui/components/MarqueeTitle.kt")
         include("ui/theme/Color.kt")
     }
-    // The Audible import engine (sign-in, library, download, decrypt) lives in the phone's GitHub flavor.
-    from("../app/src/github/java/com/example/readalong") { include("audible/**") }
+    // The Audible import engine (sign-in, library, download, decrypt) is shared with the phone's GitHub and Play builds.
+    from("../app/src/audible/java/com/example/readalong") { include("audible/**") }
     into(layout.buildDirectory.dir("shared/com/example/readalong"))
 }
 // The phone app's fonts and icons (Android vector drawables load as Compose ImageVectors on desktop too).

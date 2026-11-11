@@ -56,6 +56,12 @@ android {
         targetCompatibility = JavaVersion.VERSION_11
     }
     sourceSets.getByName("androidTest").assets.srcDir("$projectDir/schemas")
+    // The Audible import (sign-in, library, download, decrypt) ships in both the GitHub and Play builds.
+    listOf("github", "play").forEach { flavor ->
+        sourceSets.getByName(flavor).java.directories += "src/audible/java"
+        sourceSets.getByName(flavor).kotlin.directories += "src/audible/java"
+        sourceSets.getByName(flavor).assets.directories += "src/audible/assets"
+    }
     buildFeatures {
         compose = true
         buildConfig = true
