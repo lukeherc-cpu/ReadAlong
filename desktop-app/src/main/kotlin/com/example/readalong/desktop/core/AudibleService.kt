@@ -19,7 +19,7 @@ sealed interface AudibleDownload {
 
 /**
  * Libation's workflow inside ReadAlong: sign in to Audible, list the library, download, unlock and add
- * books. The engine is shared with the phone (app/src/github/.../audible). The sign-in and the library list live
+ * books. The engine is shared with the phone (app/src/audible/.../audible). The sign-in and the library list live
  * in ReadAlong's data folder; finished books move into a library folder and join the library and the queue.
  */
 class AudibleService(private val scope: CoroutineScope, private val importer: LibraryImporter, private val transcription: TranscriptionService) {
