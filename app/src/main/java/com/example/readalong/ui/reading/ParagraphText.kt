@@ -34,3 +34,17 @@ internal fun paragraphText(paragraph: TranscriptSegment, family: String, useEpub
         emphasise(focus, fade.progress)
     }
 }
+
+/**
+ * Hides the words a transcribing book hasn't "written" yet. They keep their place in the layout (just
+ * transparent), so lines never rewrap as words appear; the newest words fade in to [ink].
+ */
+internal fun AnnotatedString.writtenTo(written: com.example.readalong.domain.reading.LiveWriting.Written?, ink: Color): AnnotatedString {
+    if (written == null) return this
+    val words = com.example.readalong.domain.reading.LiveWriting.fadingWords(text, written.position, written.from)
+    if (words.isEmpty()) return this
+    return buildAnnotatedString {
+        append(this@writtenTo)
+        for ((start, end, alpha) in words) addStyle(SpanStyle(color = ink.copy(alpha = ink.alpha * alpha)), start, end)
+    }
+}

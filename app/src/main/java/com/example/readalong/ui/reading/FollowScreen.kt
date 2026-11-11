@@ -355,6 +355,49 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
                     }
                 }
         }
+        // While a book is being transcribed and the end of its text is on screen, each finished chunk is
+        // written in word by word instead of appearing all at once. A new pager starts afresh.
+        val processingJob by model.processingJob.collectAsStateWithLifecycle()
+        val transcribing = processingJob?.state in listOf("PROCESSING", "PARTIAL_READY", "GENERATING_EPUB") && start?.imported != true
+        val liveWriting = remember(book.id, start?.pagerGeneration) { com.example.readalong.domain.reading.LiveWriting() }
+        var writingRevision by remember(liveWriting) { mutableIntStateOf(0) }
+        var writingFrame by remember(liveWriting) { mutableIntStateOf(0) }
+        val writingNow by rememberUpdatedState(transcribing)
+        val writingInsetPx = with(textDensity) { 140.dp.toPx() }
+        LaunchedEffect(liveWriting, items) {
+            snapshotFlow { Triple(items.itemSnapshotList, items.itemCount, items.loadState.refresh is LoadState.NotLoading && contentReady) }
+                .collect { (snapshot, total, loaded) ->
+                    if (!loaded) return@collect
+                    val entries = snapshot.items.mapIndexed { i, paragraph ->
+                        com.example.readalong.domain.reading.LiveWriting.Entry(snapshot.placeholdersBefore + i, paragraph.id, paragraph.text)
+                    }
+                    // Watching: the place where new words would appear is on screen.
+                    val lastVisible = list.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
+                    val watching = lastVisible >= (liveWriting.frontier?.index ?: liveWriting.lastKnownIndex)
+                    if (liveWriting.accept(entries, total, writingNow && watching, android.os.SystemClock.elapsedRealtime())) writingRevision++
+                }
+        }
+        LaunchedEffect(liveWriting, writingRevision) {
+            if (!liveWriting.writing) return@LaunchedEffect
+            var last = withFrameNanos { it }
+            while (liveWriting.writing) {
+                val now = withFrameNanos { it }
+                val elapsed = (now - last) / 1_000_000f
+                last = now
+                liveWriting.advance(elapsed)
+                writingFrame++
+                // Keep the line being written in view, gliding a line at a time, unless the person is
+                // scrolling or the reader is following the audio.
+                val pen = liveWriting.frontier ?: continue
+                if (following || userScrolled || list.isScrollInProgress) continue
+                val layout = layouts[pen.index] ?: continue
+                val item = list.layoutInfo.visibleItemsInfo.firstOrNull { it.index == pen.index } ?: continue
+                val line = layout.getLineForOffset(pen.position.toInt().coerceIn(0, layout.layoutInput.text.length))
+                val below = item.offset + layout.getLineBottom(line) - (list.layoutInfo.viewportEndOffset - writingInsetPx)
+                if (below > 0f) list.dispatchRawDelta(below * (elapsed / 140f).coerceAtMost(1f))
+            }
+            writingFrame++
+        }
         fun moveSentence(direction: Int) {
             tapJob?.cancel()
             tapJob = scope.launch {
@@ -494,6 +537,12 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
                             val fade = rememberSentenceFade(shownFocus)
                             val styled = paragraphText(paragraph, preferences.fontFamily, preferences.useEpubFonts, epubFonts,
                                 shownFocus, spokenInk, Color.Transparent, fade, restInk)
+                                .let { text ->
+                                    // Only the paragraph being written reads the per-frame cursor.
+                                    if (writingRevision >= 0 && liveWriting.isWriting(paragraph.id) && writingFrame >= 0) {
+                                        text.writtenTo(liveWriting.written(paragraph.id), if (readingOnly) MaterialTheme.colorScheme.onBackground else restInk)
+                                    } else text
+                                }
                             DisposableEffect(index) { onDispose { layouts.remove(index); paragraphTops.remove(index) } }
                             Text(styled, modifier = Modifier.fillMaxWidth().testTag("reader_paragraph").onGloballyPositioned { coordinates ->
                                 val page = surfaceCoordinates[0]?.takeIf { it.isAttached && coordinates.isAttached }
