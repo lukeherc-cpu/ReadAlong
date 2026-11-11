@@ -1,5 +1,7 @@
 package com.example.readalong.ui.library
 
+import com.example.readalong.ui.components.userMessage
+
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -9,7 +11,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.example.readalong.R
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -40,7 +44,7 @@ class BookActionsViewModel(private val app: ReadAlongApplication) : ViewModel() 
             app.processing.clearStoppedNotification(book.id)
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (failure: Exception) {
-            android.widget.Toast.makeText(app, "Couldn't delete ${book.title}. ${failure.message.orEmpty()}".trim(), android.widget.Toast.LENGTH_LONG).show()
+            android.widget.Toast.makeText(app, "Couldn't delete ${book.title}. Try again.", android.widget.Toast.LENGTH_LONG).show()
             throw failure
         }
     }
@@ -56,7 +60,7 @@ class BookActionsViewModel(private val app: ReadAlongApplication) : ViewModel() 
         if (busy.value) return@launch
         busy.value = true; error.value = null
         try { work() } catch (cancelled: CancellationException) { throw cancelled }
-        catch (failure: Exception) { error.value = failure.message ?: "Couldn't update this book. Please retry." }
+        catch (failure: Exception) { error.value = failure.userMessage("Couldn't update this book. Try again.") }
         finally { busy.value = false }
     } }
     companion object { fun factory(app: ReadAlongApplication) = object : androidx.lifecycle.ViewModelProvider.Factory {
@@ -76,30 +80,39 @@ fun BookActions(book: Book, model: BookActionsViewModel, onDismiss: () -> Unit) 
     val epub by remember(book.id) { model.epub(book) }.collectAsStateWithLifecycle(null)
     val epubPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let { uri -> model.addEpub(book, uri, onDismiss) } }
     val cover = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let { uri -> model.edit(book, cover = uri) } }
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                BookCover(book, Modifier.width(64.dp), showTitle = false)
-                Column(Modifier.weight(1f)) { Text(book.title, style = MaterialTheme.typography.titleLarge); Text(book.author.orEmpty(), style = MaterialTheme.typography.bodySmall) }
-            }
-            error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-            if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-            // Adding the matching EPUB comes first: it's what a long-press on a book is most often for.
-            val epubLabel = if (epub == null) "Add matching EPUB" else "Replace matching EPUB"
-            listOfNotNull(epubLabel.takeUnless { book.isDemo }, "Title", "Author", "Cover from file system", "Cover from internet", "Mark as not started", "Mark as finished", "Delete book").forEach { label ->
-                TextButton(enabled = !busy, modifier = Modifier.fillMaxWidth(), onClick = {
-                    when (label) {
-                        epubLabel -> epubPicker.launch(arrayOf("application/epub+zip", "application/octet-stream"))
-                        "Title", "Author" -> { edit = label; value = if (label == "Title") book.title else book.author.orEmpty() }
-                        "Cover from file system" -> cover.launch(arrayOf("image/*"))
-                        "Cover from internet" -> internetCover = true
-                        "Delete book" -> delete = true
-                        "Mark as not started" -> { model.notStarted(book); onDismiss() }
-                        "Mark as finished" -> { model.finished(book); onDismiss() }
-                    }
-                }) { Text(label, Modifier.fillMaxWidth(), color = if (label == "Delete book") MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary) }
+    // Grouped rows: the EPUB (what a long-press is most often for), then editing, then status, then delete.
+    // Status rows only offer a change that applies to this book.
+    com.example.readalong.ui.components.ActionSheet(onDismiss, header = {
+        Row(Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            BookCover(book, Modifier.width(64.dp), showTitle = false)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(book.title, style = MaterialTheme.typography.titleLarge)
+                book.author?.takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             }
         }
+        error?.let { Text(it, Modifier.padding(horizontal = 24.dp, vertical = 4.dp), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
+        if (busy) LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 4.dp))
+    }) {
+        if (!book.isDemo) item { Column {
+            com.example.readalong.ui.components.SheetRow(if (epub == null) "Add matching EPUB" else "Replace matching EPUB",
+                { epubPicker.launch(arrayOf("application/epub+zip", "application/octet-stream")) }, icon = R.drawable.ic_book, enabled = !busy)
+            com.example.readalong.ui.components.SheetDivider()
+        } }
+        item { Column {
+            com.example.readalong.ui.components.SheetRow("Edit title", { edit = "Title"; value = book.title }, icon = R.drawable.ic_edit, enabled = !busy)
+            com.example.readalong.ui.components.SheetRow("Edit author", { edit = "Author"; value = book.author.orEmpty() }, icon = R.drawable.ic_edit, enabled = !busy)
+            com.example.readalong.ui.components.SheetRow("Choose cover from files", { cover.launch(arrayOf("image/*")) }, icon = R.drawable.ic_image, enabled = !busy)
+            com.example.readalong.ui.components.SheetRow("Find cover online", { internetCover = true }, icon = R.drawable.ic_globe, enabled = !busy)
+            com.example.readalong.ui.components.SheetDivider()
+        } }
+        item { Column {
+            if (book.section != com.example.readalong.domain.model.LibrarySection.NOT_STARTED)
+                com.example.readalong.ui.components.SheetRow("Mark as not started", { model.notStarted(book); onDismiss() }, icon = R.drawable.ic_undo, enabled = !busy)
+            if (!book.isFinished)
+                com.example.readalong.ui.components.SheetRow("Mark as finished", { model.finished(book); onDismiss() }, icon = R.drawable.ic_check_circle, enabled = !busy)
+            com.example.readalong.ui.components.SheetDivider()
+            com.example.readalong.ui.components.SheetRow("Delete book", { delete = true }, icon = R.drawable.ic_trash, destructive = true, enabled = !busy)
+        } }
     }
     if (internetCover) InternetCoverPicker(book.title, onDismiss = { internetCover = false }, onSave = { model.edit(book, cover = it); internetCover = false })
     edit?.let { field -> AlertDialog(onDismissRequest = { edit = null }, title = { Text("Edit ${field.lowercase()}") },
@@ -110,6 +123,6 @@ fun BookActions(book: Book, model: BookActionsViewModel, onDismiss: () -> Unit) 
         }) { Text("Save") } }, dismissButton = { TextButton(onClick = { edit = null }) { Text("Cancel") } }) }
     if (delete) AlertDialog(onDismissRequest = { delete = false }, title = { Text("Delete this book?") },
         text = { Text("This removes the book, its ReadAlong and its listening position from ReadAlong. The audio and EPUB files stay in your folders.") },
-        confirmButton = { TextButton(onClick = { model.delete(book); onDismiss() }) { Text("Delete book") } },
+        confirmButton = { TextButton(onClick = { model.delete(book); onDismiss() }) { Text("Delete book", color = MaterialTheme.colorScheme.error) } },
         dismissButton = { TextButton(onClick = { delete = false }) { Text("Cancel") } })
 }

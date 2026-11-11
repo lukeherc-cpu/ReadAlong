@@ -1,5 +1,7 @@
 package com.example.readalong.ui.transcription
 
+import com.example.readalong.ui.components.userMessage
+
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animateFloatAsState
@@ -79,7 +81,7 @@ class QueueViewModel(private val app: ReadAlongApplication) : ViewModel() {
     private fun action(block: suspend () -> Unit) { viewModelScope.launch {
         try { mutableError.value = null; block() }
         catch (cancelled: CancellationException) { throw cancelled }
-        catch (failure: Exception) { mutableError.value = failure.message ?: "Couldn't update the queue. Please try again." }
+        catch (failure: Exception) { mutableError.value = failure.userMessage("Couldn't update the queue. Try again.") }
     } }
     companion object {
         fun factory(app: ReadAlongApplication) = object : ViewModelProvider.Factory {

@@ -18,7 +18,7 @@ fun EpubEditionControls(model: ReadingViewModel, position: Long, compact: Boolea
     var confirmRemoval by remember { mutableStateOf(false) }
     // Compact (the player's More panel): right-aligned, and only once an EPUB exists; the bar itself offers adding one.
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp), horizontalAlignment = if (compact) androidx.compose.ui.Alignment.End else androidx.compose.ui.Alignment.Start) {
-        if (!compact) Text("Ebook (EPUB)", style = MaterialTheme.typography.titleSmall)
+        if (!compact) Text("EPUB", style = MaterialTheme.typography.titleSmall)
         if (!compact || edition != null) TextButton(enabled = !busy, onClick = { picker.launch(arrayOf("application/epub+zip", "application/octet-stream")) }) {
             Text(if (busy) "Adding EPUB…" else if (edition == null) "Add my EPUB" else "Replace my EPUB")
         }
@@ -38,6 +38,6 @@ fun EpubEditionControls(model: ReadingViewModel, position: Long, compact: Boolea
     }
     if (confirmRemoval) AlertDialog(onDismissRequest = { confirmRemoval = false }, title = { Text("Remove your EPUB?") },
         text = { Text("Your EPUB file, audiobook and ReadAlong are kept.") },
-        confirmButton = { TextButton(onClick = { model.removeEpub(position); confirmRemoval = false }) { Text("Remove") } },
+        confirmButton = { TextButton(onClick = { model.removeEpub(position); confirmRemoval = false }) { Text("Remove EPUB", color = MaterialTheme.colorScheme.error) } },
         dismissButton = { TextButton(onClick = { confirmRemoval = false }) { Text("Cancel") } })
 }

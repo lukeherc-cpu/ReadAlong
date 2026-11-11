@@ -1,5 +1,7 @@
 package com.example.readalong.ui.reading
 
+import com.example.readalong.ui.components.userMessage
+
 import androidx.lifecycle.*
 import androidx.room.withTransaction
 import com.example.readalong.data.local.TranscriptCorrectionEntity
@@ -244,7 +246,7 @@ class ReadingViewModel(val bookId: String, val database: ReadAlongDatabase, priv
                 mutableSearchNotice.value = if (partial) "Only ${job?.progress()?.bookPercent ?: 0}% of this book has text so far, so results may be missing." else null
                 if (results.isEmpty()) mutableSearchError.value = if (partial) "No matches yet." else "No matches in this book."
             } catch (cancelled: CancellationException) { throw cancelled }
-            catch (failure: Exception) { mutableSearchError.value = failure.message ?: "Text search failed. Try again." }
+            catch (failure: Exception) { mutableSearchError.value = failure.userMessage("Search didn't finish. Try again.") }
             finally { mutableSearching.value = false }
         }
     }
@@ -268,7 +270,7 @@ class ReadingViewModel(val bookId: String, val database: ReadAlongDatabase, priv
             mutableStart.value = ReaderStart(result.index, ++readerGeneration, result.generated, segment.imported, result.editionId, result.offset, mutableReadOnly.value)
             true
         } catch (cancelled: CancellationException) { throw cancelled }
-        catch (failure: Exception) { mutableSearchError.value = failure.message ?: "Couldn't open this result. Search again."; false }
+        catch (failure: Exception) { mutableSearchError.value = failure.userMessage("Couldn't open this result. Search again."); false }
     }
     private var transientNotice: Job? = null
     private fun notice(message: String) {
@@ -294,7 +296,7 @@ class ReadingViewModel(val bookId: String, val database: ReadAlongDatabase, priv
     /** Opens the text at [positionMs] and returns once it's loaded (false if it couldn't be). */
     suspend fun openReaderAt(positionMs: Long): Boolean = try { mutableError.value = null; loadReader(positionMs, false, true); true }
         catch (cancelled: CancellationException) { throw cancelled }
-        catch (failure: Exception) { mutableError.value = failure.message ?: "Couldn't open this chapter. Please try again."; false }
+        catch (failure: Exception) { mutableError.value = failure.userMessage("Couldn't open this chapter. Try again."); false }
     private suspend fun loadReader(positionMs: Long, resume: Boolean, generated: Boolean, retainPager: Boolean = false) {
         val bookMode = mutableReadOnly.value
         val request = ++openRequest
@@ -532,7 +534,7 @@ class ReadingViewModel(val bookId: String, val database: ReadAlongDatabase, priv
             mutableError.value = null
             try { work() }
             catch (cancelled: CancellationException) { throw cancelled }
-            catch (failure: Exception) { mutableError.value = failure.message ?: "Couldn't save this change. Please try again." }
+            catch (failure: Exception) { mutableError.value = failure.userMessage("Couldn't save this change. Try again.") }
         }
     }
     companion object {

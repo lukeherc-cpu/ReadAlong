@@ -45,14 +45,14 @@ class TipJarSettingsTest {
                 capture("tip-jar-light-top")
                 compose.runOnIdle { light = false }
                 capture("tip-jar-dark-top")
-                compose.onNodeWithText("Move tip jar to Other settings").performClick()
+                compose.onNodeWithText("Move tip jar to the bottom").performClick()
                 compose.waitUntil { runBlocking { AppPreferencesStore(app).preferences.first().tipJarInOther } }
                 compose.onNodeWithTag("tip_jar_top").assertDoesNotExist()
                 compose.onNodeWithTag("tip_jar_other").performScrollTo().assertIsDisplayed()
                 compose.onNodeWithText("Offline speech models").assertExists()
                 compose.onNodeWithTag("tip_jar_move").assertIsOn()
                 capture("tip-jar-dark-other")
-                compose.onNodeWithText("Move tip jar to Other settings").performClick()
+                compose.onNodeWithText("Move tip jar to the bottom").performClick()
                 compose.waitUntil { !runBlocking { AppPreferencesStore(app).preferences.first().tipJarInOther } }
                 compose.onNodeWithTag("tip_jar_other").assertDoesNotExist()
                 compose.onNodeWithTag("tip_jar_top").performScrollTo().assertIsDisplayed()
