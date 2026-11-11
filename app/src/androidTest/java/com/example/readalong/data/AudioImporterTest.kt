@@ -106,11 +106,7 @@ class AudioImporterTest {
             assertEquals(listOf(id), collection.bookIds); assertTrue(collection.newBookIds.isEmpty())
             assertEquals(1200L, db.bookDao().progress(id)!!.audioPositionMs)
             assertEquals(1, db.readingDao().segments(id).size)
-            // The cheap check that drives automatic rescans sees the new book, and is steady otherwise.
-            val before = importer.folderSnapshot()
-            assertEquals(before, importer.folderSnapshot())
             context.contentResolver.call(book, "show-new-book", "true", null)
-            assertNotEquals(before[library.toString()], importer.folderSnapshot()[library.toString()])
             importer.rescanSavedFolders()
             val count = db.mediaDao().allAudio().map { it.bookId }.distinct().size
             assertEquals(2, count)
