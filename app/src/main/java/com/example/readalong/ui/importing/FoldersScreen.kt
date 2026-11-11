@@ -133,7 +133,7 @@ fun FoldersScreen(model: ImportViewModel, onBack: () -> Unit) {
     if (audible) com.example.readalong.ui.audible.AudibleImportEntry(onChooseFolder = { audible = false; add() }, onDismiss = { audible = false })
     removing?.let { folder ->
         AlertDialog(onDismissRequest = { removing = null }, title = { Text("Remove this folder?") },
-            text = { Text("Are you sure? Its books leave your library, along with their ReadAlongs and listening progress. The audio files stay on your phone.") },
+            text = { Text("Its books leave your library, along with their ReadAlongs and listening progress. The audio files stay on your phone.") },
             confirmButton = { TextButton(onClick = { model.remove(folder); removing = null }) { Text("Remove folder", color = MaterialTheme.colorScheme.error) } },
             dismissButton = { TextButton(onClick = { removing = null }) { Text("Cancel") } })
     }

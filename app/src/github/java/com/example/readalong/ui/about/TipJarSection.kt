@@ -46,7 +46,7 @@ fun TipJarSection(inOther: Boolean, onMove: (Boolean) -> Unit) {
             .toggleable(value = inOther, role = Role.Checkbox, onValueChange = onMove)
             .padding(vertical = 8.dp, horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Checkbox(inOther, onCheckedChange = null)
-            Text("Move tip jar to Other settings", Modifier.padding(start = 10.dp), style = MaterialTheme.typography.bodyMedium)
+            Text("Move tip jar to the bottom", Modifier.padding(start = 10.dp), style = MaterialTheme.typography.bodyMedium)
         }
     }
     if (unavailable) AlertDialog(onDismissRequest = { unavailable = false },

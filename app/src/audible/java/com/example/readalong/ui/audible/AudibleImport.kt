@@ -1,5 +1,7 @@
 package com.example.readalong.ui.audible
 
+import com.example.readalong.ui.components.userMessage
+
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
 import android.webkit.CookieManager
@@ -72,7 +74,7 @@ private fun AudibleImportScreen(onClose: () -> Unit, onChooseFolder: () -> Unit)
                 registering = true
                 scope.launch {
                     try { store.save(withContext(Dispatchers.IO) { AudibleAuth.register(pending, redirect) }); error = null }
-                    catch (failure: Exception) { error = failure.message ?: "Signing in didn't finish. Try again." }
+                    catch (failure: Exception) { error = failure.userMessage("Signing in didn't finish. Try again.") }
                     finally { registering = false }
                 }
             }
@@ -153,7 +155,7 @@ private fun AudibleLibrary(store: AudibleStore, account: AudibleAccount, onChoos
                 val books = withContext(Dispatchers.IO) { AudibleClient(account, store::save).library() }
                 store.saveLibrary(books)
                 message = if (books.isEmpty()) "There are no audiobooks in this Audible library yet." else null
-            } catch (failure: Exception) { message = failure.message ?: "Couldn't load your Audible library." }
+            } catch (failure: Exception) { message = failure.userMessage("Couldn't load your Audible library. Try again.") }
             finally { syncing = false }
         }
     }

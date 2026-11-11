@@ -137,20 +137,27 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                     IconButton(onClick = { menu = true }) { Icon(painterResource(R.drawable.ic_more), "More options") }
                     DropdownMenu(menu, { menu = false }) {
                         // Adding the book's EPUB later swaps the ReadAlong to its exact text, so it leads the menu.
+                        // Every item has an icon in the same quiet colour; the EPUB item leads, with one line on why.
+                        val menuIcon: @Composable (Int) -> Unit = { Icon(painterResource(it), null, Modifier.size(22.dp), tint = colors.onSurfaceVariant) }
                         if (!book.isDemo) DropdownMenuItem(
                             text = {
                                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                    Text(if (epub != null) "Replace matching ebook" else "Add matching ebook", style = MaterialTheme.typography.titleSmall)
+                                    Text(if (epub != null) "Replace matching EPUB" else "Add matching EPUB")
                                     Text("Exact text for this ReadAlong", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
                                 }
                             },
-                            leadingIcon = { Icon(painterResource(R.drawable.ic_book), null, tint = colors.primary) },
+                            leadingIcon = { menuIcon(R.drawable.ic_book) },
                             onClick = { menu = false; pickEpub() },
-                            modifier = Modifier.padding(horizontal = 6.dp).background(colors.primary.copy(alpha = .12f), RoundedCornerShape(14.dp)).testTag("menu_add_epub"))
-                        if (!book.isDemo) HorizontalDivider(Modifier.padding(horizontal = 14.dp, vertical = 6.dp))
-                        DropdownMenuItem(text = { Text(if (book.isFinished) "Mark as not finished" else "Mark as finished") }, onClick = { onFinished(!book.isFinished); menu = false })
-                        DropdownMenuItem(text = { Text("Save ReadAlong as EPUB") }, onClick = { menu = false; export.launch("ReadAlong-${book.id}.epub") })
-                        DropdownMenuItem(text = { Text("Bookmarks (${bookmarks.size})") }, onClick = { panel = "bookmarks"; menu = false })
+                            modifier = Modifier.testTag("menu_add_epub"))
+                        if (!book.isDemo) HorizontalDivider(Modifier.padding(horizontal = 12.dp, vertical = 4.dp))
+                        DropdownMenuItem(text = { Text(if (book.isFinished) "Mark as not finished" else "Mark as finished") },
+                            leadingIcon = { menuIcon(if (book.isFinished) R.drawable.ic_undo else R.drawable.ic_check_circle) },
+                            onClick = { onFinished(!book.isFinished); menu = false })
+                        DropdownMenuItem(text = { Text("Save ReadAlong as EPUB") }, leadingIcon = { menuIcon(R.drawable.ic_download) },
+                            onClick = { menu = false; export.launch("ReadAlong-${book.id}.epub") })
+                        DropdownMenuItem(text = { Text("Bookmarks") }, leadingIcon = { menuIcon(R.drawable.ic_bookmark) },
+                            trailingIcon = { if (bookmarks.isNotEmpty()) Text("${bookmarks.size}", style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant) },
+                            onClick = { panel = "bookmarks"; menu = false })
                     }
                 }
             }
@@ -276,47 +283,59 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
     }
     if (showBuffering) LinearProgressIndicator(Modifier.align(Alignment.TopCenter).fillMaxWidth().height(2.dp).semantics { contentDescription = "Buffering audio" })
     }
-    if (panel == "bookmarks") BookmarksDialog(reading, state.positionMs, playback::seek, { panel = null })
-    if (panel != null && panel != "bookmarks") {
-        AlertDialog(
-            onDismissRequest = { panel = null },
-            title = { Text(when (panel) { "speed" -> "Playback speed"; "sleep" -> "Sleep timer"; "chapters" -> "Chapters"; "bookmarks" -> "Bookmarks"; else -> "ReadAlong" }) },
-            text = {
-                LazyColumn(Modifier.heightIn(max = 360.dp)) {
-                    when (panel) {
-                        "speed" -> items(PlaybackSpeeds) { speed -> TextButton(onClick = { playback.speed(speed); panel = null }, modifier = Modifier.fillMaxWidth()) { Text("$speed×") } }
-                        "sleep" -> {
-                            item { TextButton(onClick = { playback.sleep(null); panel = null }) { Text("Off") } }
-                            items(listOf(5, 10, 15, 30, 45, 60)) { minutes -> TextButton(onClick = { playback.sleep(minutes); panel = null }) { Text("$minutes minutes") } }
-                            item { TextButton(onClick = { playback.sleepAtChapterEnd(); panel = null }) { Text("End of chapter") } }
-                        }
-                        "chapters" -> {
-                            if (book.isDemo) items(((state.durationMs + 1_799_999) / 1_800_000).toInt()) { index ->
-                                TextButton(onClick = { playback.chapter(index); panel = null }) { Text("Chapter ${index + 1} · ${clockTime(index * 1_800_000L)}") }
-                            } else items(state.chapters, key = { it.index }) { item ->
-                                TextButton(onClick = { playback.chapter(item.index); panel = null }) {
-                                    Column(Modifier.fillMaxWidth()) {
-                                        Text(item.title)
-                                        Text(clockTime(item.startMs), style = MaterialTheme.typography.labelSmall)
-                                    }
-                                }
-                            }
-                        }
-                        "bookmarks" -> {
-                            if (bookmarks.isEmpty()) item { Text("No bookmarks yet.") }
-                            items(bookmarks, key = { it.id }) { bookmark ->
-                                Row {
-                                    TextButton(onClick = { playback.seek(bookmark.audioMs); panel = null }, modifier = Modifier.weight(1f)) { Text(clockTime(bookmark.audioMs)) }
-                                    TextButton(onClick = { reading.deleteBookmark(bookmark.id) }) { Text("Remove") }
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = { TextButton(onClick = { panel = null }) { Text("Close") } },
-        )
+    if (panel == "bookmarks") BookmarksDialog(reading, state.positionMs, playback::seek, { panel = null }, state.chapters)
+    if (panel != null && panel != "bookmarks") PlayerPanel(panel!!, book, state, playback, close = { panel = null })
     }
+}
+
+/** Speed, sleep timer and chapters: one sheet each, with the current choice ticked and in view. */
+@Composable
+private fun PlayerPanel(panel: String, book: Book, state: PlaybackState, playback: PlaybackControls, close: () -> Unit) {
+    when (panel) {
+        "speed" -> {
+            val current = PlaybackSpeeds.indexOfFirst { it == state.speed }
+            com.example.readalong.ui.components.ActionSheet(close, "Playback speed",
+                listState = androidx.compose.foundation.lazy.rememberLazyListState((current - 2).coerceAtLeast(0))) {
+                items(PlaybackSpeeds) { speed ->
+                    com.example.readalong.ui.components.SheetRow("$speed×", { playback.speed(speed); close() }, selected = speed == state.speed)
+                }
+            }
+        }
+        "sleep" -> {
+            val left = state.sleepEndsAt?.let { it - System.currentTimeMillis() }
+            val status = when {
+                state.sleepAtChapterEnd -> "Stops at end of chapter"
+                left != null -> "Stops in ${((left + 59_999) / 60_000).coerceAtLeast(1)} min"
+                else -> null
+            }
+            val chapterLeft = ((state.chapterDurationMs - state.chapterPositionMs) / state.speed.coerceAtLeast(.1f)).toLong()
+            com.example.readalong.ui.components.ActionSheet(close, "Sleep timer", status) {
+                item { com.example.readalong.ui.components.SheetRow("Off", { playback.sleep(null); close() }, selected = status == null) }
+                items(listOf(5, 10, 15, 30, 45, 60)) { minutes ->
+                    com.example.readalong.ui.components.SheetRow("$minutes minutes", { playback.sleep(minutes); close() }, selected = false)
+                }
+                item {
+                    com.example.readalong.ui.components.SheetRow("End of chapter", { playback.sleepAtChapterEnd(); close() },
+                        meta = if (state.sleepAtChapterEnd) null else "in ${hoursMinutes(chapterLeft)}", selected = state.sleepAtChapterEnd)
+                }
+            }
+        }
+        "chapters" -> {
+            val demoCount = ((state.durationMs + 1_799_999) / 1_800_000).toInt()
+            val count = if (book.isDemo) demoCount else state.chapters.size
+            val playing = if (book.isDemo) (state.positionMs / 1_800_000).toInt() else state.chapterIndex
+            val at = if (book.isDemo) playing else state.chapters.indexOfFirst { it.index == playing }.coerceAtLeast(0)
+            com.example.readalong.ui.components.ActionSheet(close, "Chapters", if (count == 1) "1 chapter" else "$count chapters",
+                listState = androidx.compose.foundation.lazy.rememberLazyListState((at - 2).coerceAtLeast(0))) {
+                if (book.isDemo) items(demoCount) { index ->
+                    com.example.readalong.ui.components.SheetRow("Chapter ${index + 1}", { playback.chapter(index); close() },
+                        meta = clockTime(index * 1_800_000L), selected = index == playing)
+                } else items(state.chapters, key = { it.index }) { item ->
+                    com.example.readalong.ui.components.SheetRow(item.title, { playback.chapter(item.index); close() },
+                        meta = clockTime(item.startMs), selected = item.index == playing)
+                }
+            }
+        }
     }
 }
 

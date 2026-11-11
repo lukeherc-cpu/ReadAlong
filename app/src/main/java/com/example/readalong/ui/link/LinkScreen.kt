@@ -1,5 +1,7 @@
 package com.example.readalong.ui.link
 
+import com.example.readalong.ui.components.userMessage
+
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -69,7 +71,7 @@ fun LinkScreen(app: ReadAlongApplication, onBack: () -> Unit) {
             scope.launch {
                 busy = "Linking to ${code.name}…"; error = null
                 try { offered = sync.link(code); choosing = true }
-                catch (failure: Exception) { error = failure.message ?: "Couldn't link." }
+                catch (failure: Exception) { error = failure.userMessage("Couldn't link. Check both devices are on the same Wi-Fi, then try again.") }
                 finally { busy = null }
             }
         }
@@ -85,7 +87,7 @@ fun LinkScreen(app: ReadAlongApplication, onBack: () -> Unit) {
         scope.launch {
             busy = "Asking ${state.computer?.name} for its folders…"; error = null
             try { offered = sync.remoteFolders(); choosing = true }
-            catch (failure: Exception) { error = failure.message }
+            catch (failure: Exception) { error = failure.userMessage("Couldn't reach ${state.computer?.name ?: "the computer"}. Check ReadAlong is open on it, then try again.") }
             finally { busy = null }
         }
     }
@@ -132,7 +134,7 @@ fun LinkScreen(app: ReadAlongApplication, onBack: () -> Unit) {
                             choosing = false
                             if (firstTime && (pairs + created).isNotEmpty()) transcriptNotice = true
                             LinkSyncWorker.schedule(context); LinkSyncWorker.syncNow(context)
-                        } catch (failure: Exception) { error = failure.message }
+                        } catch (failure: Exception) { error = failure.userMessage("Couldn't set up those folders. Try again.") }
                         finally { busy = null }
                     }
                 }, onSkip = { sync.store.update { it.copy(foldersAsked = true) }; choosing = false })

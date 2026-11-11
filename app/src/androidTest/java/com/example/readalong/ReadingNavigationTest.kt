@@ -204,13 +204,14 @@ class ReadingNavigationTest {
         val before = runBlocking { app.transcriptRepository.bookmarks(id).first().size }
         compose.onNodeWithContentDescription("Bookmarks").performScrollTo().performClick()
         assertEquals(before, runBlocking { app.transcriptRepository.bookmarks(id).first().size })
-        compose.onNodeWithContentDescription("Add bookmark").performClick()
+        compose.onNodeWithText("Add bookmark", substring = true).performClick()
         compose.onNodeWithText("Bookmark name").performTextInput("A saved moment")
         compose.onNodeWithText("Save").performClick()
         compose.waitUntil(5000) { compose.onAllNodesWithText("A saved moment").fetchSemanticsNodes().isNotEmpty() }
         val bookmark = runBlocking { app.transcriptRepository.bookmarks(id).first().first { it.label == "A saved moment" } }
         assertEquals(24_000L, bookmark.audioMs)
-        compose.onNodeWithText("Close").performClick()
+        androidx.test.espresso.Espresso.pressBack()
+        compose.waitUntil(5000) { compose.onAllNodesWithText("A saved moment").fetchSemanticsNodes().isEmpty() }
         compose.runOnUiThread { app.playback.seek(0) }
         compose.onNodeWithContentDescription("Bookmarks").performClick()
         compose.onNodeWithText("A saved moment").performClick()
