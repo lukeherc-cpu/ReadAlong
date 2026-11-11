@@ -169,6 +169,22 @@ class AudioImporter(private val context: Context, private val database: ReadAlon
         results
     }
 
+    /**
+     * A cheap sign of what each saved folder holds, by folder URI: one provider query per folder, against a scan's
+     * one per subfolder. It changes when a book (folder or file) appears, goes, or is still being copied at the top
+     * of the folder, and when files come and go in a book folder just below it (that folder's date moves). Hidden
+     * names (ReadAlong's own temporary files) are left out. Changes deeper down wait for the next full rescan.
+     */
+    suspend fun folderSnapshot(): Map<String, Int> = withContext(Dispatchers.IO) {
+        media.savedFolders().filter { it.uri !in FolderRemovals.folders.value }.associate { folder ->
+            val root = runCatching { DocumentFile.fromTreeUri(context, Uri.parse(folder.uri))?.uri }.getOrNull()
+            folder.uri to (root?.let { uri -> FolderEntry.children(resolver, uri)
+                .filterNot { it.name.orEmpty().startsWith(".") }
+                .map { "${it.name}/${it.isDirectory}/${if (it.isDirectory) it.lastModified() else it.length()}" }
+                .sorted().hashCode() } ?: 0)
+        }
+    }
+
     /** [restore]: names of book folders the person asked for again (an Audible download), which come back even if deleted earlier. */
     suspend fun scan(uri: Uri, restore: Set<String> = emptySet()): ImportResult = folderLock.withLock { scanLocked(uri, restore = restore) }
 
