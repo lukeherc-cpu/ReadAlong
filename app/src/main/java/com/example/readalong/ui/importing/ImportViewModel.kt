@@ -1,5 +1,7 @@
 package com.example.readalong.ui.importing
 
+import com.example.readalong.ui.components.userMessage
+
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -114,7 +116,7 @@ class ImportViewModel(private val importer: AudioImporter, private val epubs: co
     }
     /** The folder and its books leave the library at once; their clean-up finishes in the background. */
     fun remove(folder: FolderEntity) {
-        importer.removeFolderInBackground(folder) { showMessage(it.message ?: "That folder couldn't be removed. Please try again.") }
+        importer.removeFolderInBackground(folder) { showMessage(it.userMessage("That folder couldn't be removed. Try again.")) }
         showMessage("Folder removed from your library.")
     }
     /** How far the folder scan under way has got, once its books are counted. */
@@ -163,7 +165,7 @@ class ImportViewModel(private val importer: AudioImporter, private val epubs: co
                 showMessage(pendingMessage)
                 try { showMessage(work()) }
                 catch (cancelled: CancellationException) { throw cancelled }
-                catch (failure: Exception) { showMessage(failure.message ?: "Couldn't add that audio. Please try again.") }
+                catch (failure: Exception) { showMessage(failure.userMessage("Couldn't add that audio. Try again.")) }
                 finally { if (--waiting == 0) mutableBusy.value = false }
             }
         }

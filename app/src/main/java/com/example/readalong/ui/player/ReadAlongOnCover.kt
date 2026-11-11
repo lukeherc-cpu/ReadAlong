@@ -61,7 +61,7 @@ internal fun NoTextYet(book: Book, reading: ReadingViewModel, onNotNow: () -> Un
             if (!book.isDemo) Button(onClick = { choosing = true }, modifier = Modifier.heightIn(min = 48.dp).testTag("make_readalong_cover")) {
                 Text("Make a ReadAlong")
             }
-            Text("From the matching ebook or the audio", style = MaterialTheme.typography.bodySmall, color = ink.copy(alpha = .62f), textAlign = TextAlign.Center)
+            Text("From the matching EPUB or the audio", style = MaterialTheme.typography.bodySmall, color = ink.copy(alpha = .62f), textAlign = TextAlign.Center)
             TextButton(onClick = onNotNow, modifier = Modifier.testTag("not_right_now")) { Text("Not right now") }
         }
     }
@@ -84,7 +84,7 @@ private fun MakeReadAlongSheet(reading: ReadingViewModel, onDismiss: () -> Unit)
         Text("Read the words as they're spoken. Pick where the text comes from.", style = MaterialTheme.typography.bodyMedium,
             color = colors.onSurfaceVariant, textAlign = TextAlign.Center)
         com.example.readalong.ui.importing.SourceButton(colors.primary to colors.onPrimary, R.drawable.ic_book,
-            if (epub != null) "Use my matching ebook" else "Add the matching ebook", "Exact text from your EPUB. Best results.", !busy,
+            if (epub != null) "Use my matching EPUB" else "Add the matching EPUB", "Exact text from your EPUB. Best results.", !busy,
             Modifier.heightIn(min = 84.dp).testTag("reading_source_epub"), large = true) {
             if (epub != null) { reading.createWithSource(true, null) {}; onDismiss() } else picker.launch(EpubTypes)
         }

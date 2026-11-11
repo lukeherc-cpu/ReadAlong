@@ -272,7 +272,7 @@ private fun LibriSyncButton(installed: Boolean, download: LibriSyncDownload, onD
             else -> Button(onClick = onDownload) { Text(if (download is LibriSyncDownload.Failed) "Try again" else "Download LibriSync") }
         }
         if (download is LibriSyncDownload.Failed && !installed) {
-            Text("The download didn't work (${download.reason}). Check your connection and try again, or get it from the release page.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            Text("The download didn't work. Check your connection and try again, or get it from the release page.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
             TextButton(onClick = onReleasePage, contentPadding = PaddingValues(0.dp)) { Text("Open release page") }
         }
     }

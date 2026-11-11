@@ -1,5 +1,6 @@
 package com.example.readalong.ui.about
 
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.background
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.clickable
@@ -106,13 +107,11 @@ fun SettingsScreen(app: ReadAlongApplication, onBack: () -> Unit, onModel: () ->
         pendingTheme = null; pendingColor = null
         save { it.copy(libraryLight = light ?: it.libraryLight, basicColor = color ?: it.basicColor) }
     }
-    if (backgroundPicker) AlertDialog(onDismissRequest = { backgroundPicker = false }, title = { Text("Player background") }, text = {
-        Column { listOf(true to "Blurred cover art", false to "Solid color").forEach { (blur, label) ->
-            Row(Modifier.fillMaxWidth().clickable { save { it.copy(blurredPlayer = blur) }; backgroundPicker = false }.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                RadioButton(preferences.blurredPlayer == blur, onClick = { save { it.copy(blurredPlayer = blur) }; backgroundPicker = false }); Text(label)
-            }
-        } }
-    }, confirmButton = { TextButton(onClick = { backgroundPicker = false }) { Text("Close") } })
+    if (backgroundPicker) com.example.readalong.ui.components.ActionSheet({ backgroundPicker = false }, "Player background") {
+        items(listOf(true to "Blurred cover art", false to "Solid color")) { (blur, label) ->
+            com.example.readalong.ui.components.SheetRow(label, { save { it.copy(blurredPlayer = blur) }; backgroundPicker = false }, selected = preferences.blurredPlayer == blur)
+        }
+    }
     if (skipDialog) {
         var back by remember { mutableStateOf(preferences.playerBack.toString()) }; var forward by remember { mutableStateOf(preferences.playerForward.toString()) }
         var readerBack by remember { mutableStateOf(preferences.readerBack.toString()) }; var readerForward by remember { mutableStateOf(preferences.readerForward.toString()) }

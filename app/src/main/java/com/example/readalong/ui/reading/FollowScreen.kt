@@ -611,7 +611,7 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
             }
         }
         }
-        if (panel == "bookmarks") com.example.readalong.ui.player.BookmarksDialog(model, if (readingOnly) audio else state.positionMs, playback::seek, { panel = null })
+        if (panel == "bookmarks") com.example.readalong.ui.player.BookmarksDialog(model, if (readingOnly) audio else state.positionMs, playback::seek, { panel = null }, state.chapters)
         manualSync?.let { draft -> ManualSyncDialog(draft, currentAudioPosition, syncBusy, error,
             onDismiss = model::dismissSync, onSave = model::saveSync) }
         correction?.let { draft ->
@@ -640,11 +640,13 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
             val shown = list.firstVisibleItemIndex.takeIf { it < items.itemCount }?.let { items.peek(it)?.chapterId }
             shown ?: if (!readingOnly) chapters.lastOrNull { it.startMs in 0..state.positionMs }?.id else null
         } else null
-        if (panel == "contents") AlertDialog(onDismissRequest = { panel = null }, title = { Text("Contents") }, text = {
-            LazyColumn { items(chapters, key = { it.id }) { chapter -> val current = chapter.id == currentChapterId
-                TextButton(shape = androidx.compose.foundation.shape.RoundedCornerShape(com.example.readalong.ui.theme.Corners.small),
-                colors = ButtonDefaults.textButtonColors(containerColor = if (current) colors.onSurface.copy(alpha = .08f) else Color.Transparent, contentColor = colors.onSurface),
-                modifier = Modifier.fillMaxWidth().semantics { if (current) stateDescription = "Current chapter" }, enabled = if (readingOnly) chapter.readable else chapter.readerIndex != null || chapter.startMs >= 0, onClick = {
+        if (panel == "contents") {
+            val at = chapters.indexOfFirst { it.id == currentChapterId }
+            com.example.readalong.ui.components.ActionSheet({ panel = null }, "Contents",
+                listState = androidx.compose.foundation.lazy.rememberLazyListState((at - 2).coerceAtLeast(0))) {
+            items(chapters, key = { it.id }) { chapter -> val current = chapter.id == currentChapterId
+                com.example.readalong.ui.components.SheetRow(chapter.title, enabled = if (readingOnly) chapter.readable else chapter.readerIndex != null || chapter.startMs >= 0, selected = current, weight = FontWeight.Normal,
+                    supporting = if (!readingOnly) chapter.status else null, onClick = {
                 if (chapter.readerIndex != null) {
                     playback.pause(); model.openEpubSection(chapter.readerIndex)
                     if (!readingOnly && chapter.startMs >= 0) playback.seek(chapter.startMs)
@@ -659,14 +661,9 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
                         model.openReaderAt(chapter.startMs)
                     }
                 }; panel = null
-            }) { Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(chapter.title, fontWeight = FontWeight.Normal)
-                    if (!readingOnly) Text(chapter.status, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                if (current) Icon(painterResource(R.drawable.ic_check), null, Modifier.padding(start = 8.dp).size(20.dp), tint = colors.primary)
-            } } } }
-        }, confirmButton = { TextButton(onClick = { panel = null }) { Text("Close") } })
+            }) }
+            }
+        }
     }
 }
 
