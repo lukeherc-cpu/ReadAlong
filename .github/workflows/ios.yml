@@ -1,0 +1,134 @@
+name: ReadAlong for iPhone
+
+# Builds the iPhone app (ios-app/): whisper.cpp as an XCFramework with Metal, the Kotlin framework, then an
+# unsigned .ipa. There is no Apple Developer account, so the .ipa is signed on install by AltStore or
+# Sideloadly with the user's own Apple ID (ios-app/README.md).
+on:
+  push:
+    paths: ["ios-app/**", ".github/workflows/ios.yml", "app/src/main/java/com/example/readalong/domain/**", "app/src/github/java/com/example/readalong/audible/**"]
+  workflow_dispatch:
+  # release.yml calls this after publishing the APK, to add the .ipa to the same release.
+  workflow_call:
+    inputs:
+      release:
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+# A newer push replaces a run still going on the same branch (a release run is never cancelled).
+concurrency:
+  group: ios-${{ github.ref }}-${{ inputs.release && 'release' || 'build' }}
+  cancel-in-progress: ${{ !inputs.release }}
+
+env:
+  WHISPER_CPP_VERSION: v1.8.7
+
+jobs:
+  ios:
+    runs-on: macos-15
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Phone unit tests on the iOS simulator
+        run: |
+          set -o pipefail
+          mkdir -p ci-results
+          ./gradlew -p ios-app --console=plain :core:iosSimulatorArm64Test 2>&1 | tee ci-results/tests.log
+
+      - name: Build the Kotlin framework
+        # Also after failed tests, so one run reports both test failures and compile errors.
+        if: ${{ !cancelled() }}
+        run: |
+          set -o pipefail
+          mkdir -p ci-results
+          ./gradlew -p ios-app --console=plain linkReleaseFrameworkIosArm64 2>&1 | tee ci-results/gradle.log
+
+      - name: Build whisper.cpp for iPhone (Metal + Accelerate)
+        if: ${{ !cancelled() }}
+        run: |
+          set -o pipefail
+          git clone -q --depth 1 --branch "$WHISPER_CPP_VERSION" https://github.com/ggml-org/whisper.cpp ../whisper.cpp
+          cmake -S ios-app/iosApp/Whisper -B ../whisper-ios-build -DCMAKE_BUILD_TYPE=Release -DCMAKE_SYSTEM_NAME=iOS \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=16.0 -DWHISPER_CPP="$(cd ../whisper.cpp && pwd)" 2>&1 | tee ci-results/whisper.log
+          cmake --build ../whisper-ios-build --target readalong_whisper -j 4 2>&1 | tail -30 | tee -a ci-results/whisper.log
+          mkdir -p ios-app/build/whisper-ios
+          libs=$(find ../whisper-ios-build -name '*.a' | sort)
+          echo "$libs" | tee -a ci-results/whisper.log
+          libtool -static -o ios-app/build/whisper-ios/libreadalong_whisper_all.a $libs
+          nm -gU ios-app/build/whisper-ios/libreadalong_whisper_all.a 2>/dev/null | grep -c " T _rw_" | tee -a ci-results/whisper.log
+
+      - name: Build the app
+        run: |
+          set -o pipefail
+          brew install xcodegen
+          version=$(grep -oE 'versionName = "[^"]+"' app/build.gradle.kts | cut -d'"' -f2)
+          cd ios-app/iosApp
+          READALONG_VERSION="${version%%-*}" xcodegen generate
+          xcodebuild -project ReadAlong.xcodeproj -scheme ReadAlong -configuration Release -sdk iphoneos \
+            -destination generic/platform=iOS -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build 2>&1 | tee ../../ci-results/xcode.log | tail -60
+
+      - name: Package the unsigned .ipa
+        run: |
+          version=$(grep -oE 'versionName = "[^"]+"' app/build.gradle.kts | cut -d'"' -f2)
+          mkdir -p Payload dist
+          cp -R ios-app/iosApp/build/Build/Products/Release-iphoneos/ReadAlong.app Payload/
+          zip -qry "dist/ReadAlong-$version.ipa" Payload
+          ls -la dist
+
+      # The same app built for the simulator, walked through its main screens with a sample book (Tour.kt):
+      # screenshots and a screen recording of playback, making a ReadAlong with whisper.cpp, and the reader.
+      - name: Tour the app on the simulator
+        if: ${{ !cancelled() }}
+        run: |
+          set -o pipefail
+          ./gradlew -p ios-app --console=plain linkReleaseFrameworkIosSimulatorArm64 2>&1 | tail -5
+          cmake -S ios-app/iosApp/Whisper -B ../whisper-sim-build -DCMAKE_BUILD_TYPE=Release -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_SYSROOT=iphonesimulator \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=16.0 -DWHISPER_CPP="$(cd ../whisper.cpp && pwd)" > /dev/null
+          cmake --build ../whisper-sim-build --target readalong_whisper -j 4 2>&1 | tail -3
+          mkdir -p ios-app/build/whisper-ios-sim
+          libtool -static -o ios-app/build/whisper-ios-sim/libreadalong_whisper_all.a $(find ../whisper-sim-build -name '*.a')
+          cd ios-app/iosApp
+          xcodebuild -project ReadAlong.xcodeproj -scheme ReadAlong -configuration Release -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' -derivedDataPath build-sim ARCHS=arm64 ONLY_ACTIVE_ARCH=NO \
+            CODE_SIGNING_ALLOWED=NO build 2>&1 | tee ../../ci-results/xcode-sim.log | tail -20
+          mkdir -p ../../dist
+          # The simulator build on its own, for Appetize.io or Xcode's Simulator (the .ipa only runs on a real iPhone).
+          (cd build-sim/Build/Products/Release-iphonesimulator && zip -qry ../../../../../../dist/ReadAlong-simulator.zip ReadAlong.app)
+          cd ../..
+          ios-app/iosApp/ci/simulator-tour.sh ios-app/iosApp/build-sim/Build/Products/Release-iphonesimulator/ReadAlong.app ci-results
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ReadAlong-ipa
+          path: dist/*.ipa
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: ReadAlong-simulator
+          path: dist/ReadAlong-simulator.zip
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-ci-results
+          path: |
+            ci-results
+            ios-app/core/build/reports/tests
+
+      - name: Attach to the release
+        if: ${{ inputs.release }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(grep -oE 'versionName = "[^"]+"' app/build.gradle.kts | cut -d'"' -f2)
+          gh release upload "v$version" dist/*.ipa --clobber

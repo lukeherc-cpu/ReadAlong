@@ -98,3 +98,11 @@ jobs:
     uses: ./.github/workflows/desktop-macos.yml
     with:
       release: true
+
+  iphone:
+    name: iPhone app (unsigned .ipa)
+    needs: release
+    if: startsWith(github.ref, 'refs/heads/release/')
+    uses: ./.github/workflows/ios.yml
+    with:
+      release: true
