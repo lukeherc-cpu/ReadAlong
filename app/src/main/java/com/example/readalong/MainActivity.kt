@@ -47,6 +47,10 @@ open class MainActivity : ComponentActivity() {
                 runCatching { app.folderLink.watch { com.example.readalong.data.link.LinkSyncWorker.syncNow(app) } }
             }
         }
+        // Books dropped into a library folder while ReadAlong is on screen are added without a manual refresh.
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) { importViewModel.watchFolders() }
+        }
         val animateLaunch = savedInstanceState == null
         setContent {
             var launching by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(animateLaunch) }

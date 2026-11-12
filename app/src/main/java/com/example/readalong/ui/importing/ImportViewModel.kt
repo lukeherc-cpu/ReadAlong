@@ -128,19 +128,47 @@ class ImportViewModel(private val importer: AudioImporter, private val epubs: co
     val scanningFolder = mutableScanningFolder.asStateFlow()
     private var autoScan: kotlinx.coroutines.Job? = null
     private var lastAutoScan = 0L
+    /** What the saved folders looked like when the last background scan started. */
+    private var scannedSnapshot: Map<String, Int>? = null
+    private fun sinceAutoScan() = android.os.SystemClock.elapsedRealtime() - lastAutoScan
+    private suspend fun snapshot(): Map<String, Int>? =
+        try { importer.folderSnapshot() }
+        catch (cancelled: CancellationException) { throw cancelled }
+        catch (_: Exception) { null }
     /**
      * Rescans saved folders when ReadAlong comes back to the screen. Flicking between apps rescanned
-     * a large library every time; a scan within the last 30 seconds is enough.
+     * a large library every time, so within 30 seconds of a scan it rescans only if a folder looks different.
      */
     fun refreshLibrary() {
         if (autoScan?.isActive == true) return
-        val now = android.os.SystemClock.elapsedRealtime()
-        if (lastAutoScan != 0L && now - lastAutoScan < 30_000) return
-        lastAutoScan = now
         autoScan = viewModelScope.launch {
-            while (busy.value) kotlinx.coroutines.delay(150)
-            try { syncedNote(importer.rescanSavedFolders { mutableScanningFolder.value = it?.name })?.let { mutableSynced.tryEmit(it) } }
-            finally { mutableScanningFolder.value = null }
+            val now = snapshot()
+            if (lastAutoScan != 0L && now != null && !FolderWatch.scanOnResume(scannedSnapshot, now, sinceAutoScan())) return@launch
+            scanSavedFolders(now)
+        }
+    }
+    private suspend fun scanSavedFolders(snapshot: Map<String, Int>?) {
+        lastAutoScan = android.os.SystemClock.elapsedRealtime()
+        while (busy.value) kotlinx.coroutines.delay(150)
+        try { syncedNote(importer.rescanSavedFolders { mutableScanningFolder.value = it?.name })?.let { mutableSynced.tryEmit(it) } }
+        finally { mutableScanningFolder.value = null }
+        // Taken before the scan, so a book that arrived during it still looks new at the next check.
+        if (snapshot != null) scannedSnapshot = snapshot
+    }
+    /**
+     * While ReadAlong is on screen, on any page: every few seconds looks at the top of each saved folder, and
+     * rescans once a book dropped into one (by a file manager, a download, a computer) has finished copying.
+     * A full rescan every ten minutes catches books added deeper down. Runs until cancelled.
+     */
+    suspend fun watchFolders() {
+        var previous: Map<String, Int>? = null
+        while (true) {
+            kotlinx.coroutines.delay(FolderWatch.CHECK_MS)
+            if (autoScan?.isActive == true || busy.value) continue
+            val now = snapshot() ?: continue
+            val scan = FolderWatch.shouldScan(scannedSnapshot, previous, now, sinceAutoScan())
+            previous = now
+            if (scan && autoScan?.isActive != true) autoScan = viewModelScope.launch { scanSavedFolders(now) }
         }
     }
     private var messageExpiry: kotlinx.coroutines.Job? = null
