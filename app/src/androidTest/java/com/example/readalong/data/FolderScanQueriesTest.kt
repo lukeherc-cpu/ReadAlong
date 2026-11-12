@@ -45,6 +45,26 @@ class FolderScanQueriesTest {
         } finally { db.close() }
     }
 
+    /** The cheap check behind automatic rescans: one query per folder, steady until a book appears, then different. */
+    @Test fun folderSnapshotSeesANewBookWithOneQuery() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val db = Room.inMemoryDatabaseBuilder(context, ReadAlongDatabase::class.java).build()
+        val library = DocumentsContract.buildTreeDocumentUri("com.example.readalong.test.original-books", "library")
+        try {
+            org.junit.Assume.assumeTrue("The test provider can't be reached", runCatching { shellCall("grant-original-book") }.isSuccess)
+            shellCall("show-new-book", "false")
+            fun queries() = Regex("count=(\\d+)").find(shellCall("query-count"))!!.groupValues[1].toInt()
+            val importer = AudioImporter(context, db)
+            importer.addFolder(library, FolderMode.LIBRARY, false)
+            val before = importer.folderSnapshot()
+            queries()
+            assertEquals(before, importer.folderSnapshot())
+            assertTrue("A snapshot of one folder made more than one listing", queries() <= 2)
+            shellCall("show-new-book", "true")
+            assertTrue(before[library.toString()] != importer.folderSnapshot()[library.toString()])
+        } finally { runCatching { shellCall("show-new-book", "false") }; db.close() }
+    }
+
     /**
      * Calls the test provider as the shell, which holds MANAGE_DOCUMENTS. The app process can't open the
      * provider itself on API 34 even with the shell's identity adopted; the URI grants it hands out still work.

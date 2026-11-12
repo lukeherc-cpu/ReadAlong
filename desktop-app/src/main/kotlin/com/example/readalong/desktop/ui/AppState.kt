@@ -130,6 +130,8 @@ class AppState(val scope: CoroutineScope, private val background: Boolean = true
         scope.launch { transcription.messages.collect { messages.emit(it) } }
         scope.launch { audible.messages.collect { messages.emit(it) } }
         if (background) scope.launch(Dispatchers.IO) { runCatching { importer.rescan() }; syncProgressNow() }
+        // Books copied into a library folder while ReadAlong is open are added without "Check for new books".
+        if (background) scope.launch { FolderWatcher(library.folders, onChange = { importer.rescan(); syncProgressNow() }).run() }
         // Pausing hands the position to the phone.
         if (background) scope.launch {
             var last: Pair<String?, Boolean>? = null
