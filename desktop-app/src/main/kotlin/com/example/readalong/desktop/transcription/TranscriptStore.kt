@@ -257,6 +257,11 @@ class TranscriptStore {
             return JSONObject().put("text", text).put("words", words)
         }
 
+        /** The "model" a `.readalong` package says it was made with, or null when it can't be read. */
+        fun packageModel(packageFile: File): String? = runCatching {
+            ZipFile(packageFile).use { zip -> JSONObject(zip.getInputStream(zip.getEntry("manifest.json")).use { String(it.readNBytes(1024 * 1024)) }).optString("model").ifBlank { null } }
+        }.getOrNull()
+
         private val hashCache = java.util.concurrent.ConcurrentHashMap<String, Pair<Long, String>>()
         fun sha256(file: File, progress: (Long) -> Unit = {}): Pair<Long, String> {
             val key = "${file.absolutePath}:${file.length()}:${file.lastModified()}"

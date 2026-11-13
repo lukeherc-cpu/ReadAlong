@@ -34,12 +34,11 @@ class ModelStore(private val directory: File = AppPaths.models,
     private val locks = java.util.concurrent.ConcurrentHashMap<String, kotlinx.coroutines.sync.Mutex>()
 
     /**
-     * Keeps the default model (Tiny for the chosen language) on this computer, so the first book starts without a
+     * Keeps the default model (see [SpeechModels.default]) on this computer, so the first book starts without a
      * manual download. Tries again every few minutes while offline; quiet, since nothing is waiting on it yet.
      */
-    fun keepDefault(scope: CoroutineScope, language: kotlinx.coroutines.flow.Flow<String>) = scope.launch {
-        language.distinctUntilChanged().collectLatest { code ->
-            val model = SpeechModels.default(code)
+    fun keepDefault(scope: CoroutineScope, default: kotlinx.coroutines.flow.Flow<SpeechModel>) = scope.launch {
+        default.distinctUntilChanged().collectLatest { model ->
             var wait = 30_000L
             while (!isInstalled(model)) {
                 if (runCatching { download(model) }.isSuccess) break

@@ -46,6 +46,13 @@ data class LinkState(val deviceId: String, val name: String, val devices: List<L
 class DeviceLink(private val scope: CoroutineScope, private val library: LibraryStore, private val onSynced: suspend () -> Unit,
     /** The app and reader settings shared with the phone (SettingsSync keys), and how to take the phone's. */
     private val settings: () -> Map<String, String> = { emptyMap() }, private val applySettings: (Map<String, String>) -> Unit = {},
+    /**
+     * A phone asks for the ReadAlong of the book whose first audio file is the given one (or, with false, to stop making
+     * it). Returns a [com.example.readalong.domain.link.ComputerJob] state; "missing" when that audio isn't in the library yet.
+     */
+    private val transcribe: (File, Boolean, String) -> String = { _, _, _ -> com.example.readalong.domain.link.ComputerJob.MISSING },
+    /** Every ReadAlong this computer is making, has made or stopped on: the book's first audio file, with its state. */
+    private val jobs: () -> List<Pair<File, com.example.readalong.domain.link.ComputerJob>> = { emptyList() },
     private val file: File = File(AppPaths.data, "link.json")) {
     private val mutableState = MutableStateFlow(load())
     val state: StateFlow<LinkState> = mutableState
@@ -165,6 +172,11 @@ class DeviceLink(private val scope: CoroutineScope, private val library: Library
                             if (FolderSyncPlan.Kind.SETTINGS.id !in mutableState.value.skipped) applySettings(SettingsSync.decode(request.optJSONObject("values")))
                             channel.sendJson(JSONObject().put("ok", true))
                         }
+                        LinkChannel.TRANSCRIBE -> {
+                            val first = resolve(shared(request), request.getJSONArray("files").getString(0))
+                            channel.sendJson(JSONObject().put("state", transcribe(first, !request.optBoolean("remove"), phone.name)))
+                        }
+                        LinkChannel.JOBS -> channel.sendJson(JSONObject().put("jobs", JSONArray(jobsInSharedFolders().map { it.toJson() })))
                         "done" -> { channel.sendJson(JSONObject().put("ok", true)); break }
                         else -> channel.sendJson(JSONObject().put("error", "This version of ReadAlong Desktop doesn't know how to do that. Update it to sync."))
                     }
@@ -199,6 +211,15 @@ class DeviceLink(private val scope: CoroutineScope, private val library: Library
             return linked
         }
         return mutableState.value.devices.first { LinkChannel.keyId(it.key) == keyId }
+    }
+
+    /** [jobs] for books inside a shared folder, each named the way the phone knows it: the folder's id and the path inside it. */
+    private fun jobsInSharedFolders(): List<com.example.readalong.domain.link.ComputerJob> {
+        val roots = mutableState.value.shared.map { File(it) }
+        return jobs().mapNotNull { (file, job) ->
+            val root = roots.firstOrNull { file.path.startsWith(it.path + File.separator) } ?: return@mapNotNull null
+            job.copy(folder = folderId(root.absolutePath), path = root.toPath().relativize(file.toPath()).joinToString("/"))
+        }
     }
 
     private fun folders() = library.folders.value.map(::File).filter { it.isDirectory }.map { folder ->

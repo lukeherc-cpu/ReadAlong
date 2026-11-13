@@ -159,7 +159,7 @@ fun TranscriptionSettingsScreen(app: AppState) {
         }
 
         SectionLabel("Speech model")
-        val default = SpeechModels.default(settings.language)
+        val default = app.transcription.defaultModel()
         val chosen = app.transcription.model()
         SpeechModels.all.filter { settings.language == "en" || !it.englishOnly }.forEach { model ->
             val progress = downloads[model.id]

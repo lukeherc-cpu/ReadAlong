@@ -39,6 +39,7 @@ class AppState(val scope: CoroutineScope, private val background: Boolean = true
     /** Chosen covers and EPUBs kept beside each book, so they sync with the phone. */
     val companions = Companions(library)
     val importer = LibraryImporter(library, transcripts, companions, beforeTranscriptImport = { transcription.remove(it) },
+        keepOwnTranscript = { id, model -> transcription.prefersOwn(id, model) },
         onTranscriptImported = { transcription.imported(it) }, onMessage = { messages.tryEmit(it) })
     val player = AudioPlayer(scope, library, settingsStore)
     val transcription = TranscriptionService(scope, library, settingsStore, transcripts, models, probe = background)
@@ -59,7 +60,36 @@ class AppState(val scope: CoroutineScope, private val background: Boolean = true
     /** Shares bookmarks with the phone through a file beside each book. */
     val bookmarks = BookmarkSync(library)
     val link = DeviceLink(scope, library, onSynced = { runCatching { importer.rescan() }; syncProgressNow() },
-        settings = { sharedSettings() }, applySettings = ::applySharedSettings)
+        settings = { sharedSettings() }, applySettings = ::applySharedSettings,
+        transcribe = ::transcribeForPhone, jobs = ::jobsForPhone)
+
+    private fun bookOf(firstAudio: File): LibraryBook? = runCatching { firstAudio.canonicalPath }.getOrNull()?.let { wanted ->
+        library.books.value.firstOrNull { book -> book.parts.firstOrNull()?.path?.let { runCatching { File(it).canonicalPath }.getOrNull() } == wanted }
+    }
+
+    /** A linked phone asks this computer to make a book's ReadAlong ([make]) or to take it off the queue. */
+    private fun transcribeForPhone(firstAudio: File, make: Boolean, phone: String): String = with(com.example.readalong.domain.link.ComputerJob) {
+        // Its audio may have arrived a moment ago, in this very sync: look before saying it isn't here.
+        val book = bookOf(firstAudio) ?: run { runCatching { kotlinx.coroutines.runBlocking { importer.rescan() } }; bookOf(firstAudio) } ?: return MISSING
+        val info = transcripts.info(book.id)
+        when {
+            !make -> { transcription.remove(book.id); STOPPED }
+            info?.complete == true && transcripts.segments(book).isNotEmpty() -> {
+                // Already made: put it beside the book again if it isn't there, so this sync carries it over.
+                if (!transcription.packageFile(book).isFile && !info.imported) transcription.savePackage(book)
+                DONE
+            }
+            else -> {
+                if (book.id !in transcription.queue.value) messages.tryEmit("$phone asked for a ReadAlong of ${book.title}.")
+                transcription.enqueue(book.id)
+                transcription.pause(false)
+                if (transcription.job.value?.bookId == book.id) WORKING else QUEUED
+            }
+        }
+    }
+
+    private fun jobsForPhone(): List<Pair<File, com.example.readalong.domain.link.ComputerJob>> =
+        transcription.statuses().mapNotNull { (id, job) -> library.book(id)?.parts?.firstOrNull()?.let { File(it.path) to job } }
 
     /** After a bookmark is added or removed here: hand it to the phone. */
     fun bookmarksChanged(bookId: String) {
@@ -150,8 +180,12 @@ class AppState(val scope: CoroutineScope, private val background: Boolean = true
 
     // A finished ReadAlong is news for the phone: it syncs at its next check.
     init { scope.launch { transcription.finished.drop(1).collect { link.changed() } } }
+    // A book that stopped is news too: the phone may then make it itself.
+    init { scope.launch { transcription.errors.drop(1).collect { link.changed() } } }
 
-    init { if (background) { link.start(); updates.checkIfDue(); models.keepDefault(scope, settingsStore.settings.map { it.language }) } }
+    init { if (background) { link.start(); updates.checkIfDue(); models.keepDefault(scope,
+        // Once the transcriber has listed this computer's devices, so a computer with a graphics card doesn't fetch Tiny first.
+        combine(settingsStore.settings.map { it.language }, transcription.devices.filterNotNull()) { language, devices -> com.example.readalong.desktop.transcription.SpeechModels.default(language, devices) }) } }
 
     /** Picks up positions from the phone; run when the window comes to the front. */
     fun syncProgress() { if (background) scope.launch(Dispatchers.IO) { syncProgressNow() } }
