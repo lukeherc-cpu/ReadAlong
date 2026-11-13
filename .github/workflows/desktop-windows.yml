@@ -5,7 +5,9 @@ name: ReadAlong for Windows
 # the packaged app, on the CPU and on software Vulkan (the runner has no GPU), and renders screenshots.
 on:
   push:
-    paths: ["desktop-app/**", ".github/workflows/desktop-windows.yml", "app/src/main/java/com/example/readalong/domain/**", "app/src/audible/java/com/example/readalong/audible/**"]
+    # A release branch is built once, by release.yml's call below, not a second time by its own push.
+    branches-ignore: ["release/**"]
+    paths: ["desktop-app/**", ".github/workflows/desktop-windows.yml", "app/src/main/java/com/example/readalong/domain/**", "app/src/audible/java/com/example/readalong/audible/**", "app/src/main/java/com/example/readalong/data/transcription/TimedRecognitionResult.kt", "app/src/main/java/com/example/readalong/data/transcription/WhistleResult.kt", "app/src/main/java/com/example/readalong/ui/reading/**", "app/src/main/java/com/example/readalong/ui/components/**", "app/src/main/java/com/example/readalong/ui/theme/Color.kt"]
   workflow_dispatch:
   # release.yml calls this after publishing the APK, to add the installer to the same release.
   workflow_call:
@@ -72,7 +74,16 @@ jobs:
           cache: true
           stripdown: true
 
+      # whisper.cpp takes most of this job to compile and only changes with its version or native/.
+      - name: Reuse the whisper.cpp build
+        id: native
+        uses: actions/cache@v4
+        with:
+          path: desktop-app/native/build
+          key: native-windows-${{ env.WHISPER_CPP_VERSION }}-${{ env.VULKAN_SDK_VERSION }}-${{ hashFiles('desktop-app/native/**', '.github/workflows/desktop-windows.yml') }}
+
       - name: Build whisper.cpp (Vulkan + CPU) and the JNI bridge
+        if: steps.native.outputs.cache-hit != 'true'
         run: |
           set -o pipefail
           mkdir -p ci-results
@@ -92,6 +103,7 @@ jobs:
       - name: Build the app, MSI installer and portable zip
         run: |
           set -o pipefail
+          mkdir -p ci-results
           ./gradlew -p desktop-app --console=plain test packageReleaseMsi createReleaseDistributable 2>&1 | tee ci-results/gradle.log
           app=desktop-app/build/compose/binaries/main-release
           ls -R "$app" | head -50
@@ -149,7 +161,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           version=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)
-          gh release upload "v$version" dist/ReadAlong-Windows.msi dist/ReadAlong-Windows-portable.zip --clobber
+          (cd dist && for f in ReadAlong-Windows.msi ReadAlong-Windows-portable.zip; do sha256sum "$f" > "$f.sha256"; done)
+          gh release upload "v$version" dist/ReadAlong-Windows.msi dist/ReadAlong-Windows-portable.zip dist/*.sha256 --clobber
 
       - name: Keep the results
         if: always()

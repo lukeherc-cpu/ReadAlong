@@ -5,7 +5,9 @@ name: ReadAlong for macOS
 # transcribes synthesized speech with the packaged app on the CPU and, where the runner allows, on Metal.
 on:
   push:
-    paths: ["desktop-app/**", ".github/workflows/desktop-macos.yml", "app/src/main/java/com/example/readalong/domain/**", "app/src/audible/java/com/example/readalong/audible/**"]
+    # A release branch is built once, by release.yml's call below, not a second time by its own push.
+    branches-ignore: ["release/**"]
+    paths: ["desktop-app/**", ".github/workflows/desktop-macos.yml", "app/src/main/java/com/example/readalong/domain/**", "app/src/audible/java/com/example/readalong/audible/**", "app/src/main/java/com/example/readalong/data/transcription/TimedRecognitionResult.kt", "app/src/main/java/com/example/readalong/data/transcription/WhistleResult.kt", "app/src/main/java/com/example/readalong/ui/reading/**", "app/src/main/java/com/example/readalong/ui/components/**", "app/src/main/java/com/example/readalong/ui/theme/Color.kt"]
   workflow_dispatch:
   # release.yml calls this after publishing the APK, to add the disk images to the same release.
   workflow_call:
@@ -41,7 +43,16 @@ jobs:
           java-version: "21"
       - uses: gradle/actions/setup-gradle@v4
 
+      # whisper.cpp takes most of this job to compile and only changes with its version or native/.
+      - name: Reuse the whisper.cpp build
+        id: native
+        uses: actions/cache@v4
+        with:
+          path: desktop-app/native/build
+          key: native-macos-${{ matrix.name }}-${{ env.WHISPER_CPP_VERSION }}-${{ hashFiles('desktop-app/native/**', '.github/workflows/desktop-macos.yml') }}
+
       - name: Build whisper.cpp (Metal + CPU) and the JNI bridge
+        if: steps.native.outputs.cache-hit != 'true'
         run: |
           set -o pipefail
           mkdir -p ci-results
@@ -55,7 +66,9 @@ jobs:
       - name: Build the app and disk image
         run: |
           set -o pipefail
-          ./gradlew -p desktop-app --console=plain test createReleaseDistributable 2>&1 | tee ci-results/gradle.log
+          mkdir -p ci-results
+          # The unit tests run once on a Mac (Apple silicon); the Intel job only packages.
+          ./gradlew -p desktop-app --console=plain ${{ matrix.name == 'AppleSilicon' && 'test' || '' }} createReleaseDistributable 2>&1 | tee ci-results/gradle.log
           app=desktop-app/build/compose/binaries/main-release/app/ReadAlong.app
           # No Developer ID: sign ad hoc so Apple silicon runs every library, then wrap it in a .dmg with a
           # shortcut to Applications. People open it once with Open Anyway (desktop-app/README.md).
@@ -112,7 +125,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           version=$(sed -nE 's/.*versionName = "([^"]+)".*/\1/p' app/build.gradle.kts | head -1)
-          gh release upload "v$version" "dist/ReadAlong-macOS-${{ matrix.name }}.dmg" --clobber
+          (cd dist && shasum -a 256 "ReadAlong-macOS-${{ matrix.name }}.dmg" > "ReadAlong-macOS-${{ matrix.name }}.dmg.sha256")
+          gh release upload "v$version" "dist/ReadAlong-macOS-${{ matrix.name }}.dmg" "dist/ReadAlong-macOS-${{ matrix.name }}.dmg.sha256" --clobber
 
       - name: Keep the results
         if: always()

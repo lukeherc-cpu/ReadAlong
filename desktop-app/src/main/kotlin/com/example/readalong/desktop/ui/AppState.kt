@@ -63,7 +63,7 @@ class AppState(val scope: CoroutineScope, private val background: Boolean = true
 
     /** After a bookmark is added or removed here: hand it to the phone. */
     fun bookmarksChanged(bookId: String) {
-        if (background) scope.launch(Dispatchers.IO) { library.book(bookId)?.let { runCatching { bookmarks.sync(it) } } }
+        if (background) scope.launch(Dispatchers.IO) { library.book(bookId)?.let { runCatching { bookmarks.sync(it) } }; link.changed() }
     }
 
     /** The settings shared with a linked phone (see SettingsSync). */
@@ -140,6 +140,8 @@ class AppState(val scope: CoroutineScope, private val background: Boolean = true
                 if (previous?.second == true && (!state.playing || state.bookId != previous.first)) previous.first?.let { id ->
                     // The library catches up with the paused position a moment later; the player's state has it now.
                     library.book(id)?.let { b -> withContext(Dispatchers.IO) { progress.write(if (state.bookId == id) b.copy(positionMs = state.positionMs) else b) } }
+                    // A new position is news for the phone: it picks it up at its next check instead of at its next routine sync.
+                    link.changed()
                 }
                 last = state.bookId to state.playing
             }

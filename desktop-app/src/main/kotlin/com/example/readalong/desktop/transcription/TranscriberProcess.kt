@@ -58,8 +58,17 @@ class TranscriberProcess private constructor(private val process: Process) : Aut
         return message
     }
 
+    /**
+     * [next], but a transcriber that says nothing for [ms] is taken for hung (a graphics driver that never returns):
+     * it is stopped and reported like one that died, so the unit is retried instead of the book waiting forever.
+     */
+    private suspend fun nextWithin(ms: Long, doing: String): JSONObject = withTimeoutOrNull(ms) { next() } ?: run {
+        kill()
+        throw TranscriberException("The transcriber stopped responding while $doing.", processDied = true)
+    }
+
     private suspend fun handshake() {
-        val ready = next()
+        val ready = nextWithin(START_MS, "starting")
         check(ready.getString("type") == "ready")
         devices = Worker.parseDevices(ready.getJSONArray("devices").toString())
         systemInfo = ready.optString("system")
@@ -68,20 +77,32 @@ class TranscriberProcess private constructor(private val process: Process) : Aut
     /** Loads [model]; returns the device it runs on ("CPU" or the GPU's name) and whether that's a GPU. */
     suspend fun load(model: File, heads: Int, device: String): Pair<String, Boolean> {
         send(JSONObject().put("cmd", "load").put("model", model.absolutePath).put("heads", heads).put("device", device))
-        val loaded = next()
+        val loaded = nextWithin(LOAD_MS, "loading the speech model")
         return loaded.getString("device") to loaded.getBoolean("gpu")
     }
 
     /** Transcribes [units] of [file]; [onUnit] gets each unit's chunk result as it finishes. */
     suspend fun transcribe(file: File, units: List<Pair<Long, Long>>, language: String, threads: Int, beams: Int,
-        onProgress: (unit: Int, percent: Int) -> Unit, onUnit: suspend (index: Int, result: JSONObject, ms: Long) -> Unit) {
+        stallMs: Long = STALL_MS, onProgress: (unit: Int, percent: Int) -> Unit, onUnit: suspend (index: Int, result: JSONObject, ms: Long) -> Unit) {
         send(JSONObject().put("cmd", "file").put("path", file.absolutePath).put("language", language).put("threads", threads).put("beams", beams)
             .put("units", JSONArray(units.map { JSONArray(listOf(it.first, it.second)) })))
+        // The transcriber reports progress four times a second even when whisper is stuck, so silence alone doesn't
+        // show a hang: what counts is progress that moves, or a unit that finishes, within [stallMs].
+        var advanced = System.nanoTime()
+        var lastValue = -1
         while (true) {
-            val message = next()
+            val message = nextWithin(stallMs, "recognizing speech")
             when (message.getString("type")) {
-                "progress" -> onProgress(message.getInt("unit"), message.getInt("value"))
-                "unit" -> onUnit(message.getInt("index"), message.getJSONObject("result"), message.optLong("ms"))
+                "progress" -> {
+                    val value = message.getInt("value")
+                    if (value != lastValue) { lastValue = value; advanced = System.nanoTime() }
+                    else if ((System.nanoTime() - advanced) / 1_000_000 > stallMs) {
+                        kill()
+                        throw TranscriberException("The transcriber made no progress for ${stallMs / 60_000} minutes.", processDied = true)
+                    }
+                    onProgress(message.getInt("unit"), value)
+                }
+                "unit" -> { advanced = System.nanoTime(); lastValue = -1; onUnit(message.getInt("index"), message.getJSONObject("result"), message.optLong("ms")) }
                 "fileDone" -> return
             }
         }
@@ -94,6 +115,13 @@ class TranscriberProcess private constructor(private val process: Process) : Aut
     fun kill() { process.destroyForcibly() }
 
     companion object {
+        /** A transcriber that hasn't said it is ready by now won't. */
+        const val START_MS = 2 * 60_000L
+        /** Loading the largest model onto a slow graphics card (compiling its shaders the first time) takes a while. */
+        const val LOAD_MS = 10 * 60_000L
+        /** One unit is at most 30 s of audio; the slowest supported computer needs a few minutes for it with the largest model. */
+        val STALL_MS: Long = System.getProperty("readalong.stallMs")?.toLongOrNull() ?: 10 * 60_000L
+
         /** Starts ReadAlong again with --transcriber: the packaged launcher, or java with this classpath when run from Gradle. */
         suspend fun start(): TranscriberProcess = withContext(Dispatchers.IO) {
             val command = ProcessHandle.current().info().command().orElse("java")

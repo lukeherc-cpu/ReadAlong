@@ -129,6 +129,8 @@ class ReadAlongApplication : Application() {
                     try { folderProgress.push(stopped) }
                     catch (cancelled: CancellationException) { throw cancelled }
                     catch (_: Exception) { }
+                    // A linked computer gets the new position now (on Wi-Fi), not at the next routine sync.
+                    if (folderLink.store.value.pairs.isNotEmpty()) runCatching { com.example.readalong.data.link.LinkSyncWorker.syncNow(this@ReadAlongApplication) }
                 }
             }
         }
