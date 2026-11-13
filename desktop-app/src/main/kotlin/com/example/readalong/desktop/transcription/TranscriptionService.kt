@@ -87,8 +87,17 @@ class TranscriptionService(private val scope: CoroutineScope, private val librar
         } else mutableDevices.value = emptyList()
     }
 
-    fun model(): SpeechModel = SpeechModels.find(settings.value.modelId)
-        ?: SpeechModels.default(settings.value.language)
+    fun model(): SpeechModel = SpeechModels.find(settings.value.modelId) ?: defaultModel()
+
+    /** The model used until one is chosen in Settings: by this computer's graphics card (see [SpeechModels.default]). */
+    fun defaultModel(): SpeechModel = SpeechModels.default(settings.value.language, mutableDevices.value)
+
+    /**
+     * A finished ReadAlong of [bookId] arrived from the phone, made with [packageModel]. True when this computer should
+     * carry on with its own instead: the book is being made or queued here, with a better model than the phone's.
+     */
+    fun prefersOwn(bookId: String, packageModel: String?): Boolean =
+        (bookId in mutableQueue.value || mutableJob.value?.bookId == bookId) && SpeechModels.quality(model().packageId) > SpeechModels.quality(packageModel)
 
     private suspend fun probeDevices() {
         val cache = File(AppPaths.data, "devices.json")
@@ -151,6 +160,23 @@ class TranscriptionService(private val scope: CoroutineScope, private val librar
     }
     /** Takes a finished book off the queue's "Transcribed" list; its ReadAlong stays. */
     fun clearFinished(bookId: String) { mutableFinished.update { it - bookId }; saveFinished() }
+    /**
+     * Where each book's ReadAlong stands, for a linked phone: being made (with its progress), queued, finished here, or
+     * stopped. A paused queue still counts as queued: the book is this computer's to make.
+     */
+    fun statuses(): Map<String, com.example.readalong.domain.link.ComputerJob> {
+        val job = mutableJob.value
+        val model = model().packageId
+        val all = LinkedHashMap<String, com.example.readalong.domain.link.ComputerJob>()
+        mutableFinished.value.forEach { all[it] = com.example.readalong.domain.link.ComputerJob("", "", com.example.readalong.domain.link.ComputerJob.DONE) }
+        mutableErrors.value.forEach { (id, why) -> all[id] = com.example.readalong.domain.link.ComputerJob("", "", com.example.readalong.domain.link.ComputerJob.STOPPED, error = why.take(300)) }
+        mutableQueue.value.forEach { id ->
+            all[id] = if (job?.bookId == id) com.example.readalong.domain.link.ComputerJob("", "", com.example.readalong.domain.link.ComputerJob.WORKING, (job.fraction * 1000).toInt(), 1000, model)
+                else com.example.readalong.domain.link.ComputerJob("", "", com.example.readalong.domain.link.ComputerJob.QUEUED, model = model)
+        }
+        return all
+    }
+
     fun pause(paused: Boolean) { mutablePaused.value = paused; if (paused) stop() else wake() }
     /** Removes a book's ReadAlong (and stops making it). */
     fun discard(bookId: String) { remove(bookId); transcripts.remove(bookId) }
@@ -191,9 +217,10 @@ class TranscriptionService(private val scope: CoroutineScope, private val librar
     private suspend fun transcribe(book: LibraryBook) {
         val plan = plan(book)
         require(plan.isNotEmpty()) { "This book has no audio to transcribe." }
-        val model = model()
-        mutableJob.value = JobState(book.id, "Starting", total = plan.size)
         val info = transcripts.info(book.id)
+        // A book begun before the default model changed (a new graphics card, an update) finishes with the model it started on.
+        val model = SpeechModels.byPackage(info?.model)?.takeIf { settings.value.modelId == null && info?.complete == false && !info.imported } ?: model()
+        mutableJob.value = JobState(book.id, "Starting", total = plan.size)
         val existing = transcripts.chunks(book.id)
         // Resume only the same model's work on the same plan.
         val resumable = info != null && !info.imported && info.model == model.packageId && existing.size <= plan.size &&

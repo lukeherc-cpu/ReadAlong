@@ -27,8 +27,34 @@ object SpeechModels {
     )
     fun find(id: String?) = all.firstOrNull { it.id == id }
 
-    /** Used until a model is chosen in Settings: the smallest, quickest one for the book's language. */
-    fun default(language: String): SpeechModel = find(if (language == "en") "tiny.en" else "tiny")!!
+    /**
+     * Used until a model is chosen in Settings. A computer is where the accurate text gets made, so one with a real
+     * graphics card (3 GB or more) starts on Large v3 Turbo, and one with built-in graphics on Base for English.
+     * Without a GPU, or before the devices are known ([devices] null), it is the smallest, quickest model for the language.
+     */
+    fun default(language: String, devices: List<Device>? = null): SpeechModel {
+        val gpus = devices.orEmpty().filter { it.isGpu }
+        val card = gpus.any { it.type == "gpu" && it.memoryTotal >= 3L * 1024 * 1024 * 1024 }
+        return find(when {
+            card -> "large-v3-turbo-q5_0"
+            gpus.isNotEmpty() && language == "en" -> "base.en"
+            language == "en" -> "tiny.en"
+            else -> "tiny"
+        })!!
+    }
+
+    fun byPackage(packageId: String?): SpeechModel? = all.firstOrNull { it.packageId == packageId }
+
+    /**
+     * How good a transcript's model is, from a package's "model" id, for choosing between two transcripts of one
+     * book: the phone's models and Tiny are 1, then Base, Small and Large v3 Turbo.
+     */
+    fun quality(packageId: String?): Int = when (byPackage(packageId)?.id) {
+        "base.en" -> 2
+        "small.en" -> 3
+        "large-v3-turbo-q5_0" -> 4
+        else -> 1
+    }
 
     /** The GPU whisper.cpp should use, as its GPU index, or -1 for the CPU. Prefers a discrete card with the most memory. */
     fun gpuIndex(devices: List<Device>, preference: String): Int {
