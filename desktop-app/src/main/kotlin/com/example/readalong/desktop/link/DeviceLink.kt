@@ -173,7 +173,14 @@ class DeviceLink(private val scope: CoroutineScope, private val library: Library
         } catch (_: Exception) { /* The phone went away or the network dropped; it tries again next time. */ }
         finally {
             mutableActivity.value = null
-            device?.let { seen -> change { s -> s.copy(devices = s.devices.map { if (it.id == seen.id) it.copy(lastSeen = System.currentTimeMillis(), appVersion = seen.appVersion ?: it.appVersion) else it }) } }
+            // "Last synced" means a sync: the phone's once-a-minute look at whether this computer has news doesn't count,
+            // and doesn't rewrite link.json either (only a phone whose version changed does).
+            device?.let { seen ->
+                val known = mutableState.value.devices.firstOrNull { it.id == seen.id }
+                val synced = listed || changed
+                if (synced || (seen.appVersion != null && seen.appVersion != known?.appVersion)) change { s -> s.copy(devices = s.devices.map {
+                    if (it.id == seen.id) it.copy(lastSeen = if (synced) System.currentTimeMillis() else it.lastSeen, appVersion = seen.appVersion ?: it.appVersion) else it }) }
+            }
             // A real sync (not just the phone checking whether this computer is there) answers "Sync to phone".
             if (listed) mutableSyncRequested.value = null
             if (changed) scope.launch { runCatching { onSynced() } }

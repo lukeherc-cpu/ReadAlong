@@ -164,6 +164,12 @@ class TranscriptionService(private val scope: CoroutineScope, private val librar
     }
 
     private suspend fun run() {
+        // The computer stays awake while there is a book to work on, and may sleep again once the queue is empty or paused.
+        com.example.readalong.desktop.core.KeepAwake.acquire()
+        try { work() } finally { com.example.readalong.desktop.core.KeepAwake.release() }
+    }
+
+    private suspend fun work() {
         while (currentCoroutineContext().isActive) {
             val bookId = mutableQueue.value.firstOrNull() ?: break
             val book = library.book(bookId)

@@ -82,6 +82,7 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
                 var copied = 0; var failed = 0
                 val problems = mutableListOf<String>()
                 val lost = mutableListOf<String>()
+                val arrived = mutableSetOf<String>()
                 conflicts.clear()
                 var change = 0L
                 connect().use { client ->
@@ -89,16 +90,21 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
                     for (pair in pairs) {
                         // A folder this phone can no longer open (permission revoked, card removed) is reported and
                         // skipped; the other pairs still sync.
-                        val (done, failures) = try { syncPair(client, pair) }
+                        val (done, failures, received) = try { syncPair(client, pair) }
                             catch (lostAccess: FolderAccessLost) { lost += pair.localName; continue }
                         copied += done; failed += failures
+                        if (received > 0) arrived += pair.localUri
                     }
                     syncSettings(client)
                 }
-                // Every paired folder, even when nothing was copied: a ReadAlong that couldn't be used before is tried
-                // again, and books, covers and titles that arrived some other way show up too.
+                // A folder is rescanned when this sync brought something into it. Otherwise only every few hours (and on the
+                // first sync after ReadAlong starts): a ReadAlong that couldn't be used before is tried again, and books that
+                // arrived some other way show up, without walking every folder after each one-file sync.
+                val now = System.currentTimeMillis()
                 for (pair in pairs) {
                     if (pair.localName in lost) continue
+                    if (pair.localUri !in arrived && now - (rescanned[pair.localUri] ?: 0) < RESCAN_EVERY_MS) continue
+                    rescanned[pair.localUri] = now
                     coroutineContext.ensureActive()
                     mutableProgress.value = SyncProgress("Updating your library from ${pair.localName}…")
                     try { problems += rescan(Uri.parse(pair.localUri)) }
@@ -129,7 +135,7 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
 
     /**
      * While ReadAlong is open: every minute, sees whether the computer is reachable and syncs when it says it has
-     * something new since the last sync, or the last sync is more than thirty minutes old. Runs until cancelled.
+     * something new since the last sync, or the last sync is more than two hours old. Runs until cancelled.
      */
     suspend fun watch(syncNow: () -> Unit) = withContext(Dispatchers.IO) {
         while (true) {
@@ -137,7 +143,7 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
             if (s.computer != null && s.pairs.isNotEmpty() && mutableProgress.value == null && !lock.isLocked) {
                 val change = runCatching { connect().use { it.computerChanged } }.getOrNull()
                 // The computer says when it has news; a full sync and rescan without news is only a safety net.
-                val stale = (s.lastSyncAt ?: 0) < System.currentTimeMillis() - 30 * 60_000
+                val stale = (s.lastSyncAt ?: 0) < System.currentTimeMillis() - STALE_MS
                 if (change != null && (change > s.seenChange || stale)) syncNow()
             }
             kotlinx.coroutines.delay(60_000)
@@ -168,10 +174,14 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
         return client
     }
 
+    /** When each paired phone folder was last rescanned after a sync. Guarded by [lock]. */
+    private val rescanned = HashMap<String, Long>()
+
     /** Audio changed on both sides in this sync, reported in its result. Guarded by [lock]. */
     private val conflicts = mutableListOf<String>()
 
-    private suspend fun syncPair(client: LinkClient, pair: FolderPair): Pair<Int, Int> {
+    /** Returns the files copied, the files that failed, and how many of the copied ones came from the computer. */
+    private suspend fun syncPair(client: LinkClient, pair: FolderPair): Triple<Int, Int, Int> {
         val tree = Uri.parse(pair.localUri)
         val rootId = DocumentsContract.getTreeDocumentId(tree)
         // An unreadable tree would look empty, and an empty folder reads as "every book was deleted here".
@@ -193,7 +203,7 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
         conflicts += FolderSyncPlan.conflicts(local.values.map { it.file }, remote, previous).map { "${pair.localName}/$it" }
         val localNow = local.mapValues { it.value.file }.toMutableMap()
         val remoteNow = remote.associateBy { it.path }.toMutableMap()
-        var copied = 0; var failed = 0
+        var copied = 0; var failed = 0; var received = 0
         actions.forEachIndexed { index, action ->
             coroutineContext.ensureActive()
             val name = action.path.substringAfterLast('/')
@@ -202,8 +212,9 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
                 when (action) {
                     is SyncAction.Download -> {
                         mutableProgress.value = SyncProgress("Copying from computer $label", 0f)
-                        val (received, stored) = download(client, pair, tree, rootId, action.path) { done, size -> mutableProgress.value = SyncProgress("Copying from computer $label", fraction(done, size)) }
-                        remoteNow[action.path] = received; localNow[action.path] = stored
+                        val (arrived, stored) = download(client, pair, tree, rootId, action.path) { done, size -> mutableProgress.value = SyncProgress("Copying from computer $label", fraction(done, size)) }
+                        remoteNow[action.path] = arrived; localNow[action.path] = stored
+                        received++
                     }
                     is SyncAction.Upload -> {
                         val source = local.getValue(action.path)
@@ -223,7 +234,7 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
             }
         }
         store.saveSynced(pair, held + FolderSyncPlan.settled(localNow.values.toList(), remoteNow.values.toList(), previous))
-        return copied to failed
+        return Triple(copied, failed, received)
     }
 
     private fun fraction(done: Long, size: Long) = if (size <= 0) 1f else (done.toFloat() / size).coerceIn(0f, 1f)
@@ -303,6 +314,11 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
         }
     }.getOrNull()
 }
+
+/** With no news from the computer (it announces positions, edits and finished ReadAlongs), a sync still runs this often. */
+private const val STALE_MS = 2 * 60 * 60_000L
+/** A paired folder nothing arrived in is still rescanned this often. */
+private const val RESCAN_EVERY_MS = 6 * 60 * 60_000L
 
 /** The phone can no longer list a paired folder; the pair is skipped instead of read as empty. */
 private class FolderAccessLost : Exception()

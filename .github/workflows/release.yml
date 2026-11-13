@@ -2,6 +2,11 @@ name: Release APK
 
 # Push a branch named release/<anything> to build, sign and publish the version in
 # app/build.gradle.kts as tag v<versionName>. Versions ending in -preview are pre-releases.
+#
+# The release starts as a draft holding the APK. The Windows, Linux and macOS jobs add their installers to it,
+# and only then is it published. The apps' update checks read GitHub's "latest" release, so nobody is offered
+# a version whose installer for their computer doesn't exist yet. If a desktop job fails, the release stays a
+# draft: re-run the failed job and "Publish the release" runs after it.
 on:
   push:
     branches: ["release/**"]
@@ -61,8 +66,8 @@ jobs:
           tag_name: v${{ env.VERSION }}
           target_commitish: ${{ github.sha }}
           name: ReadAlong ${{ env.VERSION }}
+          draft: true
           prerelease: ${{ contains(env.VERSION, 'preview') }}
-          make_latest: ${{ !contains(env.VERSION, 'preview') }}
           generate_release_notes: true
           files: |
             ReadAlong-${{ env.VERSION }}.apk
@@ -98,3 +103,22 @@ jobs:
     uses: ./.github/workflows/desktop-macos.yml
     with:
       release: true
+
+  publish:
+    name: Publish the release
+    needs: [release, windows, linux, macos]
+    if: startsWith(github.ref, 'refs/heads/release/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publish once every installer is attached
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)
+          gh release view "v$version" --json assets --jq '.assets[].name'
+          for wanted in "ReadAlong-$version.apk" ReadAlong-Windows.msi ReadAlong-Windows-portable.zip ReadAlong-Linux.flatpak ReadAlong-Linux-x86_64.tar.gz ReadAlong-macOS-AppleSilicon.dmg ReadAlong-macOS-Intel.dmg; do
+            gh release view "v$version" --json assets --jq '.assets[].name' | grep -qx "$wanted" || { echo "::error::$wanted is missing from the release"; exit 1; }
+          done
+          if [[ "$version" == *preview* ]]; then gh release edit "v$version" --draft=false --prerelease
+          else gh release edit "v$version" --draft=false --latest; fi
