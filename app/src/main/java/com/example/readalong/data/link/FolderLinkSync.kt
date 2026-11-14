@@ -152,7 +152,7 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
         while (true) {
             val s = store.value
             if (s.computer != null && s.pairs.isNotEmpty() && mutableProgress.value == null && !lock.isLocked) {
-                val change = runCatching { connect().use { client -> askComputer(client, syncNow); client.computerChanged } }.getOrNull()
+                val change = runCatching { connect().use { client -> runCatching { askComputer(client, syncNow = syncNow) }; client.computerChanged } }.getOrNull()
                 // The computer says when it has news; a full sync and rescan without news is only a safety net.
                 val stale = (s.lastSyncAt ?: 0) < System.currentTimeMillis() - STALE_MS
                 if (change != null && (change > s.seenChange || stale)) syncNow()

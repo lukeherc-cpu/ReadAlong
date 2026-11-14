@@ -57,6 +57,17 @@ fun LinkScreen(app: ReadAlongApplication, onBack: () -> Unit) {
     var pendingAction by remember { mutableStateOf<(() -> Unit)?>(null) }
     var choosingBooks by remember { mutableStateOf<FolderPair?>(null) }
     var typingAddress by remember { mutableStateOf(false) }
+    choosingBooks?.let { pair -> ChooseBooksDialog(app, pair) { choosingBooks = null } }
+
+    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) pendingAction?.invoke() else error = "ReadAlong needs permission to find devices on your Wi-Fi to reach your computer."
+        pendingAction = null
+    }
+    /** Runs [action] once ReadAlong may use the home network. */
+    fun withNetwork(action: () -> Unit) {
+        if (Build.VERSION.SDK_INT < 37 || ContextCompat.checkSelfPermission(context, LOCAL_NETWORK) == PackageManager.PERMISSION_GRANTED) action()
+        else { pendingAction = action; permission.launch(LOCAL_NETWORK) }
+    }
     if (typingAddress) {
         var address by rememberSaveable { mutableStateOf(state.computer?.hosts?.firstOrNull().orEmpty()) }
         AlertDialog(onDismissRequest = { typingAddress = false }, title = { Text("Computer's address") },
@@ -76,17 +87,6 @@ fun LinkScreen(app: ReadAlongApplication, onBack: () -> Unit) {
                 } }
             }) { Text("Connect") } },
             dismissButton = { TextButton(onClick = { typingAddress = false }) { Text("Cancel") } })
-    }
-    choosingBooks?.let { pair -> ChooseBooksDialog(app, pair) { choosingBooks = null } }
-
-    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) pendingAction?.invoke() else error = "ReadAlong needs permission to find devices on your Wi-Fi to reach your computer."
-        pendingAction = null
-    }
-    /** Runs [action] once ReadAlong may use the home network. */
-    fun withNetwork(action: () -> Unit) {
-        if (Build.VERSION.SDK_INT < 37 || ContextCompat.checkSelfPermission(context, LOCAL_NETWORK) == PackageManager.PERMISSION_GRANTED) action()
-        else { pendingAction = action; permission.launch(LOCAL_NETWORK) }
     }
     fun link(text: String) {
         val code = LinkCode.parse(text) ?: run { error = "That isn't a ReadAlong link code. On your computer, open Settings › Phone › Link phone."; return }
