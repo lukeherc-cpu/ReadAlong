@@ -4,22 +4,90 @@
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>GPL-3.0-only</project_license>
   <name>ReadAlong</name>
-  <summary>Audiobook player that highlights the text as the narrator reads</summary>
-  <description>
-    <p>
-      ReadAlong plays your audiobooks and shows the words as they are spoken. It makes the text itself with
-      whisper.cpp, on the graphics card when there is one, and matches it to an EPUB of the same book when
-      you have one.
-    </p>
-    <p>
-      Transcripts are saved beside each audiobook in the format the ReadAlong phone app reads, and listening
-      positions sync with the phone the same way.
-    </p>
-  </description>
-  <launchable type="desktop-id">io.github.lukeherc_cpu.ReadAlong.desktop</launchable>
-  <url type="homepage">https://github.com/lukeherc-cpu/ReadAlong</url>
+  <summary>Read the words as your audiobook is narrated</summary>
   <developer id="io.github.lukeherc_cpu">
     <name>ReadAlong</name>
   </developer>
+  <description>
+    <p>
+      ReadAlong plays your audiobooks and shows the text beside them, lighting each sentence as the narrator
+      reads it. Click any sentence to listen from there.
+    </p>
+    <p>
+      It makes the text itself with whisper.cpp, on your graphics card when there is one and on the processor
+      when there isn't, so nothing leaves your computer. When an EPUB of the same book sits beside the audio,
+      ReadAlong follows the book's own text instead.
+    </p>
+    <ul>
+      <li>Plays MP3, M4A, M4B, AAC, OGG, Opus, FLAC and WAV, with chapters and covers from the files</li>
+      <li>Speed from 0.5× to 3× without changing the pitch, a sleep timer and bookmarks</li>
+      <li>Finds books in folders the way you keep them, including multi-disc books and author shelves</li>
+      <li>Transcribes in English and other languages with a choice of speech models</li>
+      <li>Saves each transcript beside its audiobook, where the ReadAlong phone app picks it up</li>
+      <li>Links with the phone app over your home network to keep listening positions in step</li>
+    </ul>
+    <p>
+      Speech models download from Hugging Face the first time they are used, then work offline.
+    </p>
+  </description>
+  <launchable type="desktop-id">io.github.lukeherc_cpu.ReadAlong.desktop</launchable>
+  <provides>
+    <binary>readalong</binary>
+  </provides>
+  <categories>
+    <category>Audio</category>
+    <category>Player</category>
+  </categories>
+  <keywords>
+    <keyword>audiobook</keyword>
+    <keyword>epub</keyword>
+    <keyword>transcript</keyword>
+    <keyword>whisper</keyword>
+    <keyword>read along</keyword>
+  </keywords>
+  <url type="homepage">https://github.com/lukeherc-cpu/ReadAlong</url>
+  <url type="bugtracker">https://github.com/lukeherc-cpu/ReadAlong/issues</url>
+  <url type="vcs-browser">https://github.com/lukeherc-cpu/ReadAlong</url>
+  <url type="donation">https://ko-fi.com/readalong</url>
+  <screenshots>
+    <screenshot type="default">
+      <caption>The player with the text following the narrator</caption>
+      <image>https://raw.githubusercontent.com/lukeherc-cpu/ReadAlong/main/desktop-app/packaging/linux/screenshots/player.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Your audiobook library</caption>
+      <image>https://raw.githubusercontent.com/lukeherc-cpu/ReadAlong/main/desktop-app/packaging/linux/screenshots/library.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>The reader in its sepia theme</caption>
+      <image>https://raw.githubusercontent.com/lukeherc-cpu/ReadAlong/main/desktop-app/packaging/linux/screenshots/reader-sepia.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Choosing where and how books are transcribed</caption>
+      <image>https://raw.githubusercontent.com/lukeherc-cpu/ReadAlong/main/desktop-app/packaging/linux/screenshots/transcription.png</image>
+    </screenshot>
+  </screenshots>
+  <branding>
+    <color type="primary" scheme_preference="light">#d4e4f3</color>
+    <color type="primary" scheme_preference="dark">#456886</color>
+  </branding>
+  <requires>
+    <display_length compare="ge">768</display_length>
+  </requires>
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </supports>
   <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="0.54.0" date="2026-11-14">
+      <description>
+        <p>A linked phone can ask the computer to make a book's ReadAlong and shows its progress. ReadAlong can keep
+          running in the tray so queued books and phone sync carry on with the window closed. Sync resumes where it
+          stopped.</p>
+      </description>
+    </release>
+    <release version="0.53.0" date="2026-11-12"/>
+    <release version="0.52.0" date="2026-11-11"/>
+  </releases>
 </component>
