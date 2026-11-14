@@ -39,6 +39,7 @@ class AppState(val scope: CoroutineScope, private val background: Boolean = true
     /** Chosen covers and EPUBs kept beside each book, so they sync with the phone. */
     val companions = Companions(library)
     val importer = LibraryImporter(library, transcripts, companions, beforeTranscriptImport = { transcription.remove(it) },
+        keepOwnTranscript = { id, model -> transcription.prefersOwn(id, model) },
         onTranscriptImported = { transcription.imported(it) }, onMessage = { messages.tryEmit(it) })
     val player = AudioPlayer(scope, library, settingsStore)
     val transcription = TranscriptionService(scope, library, settingsStore, transcripts, models, probe = background)
@@ -59,11 +60,40 @@ class AppState(val scope: CoroutineScope, private val background: Boolean = true
     /** Shares bookmarks with the phone through a file beside each book. */
     val bookmarks = BookmarkSync(library)
     val link = DeviceLink(scope, library, onSynced = { runCatching { importer.rescan() }; syncProgressNow() },
-        settings = { sharedSettings() }, applySettings = ::applySharedSettings)
+        settings = { sharedSettings() }, applySettings = ::applySharedSettings,
+        transcribe = ::transcribeForPhone, jobs = ::jobsForPhone)
+
+    private fun bookOf(firstAudio: File): LibraryBook? = runCatching { firstAudio.canonicalPath }.getOrNull()?.let { wanted ->
+        library.books.value.firstOrNull { book -> book.parts.firstOrNull()?.path?.let { runCatching { File(it).canonicalPath }.getOrNull() } == wanted }
+    }
+
+    /** A linked phone asks this computer to make a book's ReadAlong ([make]) or to take it off the queue. */
+    private fun transcribeForPhone(firstAudio: File, make: Boolean, phone: String): String = with(com.example.readalong.domain.link.ComputerJob) {
+        // Its audio may have arrived a moment ago, in this very sync: look before saying it isn't here.
+        val book = bookOf(firstAudio) ?: run { runCatching { kotlinx.coroutines.runBlocking { importer.rescan() } }; bookOf(firstAudio) } ?: return MISSING
+        val info = transcripts.info(book.id)
+        when {
+            !make -> { transcription.remove(book.id); STOPPED }
+            info?.complete == true && transcripts.segments(book).isNotEmpty() -> {
+                // Already made: put it beside the book again if it isn't there, so this sync carries it over.
+                if (!transcription.packageFile(book).isFile && !info.imported) transcription.savePackage(book)
+                DONE
+            }
+            else -> {
+                if (book.id !in transcription.queue.value) messages.tryEmit("$phone asked for a ReadAlong of ${book.title}.")
+                transcription.enqueue(book.id)
+                transcription.pause(false)
+                if (transcription.job.value?.bookId == book.id) WORKING else QUEUED
+            }
+        }
+    }
+
+    private fun jobsForPhone(): List<Pair<File, com.example.readalong.domain.link.ComputerJob>> =
+        transcription.statuses().mapNotNull { (id, job) -> library.book(id)?.parts?.firstOrNull()?.let { File(it.path) to job } }
 
     /** After a bookmark is added or removed here: hand it to the phone. */
     fun bookmarksChanged(bookId: String) {
-        if (background) scope.launch(Dispatchers.IO) { library.book(bookId)?.let { runCatching { bookmarks.sync(it) } } }
+        if (background) scope.launch(Dispatchers.IO) { library.book(bookId)?.let { runCatching { bookmarks.sync(it) } }; link.changed() }
     }
 
     /** The settings shared with a linked phone (see SettingsSync). */
@@ -140,6 +170,8 @@ class AppState(val scope: CoroutineScope, private val background: Boolean = true
                 if (previous?.second == true && (!state.playing || state.bookId != previous.first)) previous.first?.let { id ->
                     // The library catches up with the paused position a moment later; the player's state has it now.
                     library.book(id)?.let { b -> withContext(Dispatchers.IO) { progress.write(if (state.bookId == id) b.copy(positionMs = state.positionMs) else b) } }
+                    // A new position is news for the phone: it picks it up at its next check instead of at its next routine sync.
+                    link.changed()
                 }
                 last = state.bookId to state.playing
             }
@@ -148,8 +180,12 @@ class AppState(val scope: CoroutineScope, private val background: Boolean = true
 
     // A finished ReadAlong is news for the phone: it syncs at its next check.
     init { scope.launch { transcription.finished.drop(1).collect { link.changed() } } }
+    // A book that stopped is news too: the phone may then make it itself.
+    init { scope.launch { transcription.errors.drop(1).collect { link.changed() } } }
 
-    init { if (background) { link.start(); updates.checkIfDue(); models.keepDefault(scope, settingsStore.settings.map { it.language }) } }
+    init { if (background) { link.start(); updates.checkIfDue(); models.keepDefault(scope,
+        // Once the transcriber has listed this computer's devices, so a computer with a graphics card doesn't fetch Tiny first.
+        combine(settingsStore.settings.map { it.language }, transcription.devices.filterNotNull()) { language, devices -> com.example.readalong.desktop.transcription.SpeechModels.default(language, devices) }) } }
 
     /** Picks up positions from the phone; run when the window comes to the front. */
     fun syncProgress() { if (background) scope.launch(Dispatchers.IO) { syncProgressNow() } }
@@ -175,7 +211,11 @@ class AppState(val scope: CoroutineScope, private val background: Boolean = true
     /** Looks inside [folder] first, so a library can't be added as one giant book by mistake (or the other way round). */
     fun chooseFolder(folder: File) = scope.launch {
         val books = runCatching { importer.preview(folder) }.getOrElse { messages.emit(it.message ?: "That folder couldn't be read."); return@launch }
-        if (books.isEmpty()) messages.emit("No audiobooks found in ${folder.name}.") else found = FolderFound(folder, books)
+        if (books.isNotEmpty()) { found = FolderFound(folder, books); return@launch }
+        // Nothing in it yet: it's kept as a library folder all the same, for books put there later or synced from a phone.
+        if (folder.absolutePath in library.folders.value) { messages.emit("${folder.name} is already a library folder. No audiobooks in it yet."); return@launch }
+        runCatching { importer.add(listOf(folder)) }.onFailure { messages.emit(it.message ?: "That folder couldn't be added."); return@launch }
+        messages.emit("${folder.name} is now a library folder. Audiobooks you put in it, or sync from your phone, will show up here.")
     }
 
     fun confirmFound(asOneBook: Boolean) {

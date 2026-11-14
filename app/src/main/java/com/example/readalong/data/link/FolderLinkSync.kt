@@ -6,7 +6,9 @@ import android.os.Build
 import android.provider.DocumentsContract
 import android.provider.DocumentsContract.Document
 import android.provider.Settings
+import com.example.readalong.domain.link.ComputerJob
 import com.example.readalong.domain.link.FolderSyncPlan
+import com.example.readalong.domain.link.LinkChannel
 import com.example.readalong.domain.link.LinkCode
 import com.example.readalong.domain.link.SyncAction
 import com.example.readalong.domain.link.SyncFile
@@ -14,6 +16,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -82,23 +85,33 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
                 var copied = 0; var failed = 0
                 val problems = mutableListOf<String>()
                 val lost = mutableListOf<String>()
-                conflicts.clear()
+                val arrived = mutableSetOf<String>()
+                conflicts.clear(); noRoom.clear()
                 var change = 0L
                 connect().use { client ->
                     change = client.computerChanged
+                    // A ReadAlong the computer finished for this phone is put beside its book there, so this sync brings it.
+                    runCatching { askComputer(client) {} }
                     for (pair in pairs) {
                         // A folder this phone can no longer open (permission revoked, card removed) is reported and
                         // skipped; the other pairs still sync.
-                        val (done, failures) = try { syncPair(client, pair) }
+                        val (done, failures, received) = try { syncPair(client, pair) }
                             catch (lostAccess: FolderAccessLost) { lost += pair.localName; continue }
                         copied += done; failed += failures
+                        if (received > 0) arrived += pair.localUri
                     }
                     syncSettings(client)
+                    // A book asked of the computer before its audio was there can start now.
+                    runCatching { askComputer(client, settle = false) {} }
                 }
-                // Every paired folder, even when nothing was copied: a ReadAlong that couldn't be used before is tried
-                // again, and books, covers and titles that arrived some other way show up too.
+                // A folder is rescanned when this sync brought something into it. Otherwise only every few hours (and on the
+                // first sync after ReadAlong starts): a ReadAlong that couldn't be used before is tried again, and books that
+                // arrived some other way show up, without walking every folder after each one-file sync.
+                val now = System.currentTimeMillis()
                 for (pair in pairs) {
                     if (pair.localName in lost) continue
+                    if (pair.localUri !in arrived && now - (rescanned[pair.localUri] ?: 0) < RESCAN_EVERY_MS) continue
+                    rescanned[pair.localUri] = now
                     coroutineContext.ensureActive()
                     mutableProgress.value = SyncProgress("Updating your library from ${pair.localName}…")
                     try { problems += rescan(Uri.parse(pair.localUri)) }
@@ -117,6 +130,10 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
                     0 -> ""
                     1 -> " ${conflicts.single().substringAfterLast('/')} changed on both devices and was left as it is on each; keep the one you want and delete the other."
                     else -> " ${conflicts.size} audio files changed on both devices and were left alone, e.g. ${conflicts.first().substringAfterLast('/')}."
+                } + when (noRoom.size) {
+                    0 -> ""
+                    1 -> " This phone doesn't have room for ${noRoom.single().substringAfterLast('/')}. Free some space, or untick the book in Choose books."
+                    else -> " This phone doesn't have room for ${noRoom.size} files, e.g. ${noRoom.first().substringAfterLast('/')}. Free some space, or untick books in Choose books."
                 } + when (lost.size) {
                     0 -> ""
                     else -> " ReadAlong can no longer open ${lost.joinToString()}: choose the folder again in Folders."
@@ -129,19 +146,97 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
 
     /**
      * While ReadAlong is open: every minute, sees whether the computer is reachable and syncs when it says it has
-     * something new since the last sync, or the last sync is more than thirty minutes old. Runs until cancelled.
+     * something new since the last sync, or the last sync is more than two hours old. Runs until cancelled.
      */
     suspend fun watch(syncNow: () -> Unit) = withContext(Dispatchers.IO) {
         while (true) {
             val s = store.value
             if (s.computer != null && s.pairs.isNotEmpty() && mutableProgress.value == null && !lock.isLocked) {
-                val change = runCatching { connect().use { it.computerChanged } }.getOrNull()
+                val change = runCatching { connect().use { client -> runCatching { askComputer(client, syncNow = syncNow) }; client.computerChanged } }.getOrNull()
                 // The computer says when it has news; a full sync and rescan without news is only a safety net.
-                val stale = (s.lastSyncAt ?: 0) < System.currentTimeMillis() - 30 * 60_000
+                val stale = (s.lastSyncAt ?: 0) < System.currentTimeMillis() - STALE_MS
                 if (change != null && (change > s.seenChange || stale)) syncNow()
             }
-            kotlinx.coroutines.delay(60_000)
+            // A ReadAlong being made on the computer shows its progress here, so look more often while one is.
+            kotlinx.coroutines.delay(if (store.value.requests.isEmpty()) 60_000 else 20_000)
         }
+    }
+
+    private val mutableComputerJobs = MutableStateFlow<Map<String, ComputerJob>>(emptyMap())
+    /** By book id: how the computer is getting on with each ReadAlong this phone asked it for. */
+    val computerJobs: StateFlow<Map<String, ComputerJob>> = mutableComputerJobs
+
+    /** Where a book's first audio file is on the computer, when it's in a folder synced with it; null otherwise. */
+    fun onComputer(audioUri: String): Pair<String, String>? = runCatching {
+        val audio = Uri.parse(audioUri)
+        val id = DocumentsContract.getDocumentId(audio)
+        store.value.pairs.firstNotNullOfOrNull { pair ->
+            val tree = Uri.parse(pair.localUri)
+            val root = DocumentsContract.getTreeDocumentId(tree)
+            // Document ids of the phone's storage are paths ("primary:Audiobooks/Book/1.mp3"), so the part after the folder's is the path inside it.
+            val separator = if (root.endsWith(":") || root.endsWith("/")) "" else "/"
+            if (tree.authority == audio.authority && id.startsWith(root + separator) && id.length > root.length + separator.length)
+                pair.remoteId to id.substring(root.length + separator.length) else null
+        }
+    }.getOrNull()
+
+    /**
+     * Asks the linked computer to make this book's ReadAlong; it comes back with the next sync after it's finished.
+     * Returns a line to show. Throws when the computer can't be reached.
+     */
+    suspend fun makeOnComputer(bookId: String, audioUri: String, syncNow: () -> Unit): String = withContext(Dispatchers.IO) {
+        val (folder, path) = onComputer(audioUri) ?: return@withContext "This book isn't in a folder synced with your computer."
+        val name = store.value.computer?.name ?: "your computer"
+        connect().use { client ->
+            if (!client.supports(LinkChannel.TRANSCRIBE)) return@withContext "Update ReadAlong on $name to make ReadAlongs there from your phone."
+            val state = client.transcribe(folder, path)
+            store.update { s -> s.copy(requests = s.requests.filterNot { it.bookId == bookId } + ComputerRequest(bookId, folder, path)) }
+            mutableComputerJobs.update { it + (bookId to ComputerJob(folder, path, if (state == ComputerJob.MISSING) ComputerJob.QUEUED else state)) }
+            when (state) {
+                // The audio hasn't reached the computer: sync it over, and the request is sent again after.
+                ComputerJob.MISSING -> { syncNow(); "Sending this book to $name first. Its ReadAlong starts there once it arrives." }
+                ComputerJob.DONE -> { syncNow(); "$name already has this ReadAlong. Syncing it now." }
+                else -> "$name is making this ReadAlong. It arrives here when it's finished."
+            }
+        }
+    }
+
+    /** The computer's address, typed in when the phone can't find it on its own (a guest network or a router that blocks discovery). */
+    suspend fun useAddress(address: String): String = withContext(Dispatchers.IO) {
+        val computer = store.value.computer ?: throw IOException("This phone isn't linked to a computer.")
+        val host = address.trim().removePrefix("http://").substringBefore('/').substringBefore(':')
+        val port = address.trim().substringAfterLast(':', "").toIntOrNull() ?: computer.port
+        if (host.isEmpty()) throw IOException("Type the address ReadAlong shows on your computer, such as 192.168.1.20.")
+        LinkClient.open(listOf(host), port, computer.key, store.value.phoneId, phoneName, com.example.readalong.BuildConfig.VERSION_NAME).use { client ->
+            store.update { s -> s.copy(computer = s.computer?.copy(name = client.computerName, hosts = listOf(client.host) + (computer.hosts - client.host).take(4), port = client.port)) }
+            "Found ${client.computerName}."
+        }
+    }
+
+    /** Takes a book off the computer's queue again. */
+    suspend fun cancelOnComputer(bookId: String) = withContext(Dispatchers.IO) {
+        val request = store.value.requests.firstOrNull { it.bookId == bookId } ?: return@withContext
+        store.update { s -> s.copy(requests = s.requests - request) }
+        mutableComputerJobs.update { it - bookId }
+        runCatching { connect().use { if (it.supports(LinkChannel.TRANSCRIBE)) it.transcribe(request.folder, request.path, remove = true) } }
+    }
+
+    /** Sends again any request the computer doesn't have, and reads how far along the others are. */
+    private fun askComputer(client: LinkClient, settle: Boolean = true, syncNow: () -> Unit) {
+        val requests = store.value.requests
+        if (requests.isEmpty() || !client.supports(LinkChannel.JOBS)) return
+        val jobs = client.jobs().associateBy { it.folder to it.path }
+        val now = HashMap<String, ComputerJob>()
+        var finished = false
+        for (request in requests) {
+            val job = jobs[request.folder to request.path]
+            val state = job?.state ?: client.transcribe(request.folder, request.path)
+            now[request.bookId] = job ?: ComputerJob(request.folder, request.path, if (state == ComputerJob.MISSING) ComputerJob.QUEUED else state)
+            // Finished (the sync that follows brings it over) or given up on: either way it's no longer waited for.
+            if (state == ComputerJob.DONE && settle) { finished = true; store.update { s -> s.copy(requests = s.requests - request) } }
+        }
+        mutableComputerJobs.value = now
+        if (finished) syncNow()
     }
 
     /** App and reader settings, unless "App and reader settings" is unticked here or on the computer. */
@@ -168,10 +263,37 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
         return client
     }
 
+    /** When each paired phone folder was last rescanned after a sync. Guarded by [lock]. */
+    private val rescanned = HashMap<String, Long>()
+
+    /** Files this sync left on the computer because the phone is nearly full. Guarded by [lock]. */
+    private val noRoom = mutableListOf<String>()
+
+    /** Free bytes where a paired folder lives, when that can be told (the phone's own storage or a card); null otherwise. */
+    private fun freeSpace(rootId: String): Long? = runCatching {
+        val volume = rootId.substringBefore(':')
+        val directory = if (volume == "primary") android.os.Environment.getExternalStorageDirectory() else java.io.File("/storage/$volume")
+        android.os.StatFs(directory.path).availableBytes
+    }.getOrNull()
+
+    private fun bookKey(pair: FolderPair, path: String) = "${pair.remoteId}/${path.substringBefore('/')}"
+
+    /** A book on the computer, for Choose books: its folder (or lone file) name, its size, and whether it syncs to this phone. */
+    data class RemoteBook(val key: String, val name: String, val bytes: Long, val synced: Boolean)
+
+    /** The books in a paired computer folder, largest first. */
+    suspend fun remoteBooks(pair: FolderPair): List<RemoteBook> = withContext(Dispatchers.IO) {
+        val files = connect().use { it.list(pair.remoteId) }
+        val leftOut = store.value.leftOut
+        files.groupBy { it.path.substringBefore('/') }.map { (name, inside) -> RemoteBook(bookKey(pair, name), name, inside.sumOf { it.size }, bookKey(pair, name) !in leftOut) }
+            .sortedByDescending { it.bytes }
+    }
+
     /** Audio changed on both sides in this sync, reported in its result. Guarded by [lock]. */
     private val conflicts = mutableListOf<String>()
 
-    private suspend fun syncPair(client: LinkClient, pair: FolderPair): Pair<Int, Int> {
+    /** Returns the files copied, the files that failed, and how many of the copied ones came from the computer. */
+    private suspend fun syncPair(client: LinkClient, pair: FolderPair): Triple<Int, Int, Int> {
         val tree = Uri.parse(pair.localUri)
         val rootId = DocumentsContract.getTreeDocumentId(tree)
         // An unreadable tree would look empty, and an empty folder reads as "every book was deleted here".
@@ -183,17 +305,30 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
         val remote = client.list(pair.remoteId).toMutableList()
         // Kinds turned off on either side (Settings › Sync) are left alone on both.
         val skipped = store.value.skipped + client.computerSkips
-        val local = walk(tree, rootId).filterKeys { FolderSyncPlan.included(it, skipped) }
-        remote.retainAll { FolderSyncPlan.included(it.path, skipped) }
+        // So are books unticked in Choose books: they stay on the computer, and nothing of theirs is copied either way.
+        val leftOut = store.value.leftOut
+        fun wanted(path: String) = FolderSyncPlan.included(path, skipped) && bookKey(pair, path) !in leftOut
+        val local = walk(tree, rootId).filterKeys(::wanted)
+        remote.retainAll { wanted(it.path) }
         val recorded = store.synced(pair)
-        // Their records are kept, so turning a kind back on carries on from where it was.
-        val held = recorded.filterKeys { !FolderSyncPlan.included(it, skipped) }
+        // Their records are kept, so turning a kind (or a book) back on carries on from where it was.
+        val held = recorded.filterKeys { !wanted(it) }
         val previous = recorded - held.keys
-        val actions = FolderSyncPlan.plan(local.values.map { it.file }, remote, previous)
+        val planned = FolderSyncPlan.plan(local.values.map { it.file }, remote, previous)
+        // What won't fit on this phone is left for later instead of filling it: small files first, so positions,
+        // covers and ReadAlongs still arrive when a book's audio can't.
+        var room = freeSpace(rootId)?.let { it - KEEP_FREE }
+        val sizes = remote.associate { it.path to it.size }
+        val actions = planned.filter { action ->
+            val free = room
+            if (action !is SyncAction.Download || free == null) return@filter true
+            val size = sizes[action.path] ?: 0
+            if (size <= free || size < SMALL_FILE) { room = free - size; true } else { noRoom += "${pair.localName}/${action.path}"; false }
+        }
         conflicts += FolderSyncPlan.conflicts(local.values.map { it.file }, remote, previous).map { "${pair.localName}/$it" }
         val localNow = local.mapValues { it.value.file }.toMutableMap()
         val remoteNow = remote.associateBy { it.path }.toMutableMap()
-        var copied = 0; var failed = 0
+        var copied = 0; var failed = 0; var received = 0
         actions.forEachIndexed { index, action ->
             coroutineContext.ensureActive()
             val name = action.path.substringAfterLast('/')
@@ -202,8 +337,9 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
                 when (action) {
                     is SyncAction.Download -> {
                         mutableProgress.value = SyncProgress("Copying from computer $label", 0f)
-                        val (received, stored) = download(client, pair, tree, rootId, action.path) { done, size -> mutableProgress.value = SyncProgress("Copying from computer $label", fraction(done, size)) }
-                        remoteNow[action.path] = received; localNow[action.path] = stored
+                        val (arrived, stored) = download(client, pair, tree, rootId, action.path, remoteNow[action.path]) { done, size -> mutableProgress.value = SyncProgress("Copying from computer $label", fraction(done, size)) }
+                        remoteNow[action.path] = arrived; localNow[action.path] = stored
+                        received++
                     }
                     is SyncAction.Upload -> {
                         val source = local.getValue(action.path)
@@ -216,6 +352,7 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
                 }
                 copied++
             } catch (refused: com.example.readalong.domain.link.LinkException) { failed++; android.util.Log.w("ReadAlong", "Link sync skipped a file: ${refused.message}") }
+            catch (corrupt: LinkClient.CorruptCopy) { failed++; android.util.Log.w("ReadAlong", "Link sync: ${corrupt.message}") }
             catch (io: IOException) {
                 // A dropped connection ends this sync; what was copied so far is kept and recorded.
                 store.saveSynced(pair, held + FolderSyncPlan.settled(localNow.values.toList(), remoteNow.values.toList(), previous))
@@ -223,7 +360,7 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
             }
         }
         store.saveSynced(pair, held + FolderSyncPlan.settled(localNow.values.toList(), remoteNow.values.toList(), previous))
-        return copied to failed
+        return Triple(copied, failed, received)
     }
 
     private fun fraction(done: Long, size: Long) = if (size <= 0) 1f else (done.toFloat() / size).coerceIn(0f, 1f)
@@ -254,7 +391,7 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
     }
 
     /** Copies a computer file into the tree through a hidden temporary file, so a half copy never looks like a changed book. */
-    private fun download(client: LinkClient, pair: FolderPair, tree: Uri, rootId: String, path: String, progress: (Long, Long) -> Unit): Pair<SyncFile, SyncFile> {
+    private fun download(client: LinkClient, pair: FolderPair, tree: Uri, rootId: String, path: String, remote: SyncFile?, progress: (Long, Long) -> Unit): Pair<SyncFile, SyncFile> {
         val parts = path.split('/')
         var parent = rootId
         for (folder in parts.dropLast(1)) parent = child(tree, parent, folder)?.takeIf { it.second }?.first
@@ -262,10 +399,40 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
                 ?.let(DocumentsContract::getDocumentId) ?: throw IOException("Couldn't make the folder $folder.")
         val name = parts.last()
         val parentUri = DocumentsContract.buildDocumentUriUsingTree(tree, parent)
-        val temporary = DocumentsContract.createDocument(resolver, parentUri, "application/octet-stream", ".$name.readalong-sync") ?: throw IOException("Couldn't write $name.")
+        // The temporary file is named after the version being copied, so a copy that was cut off (Wi-Fi dropped, the phone
+        // left the house) carries on from where it stopped next time instead of starting a large book again.
+        val resumable = remote != null && client.supports(LinkChannel.RESUME)
+        val temporaryName = if (resumable) ".$name.${remote!!.size}-${remote.modified}.readalong-sync" else ".$name.readalong-sync"
+        val partial = if (resumable) child(tree, parent, temporaryName)?.takeIf { !it.second }?.let { DocumentsContract.buildDocumentUriUsingTree(tree, it.first) } else null
+        val have = partial?.let(::stat)?.size?.takeIf { it in 1 until remote!!.size } ?: 0
+        // What's already here is hashed, so the checksum the computer sends afterwards covers the whole file.
+        val prefix = if (have > 0) runCatching {
+            java.security.MessageDigest.getInstance("SHA-256").also { digest ->
+                resolver.openInputStream(partial!!)!!.use { input ->
+                    val buffer = ByteArray(1 shl 16); var left = have
+                    while (left > 0) { val read = input.read(buffer, 0, minOf(buffer.size.toLong(), left).toInt()); if (read < 0) throw IOException("short"); digest.update(buffer, 0, read); left -= read }
+                }
+            }
+        }.getOrNull() else null
+        val temporary = partial ?: DocumentsContract.createDocument(resolver, parentUri, "application/octet-stream", temporaryName) ?: throw IOException("Couldn't write $name.")
+        // Parts of an older version of this file are no use any more.
+        if (resumable) runCatching {
+            resolver.query(DocumentsContract.buildChildDocumentsUriUsingTree(tree, parent), arrayOf(Document.COLUMN_DOCUMENT_ID, Document.COLUMN_DISPLAY_NAME), null, null, null)?.use { cursor ->
+                val stale = mutableListOf<String>()
+                while (cursor.moveToNext()) cursor.getString(1)?.let { if (it.startsWith(".$name.") && it.endsWith(".readalong-sync") && it != temporaryName) stale += cursor.getString(0) }
+                stale.forEach { DocumentsContract.deleteDocument(resolver, DocumentsContract.buildDocumentUriUsingTree(tree, it)) }
+            }
+        }
+        var keep = false
         try {
             // Closing the buffered stream flushes it: without that, the last part of every file never reached the phone.
-            val received = resolver.openOutputStream(temporary, "w")?.buffered(256 * 1024)?.use { output -> client.get(pair.remoteId, path, output, progress) } ?: throw IOException("Couldn't write $name.")
+            val received = try {
+                client.get(pair.remoteId, path, have, prefix, progress) { from ->
+                    (resolver.openOutputStream(temporary, if (from > 0) "wa" else if (partial != null) "wt" else "w") ?: throw IOException("Couldn't write $name.")).buffered(256 * 1024)
+                }
+            } catch (corrupt: LinkClient.CorruptCopy) { throw corrupt }
+            catch (refused: com.example.readalong.domain.link.LinkException) { throw refused }
+            catch (dropped: IOException) { keep = resumable; throw dropped }
             // Never put a short copy in place of the real file: the next sync tries again.
             stat(temporary)?.let { if (it.size != received.size) throw IOException("Only ${it.size} of ${received.size} bytes of $name arrived.") }
             // The old copy steps aside (not deleted) until the new one has its name, so a failed rename loses nothing.
@@ -281,7 +448,7 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
             aside?.let { runCatching { DocumentsContract.deleteDocument(resolver, it) } }
             val stat = stat(final) ?: SyncFile(path, received.size, System.currentTimeMillis())
             return received to stat.copy(path = path)
-        } finally { runCatching { if (stat(temporary) != null) DocumentsContract.deleteDocument(resolver, temporary) } }
+        } finally { if (!keep) runCatching { if (stat(temporary) != null) DocumentsContract.deleteDocument(resolver, temporary) } }
     }
 
     /** Where a provider can't rename: copy the finished temporary file to its real name. */
@@ -303,6 +470,15 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
         }
     }.getOrNull()
 }
+
+/** With no news from the computer (it announces positions, edits and finished ReadAlongs), a sync still runs this often. */
+private const val STALE_MS = 2 * 60 * 60_000L
+/** Downloads stop short of the phone's last half gigabyte. */
+private const val KEEP_FREE = 500L * 1024 * 1024
+/** Files this small (positions, covers, ReadAlongs) are copied even then. */
+private const val SMALL_FILE = 20L * 1024 * 1024
+/** A paired folder nothing arrived in is still rescanned this often. */
+private const val RESCAN_EVERY_MS = 6 * 60 * 60_000L
 
 /** The phone can no longer list a paired folder; the pair is skipped instead of read as empty. */
 private class FolderAccessLost : Exception()

@@ -83,9 +83,21 @@ class LinkChannel private constructor(private val input: DataInputStream, privat
          * peer, one in [V1_OPS]), so older and newer phones and computers keep syncing what they both know.
          * A request a peer doesn't know gets an "error" reply, never a dropped connection.
          */
-        const val PROTOCOL = 1
+        const val PROTOCOL = 2
         val V1_OPS = listOf("hello", "folders", "list", "get", "put", "create", "done")
-        val OPS = V1_OPS
+        /**
+         * Protocol 2 (0.54.0): shared settings; "transcribe" (the phone asks the computer to make a book's ReadAlong,
+         * or to stop) and "jobs" (what the computer is making, and how far along).
+         */
+        val OPS = V1_OPS + listOf(SETTINGS, SET_SETTINGS, TRANSCRIBE, JOBS, RESUME)
+        const val SETTINGS = "settings"
+        const val SET_SETTINGS = "set-settings"
+        const val TRANSCRIBE = "transcribe"
+        const val JOBS = "jobs"
+        /** Not a request of its own: "get" may carry "offset" (carry on a copy that was cut off) and "verify" (a SHA-256 of the whole file follows it). */
+        const val RESUME = "resume"
+
+        fun hex(bytes: ByteArray) = bytes.joinToString("") { "%02x".format(it) }
 
         /** The requests a peer understands, from its hello or reply. */
         fun peerOps(json: org.json.JSONObject): Set<String> =

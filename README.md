@@ -73,7 +73,7 @@ ReadAlong for Windows 10 and 11 plays the same books and makes the same read-alo
 1. [Download the Windows installer](https://github.com/lukeherc-cpu/ReadAlong/releases/latest/download/ReadAlong-Windows.msi) and open it. If Windows says it protected your PC, choose **More info**, then **Run anyway**. A [portable zip](https://github.com/lukeherc-cpu/ReadAlong/releases/latest/download/ReadAlong-Windows-portable.zip) is also available.
 2. Choose **Add books** and pick your audiobook folder, then **Make ReadAlong** on a book.
 
-Transcripts made on Windows are saved as a `.readalong` file beside the audiobook. Copy it next to the same book on your phone and ReadAlong uses it instead of transcribing again. See [desktop-app/README.md](desktop-app/README.md) for details.
+Transcripts made on Windows are saved as a `.readalong` file beside the audiobook. [Link your phone](#link-your-phone-and-computer) and they arrive there on their own, or copy the file next to the same book on your phone; either way ReadAlong uses it instead of transcribing again. See [desktop-app/README.md](desktop-app/README.md) for details.
 
 ### Linux
 
@@ -82,12 +82,31 @@ The same app as on Windows, as a Flatpak. Transcription uses your graphics card 
 1. [Download the Flatpak](https://github.com/lukeherc-cpu/ReadAlong/releases/latest/download/ReadAlong-Linux.flatpak) and install it with your software centre, or run `flatpak install --user ReadAlong-Linux.flatpak`. It needs Flathub set up for the GNOME runtime it uses. A [portable tarball](https://github.com/lukeherc-cpu/ReadAlong/releases/latest/download/ReadAlong-Linux-x86_64.tar.gz) is also available: unpack it and run `ReadAlong/bin/ReadAlong`.
 2. Choose **Add books** and pick your audiobook folder, then **Make ReadAlong** on a book.
 
+A Flatpak installed from the downloaded file doesn't update itself, and `flatpak update` won't find a newer one. When ReadAlong says an update is out, download the new Flatpak and install it over the old one; your library and settings stay.
+
 ### macOS
 
 The same app as on Windows, for macOS 12 or later. Transcription uses the Mac's graphics through Metal.
 
 1. Download the disk image for [Apple silicon (M1 and later)](https://github.com/lukeherc-cpu/ReadAlong/releases/latest/download/ReadAlong-macOS-AppleSilicon.dmg) or [Intel](https://github.com/lukeherc-cpu/ReadAlong/releases/latest/download/ReadAlong-macOS-Intel.dmg), open it and drag ReadAlong to Applications.
 2. The app isn't notarized by Apple, so the first time macOS says it can't check it. Close that message, open **System Settings → Privacy & Security**, scroll down and choose **Open Anyway** next to ReadAlong, then confirm. (Or run `xattr -dr com.apple.quarantine /Applications/ReadAlong.app` in Terminal.) After that it opens normally.
+
+### Link your phone and computer
+
+With ReadAlong on both, the two keep your audiobook folders in step over your home Wi-Fi. There is no account and no cloud: they talk directly, encrypted with a key that only the QR code carries.
+
+1. On the computer, open **Settings → Link a phone** and choose **Link phone**. A QR code appears.
+2. On the phone, open **Settings → Link a computer** and scan it (or copy the code on the computer and paste it on the phone).
+3. Choose which folders to sync. A phone folder can be empty: it fills up with the first sync.
+
+After that, whenever the phone is on the same Wi-Fi and ReadAlong is open on the computer, books, finished ReadAlongs, covers, EPUBs, bookmarks and your listening position copy across. Nothing is ever deleted on either side.
+
+- **Make a ReadAlong on the computer from your phone.** On a book with no text yet, choose **Make a ReadAlong → Make it on** your computer. It is usually much faster there and uses a larger speech model; the phone shows how far along it is, and the text arrives when it's finished.
+- **Choose which books come to the phone.** In **Settings → Link a computer**, tap **Choose books** beside a folder and untick the ones to leave on the computer. If the phone is nearly full, ReadAlong copies what fits and says what didn't.
+- **Keep the computer available.** Turn on **Settings → Keep running in the background** and closing the window leaves ReadAlong in the system tray, still making books and syncing. **Start when I sign in** opens it there by itself. (Needs a system tray: Windows, macOS and KDE have one; stock GNOME doesn't.)
+- **If the phone can't find the computer** (a guest network, or a router that blocks discovery), tap **Enter its address** on the phone and type the address shown under **Link a phone** on the computer.
+
+A copy that is cut off, because the phone left the house mid-book, carries on from where it stopped next time, and every copied file is checked against a checksum.
 
 ## Your first book
 
@@ -114,6 +133,8 @@ The GitHub download can bring in the audiobooks you own on Audible. Open **Libra
 3. Each book downloads in the background, is turned into an ordinary M4B file on your phone, and joins your library and the transcription queue.
 
 ReadAlong signs in as a device on your Amazon account, the same way [LibriSync](https://github.com/Promises/LibriSync) and [Libation](https://github.com/rmcrackan/Libation) do; their GPL-3.0 sign-in, download and decryption engine is ported into ReadAlong. Signing out removes ReadAlong from your Amazon devices; books already imported stay. If Audible limits downloads for your account for a while, ReadAlong stops and says so rather than retrying. The Windows, Linux and macOS apps have the same **Audible** button in the library; there the sign-in page opens in your web browser, and you paste the address of Amazon's final page back into ReadAlong.
+
+On Windows, Linux and macOS, choose **Add books → Import from Audible** and **Sign in to Amazon**. The sign-in page opens in its own window and ReadAlong finishes by itself. Where that window can't open, ReadAlong uses your browser instead: sign in there, and when Amazon ends on a "page not found", copy that page's address and ReadAlong takes it from there.
 
 Only books you own can be downloaded. The Google Play edition does not include Audible sign-in.
 

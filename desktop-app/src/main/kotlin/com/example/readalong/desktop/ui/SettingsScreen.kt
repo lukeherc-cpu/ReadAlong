@@ -38,6 +38,7 @@ fun SettingsScreen(app: AppState) {
     val linkState by app.link.state.collectAsState()
     val updateStatus by app.updates.status.collectAsState()
     val scope = rememberCoroutineScope()
+    var startAtLogin by remember { mutableStateOf(com.example.readalong.desktop.core.StartAtLogin.enabled()) }
     fun save(change: (com.example.readalong.desktop.core.AppSettings) -> com.example.readalong.desktop.core.AppSettings) = app.settingsStore.update(change)
     SettingsPage("Settings", "Back (Esc)", app) {
         if (!settings.tipJarInOther) TipJarSection(false) { move -> save { it.copy(tipJarInOther = move) } }
@@ -81,6 +82,15 @@ fun SettingsScreen(app: AppState) {
         SettingsGroup {
             SettingsRow("Link a phone", "ic_devices", summary = linkSummary(linkState), onClick = { app.open(Screen.PhoneSettings) })
             SettingsRow("Library folders", "ic_folder", onClick = { app.open(Screen.Folders) })
+            // Only where the system has a tray to keep ReadAlong in (most Windows, macOS and KDE desktops; not stock GNOME).
+            if (remember { runCatching { androidx.compose.ui.window.isTraySupported }.getOrDefault(false) }) {
+                PreferenceSwitch("Keep running in the background", settings.keepRunning, "ic_devices") { v ->
+                    save { it.copy(keepRunning = v) }
+                    if (!v && startAtLogin) startAtLogin = !com.example.readalong.desktop.core.StartAtLogin.set(false)
+                }
+                if (settings.keepRunning && com.example.readalong.desktop.core.StartAtLogin.available)
+                    PreferenceSwitch("Start when I sign in", startAtLogin, "ic_redo") { v -> startAtLogin = if (com.example.readalong.desktop.core.StartAtLogin.set(v)) v else !v }
+            }
             PreferenceSwitch("Check for updates automatically", settings.checkUpdates, "ic_redo") { v -> save { it.copy(checkUpdates = v) } }
             SettingsRow(when (updateStatus) { UpdateStatus.Checking -> "Checking…"; else -> "Check for updates now" }, "ic_info",
                 summary = when (val s = updateStatus) {
@@ -159,7 +169,7 @@ fun TranscriptionSettingsScreen(app: AppState) {
         }
 
         SectionLabel("Speech model")
-        val default = SpeechModels.default(settings.language)
+        val default = app.transcription.defaultModel()
         val chosen = app.transcription.model()
         SpeechModels.all.filter { settings.language == "en" || !it.englishOnly }.forEach { model ->
             val progress = downloads[model.id]

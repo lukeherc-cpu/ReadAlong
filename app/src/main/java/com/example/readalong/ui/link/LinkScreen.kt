@@ -55,6 +55,9 @@ fun LinkScreen(app: ReadAlongApplication, onBack: () -> Unit) {
     var choosing by remember { mutableStateOf(false) }
     var pasting by remember { mutableStateOf(false) }
     var pendingAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+    var choosingBooks by remember { mutableStateOf<FolderPair?>(null) }
+    var typingAddress by remember { mutableStateOf(false) }
+    choosingBooks?.let { pair -> ChooseBooksDialog(app, pair) { choosingBooks = null } }
 
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) pendingAction?.invoke() else error = "ReadAlong needs permission to find devices on your Wi-Fi to reach your computer."
@@ -64,6 +67,26 @@ fun LinkScreen(app: ReadAlongApplication, onBack: () -> Unit) {
     fun withNetwork(action: () -> Unit) {
         if (Build.VERSION.SDK_INT < 37 || ContextCompat.checkSelfPermission(context, LOCAL_NETWORK) == PackageManager.PERMISSION_GRANTED) action()
         else { pendingAction = action; permission.launch(LOCAL_NETWORK) }
+    }
+    if (typingAddress) {
+        var address by rememberSaveable { mutableStateOf(state.computer?.hosts?.firstOrNull().orEmpty()) }
+        AlertDialog(onDismissRequest = { typingAddress = false }, title = { Text("Computer's address") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("On your computer, open ReadAlong › Settings › Link a phone. Type the address shown there.", style = MaterialTheme.typography.bodyMedium)
+                    OutlinedTextField(address, { address = it }, singleLine = true, placeholder = { Text("192.168.1.20") })
+                }
+            },
+            confirmButton = { TextButton(onClick = {
+                typingAddress = false
+                withNetwork { scope.launch {
+                    busy = "Looking for the computer…"; error = null
+                    try { error = null; sync.useAddress(address); LinkSyncWorker.syncNow(context) }
+                    catch (failure: Exception) { error = failure.userMessage("Couldn't reach the computer at that address. Check ReadAlong is open on it and both are on the same network.") }
+                    finally { busy = null }
+                } }
+            }) { Text("Connect") } },
+            dismissButton = { TextButton(onClick = { typingAddress = false }) { Text("Cancel") } })
     }
     fun link(text: String) {
         val code = LinkCode.parse(text) ?: run { error = "That isn't a ReadAlong link code. On your computer, open Settings › Phone › Link phone."; return }
@@ -153,7 +176,12 @@ fun LinkScreen(app: ReadAlongApplication, onBack: () -> Unit) {
                 }
                 Text("Synced folders", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (state.pairs.isEmpty()) Text("None yet.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                state.pairs.forEach { pair -> Text("${pair.localName}  ⇄  ${pair.remoteName} on ${computer.name}", style = MaterialTheme.typography.bodyLarge) }
+                state.pairs.forEach { pair ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("${pair.localName}  ⇄  ${pair.remoteName} on ${computer.name}", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                        TextButton(onClick = { withNetwork { choosingBooks = pair } }) { Text("Choose books") }
+                    }
+                }
                 Text("Syncs when this phone is on Wi-Fi and ReadAlong is open on the computer. Books one side doesn't have are copied over; nothing is ever deleted.",
                     style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (state.pairs.isNotEmpty()) Text("Books this phone transcribes get a .readalong file beside them in these folders, so ${computer.name} reads them without transcribing again.",
@@ -163,6 +191,7 @@ fun LinkScreen(app: ReadAlongApplication, onBack: () -> Unit) {
                     Button(onClick = { withNetwork { LinkSyncWorker.syncNow(context) } }, enabled = state.pairs.isNotEmpty() && progress == null) { Text("Sync now") }
                     OutlinedButton(onClick = ::loadFolders, enabled = busy == null) { Text("Choose folders") }
                 }
+                TextButton(onClick = { typingAddress = true }) { Text("Can't find ${computer.name}? Enter its address") }
                 TextButton(onClick = { LinkSyncWorker.cancel(context); sync.store.unlink(); offered = null }) { Text("Unlink ${computer.name}") }
             }
         }
@@ -260,4 +289,50 @@ private fun SyncKinds(skipped: Set<String>, onChange: (Set<String>) -> Unit) {
             }
         }
     }
+}
+
+/** Which of a computer folder's books come to this phone. Unticked ones stay on the computer; nothing already here is deleted. */
+@Composable
+private fun ChooseBooksDialog(app: ReadAlongApplication, pair: FolderPair, onDismiss: () -> Unit) {
+    val sync = app.folderLink
+    var books by remember { mutableStateOf<List<com.example.readalong.data.link.FolderLinkSync.RemoteBook>?>(null) }
+    var failed by remember { mutableStateOf<String?>(null) }
+    var leftOut by remember { mutableStateOf(sync.store.value.leftOut) }
+    LaunchedEffect(pair) {
+        try { books = sync.remoteBooks(pair) } catch (failure: java.io.IOException) { failed = failure.message ?: "Couldn't reach your computer." }
+    }
+    AlertDialog(onDismissRequest = onDismiss, title = { Text("Books from ${pair.remoteName}") },
+        text = {
+            Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
+                val shown = books
+                when {
+                    failed != null -> Text(failed!!)
+                    shown == null -> LinearProgressIndicator(Modifier.fillMaxWidth())
+                    shown.isEmpty() -> Text("No books in this folder on the computer yet.")
+                    else -> {
+                        val wanted = shown.filter { it.key !in leftOut }.sumOf { it.bytes }
+                        Text("Ticked books sync to this phone: ${android.text.format.Formatter.formatShortFileSize(app, wanted)} in all. Unticking one leaves it on the computer and deletes nothing here.",
+                            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        shown.forEach { book ->
+                            val ticked = book.key !in leftOut
+                            Row(Modifier.fillMaxWidth().clickable { leftOut = if (ticked) leftOut + book.key else leftOut - book.key }.padding(vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically) {
+                                Checkbox(ticked, { on -> leftOut = if (on) leftOut - book.key else leftOut + book.key })
+                                Column(Modifier.weight(1f)) {
+                                    Text(book.name, style = MaterialTheme.typography.bodyLarge, maxLines = 2)
+                                    Text(android.text.format.Formatter.formatShortFileSize(app, book.bytes), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = {
+            val changed = leftOut != sync.store.value.leftOut
+            sync.store.update { it.copy(leftOut = leftOut) }
+            if (changed) LinkSyncWorker.syncNow(app)
+            onDismiss()
+        }, enabled = books != null) { Text("Done") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } })
 }

@@ -15,6 +15,8 @@ class LibraryImporter(private val library: LibraryStore, private val transcripts
     private val companions: Companions = Companions(library),
     /** A `.readalong` from the phone is about to replace this book's unfinished ReadAlong: stop making it. */
     private val beforeTranscriptImport: (String) -> Unit = {},
+    /** A book id and the model of a `.readalong` found beside it: true to keep making this computer's own, better one. */
+    private val keepOwnTranscript: (String, String?) -> Boolean = { _, _ -> false },
     /** A `.readalong` from the phone is now this book's ReadAlong. */
     private val onTranscriptImported: (String) -> Unit = {},
     private val onMessage: (String) -> Unit = {},
@@ -131,6 +133,9 @@ class LibraryImporter(private val library: LibraryStore, private val transcripts
         val info = transcripts.info(book.id)
         // This computer's own finished ReadAlong is kept; an unfinished one, or one taken from an older package, is replaced.
         if (info != null && info.complete && !info.imported) return
+        // The phone finished first, but this computer is making the book with a better model: carry on. Its own package
+        // replaces the phone's when it is done, and the phone then takes that.
+        if (keepOwnTranscript(book.id, TranscriptStore.packageModel(pkg))) return
         // Each version of a package is tried once, so one that doesn't fit isn't hashed again on every rescan.
         if (!companions.packageChanged(book.id, pkg)) return
         if (info != null) beforeTranscriptImport(book.id)
