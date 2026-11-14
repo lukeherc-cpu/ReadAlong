@@ -58,7 +58,7 @@ class ReadAlongApplication : Application() {
     val processing by lazy { com.example.readalong.data.processing.ProcessingRepository(this, database, speechModel) }
     @Volatile var appearanceSettings = com.example.readalong.data.preferences.AppPreferences()
         private set
-    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO + com.example.readalong.data.diagnostics.BackgroundFailures.handler("Application"))
+    internal val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO + com.example.readalong.data.diagnostics.BackgroundFailures.handler("Application"))
     override fun onCreate() {
         super.onCreate()
         val processName = if (android.os.Build.VERSION.SDK_INT >= 28) getProcessName()
