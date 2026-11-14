@@ -95,13 +95,14 @@ fun SettingsScreen(app: AppState) {
             SettingsRow(when (updateStatus) { UpdateStatus.Checking -> "Checking…"; else -> "Check for updates now" }, "ic_info",
                 summary = when (val s = updateStatus) {
                     UpdateStatus.UpToDate -> "ReadAlong ${app.updates.current} is the latest version."
-                    is UpdateStatus.Available -> "ReadAlong ${s.release.version} is out. Click to download it."
+                    is UpdateStatus.Available -> if (app.updates.flatpak) "ReadAlong ${s.release.version} is out. Update it from your software centre, or click to copy the command."
+                        else "ReadAlong ${s.release.version} is out. Click to download it."
                     is UpdateStatus.Failed -> s.message
                     else -> "Version ${System.getProperty("readalong.version") ?: "dev"}"
                 },
                 onClick = {
                     when (val s = updateStatus) {
-                        is UpdateStatus.Available -> openBrowser(app.updates.downloadUrl(s.release))
+                        is UpdateStatus.Available -> getUpdate(app, s.release)
                         UpdateStatus.Checking -> {}
                         else -> scope.launch { app.updates.check(manual = true) }
                     }

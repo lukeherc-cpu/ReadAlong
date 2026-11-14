@@ -1,7 +1,7 @@
 name: ReadAlong for Linux
 
 # Builds the Linux app (desktop-app/): whisper.cpp with its Vulkan GPU backend and CPU variants, the Compose
-# app image, a Flatpak bundle and a portable tarball. It then transcribes synthesized speech with the
+# app image, a signed Flatpak repository with a .flatpakref and a bundle that update from it, and a portable tarball. It then transcribes synthesized speech with the
 # packaged app and inside the installed Flatpak on the CPU, and on Mesa's software Vulkan (the runner has no GPU).
 on:
   push:
@@ -22,6 +22,9 @@ permissions:
 env:
   WHISPER_CPP_VERSION: v1.8.7
   APP_ID: io.github.lukeherc_cpu.ReadAlong
+  # ReadAlong's own Flatpak repository, published to GitHub Pages by release.yml. Bundles and the .flatpakref point
+  # here, so `flatpak update` and software centres find each new release.
+  FLATPAK_REPO_URL: https://lukeherc-cpu.github.io/ReadAlong/repo
 
 jobs:
   linux:
@@ -67,16 +70,57 @@ jobs:
           tar -C desktop-app/build/compose/binaries/main-release/app -czf dist/ReadAlong-Linux-x86_64.tar.gz ReadAlong
           ls -la dist | tee -a ci-results/gradle.log
 
-      - name: Build the Flatpak
+      - name: Build the Flatpak and its signed repository
+        env:
+          FLATPAK_GPG_PRIVATE_KEY: ${{ secrets.FLATPAK_GPG_PRIVATE_KEY }}
+          RELEASE: ${{ inputs.release }}
         run: |
           set -o pipefail
           # Ubuntu 24.04 stops unprivileged user namespaces, which Flatpak's sandbox (bubblewrap) needs.
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          # A release signs with the repository's key, which every installed copy trusts. Other runs sign with a
+          # throwaway key, so the same steps are tested without the secret.
+          export GNUPGHOME="$RUNNER_TEMP/gnupg"
+          mkdir -m 700 -p "$GNUPGHOME"
+          if [ -n "$FLATPAK_GPG_PRIVATE_KEY" ]; then
+            echo "$FLATPAK_GPG_PRIVATE_KEY" | gpg --batch --quiet --import
+          elif [ "$RELEASE" = "true" ]; then
+            echo "::error::The FLATPAK_GPG_PRIVATE_KEY secret is missing, so the release's Flatpak repository can't be signed."; exit 1
+          else
+            gpg --batch --quiet --passphrase '' --quick-gen-key "ReadAlong CI test key" rsa3072 sign never
+          fi
+          key=$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr/ { print $10; exit }')
+          gpg --export "$key" > ../flatpak-key.gpg
           flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-          flatpak-builder --user --install-deps-from=flathub --disable-rofiles-fuse --force-clean --repo=../flatpak-repo ../flatpak-build \
+          flatpak-builder --user --install-deps-from=flathub --disable-rofiles-fuse --force-clean \
+            --gpg-sign="$key" --gpg-homedir="$GNUPGHOME" --repo=../flatpak-repo ../flatpak-build \
             "desktop-app/packaging/linux/$APP_ID.yml" 2>&1 | tail -60 | tee ci-results/flatpak.log
-          flatpak build-bundle ../flatpak-repo dist/ReadAlong-Linux.flatpak "$APP_ID" --runtime-repo=https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak build-update-repo --gpg-sign="$key" --gpg-homedir="$GNUPGHOME" --title=ReadAlong --prune ../flatpak-repo
+          # --repo-url makes installing the bundle add ReadAlong's repository as its remote, so it updates like the rest.
+          flatpak build-bundle --repo-url="$FLATPAK_REPO_URL" --gpg-keys=../flatpak-key.gpg \
+            --runtime-repo=https://dl.flathub.org/repo/flathub.flatpakrepo ../flatpak-repo dist/ReadAlong-Linux.flatpak "$APP_ID"
+          desktop-app/packaging/linux/flatpak-site.sh ../flatpak-repo ../flatpak-key.gpg "$FLATPAK_REPO_URL" flatpak-site
+          cp flatpak-site/ReadAlong.flatpakref dist/
           ls -la dist | tee -a ci-results/flatpak.log
+
+      # Someone on an older bundle, which had no repository behind it, gets the new bundle from the update prompt.
+      # Installing it over the old one must leave them on ReadAlong's repository.
+      - name: Upgrade an installed older bundle with the new one
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -o pipefail
+          if gh release download --pattern ReadAlong-Linux.flatpak --dir ../previous 2>/dev/null; then
+            flatpak install --user -y --noninteractive ../previous/ReadAlong-Linux.flatpak 2>&1 | tail -3
+            flatpak install --user -y --noninteractive dist/ReadAlong-Linux.flatpak 2>&1 | tail -5 | tee ci-results/flatpak-upgrade.log
+          else
+            flatpak install --user -y --noninteractive dist/ReadAlong-Linux.flatpak 2>&1 | tail -5 | tee ci-results/flatpak-upgrade.log
+          fi
+          flatpak info --user "$APP_ID" | tee -a ci-results/flatpak-upgrade.log
+          origin=$(flatpak info --user --show-origin "$APP_ID")
+          flatpak remotes --user --show-details | tee -a ci-results/flatpak-upgrade.log
+          flatpak remotes --user --columns=name,url | grep -E "^$origin\s" | grep -q "$FLATPAK_REPO_URL" \
+            || { echo "::error::The installed bundle's remote ($origin) doesn't point at $FLATPAK_REPO_URL"; exit 1; }
 
       - name: Speech test with the packaged app (CPU)
         env:
@@ -96,11 +140,34 @@ jobs:
       - name: Speech test inside the installed Flatpak (CPU)
         run: |
           set -o pipefail
-          flatpak install --user -y --noninteractive dist/ReadAlong-Linux.flatpak 2>&1 | tail -5
           flatpak run --env=READALONG_VERBOSE=1 "$APP_ID" --self-test "$PWD/smoke/Test Book" --model "$PWD/models/ggml-tiny.en.bin" --device cpu --expect fox \
             --out "$PWD/ci-results/self-test-flatpak.txt" || true
           cat ci-results/self-test-flatpak.txt
           grep -q "^PASS" ci-results/self-test-flatpak.txt
+
+      # The same files GitHub Pages will serve, from a local web server: install through the .flatpakref, check the
+      # signature, and update.
+      - name: Install from the Flatpak repository
+        run: |
+          set -o pipefail
+          flatpak uninstall --user -y --noninteractive "$APP_ID" 2>&1 | tail -2
+          (cd flatpak-site && python3 -m http.server 8765 > /dev/null 2>&1 &)
+          sleep 2
+          sed "s|^Url=.*|Url=http://localhost:8765/repo|" flatpak-site/ReadAlong.flatpakref > ../local.flatpakref
+          flatpak install --user -y --noninteractive --from ../local.flatpakref 2>&1 | tail -5 | tee ci-results/flatpak-repo.log
+          flatpak remotes --user --show-details | tee -a ci-results/flatpak-repo.log
+          test "$(flatpak info --user --show-origin "$APP_ID")" = readalong
+          flatpak remote-ls --user readalong | tee -a ci-results/flatpak-repo.log | grep -q "$APP_ID"
+          flatpak update --user -y --noninteractive 2>&1 | tail -3 | tee -a ci-results/flatpak-repo.log
+
+      - name: Keep the Flatpak repository for GitHub Pages
+        if: inputs.release
+        uses: actions/upload-artifact@v4
+        with:
+          name: flatpak-site
+          path: flatpak-site
+          include-hidden-files: true
+          compression-level: 0
 
       - name: Speech test on the GPU path (Mesa's software Vulkan driver)
         continue-on-error: true
@@ -136,7 +203,7 @@ jobs:
         run: |
           version=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)
           (cd dist && for f in ReadAlong-Linux.flatpak ReadAlong-Linux-x86_64.tar.gz; do sha256sum "$f" > "$f.sha256"; done)
-          gh release upload "v$version" dist/ReadAlong-Linux.flatpak dist/ReadAlong-Linux-x86_64.tar.gz dist/*.sha256 --clobber
+          gh release upload "v$version" dist/ReadAlong-Linux.flatpak dist/ReadAlong.flatpakref dist/ReadAlong-Linux-x86_64.tar.gz dist/*.sha256 --clobber
 
       - name: Keep the results
         if: always()

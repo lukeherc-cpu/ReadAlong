@@ -79,10 +79,10 @@ Transcripts made on Windows are saved as a `.readalong` file beside the audioboo
 
 The same app as on Windows, as a Flatpak. Transcription uses your graphics card through Vulkan when it can.
 
-1. [Download the Flatpak](https://github.com/lukeherc-cpu/ReadAlong/releases/latest/download/ReadAlong-Linux.flatpak) and install it with your software centre, or run `flatpak install --user ReadAlong-Linux.flatpak`. It needs Flathub set up for the GNOME runtime it uses. A [portable tarball](https://github.com/lukeherc-cpu/ReadAlong/releases/latest/download/ReadAlong-Linux-x86_64.tar.gz) is also available: unpack it and run `ReadAlong/bin/ReadAlong`.
+1. [Install ReadAlong](https://lukeherc-cpu.github.io/ReadAlong/ReadAlong.flatpakref): the link opens in your software centre. Or run `flatpak install --user https://lukeherc-cpu.github.io/ReadAlong/ReadAlong.flatpakref`. It needs Flathub set up for the GNOME runtime it uses. The [Flatpak file](https://github.com/lukeherc-cpu/ReadAlong/releases/latest/download/ReadAlong-Linux.flatpak) and a [portable tarball](https://github.com/lukeherc-cpu/ReadAlong/releases/latest/download/ReadAlong-Linux-x86_64.tar.gz) are on each release too: unpack the tarball and run `ReadAlong/bin/ReadAlong`.
 2. Choose **Add books** and pick your audiobook folder, then **Make ReadAlong** on a book.
 
-A Flatpak installed from the downloaded file doesn't update itself, and `flatpak update` won't find a newer one. When ReadAlong says an update is out, download the new Flatpak and install it over the old one; your library and settings stay.
+New versions come through your software centre, or `flatpak update`, from ReadAlong's own signed Flatpak repository. That holds for the Flatpak file too. If you installed a Flatpak file from version 0.54.0 or earlier, install the newest Flatpak file over it once; after that it updates like the rest, and your library and settings stay. The portable tarball doesn't update itself: ReadAlong tells you when a new one is out.
 
 ### macOS
 

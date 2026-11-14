@@ -117,8 +117,30 @@ jobs:
         run: |
           version=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)
           gh release view "v$version" --json assets --jq '.assets[].name'
-          for wanted in "ReadAlong-$version.apk" ReadAlong-Windows.msi ReadAlong-Windows-portable.zip ReadAlong-Linux.flatpak ReadAlong-Linux-x86_64.tar.gz ReadAlong-macOS-AppleSilicon.dmg ReadAlong-macOS-Intel.dmg; do
+          for wanted in "ReadAlong-$version.apk" ReadAlong-Windows.msi ReadAlong-Windows-portable.zip ReadAlong-Linux.flatpak ReadAlong.flatpakref ReadAlong-Linux-x86_64.tar.gz ReadAlong-macOS-AppleSilicon.dmg ReadAlong-macOS-Intel.dmg; do
             gh release view "v$version" --json assets --jq '.assets[].name' | grep -qx "$wanted" || { echo "::error::$wanted is missing from the release"; exit 1; }
           done
           if [[ "$version" == *preview* ]]; then gh release edit "v$version" --draft=false --prerelease
           else gh release edit "v$version" --draft=false --latest; fi
+
+      # Linux updates come from ReadAlong's Flatpak repository on GitHub Pages (gh-pages branch). It moves to the new
+      # version only once the release is published, and never to a preview.
+      - name: Download the Flatpak repository
+        uses: actions/download-artifact@v4
+        with:
+          name: flatpak-site
+          path: ${{ runner.temp }}/flatpak-site
+
+      - name: Publish the Flatpak repository to GitHub Pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)
+          if [[ "$version" == *preview* ]]; then echo "A preview doesn't go to the Flatpak repository."; exit 0; fi
+          cd "$RUNNER_TEMP/flatpak-site"
+          # One commit holding only the current repository, so the branch doesn't keep every old build.
+          git init -q -b gh-pages
+          git add -A
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -q -m "ReadAlong $version Flatpak repository"
+          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" gh-pages
