@@ -58,7 +58,7 @@ class ReadAlongApplication : Application() {
     val processing by lazy { com.example.readalong.data.processing.ProcessingRepository(this, database, speechModel) }
     @Volatile var appearanceSettings = com.example.readalong.data.preferences.AppPreferences()
         private set
-    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO + com.example.readalong.data.diagnostics.BackgroundFailures.handler("Application"))
+    internal val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO + com.example.readalong.data.diagnostics.BackgroundFailures.handler("Application"))
     override fun onCreate() {
         super.onCreate()
         val processName = if (android.os.Build.VERSION.SDK_INT >= 28) getProcessName()
@@ -129,6 +129,8 @@ class ReadAlongApplication : Application() {
                     try { folderProgress.push(stopped) }
                     catch (cancelled: CancellationException) { throw cancelled }
                     catch (_: Exception) { }
+                    // A linked computer gets the new position now (on Wi-Fi), not at the next routine sync.
+                    if (folderLink.store.value.pairs.isNotEmpty()) runCatching { com.example.readalong.data.link.LinkSyncWorker.syncNow(this@ReadAlongApplication) }
                 }
             }
         }

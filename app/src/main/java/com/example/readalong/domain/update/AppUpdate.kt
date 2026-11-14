@@ -37,13 +37,16 @@ data class AppRelease(val version: AppVersion, val tag: String, val pageUrl: Str
     /** The phone app's APK, which installs over the current one (same signing key). */
     val apkUrl: String? get() = assets.entries.firstOrNull { it.key.endsWith(".apk") }?.value
 
-    /** The desktop download for this computer, or the release page when there isn't one. */
-    fun desktopDownload(os: String = System.getProperty("os.name").orEmpty(), arch: String = System.getProperty("os.arch").orEmpty()): String {
+    /**
+     * The desktop download for this computer, or the release page when there isn't one. [portable]: this copy runs
+     * from the portable zip (Windows) or tarball (Linux) rather than the installer or Flatpak, so it is offered the same again.
+     */
+    fun desktopDownload(os: String = System.getProperty("os.name").orEmpty(), arch: String = System.getProperty("os.arch").orEmpty(), portable: Boolean = false): String {
         val lower = os.lowercase()
         val wanted = when {
-            lower.contains("win") -> listOf("Windows.msi", "Windows-portable.zip")
+            lower.contains("win") -> listOf("Windows.msi", "Windows-portable.zip").let { if (portable) it.reversed() else it }
             lower.contains("mac") -> if (arch == "aarch64" || arch == "arm64") listOf("macOS-AppleSilicon.dmg") else listOf("macOS-Intel.dmg")
-            else -> listOf("Linux.flatpak", "Linux-x86_64.tar.gz")
+            else -> listOf("Linux.flatpak", "Linux-x86_64.tar.gz").let { if (portable) it.reversed() else it }
         }
         return wanted.firstNotNullOfOrNull { suffix -> assets.entries.firstOrNull { it.key.endsWith(suffix) }?.value } ?: pageUrl
     }

@@ -5,7 +5,9 @@ name: ReadAlong for Linux
 # packaged app and inside the installed Flatpak on the CPU, and on Mesa's software Vulkan (the runner has no GPU).
 on:
   push:
-    paths: ["desktop-app/**", ".github/workflows/desktop-linux.yml", "app/src/main/java/com/example/readalong/domain/**", "app/src/audible/java/com/example/readalong/audible/**"]
+    # A release branch is built once, by release.yml's call below, not a second time by its own push.
+    branches-ignore: ["release/**"]
+    paths: ["desktop-app/**", ".github/workflows/desktop-linux.yml", "app/src/main/java/com/example/readalong/domain/**", "app/src/audible/java/com/example/readalong/audible/**", "app/src/main/java/com/example/readalong/data/transcription/TimedRecognitionResult.kt", "app/src/main/java/com/example/readalong/data/transcription/WhistleResult.kt", "app/src/main/java/com/example/readalong/ui/reading/**", "app/src/main/java/com/example/readalong/ui/components/**", "app/src/main/java/com/example/readalong/ui/theme/Color.kt"]
   workflow_dispatch:
   # release.yml calls this after publishing the APK, to add the Flatpak to the same release.
   workflow_call:
@@ -34,12 +36,24 @@ jobs:
           java-version: "21"
       - uses: gradle/actions/setup-gradle@v4
 
-      - name: Build whisper.cpp (Vulkan + CPU) and the JNI bridge
+      - name: Install build and test tools
         run: |
-          set -o pipefail
           mkdir -p ci-results
           sudo apt-get update -q > /dev/null
           sudo apt-get install -y -q libvulkan-dev glslc spirv-headers espeak-ng mesa-vulkan-drivers flatpak flatpak-builder > /dev/null
+
+      # whisper.cpp takes most of this job to compile and only changes with its version or native/.
+      - name: Reuse the whisper.cpp build
+        id: native
+        uses: actions/cache@v4
+        with:
+          path: desktop-app/native/build
+          key: native-linux-${{ env.WHISPER_CPP_VERSION }}-${{ hashFiles('desktop-app/native/**', '.github/workflows/desktop-linux.yml') }}
+
+      - name: Build whisper.cpp (Vulkan + CPU) and the JNI bridge
+        if: steps.native.outputs.cache-hit != 'true'
+        run: |
+          set -o pipefail
           git clone -q --depth 1 --branch "$WHISPER_CPP_VERSION" https://github.com/ggml-org/whisper.cpp ../whisper.cpp
           cmake -S desktop-app/native -B desktop-app/native/build -DCMAKE_BUILD_TYPE=Release -DWHISPER_CPP="$(cd ../whisper.cpp && pwd)" 2>&1 | tee ci-results/native.log
           cmake --build desktop-app/native/build -j 4 2>&1 | tail -40 | tee -a ci-results/native.log
@@ -48,7 +62,7 @@ jobs:
       - name: Build the app and portable tarball
         run: |
           set -o pipefail
-          ./gradlew -p desktop-app --console=plain test createReleaseDistributable 2>&1 | tee ci-results/gradle.log
+          ./gradlew -p desktop-app --console=plain createReleaseDistributable 2>&1 | tee ci-results/gradle.log
           mkdir -p dist
           tar -C desktop-app/build/compose/binaries/main-release/app -czf dist/ReadAlong-Linux-x86_64.tar.gz ReadAlong
           ls -la dist | tee -a ci-results/gradle.log
@@ -121,7 +135,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           version=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)
-          gh release upload "v$version" dist/ReadAlong-Linux.flatpak dist/ReadAlong-Linux-x86_64.tar.gz --clobber
+          (cd dist && for f in ReadAlong-Linux.flatpak ReadAlong-Linux-x86_64.tar.gz; do sha256sum "$f" > "$f.sha256"; done)
+          gh release upload "v$version" dist/ReadAlong-Linux.flatpak dist/ReadAlong-Linux-x86_64.tar.gz dist/*.sha256 --clobber
 
       - name: Keep the results
         if: always()

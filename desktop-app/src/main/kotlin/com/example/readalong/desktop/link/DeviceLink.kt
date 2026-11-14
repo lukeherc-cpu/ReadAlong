@@ -46,6 +46,13 @@ data class LinkState(val deviceId: String, val name: String, val devices: List<L
 class DeviceLink(private val scope: CoroutineScope, private val library: LibraryStore, private val onSynced: suspend () -> Unit,
     /** The app and reader settings shared with the phone (SettingsSync keys), and how to take the phone's. */
     private val settings: () -> Map<String, String> = { emptyMap() }, private val applySettings: (Map<String, String>) -> Unit = {},
+    /**
+     * A phone asks for the ReadAlong of the book whose first audio file is the given one (or, with false, to stop making
+     * it). Returns a [com.example.readalong.domain.link.ComputerJob] state; "missing" when that audio isn't in the library yet.
+     */
+    private val transcribe: (File, Boolean, String) -> String = { _, _, _ -> com.example.readalong.domain.link.ComputerJob.MISSING },
+    /** Every ReadAlong this computer is making, has made or stopped on: the book's first audio file, with its state. */
+    private val jobs: () -> List<Pair<File, com.example.readalong.domain.link.ComputerJob>> = { emptyList() },
     private val file: File = File(AppPaths.data, "link.json")) {
     private val mutableState = MutableStateFlow(load())
     val state: StateFlow<LinkState> = mutableState
@@ -157,7 +164,7 @@ class DeviceLink(private val scope: CoroutineScope, private val library: Library
                     when (request.optString("op")) {
                         "folders" -> channel.sendJson(JSONObject().put("folders", JSONArray(folders())))
                         "list" -> { list(channel, shared(request)); listed = true }
-                        "get" -> send(channel, phone.name, shared(request), request.getString("path"))
+                        "get" -> send(channel, phone.name, shared(request), request.getString("path"), request.optLong("offset"), request.optBoolean("verify"))
                         "put" -> { receive(channel, phone.name, shared(request), request.getString("path"), request.getLong("size")); changed = true }
                         "create" -> channel.sendJson(create(request.getString("name")))
                         "settings" -> channel.sendJson(JSONObject().put("values", SettingsSync.encode(settings())).put("skip", FolderSyncPlan.encodeKinds(mutableState.value.skipped)))
@@ -165,6 +172,11 @@ class DeviceLink(private val scope: CoroutineScope, private val library: Library
                             if (FolderSyncPlan.Kind.SETTINGS.id !in mutableState.value.skipped) applySettings(SettingsSync.decode(request.optJSONObject("values")))
                             channel.sendJson(JSONObject().put("ok", true))
                         }
+                        LinkChannel.TRANSCRIBE -> {
+                            val first = resolve(shared(request), request.getJSONArray("files").getString(0))
+                            channel.sendJson(JSONObject().put("state", transcribe(first, !request.optBoolean("remove"), phone.name)))
+                        }
+                        LinkChannel.JOBS -> channel.sendJson(JSONObject().put("jobs", JSONArray(jobsInSharedFolders().map { it.toJson() })))
                         "done" -> { channel.sendJson(JSONObject().put("ok", true)); break }
                         else -> channel.sendJson(JSONObject().put("error", "This version of ReadAlong Desktop doesn't know how to do that. Update it to sync."))
                     }
@@ -173,7 +185,14 @@ class DeviceLink(private val scope: CoroutineScope, private val library: Library
         } catch (_: Exception) { /* The phone went away or the network dropped; it tries again next time. */ }
         finally {
             mutableActivity.value = null
-            device?.let { seen -> change { s -> s.copy(devices = s.devices.map { if (it.id == seen.id) it.copy(lastSeen = System.currentTimeMillis(), appVersion = seen.appVersion ?: it.appVersion) else it }) } }
+            // "Last synced" means a sync: the phone's once-a-minute look at whether this computer has news doesn't count,
+            // and doesn't rewrite link.json either (only a phone whose version changed does).
+            device?.let { seen ->
+                val known = mutableState.value.devices.firstOrNull { it.id == seen.id }
+                val synced = listed || changed
+                if (synced || (seen.appVersion != null && seen.appVersion != known?.appVersion)) change { s -> s.copy(devices = s.devices.map {
+                    if (it.id == seen.id) it.copy(lastSeen = if (synced) System.currentTimeMillis() else it.lastSeen, appVersion = seen.appVersion ?: it.appVersion) else it }) }
+            }
             // A real sync (not just the phone checking whether this computer is there) answers "Sync to phone".
             if (listed) mutableSyncRequested.value = null
             if (changed) scope.launch { runCatching { onSynced() } }
@@ -192,6 +211,15 @@ class DeviceLink(private val scope: CoroutineScope, private val library: Library
             return linked
         }
         return mutableState.value.devices.first { LinkChannel.keyId(it.key) == keyId }
+    }
+
+    /** [jobs] for books inside a shared folder, each named the way the phone knows it: the folder's id and the path inside it. */
+    private fun jobsInSharedFolders(): List<com.example.readalong.domain.link.ComputerJob> {
+        val roots = mutableState.value.shared.map { File(it) }
+        return jobs().mapNotNull { (file, job) ->
+            val root = roots.firstOrNull { file.path.startsWith(it.path + File.separator) } ?: return@mapNotNull null
+            job.copy(folder = folderId(root.absolutePath), path = root.toPath().relativize(file.toPath()).joinToString("/"))
+        }
     }
 
     private fun folders() = library.folders.value.map(::File).filter { it.isDirectory }.map { folder ->
@@ -218,12 +246,31 @@ class DeviceLink(private val scope: CoroutineScope, private val library: Library
         pages.forEach { page -> channel.sendJson(JSONObject().put("files", JSONArray(page.map { it.toJson() }))) }
     }
 
-    private fun send(channel: LinkChannel, phone: String, root: File, path: String) {
+    /**
+     * Sends a file, from [offset] when the phone already has that much of it from a copy that was cut off. With
+     * [verify], the SHA-256 of the whole file follows, so the phone knows the two halves belong together.
+     */
+    private fun send(channel: LinkChannel, phone: String, root: File, path: String, offset: Long = 0, verify: Boolean = false) {
         val source = resolve(root, path).takeIf { it.isFile } ?: throw IllegalArgumentException("$path isn't on the computer any more.")
         val size = source.length()
-        channel.sendJson(JSONObject().put("size", size).put("modified", source.lastModified()))
+        val from = offset.takeIf { it in 1 until size } ?: 0
+        channel.sendJson(JSONObject().put("size", size).put("modified", source.lastModified()).put("offset", from))
         mutableActivity.value = "Sending ${source.name} to $phone"
-        source.inputStream().use { channel.sendStream(it, size) }
+        val digest = if (verify) java.security.MessageDigest.getInstance("SHA-256") else null
+        source.inputStream().use { input ->
+            if (digest == null) input.skipNBytes(from)
+            else {
+                // The part the phone already has is read (not sent) so the checksum covers the whole file.
+                val buffer = ByteArray(1 shl 16); var left = from
+                while (left > 0) {
+                    val read = input.read(buffer, 0, minOf(buffer.size.toLong(), left).toInt())
+                    if (read < 0) throw java.io.IOException("${source.name} changed while it was being sent.")
+                    digest.update(buffer, 0, read); left -= read
+                }
+            }
+            channel.sendStream(if (digest == null) input else java.security.DigestInputStream(input, digest), size - from)
+        }
+        if (digest != null) channel.sendJson(JSONObject().put("sha256", LinkChannel.hex(digest.digest())))
     }
 
     private fun receive(channel: LinkChannel, phone: String, root: File, path: String, size: Long) {

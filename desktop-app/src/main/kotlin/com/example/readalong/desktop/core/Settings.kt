@@ -46,6 +46,8 @@ data class AppSettings(
     val showTitleAndAuthor: Boolean = true,
     /** A [com.example.readalong.desktop.ui.Fonts.reading] key for the app's own text (menus, library, Settings). */
     val appFont: String = "JAKARTA",
+    /** Closing the window leaves ReadAlong in the tray: books keep being made and the phone keeps syncing. */
+    val keepRunning: Boolean = false,
 )
 
 const val SUPPORT_PROMPT_EVERY_MS = 10L * 60 * 60 * 1000
@@ -72,7 +74,7 @@ class SettingsStore(private val file: java.io.File = AppPaths.settings) {
                 .put("listenedMs", s.listenedMs).put("supportPromptAtMs", s.supportPromptAtMs).put("supportPromptOff", s.supportPromptOff)
                 .put("light", s.light).put("tipJarInOther", s.tipJarInOther)
                 .put("coloredMiniPlayer", s.coloredMiniPlayer).put("alwaysAccent", s.alwaysAccent).put("showTitleAndAuthor", s.showTitleAndAuthor)
-                .put("appFont", s.appFont).toString(1))
+                .put("appFont", s.appFont).put("keepRunning", s.keepRunning).toString(1))
         }
     }
 
@@ -89,7 +91,7 @@ class SettingsStore(private val file: java.io.File = AppPaths.settings) {
                 o.optLong("listenedMs", 0), o.optLong("supportPromptAtMs", d.supportPromptAtMs), o.optBoolean("supportPromptOff", false),
                 light = o.optBoolean("light", d.light), tipJarInOther = o.optBoolean("tipJarInOther", d.tipJarInOther),
                 coloredMiniPlayer = o.optBoolean("coloredMiniPlayer", d.coloredMiniPlayer), alwaysAccent = o.optBoolean("alwaysAccent", d.alwaysAccent),
-                showTitleAndAuthor = o.optBoolean("showTitleAndAuthor", d.showTitleAndAuthor), appFont = o.optString("appFont", d.appFont).ifBlank { d.appFont })
+                showTitleAndAuthor = o.optBoolean("showTitleAndAuthor", d.showTitleAndAuthor), appFont = o.optString("appFont", d.appFont).ifBlank { d.appFont }, keepRunning = o.optBoolean("keepRunning", d.keepRunning))
         }.getOrElse { VersionUpgrade.setAside(file); AppSettings() }
     }
 }
