@@ -72,6 +72,54 @@ class DeviceLinkTest {
         assertEquals(record, FolderSyncPlan.decode(FolderSyncPlan.encode(record)))
     }
 
+    /** A phone asks for a book's ReadAlong by its first audio file, and reads how the computer is getting on. */
+    @Test fun phoneQueuesABookOnTheComputer() {
+        val home = Files.createTempDirectory("link").toFile()
+        val books = File(home, "Audiobooks").apply { mkdirs() }
+        val audio = File(books, "Dune/01.mp3").apply { parentFile.mkdirs(); writeBytes(ByteArray(10)) }
+        val scope = CoroutineScope(Dispatchers.IO)
+        val library = LibraryStore(File(home, "library.json"), scope).apply { setFolders(listOf(books.absolutePath)) }
+        val asked = mutableListOf<Triple<File, Boolean, String>>()
+        val id = DeviceLink.folderId(books.absolutePath)
+        val link = DeviceLink(scope, library, onSynced = {},
+            transcribe = { file, make, phone -> asked += Triple(file, make, phone); if (file.isFile) ComputerJob.QUEUED else ComputerJob.MISSING },
+            // One in a shared folder, one elsewhere: only the first is the phone's business.
+            jobs = { listOf(audio to ComputerJob("", "", ComputerJob.WORKING, 3, 12, "base.en"), File(home, "Private/x.mp3") to ComputerJob("", "", ComputerJob.QUEUED)) },
+            file = File(home, "link.json"))
+        try {
+            val code = link.startPairing()
+            fun session(block: (LinkChannel) -> Unit) = Socket("127.0.0.1", code.port).use { socket ->
+                val channel = LinkChannel.connect(socket.getInputStream(), socket.getOutputStream(), code.key)
+                channel.sendJson(JSONObject().put("op", "hello").put("device", "phone-1").put("name", "Pixel"))
+                assertTrue(LinkChannel.TRANSCRIBE in LinkChannel.peerOps(channel.receiveJson()))
+                block(channel)
+                channel.sendJson(JSONObject().put("op", "done")); channel.receive()
+            }
+            fun ask(channel: LinkChannel, path: String, remove: Boolean = false): String {
+                channel.sendJson(JSONObject().put("op", LinkChannel.TRANSCRIBE).put("folder", id).put("files", org.json.JSONArray(listOf(path))).put("remove", remove))
+                return channel.receiveJson().getString("state")
+            }
+            // A folder that isn't shared is refused, like any other request for it.
+            session { channel -> assertFailsWith<LinkException> { ask(channel, "Dune/01.mp3") } }
+            link.setShared(listOf(books.absolutePath)); link.folderPromptAnswered()
+            session { channel ->
+                assertEquals(ComputerJob.QUEUED, ask(channel, "Dune/01.mp3"))
+                assertEquals(ComputerJob.MISSING, ask(channel, "Hobbit/01.mp3"))
+                assertFailsWith<LinkException> { ask(channel, "../outside.mp3") }
+                ask(channel, "Dune/01.mp3", remove = true)
+                channel.sendJson(JSONObject().put("op", LinkChannel.JOBS))
+                val jobs = channel.receiveJson().getJSONArray("jobs")
+                assertEquals(1, jobs.length())
+                val job = ComputerJob.fromJson(jobs.getJSONObject(0))
+                assertEquals(ComputerJob(id, "Dune/01.mp3", ComputerJob.WORKING, 3, 12, "base.en"), job)
+                assertEquals(25, job.percent)
+                assertTrue(job.pending)
+            }
+            assertEquals(listOf(Triple(audio, true, "Pixel"), Triple(File(books, "Hobbit/01.mp3"), true, "Pixel"), Triple(audio, false, "Pixel")),
+                asked.map { Triple(it.first.canonicalFile, it.second, it.third) }.map { Triple(File(it.first.path), it.second, it.third) })
+        } finally { link.stop() }
+    }
+
     @Test fun unsafePathsAreRefused() {
         listOf("../x.mp3", "/etc/passwd", "a/../../b", "C:/x", "a\\b", "", "a//b").forEach { assertFalse(FolderSyncPlan.safe(it), it) }
         val root = Files.createTempDirectory("root").toFile()

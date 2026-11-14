@@ -84,6 +84,22 @@ class LinkClient private constructor(private val socket: Socket, private val cha
         return SyncFile(path, done.getLong("size"), done.getLong("modified"))
     }
 
+    /**
+     * Asks the computer to make the ReadAlong of the book whose first audio file is [path] in the shared [folder]
+     * (or, with [remove], to take it off its queue). Returns a ComputerJob state: "missing" until the audio has synced there.
+     */
+    fun transcribe(folder: String, path: String, remove: Boolean = false): String {
+        channel.sendJson(JSONObject().put("op", LinkChannel.TRANSCRIBE).put("folder", folder).put("files", org.json.JSONArray(listOf(path))).put("remove", remove))
+        return channel.receiveJson().optString("state")
+    }
+
+    /** The ReadAlongs the computer is making, or has finished or stopped, for books in shared folders. */
+    fun jobs(): List<com.example.readalong.domain.link.ComputerJob> {
+        channel.sendJson(JSONObject().put("op", LinkChannel.JOBS))
+        val array = channel.receiveJson().getJSONArray("jobs")
+        return List(array.length()) { com.example.readalong.domain.link.ComputerJob.fromJson(array.getJSONObject(it)) }
+    }
+
     /** Makes a folder on the computer for books that are only on this phone. */
     fun create(name: String): RemoteFolder {
         channel.sendJson(JSONObject().put("op", "create").put("name", name))

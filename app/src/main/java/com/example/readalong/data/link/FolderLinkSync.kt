@@ -6,7 +6,9 @@ import android.os.Build
 import android.provider.DocumentsContract
 import android.provider.DocumentsContract.Document
 import android.provider.Settings
+import com.example.readalong.domain.link.ComputerJob
 import com.example.readalong.domain.link.FolderSyncPlan
+import com.example.readalong.domain.link.LinkChannel
 import com.example.readalong.domain.link.LinkCode
 import com.example.readalong.domain.link.SyncAction
 import com.example.readalong.domain.link.SyncFile
@@ -14,6 +16,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -87,6 +90,8 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
                 var change = 0L
                 connect().use { client ->
                     change = client.computerChanged
+                    // A ReadAlong the computer finished for this phone is put beside its book there, so this sync brings it.
+                    runCatching { askComputer(client) {} }
                     for (pair in pairs) {
                         // A folder this phone can no longer open (permission revoked, card removed) is reported and
                         // skipped; the other pairs still sync.
@@ -96,6 +101,8 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
                         if (received > 0) arrived += pair.localUri
                     }
                     syncSettings(client)
+                    // A book asked of the computer before its audio was there can start now.
+                    runCatching { askComputer(client, settle = false) {} }
                 }
                 // A folder is rescanned when this sync brought something into it. Otherwise only every few hours (and on the
                 // first sync after ReadAlong starts): a ReadAlong that couldn't be used before is tried again, and books that
@@ -141,13 +148,79 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
         while (true) {
             val s = store.value
             if (s.computer != null && s.pairs.isNotEmpty() && mutableProgress.value == null && !lock.isLocked) {
-                val change = runCatching { connect().use { it.computerChanged } }.getOrNull()
+                val change = runCatching { connect().use { client -> askComputer(client, syncNow); client.computerChanged } }.getOrNull()
                 // The computer says when it has news; a full sync and rescan without news is only a safety net.
                 val stale = (s.lastSyncAt ?: 0) < System.currentTimeMillis() - STALE_MS
                 if (change != null && (change > s.seenChange || stale)) syncNow()
             }
-            kotlinx.coroutines.delay(60_000)
+            // A ReadAlong being made on the computer shows its progress here, so look more often while one is.
+            kotlinx.coroutines.delay(if (store.value.requests.isEmpty()) 60_000 else 20_000)
         }
+    }
+
+    private val mutableComputerJobs = MutableStateFlow<Map<String, ComputerJob>>(emptyMap())
+    /** By book id: how the computer is getting on with each ReadAlong this phone asked it for. */
+    val computerJobs: StateFlow<Map<String, ComputerJob>> = mutableComputerJobs
+
+    /** Where a book's first audio file is on the computer, when it's in a folder synced with it; null otherwise. */
+    fun onComputer(audioUri: String): Pair<String, String>? = runCatching {
+        val audio = Uri.parse(audioUri)
+        val id = DocumentsContract.getDocumentId(audio)
+        store.value.pairs.firstNotNullOfOrNull { pair ->
+            val tree = Uri.parse(pair.localUri)
+            val root = DocumentsContract.getTreeDocumentId(tree)
+            // Document ids of the phone's storage are paths ("primary:Audiobooks/Book/1.mp3"), so the part after the folder's is the path inside it.
+            val separator = if (root.endsWith(":") || root.endsWith("/")) "" else "/"
+            if (tree.authority == audio.authority && id.startsWith(root + separator) && id.length > root.length + separator.length)
+                pair.remoteId to id.substring(root.length + separator.length) else null
+        }
+    }.getOrNull()
+
+    /**
+     * Asks the linked computer to make this book's ReadAlong; it comes back with the next sync after it's finished.
+     * Returns a line to show. Throws when the computer can't be reached.
+     */
+    suspend fun makeOnComputer(bookId: String, audioUri: String, syncNow: () -> Unit): String = withContext(Dispatchers.IO) {
+        val (folder, path) = onComputer(audioUri) ?: return@withContext "This book isn't in a folder synced with your computer."
+        val name = store.value.computer?.name ?: "your computer"
+        connect().use { client ->
+            if (!client.supports(LinkChannel.TRANSCRIBE)) return@withContext "Update ReadAlong on $name to make ReadAlongs there from your phone."
+            val state = client.transcribe(folder, path)
+            store.update { s -> s.copy(requests = s.requests.filterNot { it.bookId == bookId } + ComputerRequest(bookId, folder, path)) }
+            mutableComputerJobs.update { it + (bookId to ComputerJob(folder, path, if (state == ComputerJob.MISSING) ComputerJob.QUEUED else state)) }
+            when (state) {
+                // The audio hasn't reached the computer: sync it over, and the request is sent again after.
+                ComputerJob.MISSING -> { syncNow(); "Sending this book to $name first. Its ReadAlong starts there once it arrives." }
+                ComputerJob.DONE -> { syncNow(); "$name already has this ReadAlong. Syncing it now." }
+                else -> "$name is making this ReadAlong. It arrives here when it's finished."
+            }
+        }
+    }
+
+    /** Takes a book off the computer's queue again. */
+    suspend fun cancelOnComputer(bookId: String) = withContext(Dispatchers.IO) {
+        val request = store.value.requests.firstOrNull { it.bookId == bookId } ?: return@withContext
+        store.update { s -> s.copy(requests = s.requests - request) }
+        mutableComputerJobs.update { it - bookId }
+        runCatching { connect().use { if (it.supports(LinkChannel.TRANSCRIBE)) it.transcribe(request.folder, request.path, remove = true) } }
+    }
+
+    /** Sends again any request the computer doesn't have, and reads how far along the others are. */
+    private fun askComputer(client: LinkClient, settle: Boolean = true, syncNow: () -> Unit) {
+        val requests = store.value.requests
+        if (requests.isEmpty() || !client.supports(LinkChannel.JOBS)) return
+        val jobs = client.jobs().associateBy { it.folder to it.path }
+        val now = HashMap<String, ComputerJob>()
+        var finished = false
+        for (request in requests) {
+            val job = jobs[request.folder to request.path]
+            val state = job?.state ?: client.transcribe(request.folder, request.path)
+            now[request.bookId] = job ?: ComputerJob(request.folder, request.path, if (state == ComputerJob.MISSING) ComputerJob.QUEUED else state)
+            // Finished (the sync that follows brings it over) or given up on: either way it's no longer waited for.
+            if (state == ComputerJob.DONE && settle) { finished = true; store.update { s -> s.copy(requests = s.requests - request) } }
+        }
+        mutableComputerJobs.value = now
+        if (finished) syncNow()
     }
 
     /** App and reader settings, unless "App and reader settings" is unticked here or on the computer. */

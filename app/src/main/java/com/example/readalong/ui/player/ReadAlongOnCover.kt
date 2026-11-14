@@ -30,6 +30,7 @@ import com.example.readalong.data.local.ProcessingJobEntity
 import com.example.readalong.data.processing.progress
 import com.example.readalong.domain.model.Book
 import com.example.readalong.ui.reading.ReadingViewModel
+import kotlinx.coroutines.launch
 
 /** The book just added on its own: its player turns the cover over to offer a ReadAlong once, even if it was opened before. */
 object NewBookOffer {
@@ -47,6 +48,13 @@ private val EpubTypes = arrayOf("application/epub+zip", "application/octet-strea
 internal fun NoTextYet(book: Book, reading: ReadingViewModel, onNotNow: () -> Unit, modifier: Modifier = Modifier) {
     var choosing by rememberSaveable(book.id) { mutableStateOf(false) }
     val ink = MaterialTheme.colorScheme.onSurface
+    // Asked of the linked computer: say how it's getting on there instead of offering to make it again.
+    val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as com.example.readalong.ReadAlongApplication
+    val link by app.folderLink.store.state.collectAsStateWithLifecycle()
+    val computerJobs by app.folderLink.computerJobs.collectAsStateWithLifecycle()
+    val asked = link.requests.any { it.bookId == book.id }
+    val computerJob = computerJobs[book.id]
+    val computer = link.computer?.name ?: "your computer"
     Surface(modifier.fillMaxSize().testTag("no_text_yet"), shape = RoundedCornerShape(com.example.readalong.ui.theme.Corners.large),
         color = Color.White.copy(alpha = .07f), contentColor = ink, border = BorderStroke(1.dp, Color.White.copy(alpha = .09f))) {
         Column(Modifier.fillMaxSize().padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally,
@@ -57,11 +65,18 @@ internal fun NoTextYet(book: Book, reading: ReadingViewModel, onNotNow: () -> Un
                         (if (spoken) MaterialTheme.colorScheme.primary else ink).copy(alpha = .3f), RoundedCornerShape(5.dp)))
                 }
             }
-            Text("No text for this book yet", style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
-            if (!book.isDemo) Button(onClick = { choosing = true }, modifier = Modifier.heightIn(min = 48.dp).testTag("make_readalong_cover")) {
+            Text(if (asked) "Being made on $computer" else "No text for this book yet", style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
+            if (asked) {
+                Text(when {
+                    computerJob?.state == com.example.readalong.domain.link.ComputerJob.STOPPED -> computerJob.error ?: "It stopped on $computer. Open ReadAlong there to see why."
+                    computerJob?.state == com.example.readalong.domain.link.ComputerJob.WORKING -> "${computerJob.percent}% done. It arrives here when it's finished."
+                    else -> "Waiting its turn. It arrives here when it's finished."
+                }, style = MaterialTheme.typography.bodySmall, color = ink.copy(alpha = .62f), textAlign = TextAlign.Center, modifier = Modifier.testTag("computer_job"))
+                TextButton(onClick = { app.applicationScope.launch { app.folderLink.cancelOnComputer(book.id) } }) { Text("Make it another way") }
+            } else if (!book.isDemo) Button(onClick = { choosing = true }, modifier = Modifier.heightIn(min = 48.dp).testTag("make_readalong_cover")) {
                 Text("Make a ReadAlong")
             }
-            Text("From the matching EPUB or the audio", style = MaterialTheme.typography.bodySmall, color = ink.copy(alpha = .62f), textAlign = TextAlign.Center)
+            if (!asked) Text("From the matching EPUB or the audio", style = MaterialTheme.typography.bodySmall, color = ink.copy(alpha = .62f), textAlign = TextAlign.Center)
             TextButton(onClick = onNotNow, modifier = Modifier.testTag("not_right_now")) { Text("Not right now") }
         }
     }
@@ -92,6 +107,27 @@ private fun MakeReadAlongSheet(reading: ReadingViewModel, onDismiss: () -> Unit)
             "Make it from the audio", "Transcribed on this phone. Nothing is uploaded.", !busy,
             Modifier.heightIn(min = 72.dp).testTag("reading_source_transcript"), large = true) {
             reading.createWithSource(false, null) {}; onDismiss()
+        }
+        // A linked computer that has this book's folder can make it instead: faster, and with a larger speech model.
+        val context = androidx.compose.ui.platform.LocalContext.current
+        val app = context.applicationContext as com.example.readalong.ReadAlongApplication
+        val link by app.folderLink.store.state.collectAsStateWithLifecycle()
+        val firstAudio by produceState<String?>(null, reading.bookId, link.pairs) {
+            value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                reading.database.mediaDao().audioFiles(reading.bookId).minByOrNull { it.ordinal }?.uri?.takeIf { app.folderLink.onComputer(it) != null }
+            }
+        }
+        val computer = link.computer
+        val audio = firstAudio
+        if (computer != null && audio != null) com.example.readalong.ui.importing.SourceButton(colors.surfaceVariant to colors.onSurfaceVariant, R.drawable.ic_sync,
+            "Make it on ${computer.name}", "Faster and more accurate. It arrives here when it's finished.", !busy,
+            Modifier.heightIn(min = 72.dp).testTag("reading_source_computer"), large = true) {
+            app.applicationScope.launch {
+                val said = try { app.folderLink.makeOnComputer(reading.bookId, audio) { com.example.readalong.data.link.LinkSyncWorker.syncNow(app) } }
+                    catch (failure: java.io.IOException) { failure.message ?: "Couldn't reach ${computer.name}." }
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { android.widget.Toast.makeText(app, said, android.widget.Toast.LENGTH_LONG).show() }
+            }
+            onDismiss()
         }
         if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
     }
