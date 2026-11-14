@@ -86,7 +86,7 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
                 val problems = mutableListOf<String>()
                 val lost = mutableListOf<String>()
                 val arrived = mutableSetOf<String>()
-                conflicts.clear()
+                conflicts.clear(); noRoom.clear()
                 var change = 0L
                 connect().use { client ->
                     change = client.computerChanged
@@ -130,6 +130,10 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
                     0 -> ""
                     1 -> " ${conflicts.single().substringAfterLast('/')} changed on both devices and was left as it is on each; keep the one you want and delete the other."
                     else -> " ${conflicts.size} audio files changed on both devices and were left alone, e.g. ${conflicts.first().substringAfterLast('/')}."
+                } + when (noRoom.size) {
+                    0 -> ""
+                    1 -> " This phone doesn't have room for ${noRoom.single().substringAfterLast('/')}. Free some space, or untick the book in Choose books."
+                    else -> " This phone doesn't have room for ${noRoom.size} files, e.g. ${noRoom.first().substringAfterLast('/')}. Free some space, or untick books in Choose books."
                 } + when (lost.size) {
                     0 -> ""
                     else -> " ReadAlong can no longer open ${lost.joinToString()}: choose the folder again in Folders."
@@ -250,6 +254,29 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
     /** When each paired phone folder was last rescanned after a sync. Guarded by [lock]. */
     private val rescanned = HashMap<String, Long>()
 
+    /** Files this sync left on the computer because the phone is nearly full. Guarded by [lock]. */
+    private val noRoom = mutableListOf<String>()
+
+    /** Free bytes where a paired folder lives, when that can be told (the phone's own storage or a card); null otherwise. */
+    private fun freeSpace(rootId: String): Long? = runCatching {
+        val volume = rootId.substringBefore(':')
+        val directory = if (volume == "primary") android.os.Environment.getExternalStorageDirectory() else java.io.File("/storage/$volume")
+        android.os.StatFs(directory.path).availableBytes
+    }.getOrNull()
+
+    private fun bookKey(pair: FolderPair, path: String) = "${pair.remoteId}/${path.substringBefore('/')}"
+
+    /** A book on the computer, for Choose books: its folder (or lone file) name, its size, and whether it syncs to this phone. */
+    data class RemoteBook(val key: String, val name: String, val bytes: Long, val synced: Boolean)
+
+    /** The books in a paired computer folder, largest first. */
+    suspend fun remoteBooks(pair: FolderPair): List<RemoteBook> = withContext(Dispatchers.IO) {
+        val files = connect().use { it.list(pair.remoteId) }
+        val leftOut = store.value.leftOut
+        files.groupBy { it.path.substringBefore('/') }.map { (name, inside) -> RemoteBook(bookKey(pair, name), name, inside.sumOf { it.size }, bookKey(pair, name) !in leftOut) }
+            .sortedByDescending { it.bytes }
+    }
+
     /** Audio changed on both sides in this sync, reported in its result. Guarded by [lock]. */
     private val conflicts = mutableListOf<String>()
 
@@ -266,13 +293,26 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
         val remote = client.list(pair.remoteId).toMutableList()
         // Kinds turned off on either side (Settings › Sync) are left alone on both.
         val skipped = store.value.skipped + client.computerSkips
-        val local = walk(tree, rootId).filterKeys { FolderSyncPlan.included(it, skipped) }
-        remote.retainAll { FolderSyncPlan.included(it.path, skipped) }
+        // So are books unticked in Choose books: they stay on the computer, and nothing of theirs is copied either way.
+        val leftOut = store.value.leftOut
+        fun wanted(path: String) = FolderSyncPlan.included(path, skipped) && bookKey(pair, path) !in leftOut
+        val local = walk(tree, rootId).filterKeys(::wanted)
+        remote.retainAll { wanted(it.path) }
         val recorded = store.synced(pair)
-        // Their records are kept, so turning a kind back on carries on from where it was.
-        val held = recorded.filterKeys { !FolderSyncPlan.included(it, skipped) }
+        // Their records are kept, so turning a kind (or a book) back on carries on from where it was.
+        val held = recorded.filterKeys { !wanted(it) }
         val previous = recorded - held.keys
-        val actions = FolderSyncPlan.plan(local.values.map { it.file }, remote, previous)
+        val planned = FolderSyncPlan.plan(local.values.map { it.file }, remote, previous)
+        // What won't fit on this phone is left for later instead of filling it: small files first, so positions,
+        // covers and ReadAlongs still arrive when a book's audio can't.
+        var room = freeSpace(rootId)?.let { it - KEEP_FREE }
+        val sizes = remote.associate { it.path to it.size }
+        val actions = planned.filter { action ->
+            val free = room
+            if (action !is SyncAction.Download || free == null) return@filter true
+            val size = sizes[action.path] ?: 0
+            if (size <= free || size < SMALL_FILE) { room = free - size; true } else { noRoom += "${pair.localName}/${action.path}"; false }
+        }
         conflicts += FolderSyncPlan.conflicts(local.values.map { it.file }, remote, previous).map { "${pair.localName}/$it" }
         val localNow = local.mapValues { it.value.file }.toMutableMap()
         val remoteNow = remote.associateBy { it.path }.toMutableMap()
@@ -390,6 +430,10 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
 
 /** With no news from the computer (it announces positions, edits and finished ReadAlongs), a sync still runs this often. */
 private const val STALE_MS = 2 * 60 * 60_000L
+/** Downloads stop short of the phone's last half gigabyte. */
+private const val KEEP_FREE = 500L * 1024 * 1024
+/** Files this small (positions, covers, ReadAlongs) are copied even then. */
+private const val SMALL_FILE = 20L * 1024 * 1024
 /** A paired folder nothing arrived in is still rescanned this often. */
 private const val RESCAN_EVERY_MS = 6 * 60 * 60_000L
 
