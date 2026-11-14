@@ -115,8 +115,9 @@ class DeviceLinkTest {
                 assertEquals(25, job.percent)
                 assertTrue(job.pending)
             }
-            assertEquals(listOf(Triple(audio, true, "Pixel"), Triple(File(books, "Hobbit/01.mp3"), true, "Pixel"), Triple(audio, false, "Pixel")),
-                asked.map { Triple(it.first.canonicalFile, it.second, it.third) }.map { Triple(File(it.first.path), it.second, it.third) })
+            // Named by folder and file: the temporary folder's own path is spelt differently on macOS (/var is /private/var).
+            assertEquals(listOf(Triple("Dune/01.mp3", true, "Pixel"), Triple("Hobbit/01.mp3", true, "Pixel"), Triple("Dune/01.mp3", false, "Pixel")),
+                asked.map { Triple(it.first.parentFile.name + "/" + it.first.name, it.second, it.third) })
         } finally { link.stop() }
     }
 
