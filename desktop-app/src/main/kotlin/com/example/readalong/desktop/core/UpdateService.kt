@@ -61,10 +61,12 @@ class UpdateService(private val scope: CoroutineScope, private val settings: Set
     fun skip(release: AppRelease) { settings.update { it.copy(skippedVersion = release.version.toString()) }; mutableOffer.value = null }
     fun downloadUrl(release: AppRelease) = release.desktopDownload(portable = portable)
     /**
-     * Installed from the Flatpak bundle on GitHub. A bundle has no repository behind it, so `flatpak update` and the
-     * software centre never find a newer one: the update is the new bundle, installed over this one.
+     * Running as a Flatpak. Since 0.55 every Flatpak, from the .flatpakref or the bundle, updates from ReadAlong's
+     * signed repository on GitHub Pages, so the update comes through the software centre or `flatpak update`
+     * rather than a download.
      */
     val flatpak: Boolean = System.getenv("FLATPAK_ID") != null
+    val flatpakUpdateCommand: String = "flatpak update ${System.getenv("FLATPAK_ID") ?: "io.github.lukeherc_cpu.ReadAlong"}"
     /** Running from the portable zip or tarball: an update is the same kind of download again. */
     val portable: Boolean by lazy { InstallKind.portable(flatpak) }
 }

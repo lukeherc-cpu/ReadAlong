@@ -73,7 +73,11 @@ and uploads the MSI and a portable zip as the run's **ReadAlong-Windows** artifa
 **Linux** (`desktop-linux.yml`): `libvulkan-dev glslc spirv-headers`, then the same cmake commands with
 `-DCMAKE_BUILD_TYPE=Release`, `./gradlew -p desktop-app createReleaseDistributable`, and
 `flatpak-builder` on `packaging/linux/io.github.lukeherc_cpu.ReadAlong.yml`, which wraps that app image on the
-GNOME runtime. Data lives in `~/.var/app/io.github.lukeherc_cpu.ReadAlong/data/ReadAlong` in the Flatpak
+GNOME runtime. The build is signed into an OSTree repository, which `packaging/linux/flatpak-site.sh` lays out with
+a `.flatpakref` and an install page; once a release is published, `release.yml` pushes that to the `gh-pages`
+branch, which GitHub Pages serves at https://lukeherc-cpu.github.io/ReadAlong/. Releases sign with the
+`FLATPAK_GPG_PRIVATE_KEY` secret (an armored GPG private key without a passphrase); other runs sign with a
+throwaway key and test installing and updating from the repository on a local web server. Data lives in `~/.var/app/io.github.lukeherc_cpu.ReadAlong/data/ReadAlong` in the Flatpak
 (`~/.local/share/ReadAlong` outside it).
 
 **macOS** (`desktop-macos.yml`): Xcode's command line tools and CMake; whisper.cpp builds with Metal instead of
