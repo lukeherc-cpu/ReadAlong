@@ -89,11 +89,15 @@ class LinkChannel private constructor(private val input: DataInputStream, privat
          * Protocol 2 (0.54.0): shared settings; "transcribe" (the phone asks the computer to make a book's ReadAlong,
          * or to stop) and "jobs" (what the computer is making, and how far along).
          */
-        val OPS = V1_OPS + listOf(SETTINGS, SET_SETTINGS, TRANSCRIBE, JOBS)
+        val OPS = V1_OPS + listOf(SETTINGS, SET_SETTINGS, TRANSCRIBE, JOBS, RESUME)
         const val SETTINGS = "settings"
         const val SET_SETTINGS = "set-settings"
         const val TRANSCRIBE = "transcribe"
         const val JOBS = "jobs"
+        /** Not a request of its own: "get" may carry "offset" (carry on a copy that was cut off) and "verify" (a SHA-256 of the whole file follows it). */
+        const val RESUME = "resume"
+
+        fun hex(bytes: ByteArray) = bytes.joinToString("") { "%02x".format(it) }
 
         /** The requests a peer understands, from its hello or reply. */
         fun peerOps(json: org.json.JSONObject): Set<String> =

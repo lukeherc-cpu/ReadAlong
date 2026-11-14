@@ -164,7 +164,7 @@ class DeviceLink(private val scope: CoroutineScope, private val library: Library
                     when (request.optString("op")) {
                         "folders" -> channel.sendJson(JSONObject().put("folders", JSONArray(folders())))
                         "list" -> { list(channel, shared(request)); listed = true }
-                        "get" -> send(channel, phone.name, shared(request), request.getString("path"))
+                        "get" -> send(channel, phone.name, shared(request), request.getString("path"), request.optLong("offset"), request.optBoolean("verify"))
                         "put" -> { receive(channel, phone.name, shared(request), request.getString("path"), request.getLong("size")); changed = true }
                         "create" -> channel.sendJson(create(request.getString("name")))
                         "settings" -> channel.sendJson(JSONObject().put("values", SettingsSync.encode(settings())).put("skip", FolderSyncPlan.encodeKinds(mutableState.value.skipped)))
@@ -246,12 +246,31 @@ class DeviceLink(private val scope: CoroutineScope, private val library: Library
         pages.forEach { page -> channel.sendJson(JSONObject().put("files", JSONArray(page.map { it.toJson() }))) }
     }
 
-    private fun send(channel: LinkChannel, phone: String, root: File, path: String) {
+    /**
+     * Sends a file, from [offset] when the phone already has that much of it from a copy that was cut off. With
+     * [verify], the SHA-256 of the whole file follows, so the phone knows the two halves belong together.
+     */
+    private fun send(channel: LinkChannel, phone: String, root: File, path: String, offset: Long = 0, verify: Boolean = false) {
         val source = resolve(root, path).takeIf { it.isFile } ?: throw IllegalArgumentException("$path isn't on the computer any more.")
         val size = source.length()
-        channel.sendJson(JSONObject().put("size", size).put("modified", source.lastModified()))
+        val from = offset.takeIf { it in 1 until size } ?: 0
+        channel.sendJson(JSONObject().put("size", size).put("modified", source.lastModified()).put("offset", from))
         mutableActivity.value = "Sending ${source.name} to $phone"
-        source.inputStream().use { channel.sendStream(it, size) }
+        val digest = if (verify) java.security.MessageDigest.getInstance("SHA-256") else null
+        source.inputStream().use { input ->
+            if (digest == null) input.skipNBytes(from)
+            else {
+                // The part the phone already has is read (not sent) so the checksum covers the whole file.
+                val buffer = ByteArray(1 shl 16); var left = from
+                while (left > 0) {
+                    val read = input.read(buffer, 0, minOf(buffer.size.toLong(), left).toInt())
+                    if (read < 0) throw java.io.IOException("${source.name} changed while it was being sent.")
+                    digest.update(buffer, 0, read); left -= read
+                }
+            }
+            channel.sendStream(if (digest == null) input else java.security.DigestInputStream(input, digest), size - from)
+        }
+        if (digest != null) channel.sendJson(JSONObject().put("sha256", LinkChannel.hex(digest.digest())))
     }
 
     private fun receive(channel: LinkChannel, phone: String, root: File, path: String, size: Long) {
