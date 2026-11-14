@@ -56,6 +56,27 @@ fun LinkScreen(app: ReadAlongApplication, onBack: () -> Unit) {
     var pasting by remember { mutableStateOf(false) }
     var pendingAction by remember { mutableStateOf<(() -> Unit)?>(null) }
     var choosingBooks by remember { mutableStateOf<FolderPair?>(null) }
+    var typingAddress by remember { mutableStateOf(false) }
+    if (typingAddress) {
+        var address by rememberSaveable { mutableStateOf(state.computer?.hosts?.firstOrNull().orEmpty()) }
+        AlertDialog(onDismissRequest = { typingAddress = false }, title = { Text("Computer's address") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("On your computer, open ReadAlong › Settings › Link a phone. Type the address shown there.", style = MaterialTheme.typography.bodyMedium)
+                    OutlinedTextField(address, { address = it }, singleLine = true, placeholder = { Text("192.168.1.20") })
+                }
+            },
+            confirmButton = { TextButton(onClick = {
+                typingAddress = false
+                withNetwork { scope.launch {
+                    busy = "Looking for the computer…"; error = null
+                    try { error = null; sync.useAddress(address); LinkSyncWorker.syncNow(context) }
+                    catch (failure: Exception) { error = failure.userMessage("Couldn't reach the computer at that address. Check ReadAlong is open on it and both are on the same network.") }
+                    finally { busy = null }
+                } }
+            }) { Text("Connect") } },
+            dismissButton = { TextButton(onClick = { typingAddress = false }) { Text("Cancel") } })
+    }
     choosingBooks?.let { pair -> ChooseBooksDialog(app, pair) { choosingBooks = null } }
 
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -170,6 +191,7 @@ fun LinkScreen(app: ReadAlongApplication, onBack: () -> Unit) {
                     Button(onClick = { withNetwork { LinkSyncWorker.syncNow(context) } }, enabled = state.pairs.isNotEmpty() && progress == null) { Text("Sync now") }
                     OutlinedButton(onClick = ::loadFolders, enabled = busy == null) { Text("Choose folders") }
                 }
+                TextButton(onClick = { typingAddress = true }) { Text("Can't find ${computer.name}? Enter its address") }
                 TextButton(onClick = { LinkSyncWorker.cancel(context); sync.store.unlink(); offered = null }) { Text("Unlink ${computer.name}") }
             }
         }

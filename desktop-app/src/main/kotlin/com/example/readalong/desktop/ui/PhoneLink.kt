@@ -48,6 +48,10 @@ fun PhoneLinkCard(app: AppState) {
                     PillButton("Link phone", { link.startPairing() }, icon = "ic_add")
                 }
             } else {
+                // For a phone that can't find this computer on its own (a guest network, or a router that blocks discovery).
+                remember { com.example.readalong.desktop.link.DeviceLink.localAddresses() }.takeIf { it.isNotEmpty() }?.let { addresses ->
+                    Text("This computer's address: ${addresses.joinToString(" or ")}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
                 state.devices.forEach { device ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {

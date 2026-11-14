@@ -65,15 +65,33 @@ class LinkClient private constructor(private val socket: Socket, private val cha
         channel.receiveJson()
     }
 
-    /** Copies one of the computer's files into [target]; returns its size and time there. */
-    fun get(folder: String, path: String, target: OutputStream, progress: (Long, Long) -> Unit): SyncFile {
-        channel.sendJson(JSONObject().put("op", "get").put("folder", folder).put("path", path))
+    /**
+     * Copies one of the computer's files; returns its size and time there. [have] bytes of it are already here from a copy
+     * that was cut off, hashed into [prefix]: the computer carries on from there when it can. [open] is given where the
+     * computer really starts (0: from the beginning) and returns where to write. A computer that knows how sends the
+     * file's SHA-256 after it; a copy that doesn't match throws [CorruptCopy].
+     */
+    fun get(folder: String, path: String, have: Long = 0, prefix: java.security.MessageDigest? = null, progress: (Long, Long) -> Unit, open: (Long) -> OutputStream): SyncFile {
+        val verify = supports(LinkChannel.RESUME)
+        val request = JSONObject().put("op", "get").put("folder", folder).put("path", path)
+        if (verify) request.put("verify", true).put("offset", if (prefix != null) have else 0)
+        channel.sendJson(request)
         val head = channel.receiveJson()
         val size = head.getLong("size")
-        channel.receiveStream(target, size) { progress(it, size) }
-        target.flush()
+        val from = head.optLong("offset", 0).coerceIn(0, size)
+        val digest = if (!verify) null else if (from > 0 && from == have && prefix != null) prefix else java.security.MessageDigest.getInstance("SHA-256")
+        if (from > 0 && digest !== prefix) throw IOException("The computer answered for a different part of ${path.substringAfterLast('/')}.")
+        open(from).use { target ->
+            val sink = if (digest != null) java.security.DigestOutputStream(target, digest) else target
+            channel.receiveStream(sink, size - from) { progress(from + it, size) }
+            sink.flush()
+        }
+        if (digest != null && channel.receiveJson().optString("sha256") != LinkChannel.hex(digest.digest())) throw CorruptCopy(path.substringAfterLast('/'))
         return SyncFile(path, size, head.getLong("modified"))
     }
+
+    /** What arrived isn't what the computer has: the copy is thrown away and made again from the start next time. */
+    class CorruptCopy(name: String) : IOException("$name didn't arrive intact. It will be copied again.")
 
     /** Sends [size] bytes of [source] to the computer; returns the file as the computer now has it. */
     fun put(folder: String, path: String, size: Long, source: InputStream, progress: (Long, Long) -> Unit): SyncFile {

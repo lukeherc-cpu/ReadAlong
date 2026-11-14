@@ -120,6 +120,48 @@ class DeviceLinkTest {
         } finally { link.stop() }
     }
 
+    /** A copy that was cut off carries on from where it stopped, and the checksum that follows covers the whole file. */
+    @Test fun aCutOffCopyCarriesOnAndIsVerified() {
+        val home = Files.createTempDirectory("link").toFile()
+        val books = File(home, "Audiobooks").apply { mkdirs() }
+        val bytes = ByteArray(900_000) { (it * 31 % 251).toByte() }
+        File(books, "Dune").mkdirs(); File(books, "Dune/01.mp3").writeBytes(bytes)
+        val scope = CoroutineScope(Dispatchers.IO)
+        val library = LibraryStore(File(home, "library.json"), scope).apply { setFolders(listOf(books.absolutePath)) }
+        val link = DeviceLink(scope, library, onSynced = {}, file = File(home, "link.json"))
+        try {
+            val code = link.startPairing()
+            val id = DeviceLink.folderId(books.absolutePath)
+            fun sha(data: ByteArray) = LinkChannel.hex(java.security.MessageDigest.getInstance("SHA-256").digest(data))
+            Socket("127.0.0.1", code.port).use { socket ->
+                val channel = LinkChannel.connect(socket.getInputStream(), socket.getOutputStream(), code.key)
+                channel.sendJson(JSONObject().put("op", "hello").put("device", "phone-1").put("name", "Pixel"))
+                assertTrue(LinkChannel.RESUME in LinkChannel.peerOps(channel.receiveJson()))
+                link.setShared(listOf(books.absolutePath))
+                fun get(offset: Long?, verify: Boolean): Triple<Long, ByteArray, String?> {
+                    channel.sendJson(JSONObject().put("op", "get").put("folder", id).put("path", "Dune/01.mp3").apply { offset?.let { put("offset", it) }; if (verify) put("verify", true) })
+                    val head = channel.receiveJson()
+                    val from = head.optLong("offset", -1)
+                    val sink = ByteArrayOutputStream(); channel.receiveStream(sink, head.getLong("size") - maxOf(from, 0))
+                    return Triple(from, sink.toByteArray(), if (verify) channel.receiveJson().getString("sha256") else null)
+                }
+                // As phones before 0.54 ask: the whole file, nothing after it.
+                assertContentEquals(bytes, get(null, false).second)
+                // Carrying on from 300 000 bytes: only the rest is sent; the checksum is of all of it.
+                val (from, rest, hash) = get(300_000, true)
+                assertEquals(300_000, from)
+                assertContentEquals(bytes.copyOfRange(300_000, bytes.size), rest)
+                assertEquals(sha(bytes), hash)
+                // An offset that makes no sense (the file shrank) starts again from the beginning.
+                val (again, all, whole) = get(5_000_000, true)
+                assertEquals(0, again)
+                assertContentEquals(bytes, all)
+                assertEquals(sha(bytes), whole)
+                channel.sendJson(JSONObject().put("op", "done")); channel.receive()
+            }
+        } finally { link.stop() }
+    }
+
     @Test fun unsafePathsAreRefused() {
         listOf("../x.mp3", "/etc/passwd", "a/../../b", "C:/x", "a\\b", "", "a//b").forEach { assertFalse(FolderSyncPlan.safe(it), it) }
         val root = Files.createTempDirectory("root").toFile()

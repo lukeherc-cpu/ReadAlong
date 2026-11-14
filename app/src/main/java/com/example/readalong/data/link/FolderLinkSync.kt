@@ -201,6 +201,18 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
         }
     }
 
+    /** The computer's address, typed in when the phone can't find it on its own (a guest network or a router that blocks discovery). */
+    suspend fun useAddress(address: String): String = withContext(Dispatchers.IO) {
+        val computer = store.value.computer ?: throw IOException("This phone isn't linked to a computer.")
+        val host = address.trim().removePrefix("http://").substringBefore('/').substringBefore(':')
+        val port = address.trim().substringAfterLast(':', "").toIntOrNull() ?: computer.port
+        if (host.isEmpty()) throw IOException("Type the address ReadAlong shows on your computer, such as 192.168.1.20.")
+        LinkClient.open(listOf(host), port, computer.key, store.value.phoneId, phoneName, com.example.readalong.BuildConfig.VERSION_NAME).use { client ->
+            store.update { s -> s.copy(computer = s.computer?.copy(name = client.computerName, hosts = listOf(client.host) + (computer.hosts - client.host).take(4), port = client.port)) }
+            "Found ${client.computerName}."
+        }
+    }
+
     /** Takes a book off the computer's queue again. */
     suspend fun cancelOnComputer(bookId: String) = withContext(Dispatchers.IO) {
         val request = store.value.requests.firstOrNull { it.bookId == bookId } ?: return@withContext
@@ -325,7 +337,7 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
                 when (action) {
                     is SyncAction.Download -> {
                         mutableProgress.value = SyncProgress("Copying from computer $label", 0f)
-                        val (arrived, stored) = download(client, pair, tree, rootId, action.path) { done, size -> mutableProgress.value = SyncProgress("Copying from computer $label", fraction(done, size)) }
+                        val (arrived, stored) = download(client, pair, tree, rootId, action.path, remoteNow[action.path]) { done, size -> mutableProgress.value = SyncProgress("Copying from computer $label", fraction(done, size)) }
                         remoteNow[action.path] = arrived; localNow[action.path] = stored
                         received++
                     }
@@ -340,6 +352,7 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
                 }
                 copied++
             } catch (refused: com.example.readalong.domain.link.LinkException) { failed++; android.util.Log.w("ReadAlong", "Link sync skipped a file: ${refused.message}") }
+            catch (corrupt: LinkClient.CorruptCopy) { failed++; android.util.Log.w("ReadAlong", "Link sync: ${corrupt.message}") }
             catch (io: IOException) {
                 // A dropped connection ends this sync; what was copied so far is kept and recorded.
                 store.saveSynced(pair, held + FolderSyncPlan.settled(localNow.values.toList(), remoteNow.values.toList(), previous))
@@ -378,7 +391,7 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
     }
 
     /** Copies a computer file into the tree through a hidden temporary file, so a half copy never looks like a changed book. */
-    private fun download(client: LinkClient, pair: FolderPair, tree: Uri, rootId: String, path: String, progress: (Long, Long) -> Unit): Pair<SyncFile, SyncFile> {
+    private fun download(client: LinkClient, pair: FolderPair, tree: Uri, rootId: String, path: String, remote: SyncFile?, progress: (Long, Long) -> Unit): Pair<SyncFile, SyncFile> {
         val parts = path.split('/')
         var parent = rootId
         for (folder in parts.dropLast(1)) parent = child(tree, parent, folder)?.takeIf { it.second }?.first
@@ -386,10 +399,40 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
                 ?.let(DocumentsContract::getDocumentId) ?: throw IOException("Couldn't make the folder $folder.")
         val name = parts.last()
         val parentUri = DocumentsContract.buildDocumentUriUsingTree(tree, parent)
-        val temporary = DocumentsContract.createDocument(resolver, parentUri, "application/octet-stream", ".$name.readalong-sync") ?: throw IOException("Couldn't write $name.")
+        // The temporary file is named after the version being copied, so a copy that was cut off (Wi-Fi dropped, the phone
+        // left the house) carries on from where it stopped next time instead of starting a large book again.
+        val resumable = remote != null && client.supports(LinkChannel.RESUME)
+        val temporaryName = if (resumable) ".$name.${remote!!.size}-${remote.modified}.readalong-sync" else ".$name.readalong-sync"
+        val partial = if (resumable) child(tree, parent, temporaryName)?.takeIf { !it.second }?.let { DocumentsContract.buildDocumentUriUsingTree(tree, it.first) } else null
+        val have = partial?.let(::stat)?.size?.takeIf { it in 1 until remote!!.size } ?: 0
+        // What's already here is hashed, so the checksum the computer sends afterwards covers the whole file.
+        val prefix = if (have > 0) runCatching {
+            java.security.MessageDigest.getInstance("SHA-256").also { digest ->
+                resolver.openInputStream(partial!!)!!.use { input ->
+                    val buffer = ByteArray(1 shl 16); var left = have
+                    while (left > 0) { val read = input.read(buffer, 0, minOf(buffer.size.toLong(), left).toInt()); if (read < 0) throw IOException("short"); digest.update(buffer, 0, read); left -= read }
+                }
+            }
+        }.getOrNull() else null
+        val temporary = partial ?: DocumentsContract.createDocument(resolver, parentUri, "application/octet-stream", temporaryName) ?: throw IOException("Couldn't write $name.")
+        // Parts of an older version of this file are no use any more.
+        if (resumable) runCatching {
+            resolver.query(DocumentsContract.buildChildDocumentsUriUsingTree(tree, parent), arrayOf(Document.COLUMN_DOCUMENT_ID, Document.COLUMN_DISPLAY_NAME), null, null, null)?.use { cursor ->
+                val stale = mutableListOf<String>()
+                while (cursor.moveToNext()) cursor.getString(1)?.let { if (it.startsWith(".$name.") && it.endsWith(".readalong-sync") && it != temporaryName) stale += cursor.getString(0) }
+                stale.forEach { DocumentsContract.deleteDocument(resolver, DocumentsContract.buildDocumentUriUsingTree(tree, it)) }
+            }
+        }
+        var keep = false
         try {
             // Closing the buffered stream flushes it: without that, the last part of every file never reached the phone.
-            val received = resolver.openOutputStream(temporary, "w")?.buffered(256 * 1024)?.use { output -> client.get(pair.remoteId, path, output, progress) } ?: throw IOException("Couldn't write $name.")
+            val received = try {
+                client.get(pair.remoteId, path, have, prefix, progress) { from ->
+                    (resolver.openOutputStream(temporary, if (from > 0) "wa" else if (partial != null) "wt" else "w") ?: throw IOException("Couldn't write $name.")).buffered(256 * 1024)
+                }
+            } catch (corrupt: LinkClient.CorruptCopy) { throw corrupt }
+            catch (refused: com.example.readalong.domain.link.LinkException) { throw refused }
+            catch (dropped: IOException) { keep = resumable; throw dropped }
             // Never put a short copy in place of the real file: the next sync tries again.
             stat(temporary)?.let { if (it.size != received.size) throw IOException("Only ${it.size} of ${received.size} bytes of $name arrived.") }
             // The old copy steps aside (not deleted) until the new one has its name, so a failed rename loses nothing.
@@ -405,7 +448,7 @@ class FolderLinkSync(private val context: Context, val store: LinkStore, private
             aside?.let { runCatching { DocumentsContract.deleteDocument(resolver, it) } }
             val stat = stat(final) ?: SyncFile(path, received.size, System.currentTimeMillis())
             return received to stat.copy(path = path)
-        } finally { runCatching { if (stat(temporary) != null) DocumentsContract.deleteDocument(resolver, temporary) } }
+        } finally { if (!keep) runCatching { if (stat(temporary) != null) DocumentsContract.deleteDocument(resolver, temporary) } }
     }
 
     /** Where a provider can't rename: copy the finished temporary file to its real name. */
