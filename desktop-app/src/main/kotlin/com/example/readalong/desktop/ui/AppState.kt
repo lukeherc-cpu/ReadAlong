@@ -211,7 +211,11 @@ class AppState(val scope: CoroutineScope, private val background: Boolean = true
     /** Looks inside [folder] first, so a library can't be added as one giant book by mistake (or the other way round). */
     fun chooseFolder(folder: File) = scope.launch {
         val books = runCatching { importer.preview(folder) }.getOrElse { messages.emit(it.message ?: "That folder couldn't be read."); return@launch }
-        if (books.isEmpty()) messages.emit("No audiobooks found in ${folder.name}.") else found = FolderFound(folder, books)
+        if (books.isNotEmpty()) { found = FolderFound(folder, books); return@launch }
+        // Nothing in it yet: it's kept as a library folder all the same, for books put there later or synced from a phone.
+        if (folder.absolutePath in library.folders.value) { messages.emit("${folder.name} is already a library folder. No audiobooks in it yet."); return@launch }
+        runCatching { importer.add(listOf(folder)) }.onFailure { messages.emit(it.message ?: "That folder couldn't be added."); return@launch }
+        messages.emit("${folder.name} is now a library folder. Audiobooks you put in it, or sync from your phone, will show up here.")
     }
 
     fun confirmFound(asOneBook: Boolean) {

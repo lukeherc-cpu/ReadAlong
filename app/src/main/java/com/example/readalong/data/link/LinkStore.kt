@@ -35,6 +35,8 @@ data class LinkState(
     val seenChange: Long = 0,
     /** ReadAlongs asked of the computer and not yet seen finished. */
     val requests: List<ComputerRequest> = emptyList(),
+    /** Books left on the computer: "<shared folder id>/<book's folder or file name>" for each one unticked in Choose books. */
+    val leftOut: Set<String> = emptySet(),
 )
 
 /** Kept as small JSON files in the app's private storage: link.json, and one record of synced files per folder pair. */
@@ -73,7 +75,8 @@ class LinkStore(context: Context) {
             .put("pairs", JSONArray(s.pairs.map { JSONObject().put("remoteId", it.remoteId).put("remoteName", it.remoteName).put("localUri", it.localUri).put("localName", it.localName) }))
             .put("foldersAsked", s.foldersAsked).put("lastSyncAt", s.lastSyncAt ?: JSONObject.NULL).put("lastResult", s.lastResult ?: JSONObject.NULL)
             .put("skipped", FolderSyncPlan.encodeKinds(s.skipped)).put("seenChange", s.seenChange)
-            .put("requests", JSONArray(s.requests.map { JSONObject().put("book", it.bookId).put("folder", it.folder).put("path", it.path) })).toString())
+            .put("requests", JSONArray(s.requests.map { JSONObject().put("book", it.bookId).put("folder", it.folder).put("path", it.path) }))
+            .put("leftOut", JSONArray(s.leftOut.sorted())).toString())
     }
 
     private fun load(): LinkState {
@@ -92,7 +95,8 @@ class LinkStore(context: Context) {
                 List(pairs.length()) { i -> pairs.getJSONObject(i).let { FolderPair(it.getString("remoteId"), it.getString("remoteName"), it.getString("localUri"), it.getString("localName")) } },
                 o.optBoolean("foldersAsked"), if (o.isNull("lastSyncAt")) null else o.optLong("lastSyncAt"), if (o.isNull("lastResult")) null else o.optString("lastResult"),
                 FolderSyncPlan.decodeKinds(o.optJSONArray("skipped")), o.optLong("seenChange"),
-                List(requests.length()) { i -> requests.getJSONObject(i).let { ComputerRequest(it.getString("book"), it.getString("folder"), it.getString("path")) } })
+                List(requests.length()) { i -> requests.getJSONObject(i).let { ComputerRequest(it.getString("book"), it.getString("folder"), it.getString("path")) } },
+                (o.optJSONArray("leftOut") ?: JSONArray()).let { a -> List(a.length()) { a.getString(it) }.toSet() })
         }.getOrElse {
             // Keep what couldn't be read (perhaps written by a newer version) before the next save replaces it.
             runCatching { file.copyTo(File(directory, "link.json.unreadable-${System.currentTimeMillis()}")) }
