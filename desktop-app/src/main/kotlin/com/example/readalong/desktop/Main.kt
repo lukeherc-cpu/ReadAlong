@@ -4,6 +4,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Tray
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
@@ -47,7 +48,7 @@ fun main(args: Array<String>) {
                 if (com.example.readalong.desktop.core.SingleInstance.showRequested()) visible = true
             }
         }
-        if (background) androidx.compose.ui.window.Tray(androidx.compose.ui.res.painterResource("icon/readalong.png"), tooltip = "ReadAlong",
+        if (background) Tray(androidx.compose.ui.res.painterResource("icon/readalong.png"), tooltip = "ReadAlong",
             onAction = { visible = true }, menu = {
                 Item("Open ReadAlong", onClick = { visible = true })
                 Item("Quit ReadAlong", onClick = quit)

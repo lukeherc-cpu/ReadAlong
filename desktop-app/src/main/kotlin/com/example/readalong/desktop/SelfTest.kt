@@ -65,7 +65,7 @@ object SelfTest {
             val started = System.nanoTime()
             for (file in plan.map { it.file }.distinct()) {
                 val units = plan.filter { it.file == file }
-                process.transcribe(File(book.parts[file].path), units.map { it.startMs to it.endMs }, "en", 4, if (onGpu) 5 else 1, { _, _ -> }) { i, result, ms ->
+                process.transcribe(File(book.parts[file].path), units.map { it.startMs to it.endMs }, "en", 4, if (onGpu) 5 else 1, onProgress = { _, _ -> }) { i, result, ms ->
                     log("unit ${units[i].startMs}-${units[i].endMs} ms in $ms ms: ${result.optString("text").take(120)}")
                     transcripts.append(book.id, Chunk(file, units[i].startMs, units[i].endMs, result), plan.size)
                 }
