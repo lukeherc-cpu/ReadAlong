@@ -1,6 +1,6 @@
 name: Website
 
-# Builds the landing page in website/ and publishes it to GitHub Pages.
+# Builds the landing page in website/ and publishes it to GitHub Pages, with the latest release's Flatpak repository at /flatpak/.
 # One-time setup: Settings → Pages → Build and deployment → Source: "GitHub Actions".
 on:
   push:
@@ -44,6 +44,21 @@ jobs:
       - run: npm run build
         env:
           SITE_URL: ${{ steps.pages.outputs.base_url }}
+
+      # Linux updates: the latest release's signed Flatpak repository, served at /flatpak/ (release.yml attaches it
+      # and starts this workflow). A release from before the repository existed simply has none.
+      - name: Add the Flatpak repository
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release download --repo "$GITHUB_REPOSITORY" --pattern ReadAlong-Linux-flatpak-repo.tar --dir "$RUNNER_TEMP"; then
+            mkdir -p dist/flatpak
+            tar -C dist/flatpak -xf "$RUNNER_TEMP/ReadAlong-Linux-flatpak-repo.tar"
+            ls dist/flatpak
+          else
+            echo "The latest release has no Flatpak repository yet."
+          fi
 
       - if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v3
