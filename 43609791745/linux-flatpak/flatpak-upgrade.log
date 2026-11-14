@@ -1,0 +1,21 @@
+Installing app/io.github.lukeherc_cpu.ReadAlong/x86_64/master
+
+ReadAlong - Audiobook player that highlights the text as the narrator reads
+
+          ID: io.github.lukeherc_cpu.ReadAlong
+         Ref: app/io.github.lukeherc_cpu.ReadAlong/x86_64/master
+        Arch: x86_64
+      Branch: master
+     License: GPL-3.0-only
+      Origin: readalong-origin
+  Collection: 
+Installation: user
+   Installed: 352.2 MB
+     Runtime: org.gnome.Platform/x86_64/50
+         Sdk: org.gnome.Sdk/x86_64/50
+
+      Commit: 8cbca043e3d7d3893caaf44039f6f163328e3861dd0b11eed04a57806a98bdb8
+     Subject: Export io.github.lukeherc_cpu.ReadAlong
+        Date: 2026-11-14 15:30:10 +0000
+flathub	Flathub	https://dl.flathub.org/repo/	-	-	-	1		Central repository of Flatpak applications	Central repository of Flatpak applications	https://flathub.org/	https://dl.flathub.org/repo/logo.svg
+readalong-origin	ReadAlong-Linux.flatpak	https://lukeherc-cpu.github.io/ReadAlong/repo	-	-	-	0	no-enumerate,no-gpg-verify	-	-	-	-
