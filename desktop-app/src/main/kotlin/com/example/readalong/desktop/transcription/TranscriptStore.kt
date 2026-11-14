@@ -48,19 +48,44 @@ class TranscriptStore {
         }
     }
 
+    /** What was read of a book's chunks last time: the units, how far into the file they reach, and what the file looked like. */
+    private class Read(val chunks: List<Chunk>, val offset: Long, val modified: Long, val head: Int)
+    private val read = java.util.concurrent.ConcurrentHashMap<String, Read>()
+
+    /**
+     * A book's units. While a book is being made this is asked for after every unit, so only the lines added since the
+     * last call are parsed (a long book's file reaches tens of megabytes); a file that was replaced is read afresh.
+     */
     fun chunks(bookId: String): List<Chunk> {
         val file = chunksFile(bookId)
-        if (!file.isFile) return emptyList()
-        return file.useLines { lines ->
-            lines.filter { it.isNotBlank() }.mapNotNull { line ->
-                runCatching { JSONObject(line).let { Chunk(it.getInt("file"), it.getLong("startMs"), it.getLong("endMs"), it.getJSONObject("result")) } }.getOrNull()
-            }.toList()
-        }
+        if (!file.isFile) { read.remove(bookId); return emptyList() }
+        return runCatching {
+            java.io.RandomAccessFile(file, "r").use { input ->
+                val length = input.length(); val modified = file.lastModified()
+                val start = ByteArray(minOf(64L, length).toInt()).also { input.readFully(it) }.contentHashCode()
+                val before = read[bookId]?.takeIf { it.offset <= length && it.head == start && it.offset >= 64 && it.modified <= modified }
+                if (before != null && before.offset == length) return@use before.chunks
+                val from = before?.offset ?: 0
+                val bytes = ByteArray((length - from).toInt())
+                input.seek(from); input.readFully(bytes)
+                // Only whole lines count: one still being written is picked up next time.
+                val end = bytes.lastIndexOf('\n'.code.toByte()) + 1
+                val added = String(bytes, 0, end, Charsets.UTF_8).lineSequence().filter { it.isNotBlank() }.mapNotNull(::parse).toList()
+                val all = (before?.chunks ?: emptyList()) + added
+                read[bookId] = Read(all, from + end, modified, start)
+                // A last line with no newline (a file written by hand) is still read, just not remembered.
+                if (end < bytes.size) all + listOfNotNull(parse(String(bytes, end, bytes.size - end, Charsets.UTF_8))) else all
+            }
+        }.getOrElse { read.remove(bookId); emptyList() }
     }
+
+    private fun parse(line: String): Chunk? = runCatching {
+        JSONObject(line).let { Chunk(it.getInt("file"), it.getLong("startMs"), it.getLong("endMs"), it.getJSONObject("result")) }
+    }.getOrNull()
 
     /** Starts a new transcript (any previous one is removed). */
     fun begin(bookId: String, model: String, engine: String, totalChunks: Int) {
-        chunksFile(bookId).delete()
+        chunksFile(bookId).delete(); read.remove(bookId)
         writeInfo(bookId, model, engine, 0, totalChunks, complete = false, imported = false)
         bump(bookId)
     }
@@ -73,7 +98,7 @@ class TranscriptStore {
         bump(bookId)
     }
 
-    fun remove(bookId: String) { chunksFile(bookId).delete(); infoFile(bookId).delete(); bump(bookId) }
+    fun remove(bookId: String) { chunksFile(bookId).delete(); read.remove(bookId); infoFile(bookId).delete(); bump(bookId) }
 
     private fun writeInfo(bookId: String, model: String, engine: String, chunks: Int, total: Int, complete: Boolean, imported: Boolean) =
         infoFile(bookId).writeAtomically(JSONObject().put("model", model).put("engine", engine).put("chunks", chunks)
@@ -176,6 +201,7 @@ class TranscriptStore {
             checkReadable(book, byPart.flatMap { it })
             val text = byPart.flatMap { it }.joinToString("") { it.toJson().toString() + "\n" }
             File(folder(book.id), "chunks.jsonl").writeAtomically(text)
+            read.remove(book.id)
             writeInfo(book.id, manifest.getString("model"), manifest.optString("engine").take(60).ifBlank { engineName(manifest.getString("model")) },
                 count, count, complete = true, imported = true)
             bump(book.id)

@@ -40,6 +40,34 @@ class TranscriptFormatTest {
         assertEquals(listOf("The", "quick", "brown", "fox."), segments[0].words.map { it.word })
     }
 
+    /** While a book is made its units are asked for after every one: only new lines are read, and a replaced file is read afresh. */
+    @Test fun unitsAreReadAsTheyAreAdded() {
+        val store = TranscriptStore()
+        val id = "incremental-" + System.nanoTime()
+        try {
+            store.begin(id, "tiny.en", "whisper.cpp", 3)
+            assertTrue(store.chunks(id).isEmpty())
+            val result = TranscriptStore.chunkResult(whisper, 30_000)
+            repeat(3) { i ->
+                store.append(id, com.example.readalong.desktop.transcription.Chunk(0, i * 30_000L, (i + 1) * 30_000L, result), 3)
+                assertEquals(List(i + 1) { it * 30_000L }, store.chunks(id).map { it.startMs })
+            }
+            assertEquals(true, store.info(id)?.complete)
+            // Half a line (the next unit being written) isn't taken for one, and is read once it's whole.
+            val file = File(com.example.readalong.desktop.core.AppPaths.book(id), "chunks.jsonl")
+            val line = com.example.readalong.desktop.transcription.Chunk(0, 90_000, 120_000, result).toJson().toString()
+            file.appendText(line.take(40))
+            assertEquals(3, store.chunks(id).size)
+            file.appendText(line.drop(40) + "\n")
+            assertEquals(listOf(0L, 30_000L, 60_000L, 90_000L), store.chunks(id).map { it.startMs })
+            // Started again: nothing of the old one is remembered.
+            store.begin(id, "base.en", "whisper.cpp", 3)
+            assertTrue(store.chunks(id).isEmpty())
+            store.append(id, com.example.readalong.desktop.transcription.Chunk(1, 0, 30_000, result), 3)
+            assertEquals(listOf(1), store.chunks(id).map { it.file })
+        } finally { store.remove(id); com.example.readalong.desktop.core.AppPaths.book(id).deleteRecursively() }
+    }
+
     @Test fun silenceIsAnEmptyChunk() {
         val result = TranscriptStore.chunkResult("[]", 30_000)
         assertEquals("", result.getString("text"))

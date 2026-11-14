@@ -18,8 +18,11 @@ Windows ships as an MSI, Linux as a Flatpak, macOS as a `.dmg` for Apple silicon
 - **Transcription.** whisper.cpp in a separate process. Its Vulkan backend runs on NVIDIA, AMD and Intel
   graphics cards; without one (or if the driver fails) it uses the best CPU code for the processor. A GPU
   that stops responding switches the book to the CPU and keeps the progress. Models (tiny.en to
-  large-v3-turbo) download from Hugging Face the first time. Tiny is the default, the smallest and quickest;
-  pick a bigger one in Settings for fewer mistakes.
+  large-v3-turbo) download from Hugging Face the first time. The default depends on the computer: large-v3-turbo with a
+  dedicated graphics card of 3 GB or more, base with any other graphics card (for English), and tiny, the
+  smallest and quickest, without one. Pick another in Settings. Downloads resume where they stopped and are
+  checked against the checksum Hugging Face publishes. A transcriber that stops answering for ten minutes is
+  restarted, and the computer is kept awake while a book is being made.
 - **Aggressive transcription** (Settings, on by default). Several transcriber processes share one book: two
   on the graphics card (one computes while the other decodes text, so the card stays busy) and one on the
   spare processor cores, or several of about six threads each without a card. Each takes about two minutes
