@@ -22,7 +22,8 @@
   --ease-page: cubic-bezier(0.42, 0, 0.18, 1);
 }
 
-html {
+html,
+body {
   background: var(--color-night);
   color: var(--color-mist);
   -webkit-text-size-adjust: 100%;
@@ -49,6 +50,11 @@ h1,
 h2,
 h3 {
   text-wrap: balance;
+}
+
+/* Headings and links take the color of the section they sit in, whatever a host page says about headings. */
+#root :is(h1, h2, h3, h4) {
+  color: inherit;
 }
 
 p {
