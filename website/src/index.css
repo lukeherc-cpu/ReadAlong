@@ -1,0 +1,73 @@
+@import 'tailwindcss';
+
+/* The app's own palette: its dark scheme, the logo blue, and the blue accent's background and pale tones. */
+@theme {
+  --color-night: #111416;
+  --color-pitch: #0b0d0f;
+  --color-slate: #1b1e21;
+  --color-raised: #23272a;
+  --color-line: #33373c;
+  --color-mist: #e7e9ec;
+  --color-fog: #bfc3c9;
+  --color-dim: #8a9097;
+  --color-blue: #496b8a;
+  --color-deep: #182a3b;
+  --color-pale: #d4e5f3;
+  --color-paper: #fbfcfe;
+  --color-ink: #1f2428;
+
+  --font-sans: 'Plus Jakarta Sans Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-book: 'Literata Variable', Georgia, 'Times New Roman', serif;
+
+  --ease-page: cubic-bezier(0.42, 0, 0.18, 1);
+}
+
+html {
+  background: var(--color-night);
+  color: var(--color-mist);
+  -webkit-text-size-adjust: 100%;
+  scroll-padding-top: 5rem;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow-x: clip;
+}
+
+/* Without Lenis (touch, reduced motion, no script) anchor links still glide, unless the reader asked for less motion. */
+@media (prefers-reduced-motion: no-preference) {
+  html:not(.lenis) {
+    scroll-behavior: smooth;
+  }
+}
+
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+}
+
+p {
+  text-wrap: pretty;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-pale);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+::selection {
+  background: var(--color-blue);
+  color: #fff;
+}
+
+.display {
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.04;
+}
