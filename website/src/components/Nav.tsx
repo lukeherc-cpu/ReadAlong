@@ -4,10 +4,9 @@ import { REPO } from '../links'
 import { DownloadIcon, GitHubIcon, Logo } from './ui'
 
 const LINKS = [
+  ['Try it', '#try'],
   ['Features', '#features'],
   ['How it works', '#how'],
-  ['Desktop', '#desktop'],
-  ['Questions', '#questions'],
 ]
 
 export function Nav() {
