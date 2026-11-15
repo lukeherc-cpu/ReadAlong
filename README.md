@@ -24,7 +24,7 @@
 </p>
 
 <p align="center">
-  <a href="https://lukeherc-cpu.github.io/ReadAlong/"><img src="website/public/og.jpg" width="720" alt="ReadAlong playing a book, with the sentence being read highlighted"></a>
+  <a href="https://lukeherc-cpu.github.io/ReadAlong/"><img src="website/public/og.jpg" width="720" alt="ReadAlong showing a book's text with the sentence being read highlighted"></a>
 </p>
 
 Turn any DRM-free audiobook into readable text on your phone or computer, or sync it to an EPUB you already own. No account, no uploads.

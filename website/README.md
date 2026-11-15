@@ -25,6 +25,8 @@ and the link-preview image.
 
 ## Media
 
-`public/media` holds screen recordings and screenshots of the app, resized for the web (videos 540 px wide,
-H.264, no audio; screenshots 720 px wide WebP). To swap one, keep the file name and the 1080 × 2190 shape of
-the phone screen. `public/og.jpg` is the 1200 × 630 link-preview image.
+The phone and desktop screens on the page are drawn in React (`src/components/kit.tsx`) from the app's own
+icons, colors and layout, so they stay sharp at any size and can be tapped in the demo. `src/books.ts` holds
+the books they show. `public/media` holds the covers, the desktop screenshots and `pride.mp3`, the narration
+clip the demo plays; its phrase timings are the `CUES` in `src/components/Demo.tsx`. `public/og.jpg` is the
+1200 × 630 link-preview image.

@@ -1,6 +1,5 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { motion, useInView, useReducedMotion } from 'motion/react'
-import { media } from '../links'
+import { useEffect, useState, type ReactNode } from 'react'
+import { motion, useReducedMotion } from 'motion/react'
 
 const INK = '#496B8A'
 const PAPER = '#F7FAFD'
@@ -79,51 +78,6 @@ export function Phone({ children, className = '' }: { children: ReactNode; class
     <div className={`rounded-[13%/6.2%] bg-[#07090a] p-[2.6%] shadow-[0_40px_80px_-30px_rgba(0,0,0,0.9)] ring-1 ring-white/10 ${className}`}>
       <div className="relative aspect-[1080/2190] overflow-hidden rounded-[11%/5.3%] bg-pitch">{children}</div>
     </div>
-  )
-}
-
-/** A screen recording of the app. Loads and plays only while on screen (and `active`), and never autoplays under reduced motion. */
-export function Clip({ name, label, active = true, eager = false }: { name: string; label: string; active?: boolean; eager?: boolean }) {
-  const ref = useRef<HTMLVideoElement>(null)
-  const reduce = useReducedMotion()
-  const inView = useInView(ref, { amount: 0.35 })
-  const playing = active && inView && !reduce
-
-  useEffect(() => {
-    const video = ref.current
-    if (!video) return
-    if (playing) video.play().catch(() => {})
-    else video.pause()
-  }, [playing])
-
-  return (
-    <video
-      ref={ref}
-      className="absolute inset-0 h-full w-full object-cover"
-      src={media(`${name}.mp4`)}
-      poster={media(`${name}-poster.webp`)}
-      muted
-      loop
-      playsInline
-      preload={eager ? 'metadata' : 'none'}
-      controls={!!reduce}
-      aria-label={label}
-    />
-  )
-}
-
-/** A screenshot of the app. */
-export function Shot({ name, alt, eager = false }: { name: string; alt: string; eager?: boolean }) {
-  return (
-    <img
-      className="absolute inset-0 h-full w-full object-cover"
-      src={media(`${name}.webp`)}
-      alt={alt}
-      width={720}
-      height={1460}
-      loading={eager ? 'eager' : 'lazy'}
-      decoding="async"
-    />
   )
 }
 
