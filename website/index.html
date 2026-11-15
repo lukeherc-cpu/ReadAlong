@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ReadAlong: an audiobook player that shows you the words</title>
+    <meta name="description" content="ReadAlong plays your own audiobooks and highlights each sentence as the narrator reads it. Text is made on your device, or matched to an EPUB you own. Free for Android, Windows, Linux and macOS." />
+    <meta name="theme-color" content="#111416" />
+    <meta name="color-scheme" content="dark" />
+    <link rel="canonical" href="__SITE_URL__" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <link rel="apple-touch-icon" href="./icon-180.png" />
+    <link rel="preload" as="image" href="./media/hero-poster.webp" fetchpriority="high" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="ReadAlong" />
+    <meta property="og:title" content="ReadAlong: an audiobook player that shows you the words" />
+    <meta property="og:description" content="Plays your own audiobooks and highlights each sentence as it is read. Works offline, with no account. Free for Android, Windows, Linux and macOS." />
+    <meta property="og:url" content="__SITE_URL__" />
+    <meta property="og:image" content="__SITE_URL__og.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "ReadAlong",
+        "applicationCategory": "MultimediaApplication",
+        "operatingSystem": "Android, Windows, Linux, macOS",
+        "description": "An audiobook player that highlights the text as the narrator reads. Works offline with your own files.",
+        "url": "__SITE_URL__",
+        "downloadUrl": "https://github.com/lukeherc-cpu/ReadAlong/releases/latest",
+        "license": "https://www.gnu.org/licenses/gpl-3.0.html",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+      }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <noscript>
+      <p style="font-family: sans-serif; padding: 2rem; color: #e7e9ec; background: #111416">
+        ReadAlong is an audiobook player that highlights the text as the narrator reads.
+        <a style="color: #d4e5f3" href="https://github.com/lukeherc-cpu/ReadAlong/releases/latest">Download it from GitHub.</a>
+      </p>
+    </noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
