@@ -1,13 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { BOOKS } from '../books'
-import { media } from '../links'
 import { Controls, FlipCover, Icon, Narration, PlayerUI, ReaderUI, Screen, Tap, playerBackground } from './kit'
 import { Phone, Reveal } from './ui'
 
 const BOOK = BOOKS.pride
-/** When each phrase of the recording begins, in seconds, and how long the clip is. */
-const CUES = [0, 2.55, 5.0]
-const LENGTH = 6.7
+const { src: SRC, cues: CUES, length: LENGTH } = BOOK.clip!
 
 const clock = (seconds: number) => `0:${String(Math.floor(seconds)).padStart(2, '0')}`
 
@@ -19,7 +16,7 @@ function useNarrator() {
 
   const get = useCallback(() => {
     if (!audio.current) {
-      const el = new Audio(media('pride.mp3'))
+      const el = new Audio(SRC)
       el.addEventListener('ended', () => { setPlaying(false); setTime(0); el.currentTime = 0 })
       el.addEventListener('pause', () => setPlaying(false))
       el.addEventListener('play', () => setPlaying(true))
