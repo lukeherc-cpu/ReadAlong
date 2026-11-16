@@ -12,7 +12,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 
 /**
- * What Android Auto (and other media browsers) can browse: Started, New and Finished, as on the phone.
+ * What Android Auto (and other media browsers) can browse: Started, New, Finished and Collections, as on the phone.
  * Books are "book:<id>"; picking one hands that id to the player, which loads the whole book.
  */
 internal class AutoLibrary(private val app: ReadAlongApplication) {
@@ -21,8 +21,15 @@ internal class AutoLibrary(private val app: ReadAlongApplication) {
     fun root(): MediaItem = folder(ROOT, "ReadAlong")
 
     suspend fun children(parent: String): List<MediaItem> {
-        if (parent == ROOT) return listOf(folder(STARTED, "Started"), folder(NEW, "New"), folder(FINISHED, "Finished"))
+        if (parent == ROOT) return listOf(folder(STARTED, "Started"), folder(NEW, "New"), folder(FINISHED, "Finished"), folder(COLLECTIONS, "Collections"))
         val books = books()
+        if (parent == COLLECTIONS) return com.example.readalong.domain.model.collectionRows(app.collections.all.first(), books, com.example.readalong.domain.model.LibrarySort.TITLE)
+            .map { row -> folder(COLLECTION + (row.collection?.id ?: LOOSE), row.name) }
+        if (parent.startsWith(COLLECTION)) {
+            val id = parent.removePrefix(COLLECTION)
+            val rows = com.example.readalong.domain.model.collectionRows(app.collections.all.first(), books, com.example.readalong.domain.model.LibrarySort.TITLE)
+            return rows.firstOrNull { (it.collection?.id ?: LOOSE) == id }?.books.orEmpty().take(200).map { item(it) }
+        }
         val chosen = when (parent) {
             STARTED -> books.filter { it.section == LibrarySection.CURRENT }.sortedByDescending { it.lastPlayedAt ?: 0 }
             NEW -> books.filter { it.section == LibrarySection.NOT_STARTED }.sortedByDescending { it.addedAt }
@@ -37,6 +44,7 @@ internal class AutoLibrary(private val app: ReadAlongApplication) {
         STARTED -> folder(STARTED, "Started")
         NEW -> folder(NEW, "New")
         FINISHED -> folder(FINISHED, "Finished")
+        COLLECTIONS -> folder(COLLECTIONS, "Collections")
         else -> mediaId.removePrefix(BOOK).takeIf { mediaId.startsWith(BOOK) }?.let { id -> books().firstOrNull { it.id == id } }?.let { item(it) }
     }
 
@@ -87,5 +95,8 @@ internal class AutoLibrary(private val app: ReadAlongApplication) {
         const val NEW = "new"
         const val FINISHED = "finished"
         const val BOOK = "book:"
+        const val COLLECTIONS = "collections"
+        const val COLLECTION = "collection:"
+        private const val LOOSE = "-"
     }
 }

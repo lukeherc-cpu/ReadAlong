@@ -13,7 +13,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.util.concurrent.TimeUnit
 
-/** What Android Auto sees: Started, New and Finished to browse, and Speed and Next chapter buttons. */
+/** What Android Auto sees: Started, New, Finished and Collections to browse, and Speed and Next chapter buttons. */
 class AndroidAutoLibraryTest {
     private val app get() = ApplicationProvider.getApplicationContext<ReadAlongApplication>()
 
@@ -26,8 +26,8 @@ class AndroidAutoLibraryTest {
             val root = onMain { browser.getLibraryRoot(null) }.get(10, TimeUnit.SECONDS)
             assertEquals("root", root.value!!.mediaId)
             val tabs = onMain { browser.getChildren("root", 0, 20, null) }.get(10, TimeUnit.SECONDS).value!!
-            assertEquals(listOf("Started", "New", "Finished"), tabs.map { it.mediaMetadata.title.toString() })
-            tabs.forEach { tab ->
+            assertEquals(listOf("Started", "New", "Finished", "Collections"), tabs.map { it.mediaMetadata.title.toString() })
+            tabs.dropLast(1).forEach { tab ->
                 val books = onMain { browser.getChildren(tab.mediaId, 0, 50, null) }.get(20, TimeUnit.SECONDS).value!!
                 assertTrue(books.all { it.mediaId.startsWith("book:") && it.mediaMetadata.isPlayable == true })
             }
