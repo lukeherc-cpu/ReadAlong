@@ -34,6 +34,8 @@ fun ActionSheet(
     meta: String? = null,
     listState: LazyListState = rememberLazyListState(),
     header: (@Composable ColumnScope.() -> Unit)? = null,
+    /** Pinned under the list, such as a sheet's main action, so it stays in reach however long the list is. */
+    footer: (@Composable ColumnScope.() -> Unit)? = null,
     content: LazyListScope.() -> Unit,
 ) {
     val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -45,7 +47,8 @@ fun ActionSheet(
                 if (meta != null) Text(meta, Modifier.alignByBaseline(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             header?.invoke(this)
-            LazyColumn(Modifier.fillMaxWidth(), state = listState, content = content)
+            LazyColumn(Modifier.fillMaxWidth().weight(1f, fill = false), state = listState, content = content)
+            footer?.invoke(this)
         }
     }
 }
