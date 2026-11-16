@@ -15,6 +15,8 @@ internal const val SEEK_CHAPTER = "readalong.SEEK_CHAPTER"
 internal const val SEEK_BOOK = "readalong.SEEK_BOOK"
 internal const val SLEEP_TIMER = "readalong.SLEEP_TIMER"
 internal const val CLEAR_BOOK = "readalong.CLEAR_BOOK"
+internal const val CYCLE_SPEED = "readalong.CYCLE_SPEED"
+internal const val NEXT_CHAPTER = "readalong.NEXT_CHAPTER"
 
 internal suspend fun <T> ListenableFuture<T>.awaitResult(context: Context): T = suspendCancellableCoroutine { continuation ->
     addListener({
