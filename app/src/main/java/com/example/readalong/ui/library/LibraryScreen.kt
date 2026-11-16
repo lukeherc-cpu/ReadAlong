@@ -92,7 +92,7 @@ fun LibraryScreen(
         Box {
             IconButton(onClick = { sortMenu = true }, modifier = Modifier.testTag("library_sort")) { Icon(painterResource(R.drawable.ic_sort), "Sort and view", tint = MaterialTheme.colorScheme.onSurfaceVariant) }
             SortAndViewMenu(sortMenu, onDismiss = { sortMenu = false }, collectionView = folderView, onView = ::chooseView, sort = sort, onSort = ::chooseSort,
-                listMode = settings.listLibrary, onListMode = { scope.launch { app?.appPreferences?.update { it.copy(listLibrary = !settings.listLibrary) } }; sortMenu = false })
+                listMode = settings.listLibrary, onList = { list -> if (list != settings.listLibrary) scope.launch { app?.appPreferences?.update { it.copy(listLibrary = list) } } })
         }
     }
     val showCollections = folderView && query.isBlank() && state is LibraryUiState.Ready
@@ -168,8 +168,6 @@ fun LibraryScreen(
                                     Text("Collections", Modifier.semantics { heading() }, style = MaterialTheme.typography.titleLarge)
                                     sortButton()
                                 }
-                                if (collections.isEmpty()) Text("Group books your way, like “Road trip” or “Bedtime”. A book can be in more than one collection.",
-                                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                         items(collectionRows, key = { "collection:${it.collection?.id ?: LOOSE}" }, span = { GridItemSpan(maxLineSpan) }) { item ->
@@ -278,7 +276,7 @@ private const val LOOSE = "\u0000loose"
 /** The menu behind the sort button: how the library is laid out, then how books are ordered. */
 @Composable
 private fun SortAndViewMenu(expanded: Boolean, onDismiss: () -> Unit, collectionView: Boolean, onView: (Boolean) -> Unit,
-    sort: LibrarySort, onSort: (LibrarySort) -> Unit, listMode: Boolean, onListMode: () -> Unit) {
+    sort: LibrarySort, onSort: (LibrarySort) -> Unit, listMode: Boolean, onList: (Boolean) -> Unit) {
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     @Composable fun heading(text: String) = Text(text, Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp),
         style = MaterialTheme.typography.labelMedium, color = muted)
@@ -286,10 +284,13 @@ private fun SortAndViewMenu(expanded: Boolean, onDismiss: () -> Unit, collection
     @Composable fun lead(icon: Int?): @Composable () -> Unit = { if (icon != null) Icon(painterResource(icon), null, Modifier.size(22.dp), tint = muted) else Spacer(Modifier.size(22.dp)) }
     DropdownMenu(expanded = expanded, onDismissRequest = onDismiss, modifier = Modifier.testTag("library_sort_menu")) {
         heading("View")
-        DropdownMenuItem(text = { Text("Sections") }, onClick = { onView(false) }, leadingIcon = lead(R.drawable.ic_bookshelf), trailingIcon = tick(!collectionView))
+        // Three layouts, one ticked: covers by section, a list by section, or collections.
+        DropdownMenuItem(text = { Text("Cover art") }, onClick = { onList(false); onView(false) }, leadingIcon = lead(R.drawable.ic_view_covers),
+            trailingIcon = tick(!collectionView && !listMode), modifier = Modifier.testTag("library_view_covers"))
+        DropdownMenuItem(text = { Text("List") }, onClick = { onList(true); onView(false) }, leadingIcon = lead(R.drawable.ic_view_list),
+            trailingIcon = tick(!collectionView && listMode), modifier = Modifier.testTag("library_view_list"))
         DropdownMenuItem(text = { Text("Collections") }, onClick = { onView(true) }, leadingIcon = lead(R.drawable.ic_book), trailingIcon = tick(collectionView),
             modifier = Modifier.testTag("library_view_collections"))
-        DropdownMenuItem(text = { Text(if (listMode) "Cover mode" else "List mode") }, onClick = onListMode, leadingIcon = lead(null))
         HorizontalDivider(Modifier.padding(vertical = 4.dp))
         heading("Sort")
         LibrarySort.entries.forEach { choice ->
