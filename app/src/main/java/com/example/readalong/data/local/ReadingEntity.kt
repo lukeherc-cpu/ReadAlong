@@ -27,8 +27,13 @@ data class ReadableVersionEntity(@PrimaryKey val bookId: String, val state: Stri
     @ColumnInfo(defaultValue = "-1") val generatedRevision: Long = -1,
     val activeEditionId: String? = null, @ColumnInfo(defaultValue = "0") val generatedFormat: Int = 0)
 
+/** A transcript line's start time and text, for suggesting names in the Character List. */
+data class TimedText(val startMs: Long, val text: String)
+
 @Dao
 interface ReadingDao {
+    @Query("SELECT startMs, text FROM transcript_segments WHERE bookId = :bookId AND startMs <= :untilMs ORDER BY startMs")
+    suspend fun textUntil(bookId: String, untilMs: Long): List<TimedText>
     @Query("SELECT t.id, t.bookId, t.chapterId, t.startMs, t.endMs, COALESCE(c.replacement, t.text) AS text, t.confidence, t.wordsJson, t.anchorsJson FROM transcript_segments t LEFT JOIN transcript_corrections c ON c.bookId = t.bookId AND c.segmentId = t.id AND c.originalText = t.text WHERE t.bookId = :bookId AND t.id IN (:ids)")
     suspend fun sourceSegments(bookId: String, ids: List<String>): List<TranscriptEntity>
     @Query("SELECT p.segmentId AS id, p.bookId, p.chapterId, p.startMs, p.endMs, p.text, NULL AS confidence, NULL AS wordsJson, p.anchorsJson FROM epub_paragraphs p INNER JOIN readable_versions v ON v.bookId = p.bookId AND v.activeEditionId = p.editionId WHERE p.bookId = :bookId AND p.endMs >= :position - 60000 AND p.startMs <= :position + 120000 ORDER BY p.startMs LIMIT 80")
