@@ -1,6 +1,6 @@
 # ReadAlong website
 
-The landing page at <https://lukeherc-cpu.github.io/ReadAlong/>. It is separate from the Android and desktop
+The landing page at <https://readalongapp.github.io/ReadAlong/>. It is separate from the Android and desktop
 apps: nothing here is part of a Gradle build, and nothing outside this folder is needed to build it.
 
 React, Vite and Tailwind CSS. Motion for React drives the scroll animations and Lenis eases the mouse wheel;
