@@ -56,6 +56,12 @@ jobs:
             --ks-key-alias androiddebugkey --key-pass pass:android --out "ReadAlong-$version.apk" aligned.apk
           "$tools/apksigner" verify --print-certs "ReadAlong-$version.apk" | grep -i "SHA-256"
           sha256sum "ReadAlong-$version.apk" > "ReadAlong-$version.apk.sha256"
+          # The Wear OS app, signed with the same key: the watch only talks to a phone app signed like it.
+          watch=$(ls wear/build/outputs/apk/github/release/*.apk | head -1)
+          "$tools/zipalign" -f -p 4 "$watch" aligned-watch.apk
+          "$tools/apksigner" sign --ks "$RUNNER_TEMP/debug.keystore" --ks-pass pass:android \
+            --ks-key-alias androiddebugkey --key-pass pass:android --out "ReadAlong-Watch-$version.apk" aligned-watch.apk
+          sha256sum "ReadAlong-Watch-$version.apk" > "ReadAlong-Watch-$version.apk.sha256"
           rm "$RUNNER_TEMP/debug.keystore"
           echo "VERSION=$version" >> "$GITHUB_ENV"
 
@@ -72,13 +78,17 @@ jobs:
           files: |
             ReadAlong-${{ env.VERSION }}.apk
             ReadAlong-${{ env.VERSION }}.apk.sha256
+            ReadAlong-Watch-${{ env.VERSION }}.apk
+            ReadAlong-Watch-${{ env.VERSION }}.apk.sha256
 
       - name: Keep the APK (manual runs)
         if: "!startsWith(github.ref, 'refs/heads/release/')"
         uses: actions/upload-artifact@v4
         with:
           name: ReadAlong-${{ env.VERSION }}
-          path: ReadAlong-${{ env.VERSION }}.apk*
+          path: |
+            ReadAlong-${{ env.VERSION }}.apk*
+            ReadAlong-Watch-${{ env.VERSION }}.apk*
 
   windows:
     name: Windows installer

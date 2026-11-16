@@ -24,3 +24,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "ReadAlong"
 include(":app")
+include(":wear")

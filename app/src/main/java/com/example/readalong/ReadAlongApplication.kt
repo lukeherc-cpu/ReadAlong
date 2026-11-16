@@ -120,6 +120,7 @@ class ReadAlongApplication : Application() {
             }
         }
         com.example.readalong.ui.widget.Widgets.follow(this)
+        com.example.readalong.watch.WatchBridge.follow(this)
         applicationScope.launch {
             // Each pause writes the book's progress beside it, for ReadAlong for Windows to pick up.
             var wasPlaying: String? = null
