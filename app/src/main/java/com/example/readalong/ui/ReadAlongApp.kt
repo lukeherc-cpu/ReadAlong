@@ -121,10 +121,6 @@ fun ReadAlongApp(libraryViewModel: LibraryViewModel, app: com.example.readalong.
             val jobs by app.processing.queue.collectAsStateWithLifecycle(emptyList())
             androidx.lifecycle.compose.LifecycleEventEffect(androidx.lifecycle.Lifecycle.Event.ON_RESUME) { importModel.refreshLibrary() }
             val state by libraryViewModel.state.collectAsStateWithLifecycle()
-            // Each book's folder, for the library's folder view; worked out off the main thread as files change.
-            val bookPlaces by androidx.compose.runtime.remember { app.database.mediaDao().observeBookFiles()
-                .map { rows -> com.example.readalong.domain.model.bookPlaces(rows.map(com.example.readalong.data.book.BookFolderPlaces::location)) }
-                .flowOn(kotlinx.coroutines.Dispatchers.Default) }.collectAsStateWithLifecycle(emptyMap())
             val scanningFolder by importModel.scanningFolder.collectAsStateWithLifecycle()
             val readingFolder by importModel.readingFolder.collectAsStateWithLifecycle()
             val scanProgress by importModel.scanProgress.collectAsStateWithLifecycle()
@@ -189,7 +185,6 @@ fun ReadAlongApp(libraryViewModel: LibraryViewModel, app: com.example.readalong.
                 onFolders = { open("folders") },
                 onLongBook = { actions.dismissError(); selectedId = it.id },
                 onBook = { bookId -> navController.navigate("book/${Uri.encode(bookId)}") { launchSingleTop = true } },
-                bookPlaces = bookPlaces,
                 importControls = { com.example.readalong.ui.importing.ImportControls(importModel,
                     onFolders = { open("folders") },
                     onBook = { navController.navigate("book/${Uri.encode(it)}") { launchSingleTop = true } }) },
