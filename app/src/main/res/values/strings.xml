@@ -25,6 +25,7 @@
     <string name="section_finished">Finished</string>
     <string name="sort_recent">Recently played</string>
     <string name="sort_title">Title</string>
+    <string name="sort_author">Author</string>
     <string name="sort_books">Sort books</string>
     <string name="open_book">Open %1$s</string>
     <string name="unknown_author">Unknown author</string>
