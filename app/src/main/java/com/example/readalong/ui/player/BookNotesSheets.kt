@@ -1,6 +1,9 @@
 package com.example.readalong.ui.player
 
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.ui.Alignment
+import androidx.compose.foundation.clickable
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -71,6 +74,7 @@ fun CharacterListSheet(bookId: String, positionMs: Long, chapters: List<Playback
     LaunchedEffect(bookId, people.size) { suggestions = runCatching { repository.suggestions(bookId, positionMs, people.map { it.name }) }.getOrDefault(emptyList()) }
     var editing by remember { mutableStateOf<CharacterEntry?>(null) }
     var askAi by remember { mutableStateOf(false) }
+    var expanded by remember { mutableStateOf<String?>(null) }
     fun where(ms: Long) = chapters.lastOrNull { it.startMs <= ms }?.title ?: clockTime(ms)
     ActionSheet(close, "Character List", when (people.size) { 0 -> null; 1 -> "1 person"; else -> "${people.size} people" }, header = {
         Button(onClick = { editing = CharacterEntry(BookNotesRepository.newId(), "") },
@@ -90,13 +94,9 @@ fun CharacterListSheet(bookId: String, positionMs: Long, chapters: List<Playback
                 style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         items(people, key = { it.id }) { person ->
-            SheetRow(person.name, { person.firstMs?.let { seek(it); close() } ?: run { editing = person } },
-                supporting = person.note.ifBlank { person.firstMs?.let { "First heard in ${where(it)}" } ?: "Tap to add a note" },
-                trailing = {
-                    IconButton(onClick = { editing = person }) {
-                        Icon(painterResource(R.drawable.ic_edit), "Edit ${person.name}", Modifier.size(22.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                })
+            CharacterRow(person, expanded = expanded == person.id, firstHeard = person.firstMs?.let { "First heard in ${where(it)}" },
+                toggle = { expanded = if (expanded == person.id) null else person.id },
+                edit = { editing = person }, go = person.firstMs?.let { ms -> { seek(ms); close() } })
         }
         if (suggestions.isNotEmpty()) {
             item { SheetDivider() }
@@ -181,4 +181,32 @@ private fun AiCharacterDialog(prompt: String, import: suspend (String) -> Int, c
             }
         }, modifier = Modifier.testTag("ai_add")) { Text("Add to list") }
     }, dismissButton = { TextButton(onClick = close) { Text("Cancel") } })
+}
+
+/**
+ * One person: tapping opens the row (with a short size animation) to show their whole note, where they
+ * were first heard and a button to go there; tapping again closes it. The pencil edits.
+ */
+@Composable
+private fun CharacterRow(person: CharacterEntry, expanded: Boolean, firstHeard: String?, toggle: () -> Unit, edit: () -> Unit, go: (() -> Unit)?) {
+    val colors = MaterialTheme.colorScheme
+    Column(Modifier.fillMaxWidth().animateContentSize(androidx.compose.animation.core.spring(stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow))
+        .clickable(onClickLabel = if (expanded) "Show less" else "Show more", onClick = toggle)
+        .padding(start = 24.dp, end = 8.dp, top = 10.dp, bottom = 10.dp).testTag("character_${person.name}")) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(person.name, style = MaterialTheme.typography.bodyLarge)
+                val summary = person.note.ifBlank { firstHeard ?: "Tap the pencil to add a note" }
+                Text(summary, style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant,
+                    maxLines = if (expanded) Int.MAX_VALUE else 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            }
+            IconButton(onClick = edit) { Icon(painterResource(R.drawable.ic_edit), "Edit ${person.name}", Modifier.size(22.dp), tint = colors.onSurfaceVariant) }
+        }
+        if (expanded && (go != null || (firstHeard != null && person.note.isNotBlank()))) Row(Modifier.fillMaxWidth().padding(top = 6.dp, end = 16.dp),
+            verticalAlignment = Alignment.CenterVertically) {
+            if (person.note.isNotBlank() && firstHeard != null) Text(firstHeard, Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+            else Spacer(Modifier.weight(1f))
+            if (go != null) TextButton(onClick = go, Modifier.testTag("character_go")) { Text("Go there") }
+        }
+    }
 }

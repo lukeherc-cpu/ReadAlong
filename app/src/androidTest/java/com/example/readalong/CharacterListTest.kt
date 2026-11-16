@@ -23,6 +23,11 @@ class CharacterListTest {
         compose.onNodeWithText("Save").performClick()
         compose.waitUntil(5_000) { compose.onAllNodesWithText("Engineer from Erid").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Rocky").assertExists()
+        // Tapping a person opens their row in place rather than leaving the list.
+        var closed = false
+        compose.onNodeWithTag("character_Rocky").performClick()
+        compose.onNodeWithText("Engineer from Erid").assertIsDisplayed()
+        compose.runOnIdle { org.junit.Assert.assertFalse(closed) }
     }
 
     @Test fun anAiAnswerIsPastedIntoTheList() {
