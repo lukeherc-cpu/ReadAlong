@@ -117,6 +117,12 @@ interface ReadingDao {
     @Query("SELECT * FROM readable_versions WHERE bookId = :bookId")
     suspend fun findVersion(bookId: String): ReadableVersionEntity?
     @Upsert suspend fun putVersion(version: ReadableVersionEntity)
+    /** The sentence being heard at [atMs], with any correction applied, for the Read along widget. */
+    @Query("SELECT t.startMs, COALESCE(c.replacement, t.text) AS text FROM transcript_segments t LEFT JOIN transcript_corrections c ON c.bookId = t.bookId AND c.segmentId = t.id AND c.originalText = t.text WHERE t.bookId = :bookId AND t.startMs <= :atMs ORDER BY t.startMs DESC LIMIT 1")
+    suspend fun heardAt(bookId: String, atMs: Long): TimedText?
+    /** The EPUB paragraph matched to [atMs], for books read from an EPUB without a transcript. */
+    @Query("SELECT p.startMs, p.text FROM epub_paragraphs p INNER JOIN readable_versions v ON v.bookId = p.bookId AND v.activeEditionId = p.editionId WHERE p.bookId = :bookId AND p.startMs <= :atMs ORDER BY p.startMs DESC LIMIT 1")
+    suspend fun paragraphAt(bookId: String, atMs: Long): TimedText?
 }
 
 data class TranscriptChapter(val chapterId: String, val startMs: Long, val title: String = "")
