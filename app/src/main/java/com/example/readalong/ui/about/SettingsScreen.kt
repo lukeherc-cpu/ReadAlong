@@ -17,6 +17,8 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.testTag
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.readalong.ReadAlongApplication
 import com.example.readalong.R
@@ -38,6 +40,22 @@ fun SettingsScreen(app: ReadAlongApplication, onBack: () -> Unit, onModel: () ->
     val clipboard = androidx.compose.ui.platform.LocalClipboard.current
     var copied by remember { mutableStateOf(false) }
     var battery by remember { mutableStateOf(false) }
+    var equalizerPage by rememberSaveable { mutableStateOf(false) }
+    val sound by app.sound.defaults.collectAsStateWithLifecycle(com.example.readalong.domain.model.SoundSettings.DEFAULT)
+    fun saveSound(value: com.example.readalong.domain.model.SoundSettings) { scope.launch { app.sound.saveDefaults(value) } }
+    if (equalizerPage) {
+        androidx.activity.compose.BackHandler { equalizerPage = false }
+        Scaffold { insets -> Column(Modifier.fillMaxSize().padding(insets).verticalScroll(rememberScrollState()).padding(vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(Modifier.padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { equalizerPage = false }) { Icon(painterResource(R.drawable.ic_back), "Back to settings") }
+                Text("Equalizer", style = MaterialTheme.typography.headlineMedium)
+            }
+            Text("The default for every book. A book changed from its own Sound sheet keeps its own equalizer.",
+                Modifier.padding(horizontal = 24.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            com.example.readalong.ui.sound.EqualizerEditor(sound, ::saveSound)
+        } }
+        return
+    }
     Scaffold { insets -> Column(Modifier.fillMaxSize().padding(insets).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(painterResource(R.drawable.ic_back), "Back to library") }
@@ -71,6 +89,14 @@ fun SettingsScreen(app: ReadAlongApplication, onBack: () -> Unit, onModel: () ->
                 SettingsRow("Reading fonts and appearance", onClick = { appearance = true })
                 SettingsRow("Rewind and forward times", onClick = { skipDialog = true }) { ValueText("${preferences.playerBack}s · ${preferences.playerForward}s"); Chevron() }
             }
+        }
+        SettingsSection("Sound") {
+            SettingsGroup {
+                SettingsRow("Equalizer", Modifier.testTag("settings_equalizer"), onClick = { equalizerPage = true }) { ValueText(com.example.readalong.ui.sound.equalizerText(sound)); Chevron() }
+                Column(Modifier.padding(vertical = 8.dp)) { com.example.readalong.ui.sound.SoundBasics(sound, ::saveSound) }
+            }
+            Text("Defaults for every book. Change one book from the player's ⋯ menu or by holding its cover in the library.",
+                Modifier.padding(start = 4.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         SettingsSection("Transcription") {
             SettingsGroup {

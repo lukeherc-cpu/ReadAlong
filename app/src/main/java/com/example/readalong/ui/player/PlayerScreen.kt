@@ -150,6 +150,8 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                             onClick = { menu = false; pickEpub() },
                             modifier = Modifier.testTag("menu_add_epub"))
                         if (!book.isDemo) HorizontalDivider(Modifier.padding(horizontal = 12.dp, vertical = 4.dp))
+                        if (!book.isDemo && tipApp != null) DropdownMenuItem(text = { Text("Sound") }, leadingIcon = { menuIcon(R.drawable.ic_headphones) },
+                            onClick = { panel = "sound"; menu = false }, modifier = Modifier.testTag("menu_sound"))
                         DropdownMenuItem(text = { Text(if (book.isFinished) "Mark as not finished" else "Mark as finished") },
                             leadingIcon = { menuIcon(if (book.isFinished) R.drawable.ic_undo else R.drawable.ic_check_circle) },
                             onClick = { onFinished(!book.isFinished); menu = false })
@@ -284,7 +286,8 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
     if (showBuffering) LinearProgressIndicator(Modifier.align(Alignment.TopCenter).fillMaxWidth().height(2.dp).semantics { contentDescription = "Buffering audio" })
     }
     if (panel == "bookmarks") BookmarksDialog(reading, state.positionMs, playback::seek, { panel = null }, state.chapters)
-    if (panel != null && panel != "bookmarks") PlayerPanel(panel!!, book, state, playback, close = { panel = null })
+    if (panel == "sound" && tipApp != null) com.example.readalong.ui.sound.BookSoundSheet(tipApp, book.id, book.title) { panel = null }
+    if (panel != null && panel != "bookmarks" && panel != "sound") PlayerPanel(panel!!, book, state, playback, close = { panel = null })
     }
 }
 
