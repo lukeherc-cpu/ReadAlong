@@ -52,14 +52,16 @@ class PlaybackCoordinator(context: Context, repository: BookRepository, private 
     override fun pause() = if (selectedDemo.value) demo.pause() else run { connection.controller().pause() }
     override fun play() = if (selectedDemo.value) { if (!demo.state.value.isPlaying) demo.toggle(); Unit } else run { connection.controller().play() }
     /**
-     * Saves where the listener is before a jump, for Listening history. Small nudges (a sentence or two
-     * either way) aren't jumps; skips and chapter changes always are. The demo book keeps no history.
+     * Saves where the listener is before a jump, for Listening history. Skips, chapter changes and tapped
+     * sentences always count; other seeks only when they move at least 15 s. The demo book keeps no history.
      */
     private fun remember(kind: com.example.readalong.domain.model.JumpKind, targetMs: Long? = null) {
         val now = state.value
         val bookId = now.bookId ?: return
         if (selectedDemo.value || notes == null) return
-        if (targetMs != null && kotlin.math.abs(targetMs - now.positionMs) < MIN_JUMP_MS) return
+        // Every tapped sentence counts ; other seeks only when they go somewhere new.
+        val least = if (kind == com.example.readalong.domain.model.JumpKind.SENTENCE) 1_000L else MIN_JUMP_MS
+        if (targetMs != null && kotlin.math.abs(targetMs - now.positionMs) < least) return
         val entry = com.example.readalong.domain.model.HistoryEntry(now.positionMs, kind, now.chapterTitle, System.currentTimeMillis())
         scope.launch { runCatching { notes.addHistory(bookId, entry) } }
     }

@@ -18,13 +18,14 @@ data class HistoryEntry(val positionMs: Long, val kind: JumpKind, val chapterTit
 
 object ListeningHistory {
     const val LIMIT = 10
-    /** Skips this close together are one jump: the first entry keeps where the listener started. */
+    /** Skips (or sentence taps) this close together are one jump: the first entry keeps where the listener started. */
     const val SKIP_RUN_MS = 8_000L
 
     /** [entries] (newest first) with [entry] added; repeated skips merge, and only the last [LIMIT] are kept. */
     fun add(entries: List<HistoryEntry>, entry: HistoryEntry): List<HistoryEntry> {
         val last = entries.firstOrNull()
-        val skip = entry.kind == JumpKind.SKIP_BACK || entry.kind == JumpKind.SKIP_FORWARD
+        // Taps on several sentences in a row, like a run of skips, are one jump from where the listener was.
+        val skip = entry.kind == JumpKind.SKIP_BACK || entry.kind == JumpKind.SKIP_FORWARD || entry.kind == JumpKind.SENTENCE
         if (last != null && skip && last.kind == entry.kind && entry.savedAt - last.savedAt in 0..SKIP_RUN_MS)
             return listOf(last.copy(savedAt = entry.savedAt)) + entries.drop(1)
         return (listOf(entry) + entries).take(LIMIT)
