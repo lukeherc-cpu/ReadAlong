@@ -59,7 +59,7 @@ class PlaybackCoordinator(context: Context, repository: BookRepository, private 
         val now = state.value
         val bookId = now.bookId ?: return
         if (selectedDemo.value || notes == null) return
-        // Every tapped sentence counts ; other seeks only when they go somewhere new.
+        // Every tapped sentence counts; other seeks only when they go somewhere new.
         val least = if (kind == com.example.readalong.domain.model.JumpKind.SENTENCE) 1_000L else MIN_JUMP_MS
         if (targetMs != null && kotlin.math.abs(targetMs - now.positionMs) < least) return
         val entry = com.example.readalong.domain.model.HistoryEntry(now.positionMs, kind, now.chapterTitle, System.currentTimeMillis())
