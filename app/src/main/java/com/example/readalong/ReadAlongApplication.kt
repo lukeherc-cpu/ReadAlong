@@ -119,6 +119,7 @@ class ReadAlongApplication : Application() {
                 delay(5_000)
             }
         }
+        com.example.readalong.ui.widget.Widgets.follow(this)
         applicationScope.launch {
             // Each pause writes the book's progress beside it, for ReadAlong for Windows to pick up.
             var wasPlaying: String? = null
