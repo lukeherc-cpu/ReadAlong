@@ -181,6 +181,7 @@ class ReadAlongApplication : Application() {
     val bookReaderPreferences by lazy { com.example.readalong.data.preferences.ReaderPreferencesStore.forBooks(this) }
     val readerPreferences by lazy { com.example.readalong.data.preferences.ReaderPreferencesStore(this) }
     val transcriptRepository by lazy { com.example.readalong.data.reading.TranscriptRepository(database, folderBookmarks) }
+    val collections by lazy { com.example.readalong.data.book.CollectionStore(database.bookDao()) }
     val playbackStore by lazy { com.example.readalong.playback.PlaybackStore() }
     val bookNotes by lazy { com.example.readalong.data.book.BookNotesRepository(database) }
     val playback by lazy { com.example.readalong.playback.PlaybackCoordinator(this, bookRepository, database, playbackStore, bookNotes) }

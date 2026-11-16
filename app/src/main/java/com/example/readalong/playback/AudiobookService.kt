@@ -27,13 +27,14 @@ import kotlinx.coroutines.sync.withLock
 
 @androidx.annotation.OptIn(UnstableApi::class)
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
-class AudiobookService : MediaSessionService() {
+class AudiobookService : MediaLibraryService() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate + com.example.readalong.data.diagnostics.BackgroundFailures.handler("Playback service"))
     private val selectLock = Mutex()
     private val saveLock = Mutex()
     private lateinit var player: ExoPlayer
     private lateinit var sessionPlayer: AudiobookSessionPlayer
-    private var session: MediaSession? = null
+    private var session: MediaLibraryService.MediaLibrarySession? = null
+    private val library by lazy { AutoLibrary(app) }
     private val app get() = application as ReadAlongApplication
     private val database get() = app.database
     private val bookFlow = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
@@ -93,6 +94,7 @@ class AudiobookService : MediaSessionService() {
                         scope.launch { try { com.example.readalong.data.processing.TranscriptionPlan.correctDuration(database, item.bookId, item.id, duration) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { } }
                     }
                 }
+                override fun onPlaybackParametersChanged(playbackParameters: PlaybackParameters) { session?.setMediaButtonPreferences(buttons()) }
                 override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
                     if (!playWhenReady) { pausedAt = android.os.SystemClock.elapsedRealtime(); return }
                     val since = pausedAt ?: return
@@ -117,19 +119,48 @@ class AudiobookService : MediaSessionService() {
                 catch (failure: Exception) { result.setException(failure) }
             }
             result
-        }
+        }.apply { playBook = { id -> future { selectLock.withLock { loadingBook = true; try { loadBook(id) } finally { loadingBook = false } }
+            database.bookDao().putMetadata(LibraryMetadataEntity("current_book", id)) } } }
         scope.launch { bookFlow.flatMapLatest { app.sound.effective(it) }.collect(::applySound) }
         scope.launch { app.appPreferences.preferences.collect { settings -> this@AudiobookService.settings = settings; sessionPlayer.intervals(settings.playerBack * 1000L, settings.playerForward * 1000L) } }
-        val buttons = listOf(
-            CommandButton.Builder(CommandButton.ICON_SKIP_BACK).setDisplayName("Rewind").setPlayerCommand(Player.COMMAND_SEEK_BACK).setSlots(CommandButton.SLOT_BACK).build(),
-            CommandButton.Builder(CommandButton.ICON_SKIP_FORWARD).setDisplayName("Forward").setPlayerCommand(Player.COMMAND_SEEK_FORWARD).setSlots(CommandButton.SLOT_FORWARD).build())
-        session = MediaSession.Builder(this, sessionPlayer).setMediaButtonPreferences(buttons).setSessionActivity(activity).setCallback(object : MediaSession.Callback {
+        session = MediaLibraryService.MediaLibrarySession.Builder(this, sessionPlayer, object : MediaLibraryService.MediaLibrarySession.Callback {
             override fun onConnect(session: MediaSession, controller: MediaSession.ControllerInfo): MediaSession.ConnectionResult {
-                val commands = MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS.buildUpon()
+                val commands = MediaSession.ConnectionResult.DEFAULT_SESSION_AND_LIBRARY_COMMANDS.buildUpon()
+                // Speed and next chapter are buttons in the car and the media notification.
+                listOf(CYCLE_SPEED, NEXT_CHAPTER).forEach { commands.add(SessionCommand(it, Bundle.EMPTY)) }
                 if (controller.packageName == packageName) listOf(SELECT_BOOK, SEEK_BOOK, SEEK_CHAPTER, SLEEP_TIMER, CLEAR_BOOK).forEach { commands.add(SessionCommand(it, Bundle.EMPTY)) }
                 return MediaSession.ConnectionResult.AcceptedResultBuilder(session).setAvailableSessionCommands(commands.build()).build()
             }
+            override fun onGetLibraryRoot(session: MediaLibraryService.MediaLibrarySession, browser: MediaSession.ControllerInfo, params: MediaLibraryService.LibraryParams?) =
+                Futures.immediateFuture(LibraryResult.ofItem(library.root(), params))
+            override fun onGetChildren(session: MediaLibraryService.MediaLibrarySession, browser: MediaSession.ControllerInfo, parentId: String, page: Int, pageSize: Int, params: MediaLibraryService.LibraryParams?) =
+                future { LibraryResult.ofItemList(library.children(parentId).drop(page * pageSize).take(pageSize), params) }
+            override fun onGetItem(session: MediaLibraryService.MediaLibrarySession, browser: MediaSession.ControllerInfo, mediaId: String) =
+                future { library.item(mediaId)?.let { LibraryResult.ofItem(it, null) } ?: LibraryResult.ofError(SessionError.ERROR_BAD_VALUE) }
+            // A book picked in the car arrives as "book:<id>"; the player loads it (see AudiobookSessionPlayer.playBook).
+            override fun onAddMediaItems(mediaSession: MediaSession, controller: MediaSession.ControllerInfo, mediaItems: MutableList<MediaItem>): ListenableFuture<List<MediaItem>> =
+                if (mediaItems.isNotEmpty() && mediaItems.all { it.mediaId.startsWith(AutoLibrary.BOOK) }) Futures.immediateFuture(mediaItems.take(1))
+                else super.onAddMediaItems(mediaSession, controller, mediaItems)
+            override fun onPlaybackResumption(mediaSession: MediaSession, controller: MediaSession.ControllerInfo, isForPlayback: Boolean) = future {
+                val item = library.current() ?: error("Nothing to resume")
+                MediaSession.MediaItemsWithStartPosition(listOf(item), 0, C.TIME_UNSET)
+            }
             override fun onCustomCommand(session: MediaSession, controller: MediaSession.ControllerInfo, customCommand: SessionCommand, args: Bundle): ListenableFuture<SessionResult> {
+                when (customCommand.customAction) {
+                    CYCLE_SPEED -> {
+                        val now = player.playbackParameters.speed
+                        player.setPlaybackSpeed(com.example.readalong.domain.model.SpeedChips.firstOrNull { it > now + .01f } ?: com.example.readalong.domain.model.SpeedChips.first())
+                        return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+                    }
+                    NEXT_CHAPTER -> {
+                        val state = snapshot()
+                        val next = state.chapters.getOrNull(state.chapterIndex + 1) ?: return Futures.immediateFuture(SessionResult(SessionError.ERROR_BAD_VALUE))
+                        sleepChapter = null; pausedAt = null
+                        player.seekTo(next.fileIndex, next.fileStartMs)
+                        publish(); scope.launch { safelySave() }
+                        return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+                    }
+                }
                 if (controller.packageName != packageName) return Futures.immediateFuture(SessionResult(SessionError.ERROR_PERMISSION_DENIED))
                 val result = SettableFuture.create<SessionResult>()
                 scope.launch {
@@ -179,7 +210,7 @@ class AudiobookService : MediaSessionService() {
                 }
                 return result
             }
-        }).build()
+        }).setMediaButtonPreferences(buttons()).setSessionActivity(activity).build()
         // Counts listening time for the "Enjoying ReadAlong?" card, saved every 30 s.
         scope.launch {
             var unsaved = 0L
@@ -386,6 +417,29 @@ class AudiobookService : MediaSessionService() {
         catch (_: Exception) { error = "Playback continues, but progress couldn't be saved. Check device storage."; publish() }
     }
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo) = session
+
+    /**
+     * Speed, rewind, forward and next chapter: the row in Android Auto (play and pause sit in the middle)
+     * and in the media notification. There is no sleep button in the car.
+     */
+    private fun buttons() = listOf(
+        CommandButton.Builder(CommandButton.ICON_PLAYBACK_SPEED).setDisplayName("Speed ${com.example.readalong.domain.model.speedLabel(player.playbackParameters.speed)}")
+            .setSessionCommand(SessionCommand(CYCLE_SPEED, Bundle.EMPTY)).setSlots(CommandButton.SLOT_OVERFLOW).build(),
+        CommandButton.Builder(CommandButton.ICON_SKIP_BACK).setDisplayName("Rewind").setPlayerCommand(Player.COMMAND_SEEK_BACK).setSlots(CommandButton.SLOT_BACK).build(),
+        CommandButton.Builder(CommandButton.ICON_SKIP_FORWARD).setDisplayName("Forward").setPlayerCommand(Player.COMMAND_SEEK_FORWARD).setSlots(CommandButton.SLOT_FORWARD).build(),
+        CommandButton.Builder(CommandButton.ICON_NEXT).setDisplayName("Next chapter")
+            .setSessionCommand(SessionCommand(NEXT_CHAPTER, Bundle.EMPTY)).setSlots(CommandButton.SLOT_OVERFLOW).build())
+
+    /** Runs [work] on the service's scope as a future, for the session's callbacks. */
+    private fun <T> future(work: suspend () -> T): ListenableFuture<T> {
+        val result = SettableFuture.create<T>()
+        scope.launch {
+            try { result.set(work()) }
+            catch (cancelled: CancellationException) { result.cancel(false); throw cancelled }
+            catch (failure: Exception) { result.setException(failure) }
+        }
+        return result
+    }
     override fun onTaskRemoved(rootIntent: Intent?) {
         player.pause()
         scope.launch { safelySave(); stopSelf() }
