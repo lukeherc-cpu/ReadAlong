@@ -41,4 +41,18 @@
     <string name="mark_finished">Mark finished</string>
     <string name="mark_unfinished">Mark unfinished</string>
     <string name="book_update_error">Status couldn’t be saved. Please try again.</string>
+    <string name="widget_open_player">Open ReadAlong</string>
+    <string name="widget_play">Play or pause</string>
+    <string name="widget_back">Rewind</string>
+    <string name="widget_forward">Forward</string>
+    <string name="widget_sleep">Sleep timer, 30 minutes</string>
+    <string name="widget_continue_title">Continue listening</string>
+    <string name="widget_nothing_started">Books you start show here.</string>
+    <string name="widget_readalong_label">Read along</string>
+    <string name="widget_cover_description">Cover with a play button and progress line</string>
+    <string name="widget_continue_description">Six recent books, tap one to resume</string>
+    <string name="widget_now_playing_description">Title, chapter, progress, rewind, play, forward and sleep</string>
+    <string name="widget_strip_description">Slim controls</string>
+    <string name="widget_readalong_description">The sentence being read, as you listen</string>
+    <string name="widget_nothing_playing">Pick a book in ReadAlong</string>
 </resources>
