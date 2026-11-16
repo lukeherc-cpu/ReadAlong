@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
 // The deploy workflow passes the real Pages address (it differs with a custom domain or a renamed repository).
-const siteUrl = (process.env.SITE_URL || 'https://lukeherc-cpu.github.io/ReadAlong').replace(/\/+$/, '') + '/'
+const siteUrl = (process.env.SITE_URL || 'https://readalongapp.github.io/ReadAlong').replace(/\/+$/, '') + '/'
 
 /** Fills in the absolute URLs that search engines and link previews need, and writes robots.txt and a sitemap. */
 function seo(): Plugin {

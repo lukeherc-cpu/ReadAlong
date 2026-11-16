@@ -20,7 +20,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
 const val DONATE_URL = "https://ko-fi.com/readalong"
-const val GITHUB_URL = "https://github.com/lukeherc-cpu/ReadAlong"
+const val GITHUB_URL = "https://github.com/readalongapp/ReadAlong"
 
 /** "Enjoying ReadAlong?": shown after every 10 hours of listening until "Don't show this again" is ticked. */
 @Composable
