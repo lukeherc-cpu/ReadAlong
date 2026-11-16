@@ -56,6 +56,8 @@ interface BookDao {
 
     @Query("SELECT * FROM library_metadata WHERE substr(`key`, 1, length(:prefix)) = :prefix")
     suspend fun metadataWithPrefix(prefix: String): List<LibraryMetadataEntity>
+    @Query("SELECT * FROM library_metadata WHERE substr(`key`, 1, length(:prefix)) = :prefix")
+    fun observeMetadataWithPrefix(prefix: String): kotlinx.coroutines.flow.Flow<List<LibraryMetadataEntity>>
 
     /**
      * Per book: whether it has an EPUB (one chosen for it, or one found beside the audio) and a finished ReadAlong.
