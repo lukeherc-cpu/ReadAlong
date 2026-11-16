@@ -158,6 +158,12 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                         DropdownMenuItem(text = { Text("Bookmarks") }, leadingIcon = { menuIcon(R.drawable.ic_bookmark) },
                             trailingIcon = { if (bookmarks.isNotEmpty()) Text("${bookmarks.size}", style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant) },
                             onClick = { panel = "bookmarks"; menu = false })
+                        if (!book.isDemo) {
+                            DropdownMenuItem(text = { Text("Listening history") }, leadingIcon = { menuIcon(R.drawable.ic_undo) },
+                                onClick = { panel = "history"; menu = false }, modifier = Modifier.testTag("menu_history"))
+                            DropdownMenuItem(text = { Text("Character List") }, leadingIcon = { menuIcon(R.drawable.ic_book) },
+                                onClick = { panel = "characters"; menu = false }, modifier = Modifier.testTag("menu_characters"))
+                        }
                     }
                 }
             }
@@ -284,7 +290,9 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
     if (showBuffering) LinearProgressIndicator(Modifier.align(Alignment.TopCenter).fillMaxWidth().height(2.dp).semantics { contentDescription = "Buffering audio" })
     }
     if (panel == "bookmarks") BookmarksDialog(reading, state.positionMs, playback::seek, { panel = null }, state.chapters)
-    if (panel != null && panel != "bookmarks") PlayerPanel(panel!!, book, state, playback, close = { panel = null })
+    if (panel == "history") HistorySheet(book.id, state.positionMs, state.chapterTitle, playback::seek, { panel = null })
+    if (panel == "characters") CharacterListSheet(book.id, state.positionMs, state.chapters, playback::seek, { panel = null })
+    if (panel != null && panel !in setOf("bookmarks", "history", "characters")) PlayerPanel(panel!!, book, state, playback, close = { panel = null })
     }
 }
 

@@ -13,7 +13,7 @@ import kotlinx.coroutines.sync.withLock
 
 /** A single UI facade. Fictional silent samples never feed the real audio service. */
 class PlaybackCoordinator(context: Context, repository: BookRepository, private val database: ReadAlongDatabase,
-    private val store: PlaybackStore) : PlaybackControls {
+    private val store: PlaybackStore, private val notes: com.example.readalong.data.book.BookNotesRepository? = null) : PlaybackControls {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate + com.example.readalong.data.diagnostics.BackgroundFailures.handler("Playback"))
     private val demo = DemoPlaybackController(repository)
     private val connection = PlaybackConnection(context)
@@ -51,19 +51,35 @@ class PlaybackCoordinator(context: Context, repository: BookRepository, private 
     } }
     override fun pause() = if (selectedDemo.value) demo.pause() else run { connection.controller().pause() }
     override fun play() = if (selectedDemo.value) { if (!demo.state.value.isPlaying) demo.toggle(); Unit } else run { connection.controller().play() }
-    override fun listenFrom(positionMs: Long) = if (selectedDemo.value) { demo.seek(positionMs); if (!demo.state.value.isPlaying) demo.toggle(); Unit } else run {
-        connection.command(SEEK_BOOK, Bundle().apply { putLong("positionMs", positionMs.coerceAtLeast(0)); putBoolean("play", true) })
+    /**
+     * Saves where the listener is before a jump, for Listening history. Small nudges (a sentence or two
+     * either way) aren't jumps; skips and chapter changes always are. The demo book keeps no history.
+     */
+    private fun remember(kind: com.example.readalong.domain.model.JumpKind, targetMs: Long? = null) {
+        val now = state.value
+        val bookId = now.bookId ?: return
+        if (selectedDemo.value || notes == null) return
+        if (targetMs != null && kotlin.math.abs(targetMs - now.positionMs) < MIN_JUMP_MS) return
+        val entry = com.example.readalong.domain.model.HistoryEntry(now.positionMs, kind, now.chapterTitle, System.currentTimeMillis())
+        scope.launch { runCatching { notes.addHistory(bookId, entry) } }
     }
+    override fun listenFrom(positionMs: Long) = remember(com.example.readalong.domain.model.JumpKind.SENTENCE, positionMs).let { if (selectedDemo.value) { demo.seek(positionMs); if (!demo.state.value.isPlaying) demo.toggle(); Unit } else run {
+        connection.command(SEEK_BOOK, Bundle().apply { putLong("positionMs", positionMs.coerceAtLeast(0)); putBoolean("play", true) })
+    } }
     override fun toggle() = if (selectedDemo.value) demo.toggle() else run {
         val id = state.value.bookId ?: return@run
         connection.command(SELECT_BOOK, Bundle().apply { putString("bookId", id) })
         val player = connection.controller()
         if (player.playWhenReady) player.pause() else { if (player.playerError != null) player.prepare(); player.play() }
     }
-    override fun seek(positionMs: Long) = if (selectedDemo.value) demo.seek(positionMs) else run {
+    override fun seek(positionMs: Long) { remember(com.example.readalong.domain.model.JumpKind.SEEK, positionMs); seekTo(positionMs) }
+    private fun seekTo(positionMs: Long) = if (selectedDemo.value) demo.seek(positionMs) else run {
         connection.command(SEEK_BOOK, Bundle().apply { putLong("positionMs", positionMs.coerceAtLeast(0)) })
     }
-    override fun skip(deltaMs: Long) = seek(state.value.positionMs + deltaMs)
+    override fun skip(deltaMs: Long) {
+        remember(if (deltaMs < 0) com.example.readalong.domain.model.JumpKind.SKIP_BACK else com.example.readalong.domain.model.JumpKind.SKIP_FORWARD)
+        seekTo(state.value.positionMs + deltaMs)
+    }
     override fun speed(value: Float) = if (selectedDemo.value) demo.speed(value) else run { connection.controller().setPlaybackSpeed(value.coerceIn(.5f, 2f)) }
     override fun sleep(minutes: Int?) = if (selectedDemo.value) demo.sleep(minutes) else run {
         connection.command(SLEEP_TIMER, Bundle().apply { putInt("minutes", minutes ?: 0) })
@@ -71,7 +87,7 @@ class PlaybackCoordinator(context: Context, repository: BookRepository, private 
     override fun sleepAtChapterEnd() = if (selectedDemo.value) demo.sleepAtChapterEnd() else run {
         connection.command(SLEEP_TIMER, Bundle().apply { putBoolean("chapterEnd", true) })
     }
-    override fun chapter(index: Int) = if (selectedDemo.value) demo.chapter(index) else run { connection.command(SEEK_CHAPTER, Bundle().apply { putInt("chapterIndex", index) }) }
+    override fun chapter(index: Int) = remember(com.example.readalong.domain.model.JumpKind.CHAPTER).let { if (selectedDemo.value) demo.chapter(index) else run { connection.command(SEEK_CHAPTER, Bundle().apply { putInt("chapterIndex", index) }) } }
     suspend fun releaseBook(bookId: String) = withContext(Dispatchers.Main.immediate) {
         selectLock.withLock {
             if (state.value.bookId == bookId) {
@@ -89,4 +105,5 @@ class PlaybackCoordinator(context: Context, repository: BookRepository, private 
             catch (_: Exception) { failure.value = "Audio couldn't be opened. Check access to the original file and try again." }
         }
     }
+    private companion object { const val MIN_JUMP_MS = 15_000L }
 }
