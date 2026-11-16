@@ -77,6 +77,10 @@ fun BookActions(book: Book, model: BookActionsViewModel, onDismiss: () -> Unit) 
     var internetCover by remember { mutableStateOf(false) }
     var delete by remember { mutableStateOf(false) }
     val busy by model.busy.collectAsStateWithLifecycle()
+    val collectionApp = androidx.compose.ui.platform.LocalContext.current.applicationContext as? ReadAlongApplication
+    val collections by remember(collectionApp) { collectionApp?.collections?.all ?: flowOf(emptyList()) }.collectAsStateWithLifecycle(emptyList())
+    var newCollection by rememberSaveable(book.id) { mutableStateOf(false) }
+    val collectionScope = rememberCoroutineScope()
     val error by model.error.collectAsStateWithLifecycle()
     val epub by remember(book.id) { model.epub(book) }.collectAsStateWithLifecycle(null)
     val epubPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let { uri -> model.addEpub(book, uri, onDismiss) } }
@@ -105,6 +109,11 @@ fun BookActions(book: Book, model: BookActionsViewModel, onDismiss: () -> Unit) 
                 icon = R.drawable.ic_headphones, supporting = "Just for this book", enabled = !busy)
             com.example.readalong.ui.components.SheetDivider()
         } }
+        if (collectionApp != null) item { Column {
+            BookCollectionsSection(book, collections, onToggle = { collection, inside -> collectionScope.launch { collectionApp.collections.setInside(collection, book.id, inside) } },
+                onNew = { newCollection = true })
+            com.example.readalong.ui.components.SheetDivider()
+        } }
         item { Column {
             com.example.readalong.ui.components.SheetRow("Edit title", { edit = "Title"; value = book.title }, icon = R.drawable.ic_edit, enabled = !busy)
             com.example.readalong.ui.components.SheetRow("Edit author", { edit = "Author"; value = book.author.orEmpty() }, icon = R.drawable.ic_edit, enabled = !busy)
@@ -121,6 +130,8 @@ fun BookActions(book: Book, model: BookActionsViewModel, onDismiss: () -> Unit) 
             com.example.readalong.ui.components.SheetRow("Delete book", { delete = true }, icon = R.drawable.ic_trash, destructive = true, enabled = !busy)
         } }
     }
+    if (newCollection && collectionApp != null) CollectionNameDialog("New collection", confirm = "Create", message = "${book.title} goes in it. You can add more books later.",
+        onDismiss = { newCollection = false }) { name -> newCollection = false; collectionScope.launch { runCatching { collectionApp.collections.create(name, listOf(book.id)) } } }
     if (internetCover) InternetCoverPicker(book.title, onDismiss = { internetCover = false }, onSave = { model.edit(book, cover = it); internetCover = false })
     edit?.let { field -> AlertDialog(onDismissRequest = { edit = null }, title = { Text("Edit ${field.lowercase()}") },
         text = { OutlinedTextField(value, { value = it.take(500) }, label = { Text(field) }, singleLine = true) },
