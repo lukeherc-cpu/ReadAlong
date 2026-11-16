@@ -13,7 +13,7 @@ object LaunchAppearance {
     private fun cache(context: Context) = context.getSharedPreferences("launch_appearance", Context.MODE_PRIVATE)
     fun read(context: Context): AppPreferences {
         val saved = cache(context)
-        return AppPreferences(libraryLight = saved.getBoolean("light", true), basicColor = LaunchPalettes.closest(saved.getLong("color", 0xFF496B8A)).color)
+        return AppPreferences(libraryLight = saved.getBoolean("light", com.example.readalong.data.preferences.FirstInstallTheme.launchDefaultLight(context)), basicColor = LaunchPalettes.closest(saved.getLong("color", 0xFF496B8A)).color)
     }
     fun component(context: Context, value: AppPreferences): ComponentName {
         val palette = LaunchPalettes.closest(value.basicColor)

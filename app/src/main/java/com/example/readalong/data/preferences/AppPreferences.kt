@@ -7,9 +7,10 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 import java.io.IOException
 
-private val Context.appDataStore by preferencesDataStore("app_preferences", corruptionHandler = androidx.datastore.core.handlers.ReplaceFileCorruptionHandler { emptyPreferences() })
+private val Context.appDataStore by preferencesDataStore("app_preferences", produceMigrations = { listOf(FirstInstallTheme.migration(it)) }, corruptionHandler = androidx.datastore.core.handlers.ReplaceFileCorruptionHandler { emptyPreferences() })
 
 data class AppPreferences(
+    /** Light theme for the app. New installs start dark and updates keep what they had (see [FirstInstallTheme]). */
     val libraryLight: Boolean = true,
     val openingView: String = "COVER",
     val coloredMiniPlayer: Boolean = true,
@@ -53,7 +54,7 @@ const val SUPPORT_PROMPT_EVERY_MS = 10L * 60 * 60 * 1000
 class AppPreferencesStore(private val context: Context) {
     private val store = context.applicationContext.appDataStore
     private fun decode(p: Preferences) = AppPreferences(
-        p[booleanPreferencesKey("library_light")] ?: true,
+        p[FirstInstallTheme.key] ?: false,
         p[stringPreferencesKey("opening_view")]?.takeIf { it in listOf("COVER", "PREVIEW", "FULLSCREEN", "READ_ONLY") } ?: "COVER",
         p[booleanPreferencesKey("colored_mini")] ?: true,
         (p[intPreferencesKey("player_back")] ?: 20).coerceIn(1, 600),
