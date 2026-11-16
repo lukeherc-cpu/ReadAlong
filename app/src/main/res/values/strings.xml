@@ -21,6 +21,7 @@
     <string name="no_search_results">No matching books</string>
     <string name="no_search_results_message">Try another title or author.</string>
     <string name="section_current">Current</string>
+    <string name="section_new">New</string>
     <string name="section_not_started">Not started</string>
     <string name="section_finished">Finished</string>
     <string name="sort_recent">Recently played</string>

@@ -201,6 +201,7 @@ fun LibraryScreen(
                             Text(
                                 stringResource(when (group.section) {
                                     LibrarySection.CURRENT -> R.string.section_current
+                                    LibrarySection.NEW -> R.string.section_new
                                     LibrarySection.NOT_STARTED -> R.string.section_not_started
                                     LibrarySection.FINISHED -> R.string.section_finished
                                 }),
