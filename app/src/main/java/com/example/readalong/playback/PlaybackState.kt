@@ -21,7 +21,6 @@ data class PlaybackState(
     val chapterTitle get() = chapters.getOrNull(chapterIndex)?.title ?: "Demo · Chapter ${positionMs / 1_800_000 + 1}"
 }
 
-val PlaybackSpeeds = listOf(.5f, .75f, .9f, 1f, 1.1f, 1.2f, 1.25f, 1.5f, 1.75f, 2f)
 
 fun chapterStart(positionMs: Long, chapterLengthMs: Long = 1_800_000) = positionMs / chapterLengthMs * chapterLengthMs
 fun clockTime(positionMs: Long): String {

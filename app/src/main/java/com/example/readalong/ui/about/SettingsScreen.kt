@@ -3,6 +3,8 @@ package com.example.readalong.ui.about
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.background
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -41,6 +43,15 @@ fun SettingsScreen(app: ReadAlongApplication, onBack: () -> Unit, onModel: () ->
     var copied by remember { mutableStateOf(false) }
     var battery by remember { mutableStateOf(false) }
     var equalizerPage by rememberSaveable { mutableStateOf(false) }
+    var resumeDialog by remember { mutableStateOf(false) }
+    var resetSoundSheet by remember { mutableStateOf(false) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val soundFile = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri: android.net.Uri? ->
+        if (uri != null) {
+            runCatching { context.contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+            save { it.copy(resetSound = "FILE", resetSoundUri = uri.toString()) }
+        }
+    }
     val sound by app.sound.defaults.collectAsStateWithLifecycle(com.example.readalong.domain.model.SoundSettings.DEFAULT)
     fun saveSound(value: com.example.readalong.domain.model.SoundSettings) { scope.launch { app.sound.saveDefaults(value) } }
     if (equalizerPage) {
@@ -88,6 +99,8 @@ fun SettingsScreen(app: ReadAlongApplication, onBack: () -> Unit, onModel: () ->
                 SettingsRow("Player background", onClick = { backgroundPicker = true }) { ValueText(if (preferences.blurredPlayer) "Blurred cover" else "Solid color"); Chevron() }
                 SettingsRow("Reading fonts and appearance", onClick = { appearance = true })
                 SettingsRow("Rewind and forward times", onClick = { skipDialog = true }) { ValueText("${preferences.playerBack}s · ${preferences.playerForward}s"); Chevron() }
+                SettingsRow("Rewind when resuming", Modifier.testTag("settings_resume"), summary = "Goes back a little after a pause", onClick = { resumeDialog = true }) { ValueText(resumeLabel(preferences.resumeRewind)); Chevron() }
+                PreferenceSwitch("Remember speed for each book", preferences.speedPerBook) { value -> save { it.copy(speedPerBook = value) } }
             }
         }
         SettingsSection("Sound") {
@@ -97,6 +110,13 @@ fun SettingsScreen(app: ReadAlongApplication, onBack: () -> Unit, onModel: () ->
             }
             Text("Defaults for every book. Change one book from the player's ⋯ menu or by holding its cover in the library.",
                 Modifier.padding(start = 4.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        SettingsSection("Sleep timer") {
+            SettingsGroup {
+                PreferenceSwitch("Shake to reset", preferences.shakeToReset, summary = "Shake the phone to start the timer again, even while it fades") { value -> save { it.copy(shakeToReset = value) } }
+                SettingsRow("Reset sound", Modifier.testTag("settings_reset_sound"), onClick = { resetSoundSheet = true }) { ValueText(resetSoundLabel(preferences.resetSound)); Chevron() }
+            }
+            Text("Playback fades out over the last 20 seconds.", Modifier.padding(start = 4.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         SettingsSection("Transcription") {
             SettingsGroup {
@@ -158,6 +178,44 @@ fun SettingsScreen(app: ReadAlongApplication, onBack: () -> Unit, onModel: () ->
         }) { Text("Save") } }, dismissButton = { TextButton(onClick = { skipDialog = false }) { Text("Cancel") } })
     }
     if (battery) com.example.readalong.ui.transcription.BackgroundPreparationPrompt(app, force = true, onClose = { battery = false })
+    if (resumeDialog) {
+        var choice by remember { mutableStateOf(preferences.resumeRewind) }
+        AlertDialog(onDismissRequest = { resumeDialog = false }, title = { Text("Rewind when resuming") }, text = {
+            Column(Modifier.selectableGroup()) {
+                Text("When you press play after a pause, start a little earlier so you don't lose the thread.", Modifier.padding(bottom = 8.dp))
+                com.example.readalong.data.preferences.ResumeRewinds.forEach { mode ->
+                    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).selectable(choice == mode, role = androidx.compose.ui.semantics.Role.RadioButton) { choice = mode }.testTag("resume_$mode"),
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        RadioButton(choice == mode, onClick = null)
+                        Column {
+                            Text(resumeLabel(mode))
+                            resumeSummary(mode)?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                        }
+                    }
+                }
+            }
+        }, confirmButton = { TextButton(onClick = { save { it.copy(resumeRewind = choice) }; resumeDialog = false }) { Text("OK") } },
+            dismissButton = { TextButton(onClick = { resumeDialog = false }) { Text("Cancel") } })
+    }
+    if (resetSoundSheet) com.example.readalong.ui.components.ActionSheet({ resetSoundSheet = false }, "Reset sound", "Plays when a shake resets the timer") {
+        items(com.example.readalong.data.preferences.ResetSounds) { sound ->
+            com.example.readalong.ui.components.SheetRow(if (sound == "FILE") "Choose a sound file…" else resetSoundLabel(sound), {
+                if (sound == "FILE") soundFile.launch(arrayOf("audio/*"))
+                else { save { it.copy(resetSound = sound) }; com.example.readalong.playback.SleepShake.playResetSound(context, preferences.copy(resetSound = sound)) }
+            }, selected = preferences.resetSound == sound, icon = if (sound == "FILE") R.drawable.ic_folder else null)
+        }
+        item {
+            var volume by remember { mutableFloatStateOf(preferences.resetVolume.toFloat()) }
+            Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Volume", style = MaterialTheme.typography.bodyMedium)
+                Slider(volume, { volume = it }, Modifier.weight(1f).testTag("reset_volume"), valueRange = 0f..100f, onValueChangeFinished = {
+                    save { it.copy(resetVolume = volume.toInt()) }
+                    com.example.readalong.playback.SleepShake.playResetSound(context, preferences.copy(resetVolume = volume.toInt()))
+                })
+                Text("${volume.toInt()}%", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
 }
 
 // Quiet, sentence-case headings so the rows, not the labels, carry the page.
@@ -208,4 +266,16 @@ fun SettingsScreen(app: ReadAlongApplication, onBack: () -> Unit, onModel: () ->
 }
 @Composable private fun SecondsField(label: String, value: String, change: (String) -> Unit) {
     OutlinedTextField(value, { change(it.filter(Char::isDigit).take(3)) }, label = { Text(label) }, singleLine = true, keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number))
+}
+
+private fun resumeLabel(mode: String) = when (mode) {
+    "OFF" -> "Off"; "SHORT" -> "Always 3 seconds"; "LONG" -> "Always 10 seconds"; "SENTENCE" -> "Start of the sentence"; else -> "Smart"
+}
+private fun resumeSummary(mode: String) = when (mode) {
+    "SMART" -> "2 s after a short pause, 10 s after 5 min, 30 s after an hour"
+    "SENTENCE" -> "Uses the transcript"
+    else -> null
+}
+private fun resetSoundLabel(sound: String) = when (sound) {
+    "BEEPS" -> "Two beeps"; "VIBRATE" -> "Vibrate only"; "NONE" -> "None"; "FILE" -> "Your sound file"; else -> "Soft chime"
 }
