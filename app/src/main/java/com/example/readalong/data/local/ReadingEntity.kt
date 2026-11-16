@@ -34,6 +34,9 @@ data class TimedText(val startMs: Long, val text: String)
 interface ReadingDao {
     @Query("SELECT startMs, text FROM transcript_segments WHERE bookId = :bookId AND startMs <= :untilMs ORDER BY startMs")
     suspend fun textUntil(bookId: String, untilMs: Long): List<TimedText>
+    /** The transcript segment playing at [atMs], for going back to the start of the sentence. */
+    @Query("SELECT startMs, text FROM transcript_segments WHERE bookId = :bookId AND startMs <= :atMs ORDER BY startMs DESC LIMIT 1")
+    suspend fun segmentAt(bookId: String, atMs: Long): TimedText?
     @Query("SELECT t.id, t.bookId, t.chapterId, t.startMs, t.endMs, COALESCE(c.replacement, t.text) AS text, t.confidence, t.wordsJson, t.anchorsJson FROM transcript_segments t LEFT JOIN transcript_corrections c ON c.bookId = t.bookId AND c.segmentId = t.id AND c.originalText = t.text WHERE t.bookId = :bookId AND t.id IN (:ids)")
     suspend fun sourceSegments(bookId: String, ids: List<String>): List<TranscriptEntity>
     @Query("SELECT p.segmentId AS id, p.bookId, p.chapterId, p.startMs, p.endMs, p.text, NULL AS confidence, NULL AS wordsJson, p.anchorsJson FROM epub_paragraphs p INNER JOIN readable_versions v ON v.bookId = p.bookId AND v.activeEditionId = p.editionId WHERE p.bookId = :bookId AND p.endMs >= :position - 60000 AND p.startMs <= :position + 120000 ORDER BY p.startMs LIMIT 80")

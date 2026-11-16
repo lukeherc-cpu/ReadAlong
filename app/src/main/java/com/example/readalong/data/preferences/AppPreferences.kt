@@ -50,7 +50,21 @@ data class AppPreferences(
     val folderLibrary: Boolean = false,
     /** How library books are ordered: a [com.example.readalong.domain.model.LibrarySort] name. */
     val librarySort: String = "RECENT",
+    /** Each book opens at its own saved speed; off means one speed for every book. */
+    val speedPerBook: Boolean = true,
+    /** How far play goes back after a pause: OFF, SHORT (3 s), LONG (10 s), SMART or SENTENCE. */
+    val resumeRewind: String = "SMART",
+    /** Shaking the phone while the sleep timer runs starts it again. */
+    val shakeToReset: Boolean = true,
+    /** Played when a shake resets the timer: CHIME, BEEPS, VIBRATE, NONE or FILE ([resetSoundUri]). */
+    val resetSound: String = "CHIME",
+    val resetSoundUri: String = "",
+    /** Reset sound volume, 0 to 100. */
+    val resetVolume: Int = 40,
 )
+
+val ResumeRewinds = listOf("OFF", "SHORT", "LONG", "SMART", "SENTENCE")
+val ResetSounds = listOf("CHIME", "BEEPS", "VIBRATE", "NONE", "FILE")
 
 const val SUPPORT_PROMPT_EVERY_MS = 10L * 60 * 60 * 1000
 
@@ -90,6 +104,12 @@ class AppPreferencesStore(private val context: Context) {
         p[booleanPreferencesKey("support_prompt_off")] ?: false,
         p[booleanPreferencesKey("folder_library")] ?: false,
         p[stringPreferencesKey("library_sort")]?.takeIf { name -> com.example.readalong.domain.model.LibrarySort.entries.any { it.name == name } } ?: "RECENT",
+        p[booleanPreferencesKey("speed_per_book")] ?: true,
+        p[stringPreferencesKey("resume_rewind")]?.takeIf { it in ResumeRewinds } ?: "SMART",
+        p[booleanPreferencesKey("shake_to_reset")] ?: true,
+        p[stringPreferencesKey("reset_sound")]?.takeIf { it in ResetSounds } ?: "CHIME",
+        p[stringPreferencesKey("reset_sound_uri")] ?: "",
+        (p[intPreferencesKey("reset_volume")] ?: 40).coerceIn(0, 100),
     )
     val preferences = store.data.catch { if (it is IOException) emit(emptyPreferences()) else throw it }.map(::decode)
     suspend fun update(change: (AppPreferences) -> AppPreferences) {
@@ -129,6 +149,12 @@ class AppPreferencesStore(private val context: Context) {
         p[booleanPreferencesKey("support_prompt_off")] = value.supportPromptOff
         p[booleanPreferencesKey("folder_library")] = value.folderLibrary
         p[stringPreferencesKey("library_sort")] = value.librarySort
+        p[booleanPreferencesKey("speed_per_book")] = value.speedPerBook
+        p[stringPreferencesKey("resume_rewind")] = value.resumeRewind.takeIf { it in ResumeRewinds } ?: "SMART"
+        p[booleanPreferencesKey("shake_to_reset")] = value.shakeToReset
+        p[stringPreferencesKey("reset_sound")] = value.resetSound.takeIf { it in ResetSounds } ?: "CHIME"
+        p[stringPreferencesKey("reset_sound_uri")] = value.resetSoundUri
+        p[intPreferencesKey("reset_volume")] = value.resetVolume.coerceIn(0, 100)
         }
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.example.readalong.ui.launch.LaunchAppearance.request(context, decode(saved)) }
     }

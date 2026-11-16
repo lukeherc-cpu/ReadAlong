@@ -8,6 +8,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.*
@@ -258,7 +260,7 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                     PlayerAction("Forward ${appSettings.playerForward} seconds", R.drawable.ic_forward, "${appSettings.playerForward}", { playback.skip(appSettings.playerForward * 1000L) })
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    PlayerAction("Playback speed", R.drawable.ic_speed, "${state.speed}×", { panel = "speed" })
+                    PlayerAction("Playback speed", R.drawable.ic_speed, com.example.readalong.domain.model.speedLabel(state.speed), { panel = "speed" })
                     // Running timer: the moon fills in and the label counts down.
                     val sleepLeft by produceState<Long?>(null, state.sleepEndsAt) {
                         while (true) { value = state.sleepEndsAt?.let { it - System.currentTimeMillis() }; kotlinx.coroutines.delay(15_000) }
@@ -303,15 +305,7 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
 @Composable
 private fun PlayerPanel(panel: String, book: Book, state: PlaybackState, playback: PlaybackControls, close: () -> Unit) {
     when (panel) {
-        "speed" -> {
-            val current = PlaybackSpeeds.indexOfFirst { it == state.speed }
-            com.example.readalong.ui.components.ActionSheet(close, "Playback speed",
-                listState = androidx.compose.foundation.lazy.rememberLazyListState((current - 2).coerceAtLeast(0))) {
-                items(PlaybackSpeeds) { speed ->
-                    com.example.readalong.ui.components.SheetRow("$speed×", { playback.speed(speed); close() }, selected = speed == state.speed)
-                }
-            }
-        }
+        "speed" -> SpeedSheet(state.speed, book.title, playback::speed, close)
         "sleep" -> {
             val left = state.sleepEndsAt?.let { it - System.currentTimeMillis() }
             val status = when {
@@ -328,6 +322,11 @@ private fun PlayerPanel(panel: String, book: Book, state: PlaybackState, playbac
                 item {
                     com.example.readalong.ui.components.SheetRow("End of chapter", { playback.sleepAtChapterEnd(); close() },
                         meta = if (state.sleepAtChapterEnd) null else "in ${hoursMinutes(chapterLeft)}", selected = state.sleepAtChapterEnd)
+                }
+                item {
+                    val shake = com.example.readalong.ui.theme.LocalAppSettings.current.shakeToReset
+                    Text(if (shake) "Fades out over the last 20 seconds. Shake the phone to start the timer again." else "Fades out over the last 20 seconds. Shake to reset is off in Settings → Sleep timer.",
+                        Modifier.padding(horizontal = 24.dp, vertical = 12.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
@@ -370,5 +369,40 @@ internal fun hoursMinutes(ms: Long): String {
         hours > 0 -> "${hours}h ${minutes % 60}m"
         minutes > 0 -> "${minutes}m"
         else -> "<1m"
+    }
+}
+
+/** 0.5× to 3× in 0.05 steps: a slider with − and +, quick picks, and whether this book keeps its own speed. */
+@Composable
+private fun SpeedSheet(speed: Float, title: String, change: (Float) -> Unit, close: () -> Unit) {
+    val settings = com.example.readalong.ui.theme.LocalAppSettings.current
+    val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as? com.example.readalong.ReadAlongApplication
+    val scope = rememberCoroutineScope()
+    var value by remember { mutableFloatStateOf(speed) }
+    fun set(next: Float) { value = com.example.readalong.domain.model.roundSpeed(next); change(value) }
+    com.example.readalong.ui.components.ActionSheet(close, "Playback speed", if (settings.speedPerBook) "Saved for $title" else "Same for every book") {
+        item {
+            Text(com.example.readalong.domain.model.speedLabel(value), Modifier.fillMaxWidth().padding(vertical = 4.dp).testTag("speed_value"),
+                style = MaterialTheme.typography.displaySmall, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        }
+        item {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedIconButton(onClick = { set(value - .05f) }, Modifier.testTag("speed_down")) { Text("−", style = MaterialTheme.typography.titleLarge) }
+                Slider(value, { value = com.example.readalong.domain.model.roundSpeed(it) }, Modifier.weight(1f).testTag("speed_slider"),
+                    valueRange = com.example.readalong.domain.model.MIN_SPEED..com.example.readalong.domain.model.MAX_SPEED, onValueChangeFinished = { change(value) })
+                OutlinedIconButton(onClick = { set(value + .05f) }, Modifier.testTag("speed_up")) { Text("+", style = MaterialTheme.typography.titleLarge) }
+            }
+        }
+        item {
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                com.example.readalong.domain.model.SpeedChips.forEach { chip ->
+                    FilterChip(value == chip, { set(chip) }, { Text(com.example.readalong.domain.model.speedLabel(chip)) }, Modifier.testTag("speed_chip_$chip"))
+                }
+            }
+        }
+        if (app != null) item {
+            com.example.readalong.ui.sound.SoundSwitch("Remember for this book", "Other books keep their own speed", settings.speedPerBook,
+                { on -> scope.launch { app.appPreferences.update { it.copy(speedPerBook = on) } } })
+        }
     }
 }
