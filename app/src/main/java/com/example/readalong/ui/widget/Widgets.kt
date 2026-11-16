@@ -190,7 +190,7 @@ object Widgets {
         value
     }
 
-    private fun loadCover(context: Context, uri: String, size: Int): Bitmap? = runCatching {
+    internal fun loadCover(context: Context, uri: String, size: Int): Bitmap? = runCatching {
         if (!uri.startsWith("content://") && !uri.startsWith("android.resource://")) return@runCatching null
         val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         context.contentResolver.openInputStream(Uri.parse(uri)).use { BitmapFactory.decodeStream(it, null, options) }

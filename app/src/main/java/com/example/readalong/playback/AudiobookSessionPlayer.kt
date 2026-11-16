@@ -9,7 +9,14 @@ import com.google.common.util.concurrent.ListenableFuture
 internal class AudiobookSessionPlayer(player: Player, private val skip: (Long) -> ListenableFuture<*>) : ForwardingSimpleBasePlayer(player) {
     private var back = 20_000L
     private var forward = 30_000L
+    /** Loads a whole book picked in Android Auto, which arrives as one "book:<id>" item. */
+    var playBook: ((String) -> ListenableFuture<*>)? = null
     fun intervals(backMs: Long, forwardMs: Long) { back = backMs; forward = forwardMs; invalidateState() }
+    override fun handleSetMediaItems(mediaItems: MutableList<MediaItem>, startIndex: Int, startPositionMs: Long): ListenableFuture<*> {
+        val id = mediaItems.singleOrNull()?.mediaId?.takeIf { it.startsWith(AutoLibrary.BOOK) }?.removePrefix(AutoLibrary.BOOK)
+        val load = playBook
+        return if (id != null && load != null) load(id) else super.handleSetMediaItems(mediaItems, startIndex, startPositionMs)
+    }
     override fun getState(): State {
         val state = super.getState()
         return state.buildUpon().setSeekBackIncrementMs(back).setSeekForwardIncrementMs(forward)
