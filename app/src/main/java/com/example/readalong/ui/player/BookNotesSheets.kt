@@ -74,18 +74,16 @@ fun CharacterListSheet(bookId: String, positionMs: Long, chapters: List<Playback
     LaunchedEffect(bookId, people.size) { suggestions = runCatching { repository.suggestions(bookId, positionMs, people.map { it.name }) }.getOrDefault(emptyList()) }
     var editing by remember { mutableStateOf<CharacterEntry?>(null) }
     var askAi by remember { mutableStateOf(false) }
+    var chooseHow by remember { mutableStateOf(false) }
     var expanded by remember { mutableStateOf<String?>(null) }
     fun where(ms: Long) = chapters.lastOrNull { it.startMs <= ms }?.title ?: clockTime(ms)
-    ActionSheet(close, "Character List", when (people.size) { 0 -> null; 1 -> "1 person"; else -> "${people.size} people" }, header = {
-        Button(onClick = { editing = CharacterEntry(BookNotesRepository.newId(), "") },
-            Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(top = 4.dp, bottom = 12.dp).heightIn(min = 48.dp).testTag("add_character")) {
+    // One Add character button, pinned at the bottom; it asks whether to type someone in or ask an AI.
+    ActionSheet(close, "Character List", when (people.size) { 0 -> null; 1 -> "1 person"; else -> "${people.size} people" }, footer = {
+        Button(onClick = { if (title.isNotBlank()) chooseHow = true else editing = CharacterEntry(BookNotesRepository.newId(), "") },
+            Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(top = 12.dp).heightIn(min = 48.dp).testTag("add_character")) {
             Icon(painterResource(R.drawable.ic_add), null, Modifier.size(20.dp))
             Spacer(Modifier.width(8.dp))
             Text("Add character")
-        }
-        if (title.isNotBlank()) OutlinedButton(onClick = { askAi = true },
-            Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 12.dp).heightIn(min = 48.dp).testTag("make_with_ai")) {
-            Text(if (people.isEmpty()) "Make with AI" else "Add more with AI")
         }
     }) {
         if (people.isEmpty()) item {
@@ -115,6 +113,17 @@ fun CharacterListSheet(bookId: String, positionMs: Long, chapters: List<Playback
             }
         }
     }
+    if (chooseHow) AlertDialog(onDismissRequest = { chooseHow = false }, title = { Text("Add characters") }, text = {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = { chooseHow = false; editing = CharacterEntry(BookNotesRepository.newId(), "") },
+                Modifier.fillMaxWidth().heightIn(min = 56.dp).testTag("add_myself")) {
+                Column(Modifier.fillMaxWidth()) { Text("Add someone myself"); Text("Type a name and a note", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            }
+            OutlinedButton(onClick = { chooseHow = false; askAi = true }, Modifier.fillMaxWidth().heightIn(min = 56.dp).testTag("make_with_ai")) {
+                Column(Modifier.fillMaxWidth()) { Text("Make with AI"); Text("Ask ChatGPT, Gemini or Claude who's who so far", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            }
+        }
+    }, confirmButton = {}, dismissButton = { TextButton(onClick = { chooseHow = false }) { Text("Cancel") } })
     if (askAi) AiCharacterDialog(AiCharacters.prompt(title, author, chapters.lastOrNull { it.startMs <= positionMs }?.title ?: "the ${clockTime(positionMs)} mark"),
         import = { answer -> repository.importCharacters(bookId, AiCharacters.parse(answer)) }, close = { askAi = false })
     editing?.let { person ->
