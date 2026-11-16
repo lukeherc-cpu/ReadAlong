@@ -21,6 +21,7 @@ class ReadAlongApplication : Application() {
     }) }
     /** Bookmarks shared through the audiobook folder, the same way as listening progress. */
     val folderBookmarks by lazy { com.example.readalong.data.importing.FolderBookmarks(this, database) }
+    val sound by lazy { com.example.readalong.data.book.SoundRepository(database) }
     /** Listening progress shared with ReadAlong for Windows through the audiobook folder. */
     val folderProgress by lazy { com.example.readalong.data.importing.FolderProgressSync(this, database,
         playing = { id -> playbackStore.state.value.let { it.bookId == id && it.isPlaying } },
