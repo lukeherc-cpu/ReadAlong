@@ -46,6 +46,10 @@ data class AppPreferences(
     /** When [listenedMs] reaches this, the "Enjoying ReadAlong?" card shows; each close without "Don't show again" moves it 10 hours on. */
     val supportPromptAtMs: Long = SUPPORT_PROMPT_EVERY_MS,
     val supportPromptOff: Boolean = false,
+    /** The library shows folders instead of the Current, Not started and Finished sections. */
+    val folderLibrary: Boolean = false,
+    /** How library books are ordered: a [com.example.readalong.domain.model.LibrarySort] name. */
+    val librarySort: String = "RECENT",
 )
 
 const val SUPPORT_PROMPT_EVERY_MS = 10L * 60 * 60 * 1000
@@ -84,6 +88,8 @@ class AppPreferencesStore(private val context: Context) {
         p[longPreferencesKey("listened_ms")] ?: 0,
         p[longPreferencesKey("support_prompt_at_ms")] ?: SUPPORT_PROMPT_EVERY_MS,
         p[booleanPreferencesKey("support_prompt_off")] ?: false,
+        p[booleanPreferencesKey("folder_library")] ?: false,
+        p[stringPreferencesKey("library_sort")]?.takeIf { name -> com.example.readalong.domain.model.LibrarySort.entries.any { it.name == name } } ?: "RECENT",
     )
     val preferences = store.data.catch { if (it is IOException) emit(emptyPreferences()) else throw it }.map(::decode)
     suspend fun update(change: (AppPreferences) -> AppPreferences) {
@@ -121,6 +127,8 @@ class AppPreferencesStore(private val context: Context) {
         p[longPreferencesKey("listened_ms")] = value.listenedMs
         p[longPreferencesKey("support_prompt_at_ms")] = value.supportPromptAtMs
         p[booleanPreferencesKey("support_prompt_off")] = value.supportPromptOff
+        p[booleanPreferencesKey("folder_library")] = value.folderLibrary
+        p[stringPreferencesKey("library_sort")] = value.librarySort
         }
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.example.readalong.ui.launch.LaunchAppearance.request(context, decode(saved)) }
     }

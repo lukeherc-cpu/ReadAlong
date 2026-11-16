@@ -95,7 +95,7 @@ fun LibraryScreen(app: AppState) {
                 }
                 groups.forEach { group ->
                     item(key = "section:${group.section}", span = { GridItemSpan(maxLineSpan) }) {
-                        SectionTitle(when (group.section) { LibrarySection.CURRENT -> "Current"; LibrarySection.NOT_STARTED -> "Not started"; LibrarySection.FINISHED -> "Finished" },
+                        SectionTitle(when (group.section) { LibrarySection.CURRENT -> "Current"; LibrarySection.NEW -> "New"; LibrarySection.NOT_STARTED -> "Not started"; LibrarySection.FINISHED -> "Finished" },
                             Modifier.animateItem()) {
                             if (group == groups.first()) SortButton(sort) { sort = it }
                             else Text(group.books.size.toString(), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
