@@ -4,6 +4,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -14,6 +15,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.readalong.R
 import com.example.readalong.data.book.BookNotesRepository
+import com.example.readalong.domain.model.AiCharacters
 import com.example.readalong.domain.model.CharacterEntry
 import com.example.readalong.domain.model.NameSuggestion
 import com.example.readalong.playback.PlaybackChapter
@@ -60,7 +62,7 @@ private fun ago(at: Long): String {
  * they were first heard. Names that keep coming up in the text so far are offered as suggestions.
  */
 @Composable
-fun CharacterListSheet(bookId: String, positionMs: Long, chapters: List<PlaybackChapter>, seek: (Long) -> Unit, close: () -> Unit) {
+fun CharacterListSheet(bookId: String, positionMs: Long, chapters: List<PlaybackChapter>, seek: (Long) -> Unit, close: () -> Unit, title: String = "", author: String? = null) {
     val repository = notes(LocalContext.current) ?: return
     val scope = rememberCoroutineScope()
     val people by remember(bookId) { repository.characters(bookId) }.collectAsStateWithLifecycle(emptyList())
@@ -68,6 +70,7 @@ fun CharacterListSheet(bookId: String, positionMs: Long, chapters: List<Playback
     // Worked out once per opening (and as names are added), from the text heard so far only.
     LaunchedEffect(bookId, people.size) { suggestions = runCatching { repository.suggestions(bookId, positionMs, people.map { it.name }) }.getOrDefault(emptyList()) }
     var editing by remember { mutableStateOf<CharacterEntry?>(null) }
+    var askAi by remember { mutableStateOf(false) }
     fun where(ms: Long) = chapters.lastOrNull { it.startMs <= ms }?.title ?: clockTime(ms)
     ActionSheet(close, "Character List", when (people.size) { 0 -> null; 1 -> "1 person"; else -> "${people.size} people" }, header = {
         Button(onClick = { editing = CharacterEntry(BookNotesRepository.newId(), "") },
@@ -75,6 +78,10 @@ fun CharacterListSheet(bookId: String, positionMs: Long, chapters: List<Playback
             Icon(painterResource(R.drawable.ic_add), null, Modifier.size(20.dp))
             Spacer(Modifier.width(8.dp))
             Text("Add character")
+        }
+        if (title.isNotBlank()) OutlinedButton(onClick = { askAi = true },
+            Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 12.dp).heightIn(min = 48.dp).testTag("make_with_ai")) {
+            Text(if (people.isEmpty()) "Make with AI" else "Add more with AI")
         }
     }) {
         if (people.isEmpty()) item {
@@ -108,6 +115,8 @@ fun CharacterListSheet(bookId: String, positionMs: Long, chapters: List<Playback
             }
         }
     }
+    if (askAi) AiCharacterDialog(AiCharacters.prompt(title, author, chapters.lastOrNull { it.startMs <= positionMs }?.title ?: "the ${clockTime(positionMs)} mark"),
+        import = { answer -> repository.importCharacters(bookId, AiCharacters.parse(answer)) }, close = { askAi = false })
     editing?.let { person ->
         var name by remember(person.id) { mutableStateOf(person.name) }
         var note by remember(person.id) { mutableStateOf(person.note) }
@@ -128,4 +137,48 @@ fun CharacterListSheet(bookId: String, positionMs: Long, chapters: List<Playback
             }, enabled = name.isNotBlank()) { Text("Save") }
         }, dismissButton = { TextButton(onClick = { editing = null }) { Text("Cancel") } })
     }
+}
+
+/**
+ * Ask ChatGPT, Gemini or Claude for the list: the prompt is copied and the assistant opens (with the
+ * question filled in where it supports that); the answer is pasted back and read into the list.
+ */
+@Composable
+private fun AiCharacterDialog(prompt: String, import: suspend (String) -> Int, close: () -> Unit) {
+    val context = LocalContext.current
+    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+    val scope = rememberCoroutineScope()
+    var answer by remember { mutableStateOf("") }
+    var result by remember { mutableStateOf<String?>(null) }
+    val query = android.net.Uri.encode(prompt)
+    val assistants = listOf("ChatGPT" to "https://chatgpt.com/?q=$query", "Gemini" to "https://gemini.google.com/app", "Claude" to "https://claude.ai/new?q=$query")
+    AlertDialog(onDismissRequest = close, title = { Text("Make with AI") }, text = {
+        Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text("1. Ask an assistant. The question is copied for you, and only the book's title, author and your chapter are shared.",
+                style = MaterialTheme.typography.bodyMedium)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                assistants.forEach { (name, url) ->
+                    OutlinedButton(onClick = {
+                        clipboard.setText(androidx.compose.ui.text.AnnotatedString(prompt))
+                        runCatching { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                    }, Modifier.weight(1f).testTag("ai_$name"), contentPadding = PaddingValues(horizontal = 4.dp)) { Text(name, maxLines = 1) }
+                }
+            }
+            Text("2. Copy its answer, then paste it here.", style = MaterialTheme.typography.bodyMedium)
+            OutlinedTextField(answer, { answer = it.take(20_000); result = null }, Modifier.fillMaxWidth().testTag("ai_answer"),
+                label = { Text("Answer") }, minLines = 3, maxLines = 6,
+                trailingIcon = { TextButton(onClick = { clipboard.getText()?.text?.let { answer = it.take(20_000); result = null } }) { Text("Paste") } })
+            result?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.testTag("ai_result")) }
+            Text("AI can get details wrong or give things away, so check the list. You can edit or remove anyone.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }, confirmButton = {
+        TextButton(enabled = answer.isNotBlank(), onClick = {
+            scope.launch {
+                val added = import(answer)
+                if (added > 0) close()
+                else result = if (AiCharacters.parse(answer).isEmpty()) "No names found. Paste the list with one person per line, like “Name — who they are”." else "Everyone in that answer is already on your list."
+            }
+        }, modifier = Modifier.testTag("ai_add")) { Text("Add to list") }
+    }, dismissButton = { TextButton(onClick = close) { Text("Cancel") } })
 }

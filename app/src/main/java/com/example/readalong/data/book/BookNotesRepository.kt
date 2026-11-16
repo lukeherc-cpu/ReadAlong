@@ -41,6 +41,23 @@ class BookNotesRepository(private val database: ReadAlongDatabase) {
         dao.putMetadata(LibraryMetadataEntity(charactersKey(bookId), CharacterList.encode(list)))
     }
 
+    /**
+     * Adds people from an AI's answer. A name already on the list only gains a note if it had none,
+     * so nothing the listener wrote is overwritten. Returns how many entries were added or filled in.
+     */
+    suspend fun importCharacters(bookId: String, people: List<Pair<String, String>>): Int {
+        val existing = CharacterList.decode(lock.withLock { dao.metadata(charactersKey(bookId)) })
+        var changed = 0
+        for ((name, note) in people) {
+            val same = existing.firstOrNull { it.name.equals(name, ignoreCase = true) }
+            when {
+                same == null -> { saveCharacter(bookId, CharacterEntry(newId(), name, note)); changed++ }
+                same.note.isBlank() -> { saveCharacter(bookId, same.copy(note = note)); changed++ }
+            }
+        }
+        return changed
+    }
+
     suspend fun removeCharacter(bookId: String, id: String) = lock.withLock {
         val list = CharacterList.decode(dao.metadata(charactersKey(bookId))).filter { it.id != id }
         dao.putMetadata(LibraryMetadataEntity(charactersKey(bookId), CharacterList.encode(list)))

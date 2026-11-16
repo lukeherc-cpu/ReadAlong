@@ -25,6 +25,16 @@ class CharacterListTest {
         compose.onNodeWithText("Rocky").assertExists()
     }
 
+    @Test fun anAiAnswerIsPastedIntoTheList() {
+        val book = "character-ai-test-${System.nanoTime()}"
+        compose.setContent { ReadAlongTheme { CharacterListSheet(book, 0, emptyList(), seek = {}, close = {}, title = "Project Hail Mary", author = "Andy Weir") } }
+        compose.onNodeWithTag("make_with_ai").performClick()
+        compose.onNodeWithTag("ai_answer").performTextInput("1. **Eva Stratt** — Runs the Hail Mary project.\n2. Rocky: An engineer.")
+        compose.onNodeWithTag("ai_add").performClick()
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Runs the Hail Mary project.").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("An engineer.").assertExists()
+    }
+
     @Test fun emptyHistoryExplainsItself() {
         compose.setContent { ReadAlongTheme { HistorySheet("history-test-${System.nanoTime()}", 65_000, "Chapter 1", seek = {}, close = {}) } }
         compose.onNodeWithText("Listening history").assertExists()
