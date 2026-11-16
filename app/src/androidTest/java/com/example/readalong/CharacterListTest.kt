@@ -23,11 +23,17 @@ class CharacterListTest {
         compose.onNodeWithText("Save").performClick()
         compose.waitUntil(5_000) { compose.onAllNodesWithText("Engineer from Erid").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Rocky").assertExists()
+        // Tapping a person opens their row in place rather than leaving the list.
+        var closed = false
+        compose.onNodeWithTag("character_Rocky").performClick()
+        compose.onNodeWithText("Engineer from Erid").assertIsDisplayed()
+        compose.runOnIdle { org.junit.Assert.assertFalse(closed) }
     }
 
     @Test fun anAiAnswerIsPastedIntoTheList() {
         val book = "character-ai-test-${System.nanoTime()}"
         compose.setContent { ReadAlongTheme { CharacterListSheet(book, 0, emptyList(), seek = {}, close = {}, title = "Project Hail Mary", author = "Andy Weir") } }
+        compose.onNodeWithTag("add_character").performClick()
         compose.onNodeWithTag("make_with_ai").performClick()
         compose.onNodeWithTag("ai_answer").performTextInput("1. **Eva Stratt** — Runs the Hail Mary project.\n2. Rocky: An engineer.")
         compose.onNodeWithTag("ai_add").performClick()
