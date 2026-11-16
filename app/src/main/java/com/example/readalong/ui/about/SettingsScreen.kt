@@ -46,7 +46,7 @@ fun SettingsScreen(app: ReadAlongApplication, onBack: () -> Unit, onModel: () ->
     var resumeDialog by remember { mutableStateOf(false) }
     var resetSoundSheet by remember { mutableStateOf(false) }
     val context = androidx.compose.ui.platform.LocalContext.current
-    val soundFile = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contracts.ActivityResultContracts.OpenDocument()) { uri: android.net.Uri? ->
+    val soundFile = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri: android.net.Uri? ->
         if (uri != null) {
             runCatching { context.contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) }
             save { it.copy(resetSound = "FILE", resetSoundUri = uri.toString()) }
