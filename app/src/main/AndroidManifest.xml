@@ -36,7 +36,11 @@
         <service android:name=".data.transcription.RecognitionService" android:process=":recognition" android:exported="false" />
         <service android:name="androidx.work.impl.foreground.SystemForegroundService" android:foregroundServiceType="dataSync|mediaProcessing" tools:node="merge" />
         <service android:name=".playback.AudiobookService" android:foregroundServiceType="mediaPlayback" android:exported="true">
-            <intent-filter><action android:name="androidx.media3.session.MediaSessionService" /></intent-filter>
+            <intent-filter>
+                <action android:name="androidx.media3.session.MediaLibraryService" />
+                <action android:name="androidx.media3.session.MediaSessionService" />
+                <action android:name="android.media.browse.MediaBrowserService" />
+            </intent-filter>
         </service>
         <provider android:name="androidx.core.content.FileProvider" android:authorities="${applicationId}.files" android:exported="false" android:grantUriPermissions="true">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
@@ -102,6 +106,8 @@
                 <data android:scheme="wear" android:host="*" android:pathPrefix="/readalong/command/" />
             </intent-filter>
         </service>
+        <!-- Android Auto: ReadAlong's library and player in the car (drawn by Auto from AudiobookService). -->
+        <meta-data android:name="com.google.android.gms.car.application" android:resource="@xml/automotive_app_desc" />
     </application>
 
 </manifest>
