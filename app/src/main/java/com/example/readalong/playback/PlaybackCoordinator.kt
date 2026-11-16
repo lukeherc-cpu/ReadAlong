@@ -82,7 +82,7 @@ class PlaybackCoordinator(context: Context, repository: BookRepository, private 
         remember(if (deltaMs < 0) com.example.readalong.domain.model.JumpKind.SKIP_BACK else com.example.readalong.domain.model.JumpKind.SKIP_FORWARD)
         seekTo(state.value.positionMs + deltaMs)
     }
-    override fun speed(value: Float) = if (selectedDemo.value) demo.speed(value) else run { connection.controller().setPlaybackSpeed(value.coerceIn(.5f, 2f)) }
+    override fun speed(value: Float) = if (selectedDemo.value) demo.speed(value) else run { connection.controller().setPlaybackSpeed(com.example.readalong.domain.model.roundSpeed(value)) }
     override fun sleep(minutes: Int?) = if (selectedDemo.value) demo.sleep(minutes) else run {
         connection.command(SLEEP_TIMER, Bundle().apply { putInt("minutes", minutes ?: 0) })
     }

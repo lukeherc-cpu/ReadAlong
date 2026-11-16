@@ -21,6 +21,7 @@ import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.SettableFuture
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -52,6 +53,12 @@ class AudiobookService : MediaSessionService() {
     private var fileOffsets = emptyList<Long>()
     private var totalDuration = 0L
     private var sleepEndsAt: Long? = null
+    /** The minutes last chosen, so a shake can start the same timer again. */
+    private var sleepMinutes = 0
+    @Volatile private var settings = com.example.readalong.data.preferences.AppPreferences()
+    /** When play was last paused (elapsed time), for going back a little on resume; cleared by a seek. */
+    private var pausedAt: Long? = null
+    private var shake: SleepShake? = null
     private var sleepChapter: PlaybackChapter? = null
     private var error: String? = null
     private var loadingBook = false
@@ -86,6 +93,16 @@ class AudiobookService : MediaSessionService() {
                         scope.launch { try { com.example.readalong.data.processing.TranscriptionPlan.correctDuration(database, item.bookId, item.id, duration) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { } }
                     }
                 }
+                override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+                    if (!playWhenReady) { pausedAt = android.os.SystemClock.elapsedRealtime(); return }
+                    val since = pausedAt ?: return
+                    pausedAt = null
+                    if (!loadingBook) scope.launch { rewindOnResume(android.os.SystemClock.elapsedRealtime() - since) }
+                }
+                override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {
+                    // A deliberate jump (a tapped sentence, a chapter) is where you want to be: don't move it back.
+                    if (reason == Player.DISCONTINUITY_REASON_SEEK) pausedAt = null
+                }
                 override fun onPlayerError(failure: PlaybackException) {
                     error = "This audio couldn't be played. Check that the file is available and uses a supported codec. (${failure.errorCodeName})"
                     publish()
@@ -102,7 +119,7 @@ class AudiobookService : MediaSessionService() {
             result
         }
         scope.launch { bookFlow.flatMapLatest { app.sound.effective(it) }.collect(::applySound) }
-        scope.launch { app.appPreferences.preferences.collect { settings -> sessionPlayer.intervals(settings.playerBack * 1000L, settings.playerForward * 1000L) } }
+        scope.launch { app.appPreferences.preferences.collect { settings -> this@AudiobookService.settings = settings; sessionPlayer.intervals(settings.playerBack * 1000L, settings.playerForward * 1000L) } }
         val buttons = listOf(
             CommandButton.Builder(CommandButton.ICON_SKIP_BACK).setDisplayName("Rewind").setPlayerCommand(Player.COMMAND_SEEK_BACK).setSlots(CommandButton.SLOT_BACK).build(),
             CommandButton.Builder(CommandButton.ICON_SKIP_FORWARD).setDisplayName("Forward").setPlayerCommand(Player.COMMAND_SEEK_FORWARD).setSlots(CommandButton.SLOT_FORWARD).build())
@@ -144,7 +161,8 @@ class AudiobookService : MediaSessionService() {
                                 }
                                 SLEEP_TIMER -> {
                                     sleepChapter = if (args.getBoolean("chapterEnd")) snapshot().let { it.chapters.getOrNull(it.chapterIndex) } else null
-                                    sleepEndsAt = args.getInt("minutes").takeIf { it > 0 }?.let { System.currentTimeMillis() + it * 60_000L }
+                                    sleepMinutes = args.getInt("minutes")
+                                    sleepEndsAt = sleepMinutes.takeIf { it > 0 }?.let { System.currentTimeMillis() + it * 60_000L }
                                     publish()
                                 }
                                 else -> error("Unsupported command")
@@ -180,6 +198,7 @@ class AudiobookService : MediaSessionService() {
                 delay(250)
                 if (sleepEndsAt?.let { System.currentTimeMillis() >= it } == true) { player.pause(); sleepEndsAt = null }
                 checkChapterSleep()
+                sleepFade()
                 publish()
                 if (player.isPlaying && ++ticks % 8 == 0) safelySave()
             }
@@ -211,7 +230,9 @@ class AudiobookService : MediaSessionService() {
                 .setArtworkUri(book.coverUri?.let(Uri::parse)).build()).build()
         }
         player.setMediaItems(items, index, position.coerceAtLeast(0))
-        player.setPlaybackSpeed(database.bookDao().metadata("playback_speed")?.toFloatOrNull()?.coerceIn(.5f, 2f) ?: 1f)
+        val ownSpeed = if (app.appPreferences.preferences.first().speedPerBook) database.bookDao().metadata(speedKey(id)) else null
+        player.setPlaybackSpeed(com.example.readalong.domain.model.roundSpeed((ownSpeed ?: database.bookDao().metadata("playback_speed"))?.toFloatOrNull() ?: 1f))
+        pausedAt = null
         player.prepare()
         database.bookDao().putMetadata(LibraryMetadataEntity("current_book", id))
         database.mediaDao().mediaState(id, "AVAILABLE")
@@ -223,6 +244,40 @@ class AudiobookService : MediaSessionService() {
         soundProcessor.settings = value
         player.skipSilenceEnabled = value.skipSilence
         if (player.playbackParameters.pitch != value.pitchFactor) player.playbackParameters = player.playbackParameters.withPitch(value.pitchFactor)
+    }
+
+    private fun speedKey(id: String) = "playback_speed:$id"
+
+    /** Goes back a little when play resumes, by the "Rewind when resuming" setting. */
+    private suspend fun rewindOnResume(awayMs: Long) = selectLock.withLock {
+        val id = bookId ?: return@withLock
+        val position = snapshot().positionMs
+        val mode = settings.resumeRewind
+        val sentence = if (mode == "SENTENCE") runCatching { database.readingDao().segmentAt(id, position)?.startMs }.getOrNull()?.let { position - it } else null
+        val back = com.example.readalong.domain.model.resumeRewindMs(mode, awayMs, sentence)
+        if (back > 0 && player.playWhenReady) seekAbsolute((position - back).coerceAtLeast(0))
+    }
+
+    /** Volume eases down over the sleep timer's last 20 seconds; a shake (when on) starts the timer again. */
+    private fun sleepFade() {
+        val remaining = sleepEndsAt?.let { it - System.currentTimeMillis() } ?: sleepChapter?.let { target ->
+            val end = target.durationMs?.let { target.startMs + it }
+            if (end == null || totalDuration <= 0) null else ((end - snapshot().positionMs) / player.playbackParameters.speed.coerceAtLeast(.1f)).toLong()
+        }
+        val volume = com.example.readalong.domain.model.sleepFadeVolume(remaining)
+        if (player.volume != volume) player.volume = volume
+        val listen = settings.shakeToReset && (sleepEndsAt != null || sleepChapter != null)
+        if (listen && shake == null) shake = SleepShake(this) { resetSleepTimer() }.also { it.start() }
+        if (!listen && shake != null) { shake?.stop(); shake = null }
+    }
+
+    private fun resetSleepTimer() {
+        if (sleepEndsAt == null && sleepChapter == null) return
+        if (sleepEndsAt != null && sleepMinutes > 0) sleepEndsAt = System.currentTimeMillis() + sleepMinutes * 60_000L
+        // A chapter-end timer keeps its chapter; the shake still brings the volume back while it's fading.
+        player.volume = 1f
+        SleepShake.playResetSound(this, settings)
+        publish()
     }
 
     private fun clearEpubChapters() { epubJob?.cancel(); epubJob = null; epubContents = emptyList() }
@@ -322,7 +377,8 @@ class AudiobookService : MediaSessionService() {
         val dao = database.bookDao()
         dao.putMetadata(LibraryMetadataEntity("file:$id", files.getOrNull(player.currentMediaItemIndex)?.id.orEmpty()))
         dao.putMetadata(LibraryMetadataEntity("file_position:$id", state.filePositionMs.toString()))
-        dao.putMetadata(LibraryMetadataEntity("playback_speed", state.speed.toString()))
+        // Each book keeps its own speed; with that off, one speed is shared (and is where new books start).
+        dao.putMetadata(LibraryMetadataEntity(if (settings.speedPerBook) speedKey(id) else "playback_speed", state.speed.toString()))
         if (player.playbackState == Player.STATE_ENDED) app.bookRepository.setFinished(id, true)
     }
     private suspend fun safelySave() {
@@ -337,6 +393,7 @@ class AudiobookService : MediaSessionService() {
     override fun onDestroy() {
         // Periodic saves and pause/discontinuity saves bound abrupt process-death loss to ~2 seconds.
         scope.cancel()
+        shake?.stop(); shake = null
         session?.release(); player.release(); session = null
         app.playbackStore.publish(app.playbackStore.state.value.copy(isPlaying = false, sleepEndsAt = null, sleepAtChapterEnd = false))
         super.onDestroy()

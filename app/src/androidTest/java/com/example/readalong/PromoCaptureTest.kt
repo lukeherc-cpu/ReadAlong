@@ -140,7 +140,7 @@ class PromoCaptureTest {
             show("player");capture("player")
             compose.onNodeWithContentDescription("Sleep timer").performScrollTo().performClick();capture("sleep")
             androidx.test.espresso.Espresso.pressBack()
-            compose.onNodeWithText("1.0×").performScrollTo().performClick();capture("speed")
+            compose.onNodeWithContentDescription("Playback speed").performScrollTo().performClick();capture("speed")
             androidx.test.espresso.Espresso.pressBack()
             TranscriptRepository(db).addBookmark(book.id,24_000,"The orchard gate")
             compose.onNodeWithContentDescription("Bookmarks").performScrollTo().performClick();capture("bookmarks")
