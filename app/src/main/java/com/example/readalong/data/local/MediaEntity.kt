@@ -20,6 +20,9 @@ data class AudioFileEntity(
 data class FolderEntity(@PrimaryKey val uri: String, val name: String, val mode: String,
     val lastScanAt: Long?, val error: String?)
 
+/** One audio file with its library folder and that folder's name, for the library's folder view. */
+data class BookFileRow(val bookId: String, val uri: String, val folderUri: String?, val folderName: String?)
+
 /** Which book's audio lives in which saved folder, for the Library folders page. */
 data class FolderBook(val folderUri: String, val bookId: String)
 
@@ -56,6 +59,8 @@ interface MediaDao {
     fun observeFolders(): Flow<List<FolderEntity>>
     @Query("SELECT DISTINCT folderUri, bookId FROM audio_files WHERE folderUri IS NOT NULL")
     fun observeFolderBooks(): Flow<List<FolderBook>>
+    @Query("SELECT f.bookId AS bookId, f.uri AS uri, f.folderUri AS folderUri, d.name AS folderName FROM audio_files f LEFT JOIN audiobook_folders d ON d.uri = f.folderUri")
+    fun observeBookFiles(): Flow<List<BookFileRow>>
     @Query("SELECT * FROM audiobook_folders WHERE uri = :uri")
     suspend fun folder(uri: String): FolderEntity?
     @Upsert suspend fun putFolder(folder: FolderEntity)
