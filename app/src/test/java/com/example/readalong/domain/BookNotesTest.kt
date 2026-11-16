@@ -41,4 +41,21 @@ class BookNotesTest {
         assertEquals(1_000L, names.first().firstMs)
         assertEquals(listOf("Eva Stratt"), suggestNames(text, known = listOf("Rocky")).map { it.name })
     }
+
+    @Test
+    fun aiAnswersAreReadIntoNamesAndNotes() {
+        val answer = """
+            Here are the characters so far:
+
+            1. **Ryland Grace** — A science teacher who wakes up alone on a spaceship.
+            2. **Eva Stratt**: Head of the Petrova taskforce; recruits Grace.
+            - Dimitri Komorov - Russian scientist working with Stratt.
+            * Yáo – The ship's commander.
+            Note: these are only the characters up to chapter 7.
+            3. Ryland Grace — said twice
+        """.trimIndent()
+        assertEquals(listOf("Ryland Grace", "Eva Stratt", "Dimitri Komorov", "Yáo"), AiCharacters.parse(answer).map { it.first })
+        assertEquals("Head of the Petrova taskforce; recruits Grace.", AiCharacters.parse(answer)[1].second)
+        assertTrue(AiCharacters.prompt("Project Hail Mary", "Andy Weir", "Chapter 7").contains("no spoilers past that point"))
+    }
 }

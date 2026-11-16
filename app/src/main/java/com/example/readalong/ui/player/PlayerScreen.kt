@@ -291,7 +291,7 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
     }
     if (panel == "bookmarks") BookmarksDialog(reading, state.positionMs, playback::seek, { panel = null }, state.chapters)
     if (panel == "history") HistorySheet(book.id, state.positionMs, state.chapterTitle, playback::seek, { panel = null })
-    if (panel == "characters") CharacterListSheet(book.id, state.positionMs, state.chapters, playback::seek, { panel = null })
+    if (panel == "characters") CharacterListSheet(book.id, state.positionMs, state.chapters, playback::seek, { panel = null }, book.title, book.author)
     if (panel != null && panel !in setOf("bookmarks", "history", "characters")) PlayerPanel(panel!!, book, state, playback, close = { panel = null })
     }
 }

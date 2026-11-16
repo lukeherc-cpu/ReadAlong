@@ -120,3 +120,37 @@ private val COMMON = setOf(
     "january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december",
     "english", "chapter", "part", "book", "the", "a", "an", "and", "but", "or", "so", "then", "he", "she", "they", "we", "you", "it",
 )
+
+/**
+ * "Make with AI": the app asks ChatGPT, Gemini or Claude for the book's characters up to where the
+ * listener is, and reads the answer back. Only the title, author and chapter leave the phone.
+ */
+object AiCharacters {
+    fun prompt(title: String, author: String?, reachedAt: String): String {
+        val by = author?.takeIf { it.isNotBlank() }?.let { " by $it" }.orEmpty()
+        return "I'm listening to the audiobook \"$title\"$by and I've reached $reachedAt. " +
+            "List the characters I've met so far, with no spoilers past that point. " +
+            "Put each person on their own line as: Name — who they are and how they connect to the others, in one sentence. " +
+            "Reply with the list only."
+    }
+
+    private val bullet = Regex("""^\s*(?:[-*•·]+|\d+[.)])\s*""")
+    /** Labels an answer sometimes adds around the list, which look like "Name: note" lines. */
+    private val notNames = setOf("note", "notes", "here", "characters", "main characters", "cast", "spoilers", "spoiler warning", "summary", "also", "tip", "disclaimer")
+    private val separators = listOf(" — ", " – ", " - ", ": ", " —", "— ", " –")
+
+    /** Name and note pairs from an AI's answer, tolerating bullets, numbering and bold names. */
+    fun parse(answer: String): List<Pair<String, String>> {
+        val seen = mutableSetOf<String>()
+        return answer.lines().mapNotNull { raw ->
+            val line = raw.replace("**", "").replace("__", "").replace(bullet, "").trim()
+            val cut = separators.mapNotNull { sep -> line.indexOf(sep).takeIf { it > 0 }?.let { it to sep.length } }.minByOrNull { it.first } ?: return@mapNotNull null
+            val name = line.substring(0, cut.first).trim().trim('"', '*', '_').removeSuffix(":").trim()
+            val note = line.substring(cut.first + cut.second).trim().take(300)
+            val words = name.split(Regex("\\s+"))
+            if (name.length !in 2..60 || words.size > 6 || note.isEmpty() || name.none(Char::isLetter) || !name.first().isUpperCase()) return@mapNotNull null
+            if (name.lowercase() in notNames) return@mapNotNull null
+            if (!seen.add(name.lowercase())) null else name to note
+        }
+    }
+}
