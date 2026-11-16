@@ -10,31 +10,31 @@
 </p>
 
 <p align="center">
-  <a href="https://lukeherc-cpu.github.io/ReadAlong/"><strong>Website</strong></a> ·
-  <a href="https://github.com/lukeherc-cpu/ReadAlong/releases/latest"><strong>Download</strong></a> ·
+  <a href="https://readalongapp.github.io/ReadAlong/"><strong>Website</strong></a> ·
+  <a href="https://github.com/readalongapp/ReadAlong/releases/latest"><strong>Download</strong></a> ·
   <a href="#download-and-install">Install guide</a> ·
   <a href="#common-questions">Questions</a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/lukeherc-cpu/ReadAlong/releases/latest"><img src="https://img.shields.io/github/v/release/lukeherc-cpu/ReadAlong?label=latest&color=496B8A" alt="Latest release"></a>
+  <a href="https://github.com/readalongapp/ReadAlong/releases/latest"><img src="https://img.shields.io/github/v/release/readalongapp/ReadAlong?label=latest&color=496B8A" alt="Latest release"></a>
   <img src="https://img.shields.io/badge/Android-8.0%2B-496B8A" alt="Android 8.0 or later">
   <img src="https://img.shields.io/badge/desktop-Windows%20%C2%B7%20Linux%20%C2%B7%20macOS-496B8A" alt="Windows, Linux and macOS">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPLv3-496B8A" alt="GPLv3 license"></a>
 </p>
 
 <p align="center">
-  <a href="https://lukeherc-cpu.github.io/ReadAlong/"><img src="website/public/og.jpg" width="720" alt="ReadAlong showing a book's text with the sentence being read highlighted"></a>
+  <a href="https://readalongapp.github.io/ReadAlong/"><img src="website/public/og.jpg" width="720" alt="ReadAlong showing a book's text with the sentence being read highlighted"></a>
 </p>
 
 Turn any DRM-free audiobook into readable text on your phone or computer, or sync it to an EPUB you already own. No account, no uploads.
 
 | | Get it | Needs |
 | --- | --- | --- |
-| **Android** | [APK from the latest release](https://github.com/lukeherc-cpu/ReadAlong/releases/latest) | Android 8.0 or later, ARM64 |
-| **Windows** | [Installer (.msi)](https://github.com/lukeherc-cpu/ReadAlong/releases/latest/download/ReadAlong-Windows.msi) · [portable zip](https://github.com/lukeherc-cpu/ReadAlong/releases/latest/download/ReadAlong-Windows-portable.zip) | Windows 10 or 11 |
-| **macOS** | [Apple silicon (.dmg)](https://github.com/lukeherc-cpu/ReadAlong/releases/latest/download/ReadAlong-macOS-AppleSilicon.dmg) · [Intel (.dmg)](https://github.com/lukeherc-cpu/ReadAlong/releases/latest/download/ReadAlong-macOS-Intel.dmg) | macOS 12 or later |
-| **Linux** | [Flatpak](https://github.com/lukeherc-cpu/ReadAlong/releases/latest/download/ReadAlong-Linux.flatpak) · [portable tarball](https://github.com/lukeherc-cpu/ReadAlong/releases/latest/download/ReadAlong-Linux-x86_64.tar.gz) | x86-64 |
+| **Android** | [APK from the latest release](https://github.com/readalongapp/ReadAlong/releases/latest) | Android 8.0 or later, ARM64 |
+| **Windows** | [Installer (.msi)](https://github.com/readalongapp/ReadAlong/releases/latest/download/ReadAlong-Windows.msi) · [portable zip](https://github.com/readalongapp/ReadAlong/releases/latest/download/ReadAlong-Windows-portable.zip) | Windows 10 or 11 |
+| **macOS** | [Apple silicon (.dmg)](https://github.com/readalongapp/ReadAlong/releases/latest/download/ReadAlong-macOS-AppleSilicon.dmg) · [Intel (.dmg)](https://github.com/readalongapp/ReadAlong/releases/latest/download/ReadAlong-macOS-Intel.dmg) | macOS 12 or later |
+| **Linux** | [Flatpak](https://github.com/readalongapp/ReadAlong/releases/latest/download/ReadAlong-Linux.flatpak) · [portable tarball](https://github.com/readalongapp/ReadAlong/releases/latest/download/ReadAlong-Linux-x86_64.tar.gz) | x86-64 |
 
 ## What it does
 
@@ -98,7 +98,7 @@ ReadAlong works with your own audiobook files. It does not include a book catalo
 
 ReadAlong runs on **Android 8.0 or later on an ARM64 device**. It runs on compatible phones and tablets.
 
-1. Open the [latest release](https://github.com/lukeherc-cpu/ReadAlong/releases/latest) on your Android device and download the `.apk` file.
+1. Open the [latest release](https://github.com/readalongapp/ReadAlong/releases/latest) on your Android device and download the `.apk` file.
 2. Open it and allow installation from your browser or file manager if Android asks.
 3. Open ReadAlong and choose an audiobook folder. You can choose **Later** and add books from the library instead.
 
@@ -110,7 +110,7 @@ When installing a later version, install it over the existing app to keep your l
 
 ReadAlong for Windows 10 and 11 plays the same books and makes the same read-along text, using your graphics card for transcription when it can.
 
-1. [Download the Windows installer](https://github.com/lukeherc-cpu/ReadAlong/releases/latest/download/ReadAlong-Windows.msi) and open it. If Windows says it protected your PC, choose **More info**, then **Run anyway**. A [portable zip](https://github.com/lukeherc-cpu/ReadAlong/releases/latest/download/ReadAlong-Windows-portable.zip) is also available.
+1. [Download the Windows installer](https://github.com/readalongapp/ReadAlong/releases/latest/download/ReadAlong-Windows.msi) and open it. If Windows says it protected your PC, choose **More info**, then **Run anyway**. A [portable zip](https://github.com/readalongapp/ReadAlong/releases/latest/download/ReadAlong-Windows-portable.zip) is also available.
 2. Choose **Add books** and pick your audiobook folder, then **Make ReadAlong** on a book.
 
 Transcripts made on Windows are saved as a `.readalong` file beside the audiobook. [Link your phone](#link-your-phone-and-computer) and they arrive there on their own, or copy the file next to the same book on your phone; either way ReadAlong uses it instead of transcribing again. See [desktop-app/README.md](desktop-app/README.md) for details.
@@ -119,7 +119,7 @@ Transcripts made on Windows are saved as a `.readalong` file beside the audioboo
 
 The same app as on Windows, as a Flatpak. Transcription uses your graphics card through Vulkan when it can.
 
-1. [Download the Flatpak](https://github.com/lukeherc-cpu/ReadAlong/releases/latest/download/ReadAlong-Linux.flatpak) and install it with your software centre, or run `flatpak install --user ReadAlong-Linux.flatpak`. It needs Flathub set up for the GNOME runtime it uses. A [portable tarball](https://github.com/lukeherc-cpu/ReadAlong/releases/latest/download/ReadAlong-Linux-x86_64.tar.gz) is also available: unpack it and run `ReadAlong/bin/ReadAlong`.
+1. [Download the Flatpak](https://github.com/readalongapp/ReadAlong/releases/latest/download/ReadAlong-Linux.flatpak) and install it with your software centre, or run `flatpak install --user ReadAlong-Linux.flatpak`. It needs Flathub set up for the GNOME runtime it uses. A [portable tarball](https://github.com/readalongapp/ReadAlong/releases/latest/download/ReadAlong-Linux-x86_64.tar.gz) is also available: unpack it and run `ReadAlong/bin/ReadAlong`.
 2. Choose **Add books** and pick your audiobook folder, then **Make ReadAlong** on a book.
 
 A Flatpak installed from the downloaded file doesn't update itself, and `flatpak update` won't find a newer one. When ReadAlong says an update is out, download the new Flatpak and install it over the old one; your library and settings stay.
@@ -128,7 +128,7 @@ A Flatpak installed from the downloaded file doesn't update itself, and `flatpak
 
 The same app as on Windows, for macOS 12 or later. Transcription uses the Mac's graphics through Metal.
 
-1. Download the disk image for [Apple silicon (M1 and later)](https://github.com/lukeherc-cpu/ReadAlong/releases/latest/download/ReadAlong-macOS-AppleSilicon.dmg) or [Intel](https://github.com/lukeherc-cpu/ReadAlong/releases/latest/download/ReadAlong-macOS-Intel.dmg), open it and drag ReadAlong to Applications.
+1. Download the disk image for [Apple silicon (M1 and later)](https://github.com/readalongapp/ReadAlong/releases/latest/download/ReadAlong-macOS-AppleSilicon.dmg) or [Intel](https://github.com/readalongapp/ReadAlong/releases/latest/download/ReadAlong-macOS-Intel.dmg), open it and drag ReadAlong to Applications.
 2. The app isn't notarized by Apple, so the first time macOS says it can't check it. Close that message, open **System Settings → Privacy & Security**, scroll down and choose **Open Anyway** next to ReadAlong, then confirm. (Or run `xattr -dr com.apple.quarantine /Applications/ReadAlong.app` in Terminal.) After that it opens normally.
 
 ### Link your phone and computer
@@ -378,7 +378,7 @@ Release APKs need signing before installation. Keep signing keys outside source 
 
 </details>
 
-The [website](https://lukeherc-cpu.github.io/ReadAlong/) is built from [`website/`](website/README.md) and published to GitHub Pages by its own workflow. It is separate from the Android and desktop builds.
+The [website](https://readalongapp.github.io/ReadAlong/) is built from [`website/`](website/README.md) and published to GitHub Pages by its own workflow. It is separate from the Android and desktop builds.
 
 ## Support ReadAlong
 

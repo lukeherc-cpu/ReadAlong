@@ -8,6 +8,6 @@ to GPLv3's source requirements. The unmodified Apache-2.0 Cactus Needle
 runtime may be linked and distributed without its native source under that
 narrow additional permission. The program is provided without warranty.
 
-Corresponding application source: https://github.com/lukeherc-cpu/ReadAlong
+Corresponding application source: https://github.com/readalongapp/ReadAlong
 Third-party libraries, fonts and other identified dependencies retain their
 own licenses and notices.

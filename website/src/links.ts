@@ -1,4 +1,4 @@
-export const REPO = 'https://github.com/lukeherc-cpu/ReadAlong'
+export const REPO = 'https://github.com/readalongapp/ReadAlong'
 export const RELEASE = `${REPO}/releases/latest`
 const file = (name: string) => `${RELEASE}/download/${name}`
 

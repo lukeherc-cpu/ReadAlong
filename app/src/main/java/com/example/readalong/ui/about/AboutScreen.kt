@@ -60,7 +60,7 @@ fun AboutScreen(onBack: () -> Unit, onSpeechModel: () -> Unit) {
                 Spacer(Modifier.height(24.dp))
                 Text(stringResource(R.string.about_description), style = MaterialTheme.typography.bodyLarge)
                 Text("Version ${context.packageManager.getPackageInfo(context.packageName, 0).versionName}", style = MaterialTheme.typography.labelMedium)
-                androidx.compose.material3.TextButton(onClick = { uriHandler.openUri("https://github.com/lukeherc-cpu/ReadAlong") }) { Text("Source code · GPLv3") }
+                androidx.compose.material3.TextButton(onClick = { uriHandler.openUri("https://github.com/readalongapp/ReadAlong") }) { Text("Source code · GPLv3") }
                 androidx.compose.material3.TextButton(onClick = { showLicenses = true }) { Text("Software licenses") }
                 androidx.compose.material3.OutlinedButton(onClick = onSpeechModel) { Text("Offline speech model") }
                 Spacer(Modifier.height(32.dp))

@@ -17,7 +17,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.readalong.BuildConfig
 import kotlinx.coroutines.launch
 
-private const val GITHUB_URL = "https://github.com/lukeherc-cpu/ReadAlong"
+private const val GITHUB_URL = "https://github.com/readalongapp/ReadAlong"
 
 /**
  * "Enjoying ReadAlong?": shown after every 10 hours of listening (counted by the playback service) until

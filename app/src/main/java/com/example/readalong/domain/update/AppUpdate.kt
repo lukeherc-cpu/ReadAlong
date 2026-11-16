@@ -75,7 +75,7 @@ data class AppRelease(val version: AppVersion, val tag: String, val pageUrl: Str
  * release the person chose to skip isn't offered again; a newer one is.
  */
 object UpdateCheck {
-    const val REPOSITORY = "lukeherc-cpu/ReadAlong"
+    const val REPOSITORY = "readalongapp/ReadAlong"
     const val RELEASES_PAGE = "https://github.com/$REPOSITORY/releases"
     private const val LATEST = "https://api.github.com/repos/$REPOSITORY/releases/latest"
     const val INTERVAL_MS = 24L * 60 * 60 * 1000
