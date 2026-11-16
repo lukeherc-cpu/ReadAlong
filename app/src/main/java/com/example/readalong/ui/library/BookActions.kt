@@ -13,6 +13,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import com.example.readalong.R
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
@@ -80,6 +81,10 @@ fun BookActions(book: Book, model: BookActionsViewModel, onDismiss: () -> Unit) 
     val epub by remember(book.id) { model.epub(book) }.collectAsStateWithLifecycle(null)
     val epubPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let { uri -> model.addEpub(book, uri, onDismiss) } }
     val cover = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let { uri -> model.edit(book, cover = uri) } }
+    var sound by rememberSaveable(book.id) { mutableStateOf(false) }
+    val soundApp = androidx.compose.ui.platform.LocalContext.current.applicationContext as? ReadAlongApplication
+    // The book's own sound replaces this sheet, so closing it goes straight back to the library.
+    if (sound && soundApp != null) { com.example.readalong.ui.sound.BookSoundSheet(soundApp, book.id, book.title, onDismiss); return }
     // Grouped rows: the EPUB (what a long-press is most often for), then editing, then status, then delete.
     // Status rows only offer a change that applies to this book.
     com.example.readalong.ui.components.ActionSheet(onDismiss, header = {
@@ -96,6 +101,8 @@ fun BookActions(book: Book, model: BookActionsViewModel, onDismiss: () -> Unit) 
         if (!book.isDemo) item { Column {
             com.example.readalong.ui.components.SheetRow(if (epub == null) "Add matching EPUB" else "Replace matching EPUB",
                 { epubPicker.launch(arrayOf("application/epub+zip", "application/octet-stream")) }, icon = R.drawable.ic_book, enabled = !busy)
+            if (soundApp != null) com.example.readalong.ui.components.SheetRow("Sound and equalizer", { sound = true }, Modifier.testTag("book_sound"),
+                icon = R.drawable.ic_headphones, supporting = "Just for this book", enabled = !busy)
             com.example.readalong.ui.components.SheetDivider()
         } }
         item { Column {

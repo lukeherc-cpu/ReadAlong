@@ -20,10 +20,12 @@ import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.SettableFuture
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 @androidx.annotation.OptIn(UnstableApi::class)
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class AudiobookService : MediaSessionService() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate + com.example.readalong.data.diagnostics.BackgroundFailures.handler("Playback service"))
     private val selectLock = Mutex()
@@ -33,7 +35,11 @@ class AudiobookService : MediaSessionService() {
     private var session: MediaSession? = null
     private val app get() = application as ReadAlongApplication
     private val database get() = app.database
-    private var bookId: String? = null
+    private val bookFlow = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
+    private var bookId: String?
+        get() = bookFlow.value
+        set(value) { bookFlow.value = value }
+    private val soundProcessor = SoundProcessor()
     private var files = emptyList<AudioFileEntity>()
     private var embeddedChapters = emptyList<AudioChapterEntity>()
     private var cachedFiles = emptyList<AudioFileEntity>()
@@ -53,6 +59,12 @@ class AudiobookService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
         player = ExoPlayer.Builder(this)
+            .setRenderersFactory(object : androidx.media3.exoplayer.DefaultRenderersFactory(this) {
+                // The equalizer, noise reduction and volume boost run before skip silence and speed.
+                override fun buildAudioSink(context: android.content.Context, enableFloatOutput: Boolean, enableAudioOutputPlaybackParams: Boolean) =
+                    androidx.media3.exoplayer.audio.DefaultAudioSink.Builder(context).setEnableFloatOutput(enableFloatOutput)
+                        .setEnableAudioOutputPlaybackParameters(enableAudioOutputPlaybackParams).setAudioProcessors(arrayOf(soundProcessor)).build()
+            })
             .setMediaSourceFactory(androidx.media3.exoplayer.source.DefaultMediaSourceFactory(this, com.example.readalong.data.audio.AudiobookExtractorsFactory(this)))
             .setSeekBackIncrementMs(20_000).setSeekForwardIncrementMs(30_000).build().apply {
             setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_SPEECH).build(), true)
@@ -89,6 +101,7 @@ class AudiobookService : MediaSessionService() {
             }
             result
         }
+        scope.launch { bookFlow.flatMapLatest { app.sound.effective(it) }.collect(::applySound) }
         scope.launch { app.appPreferences.preferences.collect { settings -> sessionPlayer.intervals(settings.playerBack * 1000L, settings.playerForward * 1000L) } }
         val buttons = listOf(
             CommandButton.Builder(CommandButton.ICON_SKIP_BACK).setDisplayName("Rewind").setPlayerCommand(Player.COMMAND_SEEK_BACK).setSlots(CommandButton.SLOT_BACK).build(),
@@ -203,6 +216,13 @@ class AudiobookService : MediaSessionService() {
         database.bookDao().putMetadata(LibraryMetadataEntity("current_book", id))
         database.mediaDao().mediaState(id, "AVAILABLE")
         publish()
+    }
+
+    /** The book's sound: filters in [soundProcessor], skip silence and pitch in the player (speed is kept). */
+    private fun applySound(value: com.example.readalong.domain.model.SoundSettings) {
+        soundProcessor.settings = value
+        player.skipSilenceEnabled = value.skipSilence
+        if (player.playbackParameters.pitch != value.pitchFactor) player.playbackParameters = player.playbackParameters.withPitch(value.pitchFactor)
     }
 
     private fun clearEpubChapters() { epubJob?.cancel(); epubJob = null; epubContents = emptyList() }
