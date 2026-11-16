@@ -38,4 +38,8 @@ data class Book(
         }
 }
 
-enum class LibrarySection { CURRENT, NOT_STARTED, FINISHED }
+/**
+ * The library's sections, in order. A book's own [Book.section] is never [NEW]: that section is the most
+ * recently added not-started books, picked out when the library is grouped (see [libraryGroups]).
+ */
+enum class LibrarySection { CURRENT, NEW, NOT_STARTED, FINISHED }
