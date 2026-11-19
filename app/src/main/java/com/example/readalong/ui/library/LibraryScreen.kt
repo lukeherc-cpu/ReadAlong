@@ -118,7 +118,8 @@ fun LibraryScreen(
                     // Where the search icon sits relative to the search bar, so the bar can spring out of it.
                     var iconCenter by remember { mutableStateOf<androidx.compose.ui.geometry.Offset?>(null) }
                     var barOrigin by remember { mutableStateOf<androidx.compose.ui.geometry.Offset?>(null) }
-                    CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.primary) {
+                    // Quiet icons, so the covers carry the colour; the logo keeps the accent.
+                    CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onSurfaceVariant) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = onAbout) { Icon(painterResource(R.drawable.ic_settings), "Settings") }
                         IconButton(onClick = onFolders) { Icon(painterResource(R.drawable.ic_bookshelf), "Audiobook folders") }
@@ -140,11 +141,6 @@ fun LibraryScreen(
             }
         },
         bottomBar = miniPlayer,
-        floatingActionButton = {
-            if (showCollections && openCollection == null && app != null) ExtendedFloatingActionButton(onClick = { naming = true },
-                icon = { Icon(painterResource(R.drawable.ic_add), null) }, text = { Text("New collection") }, modifier = Modifier.testTag("new_collection"))
-        },
-        floatingActionButtonPosition = FabPosition.Center,
         snackbarHost = { snackbar?.let { SnackbarHost(it) } },
     ) { insets ->
         val libraryGrid = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
@@ -173,8 +169,8 @@ fun LibraryScreen(
                         items(collectionRows, key = { "collection:${it.collection?.id ?: LOOSE}" }, span = { GridItemSpan(maxLineSpan) }) { item ->
                             CollectionRowView(item, Modifier.animateItem(fadeInSpec = tween(180), placementSpec = tween(260, easing = com.example.readalong.ui.reading.ReaderMotionEasing), fadeOutSpec = tween(120))) { openCollection = item.collection?.id ?: LOOSE }
                         }
-                        // Room above the New collection button, so it never covers the last row.
-                        item(key = "collections-end", span = { GridItemSpan(maxLineSpan) }) { Spacer(Modifier.height(64.dp)) }
+                        // New collection sits where the next collection would, not as a button over the mini player.
+                        if (app != null) item(key = "collections-new", span = { GridItemSpan(maxLineSpan) }) { NewCollectionRow { naming = true } }
                     } else {
                         val collection = row.collection
                         item(key = "collection-header", span = { GridItemSpan(maxLineSpan) }) {

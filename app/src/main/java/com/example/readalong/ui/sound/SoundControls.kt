@@ -1,6 +1,8 @@
 package com.example.readalong.ui.sound
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
@@ -73,18 +75,39 @@ fun EqualizerEditor(value: SoundSettings, change: (SoundSettings) -> Unit) {
     }
 }
 
-/** Volume, pitch, noise reduction and skip silence, shared by Settings and a book's Sound sheet. */
+/**
+ * Volume, pitch, noise reduction and skip silence, then one Equalizer row showing the preset, shared by
+ * Settings and a book's Sound sheet. The equalizer itself opens on its own page ([onEqualizer]).
+ */
 @Composable
-fun SoundBasics(value: SoundSettings, change: (SoundSettings) -> Unit) {
+fun SoundBasics(value: SoundSettings, change: (SoundSettings) -> Unit, onEqualizer: () -> Unit) {
     StepSlider("Volume", value.volumeDb, -VOLUME_MAX_DB..VOLUME_MAX_DB, volumeText(value.volumeDb), { change(value.copy(volumeDb = it)) }, Modifier.testTag("sound_volume"))
     StepSlider("Pitch", value.pitch, -PITCH_MAX..PITCH_MAX, pitchText(value.pitch), { change(value.copy(pitch = it)) }, Modifier.testTag("sound_pitch"))
-    SoundSwitch("Noise reduction", "Softens hiss and rumble on older recordings", value.noiseReduction, { change(value.copy(noiseReduction = it)) })
-    SoundSwitch("Skip silence", "Shortens long pauses between sentences", value.skipSilence, { change(value.copy(skipSilence = it)) })
+    HorizontalDivider(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = .6f))
+    SoundSwitch("Noise reduction", null, value.noiseReduction, { change(value.copy(noiseReduction = it)) })
+    SoundSwitch("Skip silence", null, value.skipSilence, { change(value.copy(skipSilence = it)) })
+    Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable(onClickLabel = "Open equalizer", onClick = onEqualizer)
+        .padding(horizontal = 16.dp, vertical = 8.dp).testTag("sound_equalizer"),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("Equalizer", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+        Text(equalizerText(value), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Icon(painterResource(com.example.readalong.R.drawable.ic_chevron_right), null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
 }
+
+/** A short summary of non-default sound choices for a Settings row, like "Voice clarity · Skip silence". */
+fun soundSummary(value: SoundSettings): String = listOfNotNull(
+    value.preset.label.takeIf { value.equalizer },
+    volumeText(value.volumeDb).takeIf { value.volumeDb != 0 }?.let { "Volume $it" },
+    pitchText(value.pitch).takeIf { value.pitch != 0 }?.let { "Pitch $it" },
+    "Noise reduction".takeIf { value.noiseReduction },
+    "Skip silence".takeIf { value.skipSilence },
+).joinToString(" · ").ifEmpty { "Normal" }
 
 /**
  * One book's sound, from the player's ⋯ menu or a long press on its cover. The first change gives the
- * book its own copy of the Settings defaults; "Use my defaults" removes it again.
+ * book its own copy of the Settings defaults; "Use my defaults" removes it again. The equalizer opens
+ * as its own sheet, and closing it comes back here.
  */
 @Composable
 fun BookSoundSheet(app: ReadAlongApplication, bookId: String, title: String, close: () -> Unit) {
@@ -92,17 +115,18 @@ fun BookSoundSheet(app: ReadAlongApplication, bookId: String, title: String, clo
     val defaults by app.sound.defaults.collectAsStateWithLifecycle(SoundSettings.DEFAULT)
     val own by app.sound.own(bookId).collectAsStateWithLifecycle(null)
     val value = own ?: defaults
+    var equalizer by androidx.compose.runtime.saveable.rememberSaveable(bookId) { mutableStateOf(false) }
     fun change(next: SoundSettings) { scope.launch { app.sound.saveForBook(bookId, next) } }
-    com.example.readalong.ui.components.ActionSheet(close, "Sound", if (own != null) "Just for this book" else "Your defaults") {
-        item {
-            Text(if (own != null) "Changes here apply only to $title." else "$title uses the defaults from Settings. Changing anything here keeps it for this book only.",
-                Modifier.padding(horizontal = 24.dp, vertical = 4.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    if (equalizer) {
+        com.example.readalong.ui.components.ActionSheet({ equalizer = false }, "Equalizer", title) {
+            item { EqualizerEditor(value, ::change) }
         }
-        item { Column { SoundBasics(value, ::change) } }
-        item { HorizontalDivider(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
-        item { EqualizerEditor(value, ::change) }
+        return
+    }
+    com.example.readalong.ui.components.ActionSheet(close, "Sound", if (own != null) "Just for this book" else "Your defaults") {
+        item { Column { SoundBasics(value, ::change) { equalizer = true } } }
         if (own != null) item {
-            TextButton(onClick = { scope.launch { app.sound.resetBook(bookId) } }, Modifier.padding(start = 8.dp).testTag("sound_use_defaults")) { Text("Use my defaults from Settings") }
+            TextButton(onClick = { scope.launch { app.sound.resetBook(bookId) } }, Modifier.padding(start = 8.dp).testTag("sound_use_defaults")) { Text("Use my defaults") }
         }
     }
 }

@@ -63,6 +63,9 @@ fun Modifier.smoothWheelScroll(state: ScrollableState, onUserScroll: () -> Unit 
 /** The container that takes the wheel event being dispatched. Pointer input runs on the UI thread, one event at a time. */
 private object WheelClaim { var owner: WheelGlide? = null }
 
+/** For a control inside a scrolling container that uses the wheel itself (the volume slider): keeps the container still for this event. */
+internal fun claimWheelForControl() { WheelClaim.owner = null }
+
 private class WheelGlide(private val state: ScrollableState) {
     var onUserScroll: () -> Unit = {}
     /** Distance still to travel, in pixels; positive is down. */
