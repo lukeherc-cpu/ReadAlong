@@ -56,6 +56,34 @@ class BookNotesTest {
         """.trimIndent()
         assertEquals(listOf("Ryland Grace", "Eva Stratt", "Dimitri Komorov", "Yáo"), AiCharacters.parse(answer).map { it.first })
         assertEquals("Head of the Petrova taskforce; recruits Grace.", AiCharacters.parse(answer)[1].second)
-        assertTrue(AiCharacters.prompt("Project Hail Mary", "Andy Weir", "Chapter 7").contains("no spoilers past that point"))
+    }
+
+    @Test
+    fun characterPromptPinsDownTheExactPlace() {
+        val place = ListeningPlace(part = "Part 1", partNumber = 1, partCount = 4, partElapsed = "12:30", percent = 2,
+            bookChapter = "Chapter 3", lastHeard = "Mr. Bingley had soon made himself acquainted with all the principal people in the room.")
+        val prompt = AiCharacters.prompt("Pride and Prejudice", "Jane Austen", place)
+        assertTrue(prompt.contains("Book chapter: Chapter 3"))
+        assertTrue(prompt.contains("About 2% of the way through the book"))
+        assertTrue(prompt.contains("Audio: \"Part 1\" (1 of 4), 12:30 in"))
+        assertTrue(prompt.contains("The last words I heard: \"Mr. Bingley had soon"))
+        assertTrue(prompt.contains("up to those last words"))
+        assertTrue(prompt.contains("leave out anyone who first appears later in this part or chapter"))
+        // With nothing known but the time, the prompt still holds to that point.
+        val bare = AiCharacters.prompt("Project Hail Mary", null, ListeningPlace(partElapsed = "1:02:03"))
+        assertTrue(bare.contains("Audio: 1:02:03 in"))
+        assertTrue(bare.contains("up to this exact point"))
+        assertFalse(bare.contains("Book chapter"))
+    }
+
+    @Test
+    fun lastHeardKeepsTheEndStartingAtASentence() {
+        val text = "It is a truth universally acknowledged. ".repeat(20) + "Mrs. Bennet was restless.  Mr. Bennet\nsaid nothing."
+        val tail = AiCharacters.tail(text, 120)!!
+        assertTrue(tail.startsWith("…It is a truth"))
+        assertTrue(tail.endsWith("Mr. Bennet said nothing."))
+        assertTrue(tail.length <= 121)
+        assertEquals("Short.", AiCharacters.tail(" Short. "))
+        assertNull(AiCharacters.tail("  "))
     }
 }

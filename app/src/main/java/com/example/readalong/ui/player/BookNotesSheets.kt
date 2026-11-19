@@ -21,6 +21,7 @@ import com.example.readalong.R
 import com.example.readalong.data.book.BookNotesRepository
 import com.example.readalong.domain.model.AiCharacters
 import com.example.readalong.domain.model.CharacterEntry
+import com.example.readalong.domain.model.ListeningPlace
 import com.example.readalong.domain.model.NameSuggestion
 import com.example.readalong.playback.PlaybackChapter
 import com.example.readalong.playback.clockTime
@@ -78,7 +79,8 @@ private fun ago(at: Long): String {
  * they were first heard. Two buttons at the bottom add someone: by hand, or from an AI assistant's answer.
  */
 @Composable
-fun CharacterListSheet(bookId: String, positionMs: Long, chapters: List<PlaybackChapter>, seek: (Long) -> Unit, close: () -> Unit, title: String = "", author: String? = null) {
+fun CharacterListSheet(bookId: String, positionMs: Long, chapters: List<PlaybackChapter>, seek: (Long) -> Unit, close: () -> Unit, title: String = "", author: String? = null,
+    durationMs: Long = 0, heardSoFar: (suspend (Long) -> ListeningPlace)? = null) {
     val repository = notes(LocalContext.current) ?: return
     val scope = rememberCoroutineScope()
     val people by remember(bookId) { repository.characters(bookId) }.collectAsStateWithLifecycle(emptyList())
@@ -111,8 +113,21 @@ fun CharacterListSheet(bookId: String, positionMs: Long, chapters: List<Playback
                 edit = { editing = person }, go = person.firstMs?.let { ms -> { seek(ms); close() } })
         }
     }
-    if (askAi) AiCharacterDialog(AiCharacters.prompt(title, author, chapters.lastOrNull { it.startMs <= positionMs }?.title ?: "the ${clockTime(positionMs)} mark"),
-        import = { answer -> repository.importCharacters(bookId, AiCharacters.parse(answer)) }, close = { askAi = false })
+    if (askAi) {
+        // Worked out once as the dialog opens: the audio part alone can be hours long, so the prompt also
+        // carries the EPUB chapter, how far through the book this is and the last words heard.
+        val prompt by produceState<String?>(null) {
+            val at = positionMs
+            val index = chapters.indexOfLast { it.startMs <= at }
+            val part = chapters.getOrNull(index)
+            val audio = ListeningPlace(part = part?.title, partNumber = index + 1, partCount = chapters.size,
+                partElapsed = clockTime(at - (part?.startMs ?: 0)),
+                percent = if (durationMs > 0) (at * 100 / durationMs).toInt().coerceIn(0, 100) else null)
+            val text = heardSoFar?.invoke(at) ?: ListeningPlace()
+            value = AiCharacters.prompt(title, author, audio.copy(bookChapter = text.bookChapter, lastHeard = text.lastHeard))
+        }
+        prompt?.let { AiCharacterDialog(it, import = { answer -> repository.importCharacters(bookId, AiCharacters.parse(answer)) }, close = { askAi = false }) }
+    }
     editing?.let { person ->
         var name by remember(person.id) { mutableStateOf(person.name) }
         var note by remember(person.id) { mutableStateOf(person.note) }
@@ -150,7 +165,7 @@ private fun AiCharacterDialog(prompt: String, import: suspend (String) -> Int, c
     val assistants = listOf("ChatGPT" to "https://chatgpt.com/?q=$query", "Gemini" to "https://gemini.google.com/app", "Claude" to "https://claude.ai/new?q=$query")
     AlertDialog(onDismissRequest = close, title = { Text(tr("Make with AI")) }, text = {
         Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(tr("1. Ask an assistant. The question is copied for you, and only the book's title, author and your chapter are shared."),
+            Text(tr("1. Ask an assistant. The question is copied for you. It shares only the book's title, author, where you are and the last lines you heard."),
                 style = MaterialTheme.typography.bodyMedium)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 assistants.forEach { (name, url) ->

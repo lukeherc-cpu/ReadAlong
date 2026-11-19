@@ -42,6 +42,9 @@ interface ImportedEpubDao {
     fun window(bookId: String, position: Long): Flow<List<ImportedEpubBlockEntity>>
     @Query("SELECT b.ordinal FROM imported_epub_blocks b INNER JOIN imported_epubs e ON e.bookId = b.bookId AND e.editionId = b.editionId WHERE b.bookId = :bookId AND b.startMs >= 0 AND b.startMs <= :position ORDER BY b.startMs DESC, b.ordinal LIMIT 1")
     suspend fun indexBefore(bookId: String, position: Long): Int?
+    /** The current edition's passages matched to audio that finished playing by [position], last first. */
+    @Query("SELECT b.* FROM imported_epub_blocks b INNER JOIN imported_epubs e ON e.bookId = b.bookId AND e.editionId = b.editionId WHERE b.bookId = :bookId AND b.startMs >= 0 AND b.endMs <= :position ORDER BY b.ordinal DESC LIMIT :limit")
+    suspend fun heardBefore(bookId: String, position: Long, limit: Int): List<ImportedEpubBlockEntity>
     @Query("SELECT b.ordinal FROM imported_epub_blocks b INNER JOIN imported_epubs e ON e.bookId = b.bookId AND e.editionId = b.editionId WHERE b.bookId = :bookId AND b.startMs >= :position ORDER BY b.startMs, b.ordinal LIMIT 1")
     suspend fun indexAfter(bookId: String, position: Long): Int?
     @Query("SELECT MAX(b.ordinal) FROM imported_epub_blocks b INNER JOIN imported_epubs e ON e.bookId = b.bookId AND e.editionId = b.editionId WHERE b.bookId = :bookId AND b.startMs >= 0")

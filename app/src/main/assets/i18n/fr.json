@@ -27,7 +27,7 @@
 ".readalong file beside its audio in the folders you sync. They're copied to the computer with each sync. Your audio isn't changed.": "fichier .readalong à côté de son audio dans les dossiers synchronisés. Ils sont copiés sur l'ordinateur à chaque synchronisation. Votre audio n'est pas modifié.",
 "1 audiobook found": "1 livre audio trouvé",
 "1 sync point you set": "1 point de synchronisation défini par vous",
-"1. Ask an assistant. The question is copied for you, and only the book's title, author and your chapter are shared.": "1. Demandez à un assistant. La question est copiée pour vous, et seuls le titre, l'auteur et votre chapitre sont partagés.",
+"1. Ask an assistant. The question is copied for you. It shares only the book's title, author, where you are and the last lines you heard.": "1. Demandez à un assistant. La question est copiée pour vous. Elle ne partage que le titre, l'auteur, où vous en êtes et les dernières lignes entendues.",
 "2 s after a short pause, 10 s after 5 min, 30 s after an hour": "2 s après une courte pause, 10 s après 5 min, 30 s après une heure",
 "2. Copy its answer, then paste it here.": "2. Copiez sa réponse, puis collez-la ici.",
 "= ReadAlong ready": "= ReadAlong prêt",

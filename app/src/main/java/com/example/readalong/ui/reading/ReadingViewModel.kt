@@ -528,6 +528,25 @@ class ReadingViewModel(val bookId: String, val database: ReadAlongDatabase, priv
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList<TranscriptSegment>())
     fun follow(positionMs: Long) { center.value = positionMs / 12_000 * 12_000 }
     fun bookmark(positionMs: Long, label: String? = null) = action { repository.addBookmark(bookId, positionMs, label) }
+
+    /**
+     * The matching EPUB's chapter and the book's last sentences before [positionMs], so the Character List's
+     * AI prompt can say exactly how far the listener has got. The EPUB's own text is preferred (its names are
+     * spelled right); the transcript is the fallback. Either part is null when the app doesn't have it yet.
+     */
+    suspend fun heardSoFar(positionMs: Long): com.example.readalong.domain.model.ListeningPlace = withContext(Dispatchers.IO) {
+        try {
+            val edition = database.importedEpubDao().find(bookId)
+            val chapter = edition?.let { found -> database.epubChapters(found).lastOrNull { it.startMs in 0..positionMs }?.title?.trim() }
+            val fromEpub = edition?.let { database.importedEpubDao().heardBefore(bookId, positionMs, 6).reversed().filterNot { it.kind.startsWith("H") }.joinToString(" ") { it.text } }
+            val text = fromEpub?.takeIf { it.isNotBlank() } ?: database.readingDao().heardBefore(bookId, positionMs, 16).reversed().joinToString(" ") { it.text }
+            com.example.readalong.domain.model.ListeningPlace(bookChapter = chapter?.takeIf { it.isNotEmpty() }, lastHeard = com.example.readalong.domain.model.AiCharacters.tail(text))
+        } catch (cancelled: CancellationException) { throw cancelled }
+        catch (failure: Exception) {
+            android.util.Log.w("ReadAlong", "Character prompt went without the text: ${failure.javaClass.simpleName}")
+            com.example.readalong.domain.model.ListeningPlace()
+        }
+    }
     fun deleteBookmark(id: String) = action { repository.removeBookmark(id) }
     private fun action(work: suspend () -> Unit) {
         viewModelScope.launch {
