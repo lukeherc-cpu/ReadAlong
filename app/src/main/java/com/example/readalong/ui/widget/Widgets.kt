@@ -39,6 +39,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 abstract class ReadAlongWidgetProvider : AppWidgetProvider() {
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) = Widgets.refresh(context)
     override fun onAppWidgetOptionsChanged(context: Context, manager: AppWidgetManager, id: Int, options: Bundle) = Widgets.refresh(context)
+    override fun onDeleted(context: Context, ids: IntArray) = WidgetBooks.forget(context, ids)
 }
 class CoverWidget : ReadAlongWidgetProvider()
 class ContinueWidget : ReadAlongWidgetProvider()
@@ -49,7 +50,7 @@ class ReadAlongTextWidget : ReadAlongWidgetProvider()
 object Widgets {
     private val lock = Mutex()
     private data class CoverKey(val bookId: String, val coverUri: String?, val basic: Boolean, val basicColor: Long)
-    private var cached: Pair<CoverKey, Pair<CoverPalette, Bitmap?>>? = null
+    private val cached = LinkedHashMap<CoverKey, Pair<CoverPalette, Bitmap?>>()
 
     fun refresh(context: Context) {
         val app = context.applicationContext as? ReadAlongApplication ?: return
@@ -62,7 +63,7 @@ object Widgets {
             combine(
                 app.playbackStore.state.map { s -> listOf(s.bookId, s.isPlaying, s.chapterIndex, s.sleepEndsAt != null || s.sleepAtChapterEnd, if (s.isPlaying) s.positionMs / 15_000 else null) }.distinctUntilChanged(),
                 app.appPreferences.preferences.map { it.alwaysBasicColor to it.basicColor }.distinctUntilChanged(),
-                app.database.bookDao().observeBooks().map { list -> list.map { it.toBook() }.filter(::started).sortedByDescending { it.lastPlayedAt ?: 0 }.take(6).map { it.id to it.coverUri } }.distinctUntilChanged(),
+                app.database.bookDao().observeBooks().map { list -> list.map { it.toBook() }.filter(::started).map { listOf(it.id, it.coverUri, it.title) }.sortedBy { it[0] } }.distinctUntilChanged(),
             ) { _, _, _ -> }.collect {
                 try { update(app) }
                 catch (cancelled: CancellationException) { throw cancelled }
@@ -75,20 +76,26 @@ object Widgets {
 
     val kinds: List<Class<out ReadAlongWidgetProvider>> = listOf(CoverWidget::class.java, ContinueWidget::class.java, NowPlayingWidget::class.java, StripWidget::class.java, ReadAlongTextWidget::class.java)
 
+    /** Redraws every placed widget, each for its own book (or what's playing) and at its own size. */
     suspend fun update(app: ReadAlongApplication) = lock.withLock {
         val manager = AppWidgetManager.getInstance(app)
-        val placed = kinds.associateWith { manager.getAppWidgetIds(ComponentName(app, it)) }.filterValues { it.isNotEmpty() }
-        if (placed.isEmpty()) return@withLock
-        build(app, placed.keys).forEach { (kind, views) -> manager.updateAppWidget(placed.getValue(kind), views) }
+        for (kind in kinds) for (id in manager.getAppWidgetIds(ComponentName(app, kind))) {
+            val views = build(app, setOf(kind), WidgetBooks.book(app, id), manager.getAppWidgetOptions(id))[kind] ?: continue
+            manager.updateAppWidget(id, views)
+        }
     }
 
-    /** Draws each kind of widget in [wanted] for the book being played (or last played). */
-    suspend fun build(app: ReadAlongApplication, wanted: Set<Class<out ReadAlongWidgetProvider>>): Map<Class<out ReadAlongWidgetProvider>, RemoteViews> {
+    /**
+     * Draws each kind of widget in [wanted] for [bookId], or for the book being played (or last played) when
+     * that's null or gone. [options] (the widget's size) lets the Read along text fill the widget.
+     */
+    suspend fun build(app: ReadAlongApplication, wanted: Set<Class<out ReadAlongWidgetProvider>>, bookId: String? = null, options: Bundle? = null): Map<Class<out ReadAlongWidgetProvider>, RemoteViews> {
         val out = LinkedHashMap<Class<out ReadAlongWidgetProvider>, RemoteViews>()
         val state = app.playbackStore.state.value
         val settings = app.appPreferences.preferences.first()
         val books = app.database.bookDao().observeBooks().first().map { it.toBook() }
-        val currentId = state.bookId ?: app.database.bookDao().metadata("current_book")
+        val pinned = bookId?.let { id -> books.firstOrNull { it.id == id } }
+        val currentId = pinned?.id ?: state.bookId ?: app.database.bookDao().metadata("current_book")
         val book = books.firstOrNull { it.id == currentId }
         val live = book != null && state.bookId == book.id
         val (palette, cover) = book?.let { look(app, it, settings.alwaysBasicColor, settings.basicColor) }
@@ -101,7 +108,10 @@ object Widgets {
         val chapter = if (live && state.chapters.isNotEmpty()) state.chapterTitle else book?.author.orEmpty()
         val left = if (duration > position && position > 0) " · ${timeLeft(duration - position)} left" else ""
         val sleeping = live && (state.sleepEndsAt != null || state.sleepAtChapterEnd)
-        val open = PendingIntent.getActivity(app, 0, com.example.readalong.ui.launch.LaunchAppearance.intent(app), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        // A widget for one book acts on that book; one that follows playback acts on whatever is playing.
+        val target = pinned?.id
+        val open = book?.let { openBook(app, it.id) }
+            ?: PendingIntent.getActivity(app, 0, com.example.readalong.ui.launch.LaunchAppearance.intent(app), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
 
         fun RemoteViews.tint(base: CoverPalette) {
             if (Build.VERSION.SDK_INT >= 31) setColorStateList(android.R.id.background, "setBackgroundTintList", ColorStateList.valueOf(base.background.toArgb()))
@@ -111,19 +121,19 @@ object Widgets {
             setInt(R.id.widget_play_bg, "setColorFilter", palette.accent.toArgb())
             setInt(R.id.widget_play, "setColorFilter", palette.background.toArgb())
             setContentDescription(R.id.widget_play, if (playing) "Pause" else "Play")
-            setOnClickPendingIntent(R.id.widget_play, action(app, WidgetActionReceiver.TOGGLE))
-            setOnClickPendingIntent(R.id.widget_back, action(app, WidgetActionReceiver.BACK))
-            setOnClickPendingIntent(R.id.widget_forward, action(app, WidgetActionReceiver.FORWARD))
+            setOnClickPendingIntent(R.id.widget_play, action(app, WidgetActionReceiver.TOGGLE, target))
+            setOnClickPendingIntent(R.id.widget_back, action(app, WidgetActionReceiver.BACK, target))
+            setOnClickPendingIntent(R.id.widget_forward, action(app, WidgetActionReceiver.FORWARD, target))
             setContentDescription(R.id.widget_back, "Rewind ${settings.playerBack} seconds")
             setContentDescription(R.id.widget_forward, "Forward ${settings.playerForward} seconds")
             if (withSleep) {
                 setImageViewResource(R.id.widget_sleep, if (sleeping) R.drawable.ic_sleep_filled else R.drawable.ic_sleep)
                 setContentDescription(R.id.widget_sleep, if (sleeping) "Turn off sleep timer" else app.getString(R.string.widget_sleep))
-                setOnClickPendingIntent(R.id.widget_sleep, action(app, WidgetActionReceiver.SLEEP))
+                setOnClickPendingIntent(R.id.widget_sleep, action(app, WidgetActionReceiver.SLEEP, target))
             }
         }
         fun RemoteViews.coverImage() {
-            if (cover != null) setImageViewBitmap(R.id.widget_cover, cover) else setImageViewBitmap(R.id.widget_cover, placeholder(title, palette, 240))
+            if (cover != null) setImageViewBitmap(R.id.widget_cover, cover) else setImageViewBitmap(R.id.widget_cover, placeholder(title, palette, 240, 240))
             setOnClickPendingIntent(R.id.widget_cover, open)
         }
         fun RemoteViews.progressLine() {
@@ -150,47 +160,89 @@ object Widgets {
             out[StripWidget::class.java] = views
         }
         if (ReadAlongTextWidget::class.java in wanted) run {
-            val sentence = book?.let { b ->
-                runCatching { app.database.readingDao().heardAt(b.id, position) ?: app.database.readingDao().paragraphAt(b.id, position) }.getOrNull()?.text
-            } ?: if (book == null) "" else "Transcribe this book to read along here."
+            // The sentence being heard, then what follows it, so the text fills the widget instead of one line.
+            val passage = book?.let { b ->
+                runCatching {
+                    val dao = app.database.readingDao()
+                    dao.heardFrom(b.id, position, 40).map { it.text.trim() }.filter { it.isNotEmpty() }.takeIf { it.isNotEmpty() }?.let { it to " " }
+                        ?: dao.paragraphsFrom(b.id, position, 12).map { it.text.trim() }.filter { it.isNotEmpty() }.takeIf { it.isNotEmpty() }?.let { it to "\n\n" }
+                }.getOrNull()
+            }
+            val text: CharSequence = when {
+                passage != null -> android.text.SpannableStringBuilder().apply {
+                    val (parts, gap) = passage
+                    append(parts.first())
+                    if (parts.size > 1) {
+                        val start = length
+                        append(gap); append(parts.drop(1).joinToString(gap))
+                        setSpan(android.text.style.ForegroundColorSpan(0xFF8A8078.toInt()), start, length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    }
+                }
+                book == null -> ""
+                else -> "Make a ReadAlong for this book to read along here."
+            }
             val views = RemoteViews(app.packageName, R.layout.widget_readalong).apply {
                 setTextViewText(R.id.widget_title, listOfNotNull(book?.title, chapter.takeIf { it.isNotBlank() }).joinToString(" · "))
-                setTextViewText(R.id.widget_sentence, sentence.trim())
+                setTextViewText(R.id.widget_sentence, text)
+                textLines(app, options)?.let { setInt(R.id.widget_sentence, "setMaxLines", it) }
                 setOnClickPendingIntent(android.R.id.background, open)
             }
             out[ReadAlongTextWidget::class.java] = views
         }
         if (ContinueWidget::class.java in wanted) run {
-            val recent = books.filter(::started).sortedByDescending { it.lastPlayedAt ?: 0 }.take(6)
+            val shelf = WidgetBooks.shelf(app, books.filter(::started))
             val slots = listOf(R.id.widget_book_0, R.id.widget_book_1, R.id.widget_book_2, R.id.widget_book_3, R.id.widget_book_4, R.id.widget_book_5)
             val views = RemoteViews(app.packageName, R.layout.widget_continue).apply {
-                setViewVisibility(R.id.widget_empty, if (recent.isEmpty()) View.VISIBLE else View.GONE)
+                setViewVisibility(R.id.widget_empty, if (shelf.isEmpty()) View.VISIBLE else View.GONE)
+                // One shelf for up to three books; the second appears once there's a fourth.
+                setViewVisibility(R.id.widget_row_1, if (shelf.size > 3) View.VISIBLE else View.INVISIBLE)
+                setViewVisibility(R.id.widget_shelf_1, if (shelf.size > 3) View.VISIBLE else View.INVISIBLE)
                 slots.forEachIndexed { index, slot ->
-                    val item = recent.getOrNull(index)
-                    if (item == null) { setViewVisibility(slot, if (recent.isEmpty()) View.GONE else View.INVISIBLE); return@forEachIndexed }
+                    val item = shelf.getOrNull(index)
+                    if (item == null) { setViewVisibility(slot, View.INVISIBLE); return@forEachIndexed }
                     setViewVisibility(slot, View.VISIBLE)
-                    val art = item.coverUri?.let { loadCover(app, it, 200) }
-                        ?: placeholder(item.title, com.example.readalong.ui.components.coverPaletteFor(app, item, settings.alwaysBasicColor, settings.basicColor), 200)
-                    setImageViewBitmap(slot, art)
-                    setContentDescription(slot, "Play ${item.title}")
-                    setOnClickPendingIntent(slot, action(app, WidgetActionReceiver.PLAY_BOOK, item.id, index))
+                    val art = item.coverUri?.let { loadCover(app, it, 360, square = false) }
+                        ?: placeholder(item.title, com.example.readalong.ui.components.coverPaletteFor(app, item, settings.alwaysBasicColor, settings.basicColor), 240, 360)
+                    setImageViewBitmap(slot, rounded(art))
+                    setContentDescription(slot, "Open ${item.title}")
+                    setOnClickPendingIntent(slot, openBook(app, item.id))
                 }
-                setOnClickPendingIntent(R.id.widget_heading, open)
+                setOnClickPendingIntent(R.id.widget_heading, PendingIntent.getActivity(app, 0, com.example.readalong.ui.launch.LaunchAppearance.intent(app), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))
             }
             out[ContinueWidget::class.java] = views
         }
         return out
     }
 
+    /** How many lines of Read along text fit the widget's height, so the last one isn't cut in half. */
+    private fun textLines(context: Context, options: Bundle?): Int? {
+        val height = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT)?.takeIf { it > 0 } ?: return null
+        val scale = context.resources.configuration.fontScale
+        val line = 17f * scale * 1.33f + 4f * scale
+        val header = 14f * scale + 8f + 28f
+        return ((height - header) / line).toInt().coerceAtLeast(1)
+    }
+
+    /** Opens ReadAlong on [bookId]'s player. */
+    private fun openBook(context: Context, bookId: String): PendingIntent {
+        val intent = Intent(context, com.example.readalong.MainActivity::class.java)
+            .setData(Uri.parse("readalong-widget://open/" + Uri.encode(bookId)))
+            .putExtra(com.example.readalong.MainActivity.OPEN_BOOK, bookId)
+            .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        return PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+    }
+
     private suspend fun look(app: ReadAlongApplication, book: Book, basic: Boolean, basicColor: Long): Pair<CoverPalette, Bitmap?> = withContext(Dispatchers.IO) {
         val key = CoverKey(book.id, book.coverUri, basic, basicColor)
-        cached?.takeIf { it.first == key }?.let { return@withContext it.second }
+        cached[key]?.let { return@withContext it }
         val value = com.example.readalong.ui.components.coverPaletteFor(app, book, basic, basicColor) to book.coverUri?.let { loadCover(app, it, 300) }
-        cached = key to value
+        if (cached.size >= 4) cached.remove(cached.keys.first())
+        cached[key] = value
         value
     }
 
-    internal fun loadCover(context: Context, uri: String, size: Int): Bitmap? = runCatching {
+    /** A small copy of a cover: cropped square unless [square] is false, when it keeps its own shape. */
+    internal fun loadCover(context: Context, uri: String, size: Int, square: Boolean = true): Bitmap? = runCatching {
         if (!uri.startsWith("content://") && !uri.startsWith("android.resource://")) return@runCatching null
         val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         context.contentResolver.openInputStream(Uri.parse(uri)).use { BitmapFactory.decodeStream(it, null, options) }
@@ -198,15 +250,36 @@ object Widgets {
         while (options.outWidth / (sample * 2) >= size && options.outHeight / (sample * 2) >= size) sample *= 2
         options.inJustDecodeBounds = false; options.inSampleSize = sample
         val bitmap = context.contentResolver.openInputStream(Uri.parse(uri)).use { BitmapFactory.decodeStream(it, null, options) } ?: return@runCatching null
-        // Square and small, as RemoteViews copies every bitmap to the launcher.
+        // Small, as RemoteViews copies every bitmap to the launcher.
+        if (!square) {
+            val scale = minOf(1f, size.toFloat() / maxOf(bitmap.width, bitmap.height))
+            return@runCatching Bitmap.createScaledBitmap(bitmap, (bitmap.width * scale).toInt().coerceAtLeast(1), (bitmap.height * scale).toInt().coerceAtLeast(1), true)
+        }
         val side = minOf(bitmap.width, bitmap.height)
-        val square = Bitmap.createBitmap(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side)
-        Bitmap.createScaledBitmap(square, minOf(size, side), minOf(size, side), true)
+        val cropped = Bitmap.createBitmap(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side)
+        Bitmap.createScaledBitmap(cropped, minOf(size, side), minOf(size, side), true)
     }.getOrNull()
 
+    /** A book on the shelf: softly rounded corners and a darker spine edge. */
+    private fun rounded(source: Bitmap): Bitmap {
+        val out = Bitmap.createBitmap(source.width, source.height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(out)
+        val radius = minOf(source.width, source.height) * .035f
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        val rect = android.graphics.RectF(0f, 0f, source.width.toFloat(), source.height.toFloat())
+        canvas.drawRoundRect(rect, radius, radius, paint)
+        paint.xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SRC_IN)
+        canvas.drawBitmap(source, 0f, 0f, paint)
+        paint.xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SRC_ATOP)
+        paint.shader = android.graphics.LinearGradient(0f, 0f, source.width * .06f, 0f, 0x55000000, 0x00000000, android.graphics.Shader.TileMode.CLAMP)
+        canvas.drawRect(rect, paint)
+        return out
+    }
+
     /** A plain cover in the book's colours with its title, for books without artwork. */
-    private fun placeholder(title: String, palette: CoverPalette, size: Int): Bitmap {
-        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+    private fun placeholder(title: String, palette: CoverPalette, width: Int, height: Int): Bitmap {
+        val size = width
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         canvas.drawColor(palette.preview.toArgb())
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = palette.accent.toArgb(); textSize = size / 9f; isFakeBoldText = true }
@@ -223,14 +296,16 @@ object Widgets {
         return if (minutes >= 60) "${minutes / 60}h ${minutes % 60}m" else "${minutes}m"
     }
 
-    private fun action(context: Context, name: String, bookId: String? = null, slot: Int = 0): PendingIntent {
-        val intent = Intent(context, WidgetActionReceiver::class.java).setAction(name).apply { bookId?.let { putExtra(WidgetActionReceiver.BOOK, it) } }
-        val code = WidgetActionReceiver.ACTIONS.indexOf(name) * 10 + slot
-        return PendingIntent.getBroadcast(context, code, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+    /** A button's action, for [bookId] when the widget shows one book. The data keeps each widget's buttons apart. */
+    private fun action(context: Context, name: String, bookId: String? = null): PendingIntent {
+        val intent = Intent(context, WidgetActionReceiver::class.java).setAction(name)
+            .setData(Uri.parse("readalong-widget://action/" + Uri.encode(bookId ?: "playing")))
+            .apply { bookId?.let { putExtra(WidgetActionReceiver.BOOK, it) } }
+        return PendingIntent.getBroadcast(context, WidgetActionReceiver.ACTIONS.indexOf(name), intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
     }
 }
 
-/** A widget button: play or pause, skip, sleep, or play a book from Continue listening. */
+/** A widget button: play or pause, skip or sleep, for the widget's own book or whatever is playing. */
 class WidgetActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val app = context.applicationContext as? ReadAlongApplication ?: return
@@ -247,11 +322,11 @@ class WidgetActionReceiver : BroadcastReceiver() {
         val playback = app.playback
         val settings = app.appPreferences.preferences.first()
         when (action) {
-            TOGGLE -> if (choose(app, null)) withContext(Dispatchers.Main) { if (playback.state.value.isPlaying) playback.pause() else playback.play() }
+            TOGGLE -> if (choose(app, bookId)) withContext(Dispatchers.Main) { if (playback.state.value.isPlaying) playback.pause() else playback.play() }
             PLAY_BOOK -> if (choose(app, bookId)) withContext(Dispatchers.Main) { playback.play() }
-            BACK -> if (choose(app, null)) withContext(Dispatchers.Main) { playback.skip(-settings.playerBack * 1000L) }
-            FORWARD -> if (choose(app, null)) withContext(Dispatchers.Main) { playback.skip(settings.playerForward * 1000L) }
-            SLEEP -> if (choose(app, null)) withContext(Dispatchers.Main) {
+            BACK -> if (choose(app, bookId)) withContext(Dispatchers.Main) { playback.skip(-settings.playerBack * 1000L) }
+            FORWARD -> if (choose(app, bookId)) withContext(Dispatchers.Main) { playback.skip(settings.playerForward * 1000L) }
+            SLEEP -> if (choose(app, bookId)) withContext(Dispatchers.Main) {
                 val state = playback.state.value
                 playback.sleep(if (state.sleepEndsAt != null || state.sleepAtChapterEnd) null else 30)
             }

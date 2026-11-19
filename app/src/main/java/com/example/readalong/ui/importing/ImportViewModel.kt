@@ -36,6 +36,8 @@ class ImportViewModel(private val importer: AudioImporter, private val epubs: co
     private val mutableOpenBook = MutableStateFlow<String?>(null)
     val openBook = mutableOpenBook.asStateFlow()
     fun openedBook() { mutableOpenBook.value = null }
+    /** Opens [id]'s player, as a tap on a Bookshelf widget book asks. */
+    fun open(id: String) { mutableOpenBook.value = id }
     private suspend fun offerAdded(ids: List<String>) {
         if (ids.size == 1) { com.example.readalong.ui.player.NewBookOffer.bookId = ids[0]; mutableOpenBook.value = ids[0] }
         else offerPriority(ids)
