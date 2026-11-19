@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Sizes are in dp rather than cells, so the first size suits dense and roomy home screen grids alike. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
-    android:minWidth="280dp" android:minHeight="250dp" android:minResizeWidth="150dp" android:minResizeHeight="150dp"
+    android:minWidth="280dp" android:minHeight="200dp" android:minResizeWidth="150dp" android:minResizeHeight="110dp"
     android:resizeMode="horizontal|vertical" android:widgetCategory="home_screen" android:updatePeriodMillis="0"
     android:initialLayout="@layout/widget_continue" android:previewLayout="@layout/widget_continue_preview" />

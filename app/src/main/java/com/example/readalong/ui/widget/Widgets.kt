@@ -198,14 +198,14 @@ object Widgets {
                     val item = shelf.getOrNull(index)
                     if (item == null) { setViewVisibility(slot, View.INVISIBLE); return@forEachIndexed }
                     setViewVisibility(slot, View.VISIBLE)
-                    // Small: the shelf crops each cover to its slot, and RemoteViews copies every bitmap.
-                    val art = item.coverUri?.let { loadCover(app, it, 300, square = false) }
-                        ?: placeholder(item.title, com.example.readalong.ui.components.coverPaletteFor(app, item, settings.alwaysBasicColor, settings.basicColor), 160, 240)
+                    // Square, like audiobook covers, and small, because RemoteViews copies every bitmap.
+                    val art = item.coverUri?.let { loadCover(app, it, 300) }
+                        ?: placeholder(item.title, com.example.readalong.ui.components.coverPaletteFor(app, item, settings.alwaysBasicColor, settings.basicColor), 240, 240)
                     setImageViewBitmap(slot, art)
                     setContentDescription(slot, tr("Open ${item.title}"))
                     setOnClickPendingIntent(slot, openBook(app, item.id))
                 }
-                setOnClickPendingIntent(R.id.widget_heading, PendingIntent.getActivity(app, 0, com.example.readalong.ui.launch.LaunchAppearance.intent(app), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))
+                setOnClickPendingIntent(android.R.id.background, PendingIntent.getActivity(app, 0, com.example.readalong.ui.launch.LaunchAppearance.intent(app), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))
             }
             out[ContinueWidget::class.java] = views
         }
