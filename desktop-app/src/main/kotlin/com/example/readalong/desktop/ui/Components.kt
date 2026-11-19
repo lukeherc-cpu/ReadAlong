@@ -5,6 +5,10 @@ package com.example.readalong.desktop.ui
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.VolumeDown
+import androidx.compose.material.icons.rounded.VolumeOff
+import androidx.compose.material.icons.rounded.VolumeUp
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -153,7 +157,7 @@ fun VolumeSlider(app: AppState, modifier: Modifier = Modifier) {
     val muted = volume < .01f
     val tint = Color.White.copy(alpha = .85f)
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
-        Icon(if (muted) androidx.compose.material.icons.Icons.Rounded.VolumeOff else androidx.compose.material.icons.Icons.Rounded.VolumeDown,
+        Icon(if (muted) Icons.Rounded.VolumeOff else Icons.Rounded.VolumeDown,
             if (muted) "Unmute (M)" else "Mute (M)",
             Modifier.size(32.dp).clip(CircleShape).clickable { app.player.toggleMute() }.pointerHoverIcon(PointerIcon.Hand).padding(6.dp),
             tint = if (muted) MaterialTheme.colorScheme.primary else tint)
@@ -203,6 +207,6 @@ fun VolumeSlider(app: AppState, modifier: Modifier = Modifier) {
             }
         }
         Spacer(Modifier.width(8.dp))
-        Icon(androidx.compose.material.icons.Icons.Rounded.VolumeUp, null, Modifier.size(20.dp), tint = tint)
+        Icon(Icons.Rounded.VolumeUp, null, Modifier.size(20.dp), tint = tint)
     }
 }
