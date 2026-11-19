@@ -88,4 +88,5 @@ object Translations {
 
 /** [text] in the app language: see [Translations]. */
 fun tr(text: String): String = Translations.translate(text)
+@JvmName("trOrNull")
 fun tr(text: String?): String? = text?.let(Translations::translate)
