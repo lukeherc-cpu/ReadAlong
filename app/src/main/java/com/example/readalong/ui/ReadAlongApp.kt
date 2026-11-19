@@ -263,6 +263,12 @@ fun ReadAlongApp(libraryViewModel: LibraryViewModel, app: com.example.readalong.
                 if (value != mode) { readerFrame.frozen = android.animation.ValueAnimator.areAnimatorsEnabled(); mode = value }
             }
             androidx.activity.compose.BackHandler(enabled = mode != "player") { setReaderMode("player") }
+            // The Read along widget opens the book straight to its text.
+            androidx.compose.runtime.LaunchedEffect(bookId) {
+                com.example.readalong.MainActivity.openReader.collect { id ->
+                    if (id == bookId) { com.example.readalong.MainActivity.openReader.value = null; setReaderMode("follow") }
+                }
+            }
             androidx.activity.compose.BackHandler(enabled = mode == "player" && fromMini) { closeFromMini(); navController.popBackStack() }
             val state by model.state.collectAsStateWithLifecycle()
             val busy by model.busy.collectAsStateWithLifecycle()

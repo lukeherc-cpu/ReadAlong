@@ -69,6 +69,16 @@ class WidgetCrashTest {
         try { views.values.single().writeToParcel(parcel, 0); org.junit.Assert.assertTrue("Bookshelf is ${parcel.dataSize()} bytes", parcel.dataSize() < 1_000_000) } finally { parcel.recycle() }
     }
 
+    @Test fun pickerPreviewsFromTheLibraryAreSent() {
+        // Android 15+ takes previews drawn from the reader's books; older versions skip this quietly.
+        val dao = app.database.bookDao()
+        val before = runBlocking { dao.metadata("current_book") }
+        runBlocking { dao.putMetadata(com.example.readalong.data.local.LibraryMetadataEntity("current_book", ids[0])) }
+        app.getSharedPreferences("widgets", android.content.Context.MODE_PRIVATE).edit().remove("preview_key").commit()
+        try { runBlocking { Widgets.publishPreviews(app) } }
+        finally { runBlocking { dao.putMetadata(com.example.readalong.data.local.LibraryMetadataEntity("current_book", before.orEmpty())) } }
+    }
+
     @Test fun setupScreenOpensAndChoosesABook() {
         val intent = Intent(app, WidgetSetupActivity::class.java).putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, 4242).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         ActivityScenario.launch<WidgetSetupActivity>(intent).use { scenario ->

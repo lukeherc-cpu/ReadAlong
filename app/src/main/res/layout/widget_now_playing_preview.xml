@@ -3,7 +3,7 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@android:id/background"
     android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="horizontal" android:padding="14dp" android:gravity="center_vertical"
     android:clipToOutline="true" android:background="@drawable/widget_shape" android:backgroundTint="#FF3D2E1F">
-    <ImageView android:id="@+id/widget_cover" android:layout_width="wrap_content" android:layout_height="match_parent" android:maxWidth="132dp" android:maxHeight="132dp" android:adjustViewBounds="true"
+    <ImageView android:id="@+id/widget_cover" android:layout_width="wrap_content" android:layout_height="match_parent" android:maxWidth="100dp" android:maxHeight="100dp" android:adjustViewBounds="true"
         android:scaleType="centerCrop" android:background="@drawable/widget_cover_shape" android:clipToOutline="true" android:contentDescription="@string/widget_open_player" android:src="@drawable/widget_sample_monte" />
     <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginStart="14dp" android:orientation="vertical">
         <TextView android:id="@+id/widget_title" android:layout_width="match_parent" android:layout_height="wrap_content" android:textColor="#FFFFFFFF" android:textSize="17sp" android:textStyle="bold" android:maxLines="1" android:ellipsize="end" android:text="@string/widget_preview_title" />

@@ -66,7 +66,7 @@ object Widgets {
                 app.appPreferences.preferences.map { it.alwaysBasicColor to it.basicColor }.distinctUntilChanged(),
                 app.database.bookDao().observeBooks().map { list -> list.map { it.toBook() }.filter(::started).map { listOf(it.id, it.coverUri, it.title) }.sortedBy { it[0] } }.distinctUntilChanged(),
             ) { _, _, _ -> }.collect {
-                try { update(app) }
+                try { update(app); publishPreviews(app) }
                 catch (cancelled: CancellationException) { throw cancelled }
                 catch (_: Exception) { }
             }
@@ -84,6 +84,27 @@ object Widgets {
             val views = build(app, setOf(kind), WidgetBooks.book(app, id), manager.getAppWidgetOptions(id))[kind] ?: continue
             manager.updateAppWidget(id, views)
         }
+    }
+
+    /**
+     * Android 15 and later: the widget picker shows each widget drawn from the reader's own books instead of the
+     * sample previews. Android limits how often these can change, so they're sent again only when the book
+     * they'd show or the Bookshelf's books change, and a refused one is retried at the next change.
+     */
+    suspend fun publishPreviews(app: ReadAlongApplication) {
+        if (Build.VERSION.SDK_INT < 35) return
+        val books = app.database.bookDao().observeBooks().first().map { it.toBook() }
+        val current = app.playbackStore.state.value.bookId ?: app.database.bookDao().metadata("current_book")
+        val key = (listOf(current) + WidgetBooks.shelf(app, books.filter(::started)).map { it.id }).joinToString("|")
+        val prefs = app.getSharedPreferences("widgets", Context.MODE_PRIVATE)
+        if (current == null || prefs.getString("preview_key", null) == key) return
+        val manager = AppWidgetManager.getInstance(app)
+        var all = true
+        for ((kind, views) in build(app, kinds.toSet())) {
+            val sent = runCatching { manager.setWidgetPreview(ComponentName(app, kind), android.appwidget.AppWidgetProviderInfo.WIDGET_CATEGORY_HOME_SCREEN, views) }.getOrDefault(false)
+            all = all && sent
+        }
+        if (all) prefs.edit().putString("preview_key", key).apply()
     }
 
     /**
@@ -185,7 +206,8 @@ object Widgets {
                 setTextViewText(R.id.widget_title, listOfNotNull(book?.title, chapter.takeIf { it.isNotBlank() }).joinToString(" · "))
                 setTextViewText(R.id.widget_sentence, text)
                 textLines(app, options)?.let { setInt(R.id.widget_sentence, "setMaxLines", it) }
-                setOnClickPendingIntent(android.R.id.background, open)
+                // A tap opens the book's text at the sentence being heard, not its player.
+                setOnClickPendingIntent(android.R.id.background, book?.let { openBook(app, it.id, reader = true) } ?: open)
             }
             out[ReadAlongTextWidget::class.java] = views
         }
@@ -222,10 +244,11 @@ object Widgets {
     }
 
     /** Opens ReadAlong on [bookId]'s player. */
-    private fun openBook(context: Context, bookId: String): PendingIntent {
+    private fun openBook(context: Context, bookId: String, reader: Boolean = false): PendingIntent {
         val intent = Intent(context, com.example.readalong.MainActivity::class.java)
-            .setData(Uri.parse("readalong-widget://open/" + Uri.encode(bookId)))
+            .setData(Uri.parse("readalong-widget://" + (if (reader) "read/" else "open/") + Uri.encode(bookId)))
             .putExtra(com.example.readalong.MainActivity.OPEN_BOOK, bookId)
+            .putExtra(com.example.readalong.MainActivity.OPEN_READER, reader)
             .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
         return PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
     }
