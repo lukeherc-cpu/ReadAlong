@@ -75,28 +75,29 @@ private fun ago(at: Long): String {
 
 /**
  * The book's Character List: people the listener adds, each with a note. Tapping someone goes to where
- * they were first heard. Names that keep coming up in the text so far are offered as suggestions.
+ * they were first heard. Two buttons at the bottom add someone: by hand, or from an AI assistant's answer.
  */
 @Composable
 fun CharacterListSheet(bookId: String, positionMs: Long, chapters: List<PlaybackChapter>, seek: (Long) -> Unit, close: () -> Unit, title: String = "", author: String? = null) {
     val repository = notes(LocalContext.current) ?: return
     val scope = rememberCoroutineScope()
     val people by remember(bookId) { repository.characters(bookId) }.collectAsStateWithLifecycle(emptyList())
-    var suggestions by remember { mutableStateOf<List<NameSuggestion>>(emptyList()) }
-    // Worked out once per opening (and as names are added), from the text heard so far only.
-    LaunchedEffect(bookId, people.size) { suggestions = runCatching { repository.suggestions(bookId, positionMs, people.map { it.name }) }.getOrDefault(emptyList()) }
     var editing by remember { mutableStateOf<CharacterEntry?>(null) }
     var askAi by remember { mutableStateOf(false) }
-    var chooseHow by remember { mutableStateOf(false) }
     var expanded by remember { mutableStateOf<String?>(null) }
     fun where(ms: Long) = chapters.lastOrNull { it.startMs <= ms }?.title ?: clockTime(ms)
-    // One Add character button, pinned at the bottom; it asks whether to type someone in or ask an AI.
+    // The two ways to add someone, side by side and pinned at the bottom. Without a title there's
+    // nothing to ask an assistant about, so only Add character shows.
     ActionSheet(close, "Character List", when (people.size) { 0 -> null; 1 -> "1 person"; else -> "${people.size} people" }, footer = {
-        Button(onClick = { if (title.isNotBlank()) chooseHow = true else editing = CharacterEntry(BookNotesRepository.newId(), "") },
-            Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(top = 12.dp).heightIn(min = 48.dp).testTag("add_character")) {
-            Icon(painterResource(R.drawable.ic_add), null, Modifier.size(20.dp))
-            Spacer(Modifier.width(8.dp))
-            Text(tr("Add character"))
+        Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            OutlinedButton(onClick = { editing = CharacterEntry(BookNotesRepository.newId(), "") }, Modifier.weight(1f).heightIn(min = 48.dp).testTag("add_character"), contentPadding = PaddingValues(horizontal = 12.dp)) {
+                Icon(painterResource(R.drawable.ic_add), null, Modifier.size(20.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(tr("Add character"), maxLines = 1)
+            }
+            if (title.isNotBlank()) Button(onClick = { askAi = true }, Modifier.weight(1f).heightIn(min = 48.dp).testTag("make_with_ai"), contentPadding = PaddingValues(horizontal = 12.dp)) {
+                Text(tr("Make with AI"), maxLines = 1)
+            }
         }
     }) {
         if (people.isEmpty()) item {
@@ -109,32 +110,7 @@ fun CharacterListSheet(bookId: String, positionMs: Long, chapters: List<Playback
                 toggle = { expanded = if (expanded == person.id) null else person.id },
                 edit = { editing = person }, go = person.firstMs?.let { ms -> { seek(ms); close() } })
         }
-        if (suggestions.isNotEmpty()) {
-            item { SheetDivider() }
-            item {
-                Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(tr("Heard so far"), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Row(Modifier.horizontalScroll(rememberScrollState()).testTag("character_suggestions"), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        suggestions.forEach { suggestion ->
-                            AssistChip(onClick = { scope.launch { repository.saveCharacter(bookId, CharacterEntry(BookNotesRepository.newId(), suggestion.name, firstMs = suggestion.firstMs)) } },
-                                label = { Text(suggestion.name) }, leadingIcon = { Icon(painterResource(R.drawable.ic_add), null, Modifier.size(18.dp)) })
-                        }
-                    }
-                }
-            }
-        }
     }
-    if (chooseHow) AlertDialog(onDismissRequest = { chooseHow = false }, title = { Text(tr("Add characters")) }, text = {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { chooseHow = false; editing = CharacterEntry(BookNotesRepository.newId(), "") },
-                Modifier.fillMaxWidth().heightIn(min = 56.dp).testTag("add_myself")) {
-                Column(Modifier.fillMaxWidth()) { Text(tr("Add someone myself")); Text(tr("Type a name and a note"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-            }
-            OutlinedButton(onClick = { chooseHow = false; askAi = true }, Modifier.fillMaxWidth().heightIn(min = 56.dp).testTag("make_with_ai")) {
-                Column(Modifier.fillMaxWidth()) { Text(tr("Make with AI")); Text(tr("Ask ChatGPT, Gemini or Claude who's who so far"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-            }
-        }
-    }, confirmButton = {}, dismissButton = { TextButton(onClick = { chooseHow = false }) { Text(tr("Cancel")) } })
     if (askAi) AiCharacterDialog(AiCharacters.prompt(title, author, chapters.lastOrNull { it.startMs <= positionMs }?.title ?: "the ${clockTime(positionMs)} mark"),
         import = { answer -> repository.importCharacters(bookId, AiCharacters.parse(answer)) }, close = { askAi = false })
     editing?.let { person ->

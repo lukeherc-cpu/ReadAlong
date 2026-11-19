@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@android:id/background"
     android:layout_width="match_parent" android:layout_height="match_parent" android:clipToOutline="true" android:background="@drawable/widget_shape" android:backgroundTint="#FF1B1F24">
-    <ImageView android:id="@+id/widget_cover" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="centerCrop" android:contentDescription="@string/widget_open_player" android:src="@drawable/widget_preview_cover" />
-    <ImageView android:id="@+id/widget_play_bg" android:layout_width="48dp" android:layout_height="48dp" android:layout_gravity="bottom|end" android:layout_margin="12dp"
-        android:src="@drawable/widget_circle" android:importantForAccessibility="no" android:tint="#FFC98B4A" />
-    <ImageView android:id="@+id/widget_play" android:layout_width="48dp" android:layout_height="48dp" android:layout_gravity="bottom|end" android:layout_margin="12dp"
-        android:padding="13dp" android:src="@drawable/ic_play" android:contentDescription="@string/widget_play" android:tint="#FF3A2A1C" />
+    <ImageView android:id="@+id/widget_cover" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="centerCrop" android:contentDescription="@string/widget_open_player" android:src="@drawable/widget_sample_monte" />
+    <ImageView android:id="@+id/widget_play_bg" android:layout_width="48dp" android:layout_height="48dp" android:layout_gravity="bottom|end" android:layout_marginEnd="12dp" android:layout_marginBottom="16dp"
+        android:src="@drawable/widget_circle" android:importantForAccessibility="no" android:tint="#FFE8C48A" />
+    <ImageView android:id="@+id/widget_play" android:layout_width="48dp" android:layout_height="48dp" android:layout_gravity="bottom|end" android:layout_marginEnd="12dp" android:layout_marginBottom="16dp"
+        android:padding="13dp" android:src="@drawable/ic_play" android:contentDescription="@string/widget_play" android:tint="#FF3D2E1F" />
     <ProgressBar android:id="@+id/widget_progress" style="?android:attr/progressBarStyleHorizontal" android:layout_width="match_parent" android:layout_height="4dp"
-        android:layout_gravity="bottom" android:progressDrawable="@drawable/widget_progress" android:max="1000" android:progress="380" />
+        android:layout_gravity="bottom" android:progressDrawable="@drawable/widget_progress" android:max="1000" android:progress="280" />
 </FrameLayout>
