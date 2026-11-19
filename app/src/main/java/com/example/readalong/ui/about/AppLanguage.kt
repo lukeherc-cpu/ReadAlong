@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.res.Configuration
 import android.os.Build
 import android.os.LocaleList
+import com.example.readalong.domain.i18n.Translations
 import java.util.Locale
 
 /**
@@ -14,8 +15,8 @@ import java.util.Locale
  */
 object AppLanguage {
     const val SYSTEM = ""
-    /** Languages ReadAlong's text is translated into. Add a tag here and to locales_config.xml with each values-xx folder. */
-    val available = listOf("en")
+    /** Languages ReadAlong's text is translated into (assets/i18n). Keep locales_config.xml in step. */
+    val available = Translations.languages
 
     fun name(tag: String): String = if (tag == SYSTEM) "System default" else Locale.forLanguageTag(tag).let { it.getDisplayLanguage(it).replaceFirstChar { c -> c.titlecase(it) } }
 
@@ -23,6 +24,17 @@ object AppLanguage {
         context.getSystemService(android.app.LocaleManager::class.java)?.applicationLocales?.takeUnless { it.isEmpty }?.get(0)?.toLanguageTag()
             ?.let { tag -> available.firstOrNull { tag.startsWith(it) } } ?: SYSTEM
     else stored(context)
+
+    /**
+     * Loads the catalog for the language ReadAlong's text should be in now: the chosen one, or the phone's language
+     * when ReadAlong has it, or English. Called as the app and each activity start, so a change shows on the next screen.
+     */
+    fun load(context: Context) {
+        val tag = current(context).ifEmpty { context.resources.configuration.locales[0].language }
+        val code = available.firstOrNull { tag.startsWith(it) } ?: "en"
+        if (code == Translations.language) return
+        Translations.use(code) { file -> runCatching { context.assets.open("i18n/$file").bufferedReader().use { it.readText() } }.getOrNull() }
+    }
 
     /** Saves [tag] and, on older phones, restarts [activity] so its text is redrawn in that language. */
     fun set(activity: android.app.Activity, tag: String) {

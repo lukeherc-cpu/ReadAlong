@@ -1,5 +1,6 @@
 package com.example.readalong.ui.sound
 
+import com.example.readalong.domain.i18n.tr
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -34,10 +35,10 @@ private fun bandText(hz: Int) = if (hz >= 1000) "${if (hz % 1000 == 0) hz / 1000
 @Composable
 fun StepSlider(label: String, value: Int, range: IntRange, text: String, change: (Int) -> Unit, modifier: Modifier = Modifier) {
     Row(modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(label, Modifier.width(72.dp), style = MaterialTheme.typography.bodyMedium)
-        Slider(value.toFloat(), { change(it.roundToInt()) }, Modifier.weight(1f).semantics { contentDescription = label; stateDescription = text },
+        Text(tr(label), Modifier.width(72.dp), style = MaterialTheme.typography.bodyMedium)
+        Slider(value.toFloat(), { change(it.roundToInt()) }, Modifier.weight(1f).semantics { contentDescription = tr(label); stateDescription = text },
             valueRange = range.first.toFloat()..range.last.toFloat(), steps = range.last - range.first - 1)
-        Text(text, Modifier.widthIn(min = 56.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(tr(text), Modifier.widthIn(min = 56.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -46,8 +47,8 @@ fun SoundSwitch(label: String, summary: String?, checked: Boolean, change: (Bool
     Row(modifier.fillMaxWidth().heightIn(min = 56.dp).toggleable(checked, role = Role.Switch, onValueChange = change).padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(label, style = MaterialTheme.typography.bodyLarge)
-            if (summary != null) Text(summary, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(tr(label), style = MaterialTheme.typography.bodyLarge)
+            if (summary != null) Text(tr(summary), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Switch(checked, onCheckedChange = null)
     }
@@ -60,7 +61,7 @@ fun EqualizerEditor(value: SoundSettings, change: (SoundSettings) -> Unit) {
         SoundSwitch("Equalizer", null, value.equalizer, { change(value.copy(equalizer = it)) }, Modifier.testTag("equalizer_switch"))
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             EqPreset.entries.forEach { preset ->
-                FilterChip(value.equalizer && value.preset == preset, { change(value.copy(equalizer = true, preset = preset)) }, { Text(preset.label) },
+                FilterChip(value.equalizer && value.preset == preset, { change(value.copy(equalizer = true, preset = preset)) }, { Text(tr(preset.label)) },
                     Modifier.testTag("eq_preset_${preset.name}"))
             }
         }
@@ -69,7 +70,7 @@ fun EqualizerEditor(value: SoundSettings, change: (SoundSettings) -> Unit) {
             StepSlider(bandText(hz), db, -EQ_MAX_DB..EQ_MAX_DB, signed(db, " dB"), { change(value.withBand(index, it)) }, Modifier.testTag("eq_band_$index"))
         }
         TextButton(onClick = { change(value.copy(preset = EqPreset.FLAT, customGains = EqPreset.FLAT.gains)) },
-            Modifier.padding(start = 8.dp).testTag("eq_reset")) { Text("Reset to default") }
+            Modifier.padding(start = 8.dp).testTag("eq_reset")) { Text(tr("Reset to default")) }
     }
 }
 
@@ -102,7 +103,7 @@ fun BookSoundSheet(app: ReadAlongApplication, bookId: String, title: String, clo
         item { HorizontalDivider(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
         item { EqualizerEditor(value, ::change) }
         if (own != null) item {
-            TextButton(onClick = { scope.launch { app.sound.resetBook(bookId) } }, Modifier.padding(start = 8.dp).testTag("sound_use_defaults")) { Text("Use my defaults from Settings") }
+            TextButton(onClick = { scope.launch { app.sound.resetBook(bookId) } }, Modifier.padding(start = 8.dp).testTag("sound_use_defaults")) { Text(tr("Use my defaults from Settings")) }
         }
     }
 }

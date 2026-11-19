@@ -53,6 +53,8 @@ class AppState(val scope: CoroutineScope, private val background: Boolean = true
     val updates = UpdateService(scope, settingsStore)
 
     var screen by mutableStateOf<Screen>(Screen.Library)
+    /** Settings → Languages opens on this tab: 0 for books, 1 for the app's own text. */
+    var languageTab by mutableStateOf(0)
         private set
     private val history = ArrayDeque<Screen>()
     val messages = MutableSharedFlow<String>(extraBufferCapacity = 8)

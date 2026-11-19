@@ -1,5 +1,6 @@
 package com.example.readalong.ui
 
+import com.example.readalong.domain.i18n.tr
 import android.net.Uri
 import kotlinx.coroutines.launch
 import androidx.compose.animation.togetherWith
@@ -141,9 +142,9 @@ fun ReadAlongApp(libraryViewModel: LibraryViewModel, app: com.example.readalong.
             val selected = (state as? com.example.readalong.ui.library.LibraryUiState.Ready)?.books?.firstOrNull { it.id == selectedId }
             selected?.let { com.example.readalong.ui.library.BookActions(it, actions, { selectedId = null }) }
             if (selected == null && actionError != null) androidx.compose.material3.AlertDialog(
-                onDismissRequest = actions::dismissError, title = { androidx.compose.material3.Text("Couldn't update book") },
-                text = { androidx.compose.material3.Text(actionError!!) },
-                confirmButton = { androidx.compose.material3.TextButton(onClick = actions::dismissError) { androidx.compose.material3.Text("Close") } })
+                onDismissRequest = actions::dismissError, title = { androidx.compose.material3.Text(tr("Couldn't update book")) },
+                text = { androidx.compose.material3.Text(tr(actionError!!)) },
+                confirmButton = { androidx.compose.material3.TextButton(onClick = actions::dismissError) { androidx.compose.material3.Text(tr("Close")) } })
             // Mini player <-> player: the library grows a container from the mini player's bounds to the
             // full screen (tap, or follow a drag), then the real player fades in on top of it. Closing
             // a player opened this way plays it in reverse. See PlayerTransform.

@@ -1,5 +1,6 @@
 package com.example.readalong.ui.library
 
+import com.example.readalong.domain.i18n.tr
 import androidx.compose.foundation.layout.*
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateFloat
@@ -90,7 +91,7 @@ fun LibraryScreen(
     }
     val sortButton: @Composable () -> Unit = {
         Box {
-            IconButton(onClick = { sortMenu = true }, modifier = Modifier.testTag("library_sort")) { Icon(painterResource(R.drawable.ic_sort), "Sort and view", tint = MaterialTheme.colorScheme.onSurfaceVariant) }
+            IconButton(onClick = { sortMenu = true }, modifier = Modifier.testTag("library_sort")) { Icon(painterResource(R.drawable.ic_sort), tr("Sort and view"), tint = MaterialTheme.colorScheme.onSurfaceVariant) }
             SortAndViewMenu(sortMenu, onDismiss = { sortMenu = false }, collectionView = folderView, onView = ::chooseView, sort = sort, onSort = ::chooseSort,
                 listMode = settings.listLibrary, onList = { list -> if (list != settings.listLibrary) scope.launch { app?.appPreferences?.update { it.copy(listLibrary = list) } } })
         }
@@ -120,11 +121,11 @@ fun LibraryScreen(
                     var barOrigin by remember { mutableStateOf<androidx.compose.ui.geometry.Offset?>(null) }
                     CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.primary) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = onAbout) { Icon(painterResource(R.drawable.ic_settings), "Settings") }
-                        IconButton(onClick = onFolders) { Icon(painterResource(R.drawable.ic_bookshelf), "Audiobook folders") }
+                        IconButton(onClick = onAbout) { Icon(painterResource(R.drawable.ic_settings), tr("Settings")) }
+                        IconButton(onClick = onFolders) { Icon(painterResource(R.drawable.ic_bookshelf), tr("Audiobook folders")) }
                         Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { com.example.readalong.ui.launch.LibraryLogo(scanningFolder, transcribing, settings.animateTranscriptionLogo, readingFolder = readingFolder, onClick = onQueue, syncCount = (syncProgress ?: scanProgress?.takeIf { readingFolder })?.count()) }
                         IconButton(onClick = { searchVisible = !searchVisible; if (!searchVisible) query = "" },
-                            modifier = Modifier.onGloballyPositioned { val b = it.boundsInRoot(); iconCenter = b.center }) { Icon(painterResource(R.drawable.ic_search), "Search library") }
+                            modifier = Modifier.onGloballyPositioned { val b = it.boundsInRoot(); iconCenter = b.center }) { Icon(painterResource(R.drawable.ic_search), tr("Search library")) }
                         importControls()
                     }
                     }
@@ -142,7 +143,7 @@ fun LibraryScreen(
         bottomBar = miniPlayer,
         floatingActionButton = {
             if (showCollections && openCollection == null && app != null) ExtendedFloatingActionButton(onClick = { naming = true },
-                icon = { Icon(painterResource(R.drawable.ic_add), null) }, text = { Text("New collection") }, modifier = Modifier.testTag("new_collection"))
+                icon = { Icon(painterResource(R.drawable.ic_add), null) }, text = { Text(tr("New collection")) }, modifier = Modifier.testTag("new_collection"))
         },
         floatingActionButtonPosition = FabPosition.Center,
         snackbarHost = { snackbar?.let { SnackbarHost(it) } },
@@ -165,7 +166,7 @@ fun LibraryScreen(
                         item(key = "collections-header", span = { GridItemSpan(maxLineSpan) }) {
                             Column {
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                    Text("Collections", Modifier.semantics { heading() }, style = MaterialTheme.typography.titleLarge)
+                                    Text(tr("Collections"), Modifier.semantics { heading() }, style = MaterialTheme.typography.titleLarge)
                                     sortButton()
                                 }
                             }
@@ -207,7 +208,7 @@ fun LibraryScreen(
                 if (groups.isNotEmpty() && !settings.longPressTipHidden && !searchVisible) item(key = "long-press-tip", span = { GridItemSpan(maxLineSpan) }) {
                     Surface(shape = RoundedCornerShape(com.example.readalong.ui.theme.Corners.medium), color = MaterialTheme.colorScheme.secondaryContainer) {
                         Row(Modifier.fillMaxWidth().padding(start = 16.dp, top = 4.dp, bottom = 4.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text("Press and hold a book to change its title, cover or status", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium,
+                            Text(tr("Press and hold a book to change its title, cover or status"), Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSecondaryContainer)
                             IconButton(onClick = { scope.launch { app?.appPreferences?.update { it.copy(longPressTipHidden = true) } } }) {
                                 com.example.readalong.ui.components.CloseGlyph(MaterialTheme.colorScheme.onSecondaryContainer, "Dismiss tip")
@@ -228,7 +229,7 @@ fun LibraryScreen(
                                 style = MaterialTheme.typography.titleLarge,
                                 modifier = Modifier.semantics { heading() },
                             )
-                            if (group == groups.first()) sortButton() else Text(group.books.size.toString(), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
+                            if (group == groups.first()) sortButton() else Text(tr(group.books.size.toString()), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
                         }
                     }
                     items(group.books, key = { "book:${it.id}" }) { book -> Box(Modifier.animateItem(fadeInSpec = tween(180), placementSpec = tween(260, easing = com.example.readalong.ui.reading.ReaderMotionEasing), fadeOutSpec = tween(120))) { if (settings.listLibrary) BookListRow(book, selected = book.id == selectedBookId, onLongClick = { hideTip(); onLongBook(book) }) { onBook(book.id) } else BookTile(book, selected = book.id == selectedBookId, onLongClick = { hideTip(); onLongBook(book) }) { onBook(book.id) } } }
@@ -257,11 +258,11 @@ fun LibraryScreen(
     renaming?.let { collection -> if (store != null) CollectionNameDialog("Rename collection", initial = collection.name, confirm = "Save", onDismiss = { renaming = null }) { name ->
         renaming = null; scope.launch { store.rename(collection, name) }
     } }
-    deleting?.let { collection -> AlertDialog(onDismissRequest = { deleting = null }, title = { Text("Delete “${collection.name}”?") },
-        text = { Text("The collection goes away. Its books stay in your library.") },
+    deleting?.let { collection -> AlertDialog(onDismissRequest = { deleting = null }, title = { Text(tr("Delete “${collection.name}”?")) },
+        text = { Text(tr("The collection goes away. Its books stay in your library.")) },
         confirmButton = { TextButton(onClick = { deleting = null; openCollection = null; store?.let { scope.launch { it.delete(collection) } } }, modifier = Modifier.testTag("collection_delete_confirm")) {
-            Text("Delete collection", color = MaterialTheme.colorScheme.error) } },
-        dismissButton = { TextButton(onClick = { deleting = null }) { Text("Cancel") } }) }
+            Text(tr("Delete collection"), color = MaterialTheme.colorScheme.error) } },
+        dismissButton = { TextButton(onClick = { deleting = null }) { Text(tr("Cancel")) } }) }
     // The picker waits for the new collection to arrive from the store, then shows.
     val picking = pickingId?.let { id -> collections.firstOrNull { it.id == id } }
     if (picking != null && state is LibraryUiState.Ready && store != null) CollectionBookPicker(picking, state.books.sortedWith(com.example.readalong.domain.model.libraryOrder(sort)),
@@ -278,18 +279,18 @@ private const val LOOSE = "\u0000loose"
 private fun SortAndViewMenu(expanded: Boolean, onDismiss: () -> Unit, collectionView: Boolean, onView: (Boolean) -> Unit,
     sort: LibrarySort, onSort: (LibrarySort) -> Unit, listMode: Boolean, onList: (Boolean) -> Unit) {
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
-    @Composable fun heading(text: String) = Text(text, Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp),
+    @Composable fun heading(text: String) = Text(tr(text), Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp),
         style = MaterialTheme.typography.labelMedium, color = muted)
-    @Composable fun tick(on: Boolean): (@Composable () -> Unit)? = if (on) ({ Icon(painterResource(R.drawable.ic_check), "Selected", tint = MaterialTheme.colorScheme.primary) }) else null
+    @Composable fun tick(on: Boolean): (@Composable () -> Unit)? = if (on) ({ Icon(painterResource(R.drawable.ic_check), tr("Selected"), tint = MaterialTheme.colorScheme.primary) }) else null
     @Composable fun lead(icon: Int?): @Composable () -> Unit = { if (icon != null) Icon(painterResource(icon), null, Modifier.size(22.dp), tint = muted) else Spacer(Modifier.size(22.dp)) }
     DropdownMenu(expanded = expanded, onDismissRequest = onDismiss, modifier = Modifier.testTag("library_sort_menu")) {
         heading("View")
         // Three layouts, one ticked: covers by section, a list by section, or collections.
-        DropdownMenuItem(text = { Text("Cover art") }, onClick = { onList(false); onView(false) }, leadingIcon = lead(R.drawable.ic_view_covers),
+        DropdownMenuItem(text = { Text(tr("Cover art")) }, onClick = { onList(false); onView(false) }, leadingIcon = lead(R.drawable.ic_view_covers),
             trailingIcon = tick(!collectionView && !listMode), modifier = Modifier.testTag("library_view_covers"))
-        DropdownMenuItem(text = { Text("List") }, onClick = { onList(true); onView(false) }, leadingIcon = lead(R.drawable.ic_view_list),
+        DropdownMenuItem(text = { Text(tr("List")) }, onClick = { onList(true); onView(false) }, leadingIcon = lead(R.drawable.ic_view_list),
             trailingIcon = tick(!collectionView && listMode), modifier = Modifier.testTag("library_view_list"))
-        DropdownMenuItem(text = { Text("Collections") }, onClick = { onView(true) }, leadingIcon = lead(R.drawable.ic_book), trailingIcon = tick(collectionView),
+        DropdownMenuItem(text = { Text(tr("Collections")) }, onClick = { onView(true) }, leadingIcon = lead(R.drawable.ic_book), trailingIcon = tick(collectionView),
             modifier = Modifier.testTag("library_view_collections"))
         HorizontalDivider(Modifier.padding(vertical = 4.dp))
         heading("Sort")
@@ -308,8 +309,8 @@ private fun LibraryMessage(title: String, message: String, actions: (@Composable
     Column(Modifier.fillMaxWidth().padding(vertical = if (actions != null) 24.dp else 48.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
         // The empty library leads with its words and buttons; only "no results" keeps a picture.
         if (actions == null) com.example.readalong.ui.components.ReadAlongArtwork(R.drawable.art_book, Modifier.size(120.dp))
-        Text(title, style = MaterialTheme.typography.titleLarge)
-        Text(message, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyLarge)
+        Text(tr(title), style = MaterialTheme.typography.titleLarge)
+        Text(tr(message), color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyLarge)
         actions?.invoke()
     }
 }

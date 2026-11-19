@@ -1,5 +1,6 @@
 package com.example.readalong.ui.reading
 
+import com.example.readalong.domain.i18n.tr
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
@@ -18,26 +19,26 @@ fun EpubEditionControls(model: ReadingViewModel, position: Long, compact: Boolea
     var confirmRemoval by remember { mutableStateOf(false) }
     // Compact (the player's More panel): right-aligned, and only once an EPUB exists; the bar itself offers adding one.
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp), horizontalAlignment = if (compact) androidx.compose.ui.Alignment.End else androidx.compose.ui.Alignment.Start) {
-        if (!compact) Text("EPUB", style = MaterialTheme.typography.titleSmall)
+        if (!compact) Text(tr("EPUB"), style = MaterialTheme.typography.titleSmall)
         if (!compact || edition != null) TextButton(enabled = !busy, onClick = { picker.launch(arrayOf("application/epub+zip", "application/octet-stream")) }) {
-            Text(if (busy) "Adding EPUB…" else if (edition == null) "Add my EPUB" else "Replace my EPUB")
+            Text(tr(if (busy) "Adding EPUB…" else if (edition == null) "Add my EPUB" else "Replace my EPUB"))
         }
         if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
         if (!compact) EpubSyncProgress(model)
-        if (compact) edition?.let { Text("EPUB added · ${it.title}", style = MaterialTheme.typography.bodyMedium) }
+        if (compact) edition?.let { Text(tr("EPUB added · ${it.title}"), style = MaterialTheme.typography.bodyMedium) }
         else edition?.let { epub ->
             Text(epub.title, style = MaterialTheme.typography.bodyMedium)
-            Text(epub.message, style = MaterialTheme.typography.bodyMedium)
-            if (epub.manualCount > 0) Text("${epub.manualCount} sync ${if (epub.manualCount == 1) "point" else "points"} you set", style = MaterialTheme.typography.bodySmall)
+            Text(tr(epub.message), style = MaterialTheme.typography.bodyMedium)
+            if (epub.manualCount > 0) Text(tr("${epub.manualCount} sync ${if (epub.manualCount == 1) "point" else "points"} you set"), style = MaterialTheme.typography.bodySmall)
             TextButton(onClick = { model.chooseEdition("EPUB", position) }) { Text(if (epub.useForReading()) "● Show my EPUB's text" else "Show my EPUB's text") }
             TextButton(onClick = { model.chooseEdition("GENERATED", position) }) { Text(if (epub.preference == "GENERATED") "● Show the text made from the audio" else "Show the text made from the audio") }
-            Text("Parts of the EPUB that don't match the audio exactly use the nearest timing.", style = MaterialTheme.typography.bodyMedium)
-            if (epub.state == "FAILED" || epub.state == "UNUSABLE") TextButton(onClick = model::retryAlignment) { Text("Try matching again") }
-            TextButton(onClick = { confirmRemoval = true }) { Text("Remove my EPUB") }
+            Text(tr("Parts of the EPUB that don't match the audio exactly use the nearest timing."), style = MaterialTheme.typography.bodyMedium)
+            if (epub.state == "FAILED" || epub.state == "UNUSABLE") TextButton(onClick = model::retryAlignment) { Text(tr("Try matching again")) }
+            TextButton(onClick = { confirmRemoval = true }) { Text(tr("Remove my EPUB")) }
         }
     }
-    if (confirmRemoval) AlertDialog(onDismissRequest = { confirmRemoval = false }, title = { Text("Remove your EPUB?") },
-        text = { Text("Your EPUB file, audiobook and ReadAlong are kept.") },
-        confirmButton = { TextButton(onClick = { model.removeEpub(position); confirmRemoval = false }) { Text("Remove EPUB", color = MaterialTheme.colorScheme.error) } },
-        dismissButton = { TextButton(onClick = { confirmRemoval = false }) { Text("Cancel") } })
+    if (confirmRemoval) AlertDialog(onDismissRequest = { confirmRemoval = false }, title = { Text(tr("Remove your EPUB?")) },
+        text = { Text(tr("Your EPUB file, audiobook and ReadAlong are kept.")) },
+        confirmButton = { TextButton(onClick = { model.removeEpub(position); confirmRemoval = false }) { Text(tr("Remove EPUB"), color = MaterialTheme.colorScheme.error) } },
+        dismissButton = { TextButton(onClick = { confirmRemoval = false }) { Text(tr("Cancel")) } })
 }

@@ -1,5 +1,6 @@
 package com.example.readalong.ui.importing
 
+import com.example.readalong.domain.i18n.tr
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -35,24 +36,24 @@ fun ReadAlongSourceDialog(busy: Boolean, message: String?, hasEpub: Boolean = fa
         if (uri != null) { started = true; onStart(true, uri) }
     }
     com.example.readalong.ui.components.IllustratedDialog("Make a ReadAlong", { if (!busy) onDismiss() }, actions = {
-        TextButton(enabled = !busy, onClick = onDismiss) { Text("Later") }
+        TextButton(enabled = !busy, onClick = onDismiss) { Text(tr("Later")) }
         Button(enabled = !busy, modifier = Modifier.testTag("make_readalong"), onClick = {
             if (align && !hasEpub) picker.launch(arrayOf("application/epub+zip", "application/octet-stream"))
             else { started = true; onStart(align, null) }
-        }) { Text(if (align && !hasEpub) "Choose EPUB" else "Make ReadAlong", maxLines = 1, softWrap = false) }
+        }) { Text(tr(if (align && !hasEpub) "Choose EPUB" else "Make ReadAlong"), maxLines = 1, softWrap = false) }
     }) {
         bookTitle?.let { Text(it, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.offset(y = (-8).dp)) }
-        if (explain) Text("Your book's text on screen, highlighted as you listen.", style = MaterialTheme.typography.bodyLarge)
+        if (explain) Text(tr("Your book's text on screen, highlighted as you listen."), style = MaterialTheme.typography.bodyLarge)
         Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ReadingChoice("From the audio", "Any audiobook", R.drawable.art_book, !align,
                 Modifier.weight(1f).fillMaxHeight().testTag("reading_source_transcript")) { align = false }
             ReadingChoice("From my EPUB", "Exact text", R.drawable.art_epub, align,
                 Modifier.weight(1f).fillMaxHeight().testTag("reading_source_epub")) { align = true }
         }
-        estimate?.let { Text("$it · can run overnight while charging", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        estimate?.let { Text(tr("$it · can run overnight while charging"), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         // Only this sheet's own progress: folder scanning ("2 audiobooks scanned") stays out of it.
         if (started && busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-        if (started) message?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+        if (started) message?.let { Text(tr(it), style = MaterialTheme.typography.bodyMedium) }
     }
 }
 }

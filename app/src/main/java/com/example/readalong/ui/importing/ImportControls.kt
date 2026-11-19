@@ -1,5 +1,6 @@
 package com.example.readalong.ui.importing
 
+import com.example.readalong.domain.i18n.tr
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -34,7 +35,7 @@ fun ImportControls(model: ImportViewModel, onFolders: () -> Unit, onBook: (Strin
     val files = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let { uri -> model.files(listOf(uri)) } }
     var audible by rememberSaveable { mutableStateOf(false) }
     IconButton(onClick = { choosing = true }, enabled = !busy) {
-        Icon(androidx.compose.ui.res.painterResource(com.example.readalong.R.drawable.ic_add), "Add audiobook")
+        Icon(androidx.compose.ui.res.painterResource(com.example.readalong.R.drawable.ic_add), tr("Add audiobook"))
     }
 
     // Closed by tapping outside or swiping down: no Cancel button.
@@ -52,7 +53,7 @@ fun ImportControls(model: ImportViewModel, onFolders: () -> Unit, onBook: (Strin
         TextButton(onClick = { choosing = false; onFolders() }, modifier = Modifier.heightIn(min = 44.dp)) {
             Icon(androidx.compose.ui.res.painterResource(com.example.readalong.R.drawable.ic_bookshelf), null, Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
-            Text("Manage library folders")
+            Text(tr("Manage library folders"))
         }
     }
     if (audible) com.example.readalong.ui.audible.AudibleImportEntry(onChooseFolder = { audible = false; add() }, onDismiss = { audible = false })
@@ -68,7 +69,7 @@ fun ImportStatus(model: ImportViewModel) {
     if (reading) { progress?.let { com.example.readalong.ui.library.ReadingFolderLine(it) }; return }
     if (busy || message != null) Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-        message?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+        message?.let { Text(tr(it), style = MaterialTheme.typography.bodyMedium) }
     }
 }
 
@@ -100,8 +101,8 @@ internal fun ReadingChoice(title: String, subtitle: String, art: Int, selected: 
         border = androidx.compose.foundation.BorderStroke(if (selected) 2.dp else 1.dp, if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = .3f))) {
         Column(Modifier.fillMaxSize().padding(10.dp), horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
             com.example.readalong.ui.components.ReadAlongArtwork(art, Modifier.fillMaxWidth().height(76.dp), matchColor = MaterialTheme.colorScheme.primary)
-            Text(title, modifier = Modifier.weight(1f).fillMaxWidth(), style = MaterialTheme.typography.labelLarge, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-            Text(subtitle, Modifier.fillMaxWidth(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            Text(tr(title), modifier = Modifier.weight(1f).fillMaxWidth(), style = MaterialTheme.typography.labelLarge, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            Text(tr(subtitle), Modifier.fillMaxWidth(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
         }
     }
 }
@@ -119,9 +120,9 @@ internal fun AudibleImportDialog(onChooseFolder: () -> Unit, onDismiss: () -> Un
     var installed by remember { mutableStateOf(libriSyncInstalled(context)) }
     // Coming back from Android's installer (or settings): check again.
     androidx.lifecycle.compose.LifecycleEventEffect(androidx.lifecycle.Lifecycle.Event.ON_RESUME) { installed = libriSyncInstalled(context) }
-    AlertDialog(onDismissRequest = onDismiss, title = { Text("Import from Audible") }, text = {
+    AlertDialog(onDismissRequest = onDismiss, title = { Text(tr("Import from Audible")) }, text = {
         Column(Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Text("ReadAlong can't sign in to Audible itself. A free app called LibriSync downloads the audiobooks you've bought to a folder on your phone, and ReadAlong reads them from there.")
+            Text(tr("ReadAlong can't sign in to Audible itself. A free app called LibriSync downloads the audiobooks you've bought to a folder on your phone, and ReadAlong reads them from there."))
             AudibleStep(1, "Install LibriSync", if (installed) "LibriSync is installed." else
                 "Tap \u201cDownload LibriSync\u201d and wait for the bar to fill. Then tap \u201cInstall LibriSync\u201d and choose Install. If Android asks, allow ReadAlong to install apps, come back, and tap \u201cInstall LibriSync\u201d again.") {
                 LibriSyncButton(installed, download, onDownload = {
@@ -134,21 +135,21 @@ internal fun AudibleImportDialog(onChooseFolder: () -> Unit, onDismiss: () -> Un
             AudibleStep(3, "Choose where books are saved", "In LibriSync's settings, set the download folder to a new folder called \u201cAudible audiobooks\u201d. Saving each book as a single file works best.")
             AudibleStep(4, "Download your books", "Pick the audiobooks you want in LibriSync and download them.")
             AudibleStep(5, "Add the folder here", "Tap \u201cChoose Audible folder\u201d below and select \u201cAudible audiobooks\u201d. Your books appear in your library, and new downloads show up each time you come back to ReadAlong.")
-            Text("Only your own purchases are downloaded, and they stay on your phone.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(tr("Only your own purchases are downloaded, and they stay on your phone."), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-    }, confirmButton = { Button(onClick = onChooseFolder) { Text("Choose Audible folder") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Close") } })
+    }, confirmButton = { Button(onClick = onChooseFolder) { Text(tr("Choose Audible folder")) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(tr("Close")) } })
 }
 
 @Composable
 private fun AudibleStep(number: Int, title: String, body: String, extra: (@Composable () -> Unit)? = null) {
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Surface(shape = androidx.compose.foundation.shape.CircleShape, color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.size(28.dp)) {
-            Box(contentAlignment = Alignment.Center) { Text("$number", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onPrimaryContainer) }
+            Box(contentAlignment = Alignment.Center) { Text(tr("$number"), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onPrimaryContainer) }
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(title, style = MaterialTheme.typography.titleSmall)
-            Text(body, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(tr(title), style = MaterialTheme.typography.titleSmall)
+            Text(tr(body), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             extra?.invoke()
         }
     }
@@ -242,7 +243,7 @@ private object LibriSyncDownloads {
 
     private fun notify(context: android.content.Context, text: String, fraction: Float?, done: Boolean) {
         val manager = context.getSystemService(android.app.NotificationManager::class.java)
-        manager.createNotificationChannel(android.app.NotificationChannel(CHANNEL, "Downloads", android.app.NotificationManager.IMPORTANCE_LOW))
+        manager.createNotificationChannel(android.app.NotificationChannel(CHANNEL, tr("Downloads"), android.app.NotificationManager.IMPORTANCE_LOW))
         if (!androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled()) return
         val builder = androidx.core.app.NotificationCompat.Builder(context, CHANNEL).setSmallIcon(com.example.readalong.R.drawable.ic_notification)
             .setContentTitle(text).setOnlyAlertOnce(true).setOngoing(!done)
@@ -256,24 +257,24 @@ private object LibriSyncDownloads {
 private fun LibriSyncButton(installed: Boolean, download: LibriSyncDownload, onDownload: () -> Unit, onInstall: (java.io.File) -> Unit, onOpen: () -> Unit, onReleasePage: () -> Unit) {
     Column(Modifier.padding(top = 6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         when {
-            installed -> Button(onClick = onOpen) { Text("Open LibriSync") }
-            download is LibriSyncDownload.Downloaded -> Button(onClick = { onInstall(download.file) }) { Text("Install LibriSync") }
+            installed -> Button(onClick = onOpen) { Text(tr("Open LibriSync")) }
+            download is LibriSyncDownload.Downloaded -> Button(onClick = { onInstall(download.file) }) { Text(tr("Install LibriSync")) }
             download is LibriSyncDownload.Downloading -> {
                 val shown by androidx.compose.animation.core.animateFloatAsState(download.fraction ?: 0f, label = "LibriSync download")
                 if (download.fraction == null) LinearProgressIndicator(Modifier.fillMaxWidth().height(6.dp))
                 else LinearProgressIndicator(progress = { shown }, modifier = Modifier.fillMaxWidth().height(6.dp))
-                Text("Downloading LibriSync ${download.version}" + (download.fraction?.let { " \u00b7 ${(it * 100).toInt()}%" } ?: ""),
+                Text(tr("Downloading LibriSync ${download.version}" + (download.fraction?.let { " \u00b7 ${(it * 100).toInt()}%" } ?: "")),
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             download is LibriSyncDownload.Finding -> {
                 LinearProgressIndicator(Modifier.fillMaxWidth().height(6.dp))
-                Text("Finding the latest version", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(tr("Finding the latest version"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            else -> Button(onClick = onDownload) { Text(if (download is LibriSyncDownload.Failed) "Try again" else "Download LibriSync") }
+            else -> Button(onClick = onDownload) { Text(tr(if (download is LibriSyncDownload.Failed) "Try again" else "Download LibriSync")) }
         }
         if (download is LibriSyncDownload.Failed && !installed) {
-            Text("The download didn't work. Check your connection and try again, or get it from the release page.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-            TextButton(onClick = onReleasePage, contentPadding = PaddingValues(0.dp)) { Text("Open release page") }
+            Text(tr("The download didn't work. Check your connection and try again, or get it from the release page."), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            TextButton(onClick = onReleasePage, contentPadding = PaddingValues(0.dp)) { Text(tr("Open release page")) }
         }
     }
 }

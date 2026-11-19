@@ -1,5 +1,6 @@
 package com.example.readalong.desktop.ui
 
+import com.example.readalong.domain.i18n.tr
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -92,23 +93,23 @@ fun MiniPlayer(app: AppState, modifier: Modifier = Modifier) {
                             }
                         }
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Text(timeText(position - chapterStart), Modifier.width(52.dp), style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = .75f), textAlign = androidx.compose.ui.text.style.TextAlign.End)
+                            Text(tr(timeText(position - chapterStart)), Modifier.width(52.dp), style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = .75f), textAlign = androidx.compose.ui.text.style.TextAlign.End)
                             SeekBar(((position - chapterStart).toFloat() / (chapterEnd - chapterStart).coerceAtLeast(1)), { f ->
                                 seekBook(app, id, chapterStart + (f * (chapterEnd - chapterStart)).toLong())
                             }, Modifier.weight(1f), color = Color.White)
-                            Text("-" + timeText(chapterEnd - position), Modifier.width(52.dp), style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = .75f))
+                            Text(tr("-" + timeText(chapterEnd - position)), Modifier.width(52.dp), style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = .75f))
                         }
                     }
                     // Speed, sleep, bookmark, chapters, volume.
                     Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(2.dp, Alignment.End), verticalAlignment = Alignment.CenterVertically) {
                         var speedMenu by remember { mutableStateOf(false) }
                         Box {
-                            Text(speedLabel(state.speed), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold,
+                            Text(tr(speedLabel(state.speed)), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold,
                                 modifier = Modifier.clip(CircleShape).border(1.dp, Color.White.copy(alpha = .22f), CircleShape).clickable { speedMenu = true }
                                     .pointerHoverIcon(PointerIcon.Hand).padding(horizontal = 12.dp, vertical = 6.dp))
                             DropdownMenu(speedMenu, { speedMenu = false }) {
                                 listOf(.75f, 1f, 1.1f, 1.25f, 1.5f, 1.75f, 2f, 2.5f, 3f).forEach { s ->
-                                    DropdownMenuItem({ Text(speedLabel(s) + if (s == state.speed) "  ✓" else "") }, { speedMenu = false; app.player.setSpeed(s) })
+                                    DropdownMenuItem({ Text(tr(speedLabel(s) + if (s == state.speed) "  ✓" else "")) }, { speedMenu = false; app.player.setSpeed(s) })
                                 }
                             }
                         }
@@ -120,9 +121,9 @@ fun MiniPlayer(app: AppState, modifier: Modifier = Modifier) {
                                 state.sleepEndsAt?.let { "Sleep in ${((it - System.currentTimeMillis()) / 60_000 + 1)} min" } ?: if (state.sleepAtChapterEnd) "Sleep at chapter end" else "Sleep timer",
                                 { sleepMenu = true }, iconSize = 20.dp, tint = if (sleeping) palette.accent else Color.White)
                             DropdownMenu(sleepMenu, { sleepMenu = false }) {
-                                DropdownMenuItem({ Text("Off") }, { sleepMenu = false; app.player.sleepAfter(null) })
-                                listOf(5, 10, 15, 30, 45, 60, 90).forEach { m -> DropdownMenuItem({ Text("$m minutes") }, { sleepMenu = false; app.player.sleepAfter(m) }) }
-                                DropdownMenuItem({ Text("End of chapter") }, { sleepMenu = false; app.player.sleepAtChapterEnd() })
+                                DropdownMenuItem({ Text(tr("Off")) }, { sleepMenu = false; app.player.sleepAfter(null) })
+                                listOf(5, 10, 15, 30, 45, 60, 90).forEach { m -> DropdownMenuItem({ Text(tr("$m minutes")) }, { sleepMenu = false; app.player.sleepAfter(m) }) }
+                                DropdownMenuItem({ Text(tr("End of chapter")) }, { sleepMenu = false; app.player.sleepAtChapterEnd() })
                             }
                         }
                         AppIconButton("ic_bookmark", "Bookmark", {
@@ -148,7 +149,7 @@ private fun VectorButton(icon: ImageVector, description: String, size: Dp = 40.d
     val tint = Color.White.copy(alpha = if (enabled) .85f else .3f)
     Box(Modifier.size(size).clip(CircleShape).background(if (hovered && enabled) Color.White.copy(alpha = .10f) else Color.Transparent)
         .hoverable(interaction).clickable(interaction, null, enabled = enabled, onClick = onClick).pointerHoverIcon(PointerIcon.Hand), contentAlignment = Alignment.Center) {
-        Icon(icon, description, Modifier.size(24.dp), tint = tint)
+        Icon(icon, tr(description), Modifier.size(24.dp), tint = tint)
     }
 }
 
@@ -157,7 +158,7 @@ private fun VolumeControl(app: AppState) {
     val settings by app.settingsStore.settings.collectAsState()
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.width(130.dp).padding(start = 6.dp)) {
         Icon(if (settings.volume < .01f) Icons.Rounded.VolumeOff else Icons.Rounded.VolumeUp,
-            "Volume", Modifier.size(20.dp).clip(CircleShape).clickable { app.player.setVolume(if (settings.volume < .01f) 1f else 0f) }.pointerHoverIcon(PointerIcon.Hand),
+            tr("Volume"), Modifier.size(20.dp).clip(CircleShape).clickable { app.player.setVolume(if (settings.volume < .01f) 1f else 0f) }.pointerHoverIcon(PointerIcon.Hand),
             tint = Color.White.copy(alpha = .85f))
         Spacer(Modifier.width(6.dp))
         SeekBar(settings.volume, { app.player.setVolume(it) }, Modifier.weight(1f), color = Color.White.copy(alpha = .85f))

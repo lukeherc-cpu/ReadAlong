@@ -1,5 +1,6 @@
 package com.example.readalong.ui.library
 
+import com.example.readalong.domain.i18n.tr
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -53,8 +54,8 @@ internal fun CollectionRowView(row: CollectionRow, modifier: Modifier = Modifier
             }
         }
         Column(Modifier.weight(1f)) {
-            Text(row.name, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Text(if (books.isEmpty()) "No books yet" else collectionSummary(books), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(tr(row.name), style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(tr(if (books.isEmpty()) "No books yet" else collectionSummary(books)), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Icon(painterResource(R.drawable.ic_chevron_right), null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
     }
@@ -65,16 +66,16 @@ internal fun CollectionRowView(row: CollectionRow, modifier: Modifier = Modifier
 internal fun CollectionHeader(row: CollectionRow, onBack: () -> Unit, onRename: (() -> Unit)?, onDelete: (() -> Unit)?) {
     var menu by remember { mutableStateOf(false) }
     Row(Modifier.fillMaxWidth().testTag("collection_header"), verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = onBack, modifier = Modifier.offset(x = (-12).dp)) { Icon(painterResource(R.drawable.ic_back), "All collections") }
+        IconButton(onClick = onBack, modifier = Modifier.offset(x = (-12).dp)) { Icon(painterResource(R.drawable.ic_back), tr("All collections")) }
         Column(Modifier.weight(1f).offset(x = (-8).dp)) {
-            Text(row.name, Modifier.semantics { heading() }, style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(if (row.books.size == 1) "1 book" else "${row.books.size} books", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(tr(row.name), Modifier.semantics { heading() }, style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(tr(if (row.books.size == 1) "1 book" else "${row.books.size} books"), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if (onRename != null || onDelete != null) Box {
-            IconButton(onClick = { menu = true }, modifier = Modifier.testTag("collection_menu")) { Icon(painterResource(R.drawable.ic_more), "Collection options", tint = MaterialTheme.colorScheme.onSurfaceVariant) }
+            IconButton(onClick = { menu = true }, modifier = Modifier.testTag("collection_menu")) { Icon(painterResource(R.drawable.ic_more), tr("Collection options"), tint = MaterialTheme.colorScheme.onSurfaceVariant) }
             DropdownMenu(menu, onDismissRequest = { menu = false }) {
-                onRename?.let { DropdownMenuItem(text = { Text("Rename") }, onClick = { menu = false; it() }) }
-                onDelete?.let { DropdownMenuItem(text = { Text("Delete collection", color = MaterialTheme.colorScheme.error) }, onClick = { menu = false; it() }, modifier = Modifier.testTag("collection_delete")) }
+                onRename?.let { DropdownMenuItem(text = { Text(tr("Rename")) }, onClick = { menu = false; it() }) }
+                onDelete?.let { DropdownMenuItem(text = { Text(tr("Delete collection"), color = MaterialTheme.colorScheme.error) }, onClick = { menu = false; it() }, modifier = Modifier.testTag("collection_delete")) }
             }
         }
     }
@@ -87,9 +88,9 @@ internal fun AddBooksTile(list: Boolean, onClick: () -> Unit) {
     val shape = RoundedCornerShape(Corners.medium)
     val outline = Modifier.clip(shape).border(2.dp, MaterialTheme.colorScheme.outlineVariant, shape).clickable(onClick = onClick).testTag("collection_add_books")
     if (list) Row(Modifier.fillMaxWidth().then(outline).padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Icon(painterResource(R.drawable.ic_add), null, tint = ink); Text("Add books", color = ink, style = MaterialTheme.typography.titleSmall)
+        Icon(painterResource(R.drawable.ic_add), null, tint = ink); Text(tr("Add books"), color = ink, style = MaterialTheme.typography.titleSmall)
     } else Column(Modifier.fillMaxWidth().aspectRatio(1f).then(outline), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-        Icon(painterResource(R.drawable.ic_add), null, tint = ink); Spacer(Modifier.height(6.dp)); Text("Add books", color = ink, style = MaterialTheme.typography.titleSmall)
+        Icon(painterResource(R.drawable.ic_add), null, tint = ink); Spacer(Modifier.height(6.dp)); Text(tr("Add books"), color = ink, style = MaterialTheme.typography.titleSmall)
     }
 }
 
@@ -97,13 +98,13 @@ internal fun AddBooksTile(list: Boolean, onClick: () -> Unit) {
 @Composable
 internal fun CollectionNameDialog(title: String, initial: String = "", confirm: String, message: String? = null, onDismiss: () -> Unit, onSave: (String) -> Unit) {
     var name by rememberSaveable { mutableStateOf(initial) }
-    AlertDialog(onDismissRequest = onDismiss, title = { Text(title) },
+    AlertDialog(onDismissRequest = onDismiss, title = { Text(tr(title)) },
         text = { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            message?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-            OutlinedTextField(name, { name = it.take(80) }, label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth().testTag("collection_name"))
+            message?.let { Text(tr(it), color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            OutlinedTextField(name, { name = it.take(80) }, label = { Text(tr("Name")) }, singleLine = true, modifier = Modifier.fillMaxWidth().testTag("collection_name"))
         } },
-        confirmButton = { TextButton(enabled = name.isNotBlank(), onClick = { onSave(name) }, modifier = Modifier.testTag("collection_name_save")) { Text(confirm) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } })
+        confirmButton = { TextButton(enabled = name.isNotBlank(), onClick = { onSave(name) }, modifier = Modifier.testTag("collection_name_save")) { Text(tr(confirm)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(tr("Cancel")) } })
 }
 
 /**
@@ -123,12 +124,12 @@ internal fun CollectionBookPicker(collection: BookCollection, books: List<Book>,
                 Row(Modifier.fillMaxWidth().padding(start = 4.dp, end = 16.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onDismiss) { com.example.readalong.ui.components.CloseGlyph(MaterialTheme.colorScheme.onSurface, "Close") }
                     Column(Modifier.weight(1f)) {
-                        Text("Add to ${collection.name}", style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text("${chosen.size} selected", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(tr("Add to ${collection.name}"), style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(tr("${chosen.size} selected"), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
                 OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).testTag("collection_picker_search"),
-                    placeholder = { Text("Search your books") }, singleLine = true, shape = RoundedCornerShape(28.dp),
+                    placeholder = { Text(tr("Search your books")) }, singleLine = true, shape = RoundedCornerShape(28.dp),
                     leadingIcon = { Icon(painterResource(R.drawable.ic_search), null) })
                 LazyVerticalGrid(GridCells.Adaptive(104.dp), Modifier.weight(1f), contentPadding = PaddingValues(16.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -149,10 +150,10 @@ internal fun CollectionBookPicker(collection: BookCollection, books: List<Book>,
                     }
                 }
                 Button(onClick = { onSave(chosen) }, Modifier.fillMaxWidth().padding(16.dp).height(52.dp).testTag("collection_picker_save")) {
-                    Text(when {
+                    Text(tr(when {
                         added > 0 && removed == 0 -> if (added == 1) "Add 1 book" else "Add $added books"
                         else -> "Done"
-                    })
+                    }))
                 }
             }
         }
@@ -163,7 +164,7 @@ internal fun CollectionBookPicker(collection: BookCollection, books: List<Book>,
 @Composable
 internal fun BookCollectionsSection(book: Book, collections: List<BookCollection>, onToggle: (BookCollection, Boolean) -> Unit, onNew: () -> Unit) {
     Column(Modifier.testTag("book_collections")) {
-        Text("Collections", Modifier.padding(start = 24.dp, end = 24.dp, top = 8.dp, bottom = 4.dp), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(tr("Collections"), Modifier.padding(start = 24.dp, end = 24.dp, top = 8.dp, bottom = 4.dp), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         collections.sortedBy { it.name.lowercase() }.forEach { collection ->
             val inside = book.id in collection.bookIds
             Row(Modifier.fillMaxWidth().heightIn(min = 52.dp).toggleable(inside, role = Role.Checkbox) { onToggle(collection, it) }

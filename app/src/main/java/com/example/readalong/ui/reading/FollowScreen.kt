@@ -1,5 +1,6 @@
 package com.example.readalong.ui.reading
 
+import com.example.readalong.domain.i18n.tr
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.tween
@@ -154,7 +155,7 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
             // Read once: the error can be cleared elsewhere while the snackbar is showing.
             val message = error
             if (message != null && manualSync == null) {
-                kotlinx.coroutines.withTimeoutOrNull(5_000) { snackbar.showSnackbar(message, duration = SnackbarDuration.Indefinite) }
+                kotlinx.coroutines.withTimeoutOrNull(5_000) { snackbar.showSnackbar(tr(message), duration = SnackbarDuration.Indefinite) }
                 snackbar.currentSnackbarData?.dismiss()
                 model.clearError(message)
             }
@@ -481,15 +482,15 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
                         // One icon size across the bar; the skip times read as quiet labels so only Play carries the accent.
                         val skipColors = ButtonDefaults.textButtonColors(contentColor = colors.onSurfaceVariant)
                         val skipStyle = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Medium)
-                        IconButton(onClick = { moveSentence(-1) }, modifier = Modifier.size(52.dp)) { Icon(painterResource(R.drawable.ic_previous_sentence), "Previous sentence", Modifier.size(24.dp)) }
+                        IconButton(onClick = { moveSentence(-1) }, modifier = Modifier.size(52.dp)) { Icon(painterResource(R.drawable.ic_previous_sentence), tr("Previous sentence"), Modifier.size(24.dp)) }
                         TextButton(onClick = { skipFive(-1) }, contentPadding = PaddingValues(4.dp), colors = skipColors) {
-                            Icon(painterResource(R.drawable.ic_rewind), "Back ${appSettings.readerBack} seconds", Modifier.size(24.dp), tint = colors.onSurface); Text("${appSettings.readerBack}s", style = skipStyle)
+                            Icon(painterResource(R.drawable.ic_rewind), tr("Back ${appSettings.readerBack} seconds"), Modifier.size(24.dp), tint = colors.onSurface); Text(tr("${appSettings.readerBack}s"), style = skipStyle)
                         }
                         FilledIconButton(onClick = playback::toggle, modifier = Modifier.size(64.dp)) { com.example.readalong.ui.components.PlayPauseIcon(state.isPlaying, Modifier.size(34.dp)) }
                         TextButton(onClick = { skipFive(1) }, contentPadding = PaddingValues(4.dp), colors = skipColors) {
-                            Text("${appSettings.readerForward}s", style = skipStyle); Icon(painterResource(R.drawable.ic_forward), "Forward ${appSettings.readerForward} seconds", Modifier.size(24.dp), tint = colors.onSurface)
+                            Text(tr("${appSettings.readerForward}s"), style = skipStyle); Icon(painterResource(R.drawable.ic_forward), tr("Forward ${appSettings.readerForward} seconds"), Modifier.size(24.dp), tint = colors.onSurface)
                         }
-                        IconButton(onClick = { moveSentence(1) }, modifier = Modifier.size(52.dp)) { Icon(painterResource(R.drawable.ic_next_sentence), "Next sentence", Modifier.size(24.dp)) }
+                        IconButton(onClick = { moveSentence(1) }, modifier = Modifier.size(52.dp)) { Icon(painterResource(R.drawable.ic_next_sentence), tr("Next sentence"), Modifier.size(24.dp)) }
                 }
             }
             }
@@ -516,8 +517,8 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
                 onClick("Show reading controls") { tapJob?.cancel(); chromeVisible = true; true }
             }.testTag("reader_reveal_controls") else Modifier)) {
             Column(Modifier.fillMaxSize()) {
-                if (items.loadState.refresh is LoadState.Error) TextButton(onClick = items::retry) { Text("Retry loading text") }
-                else if (renderedCount == 0 && items.loadState.refresh !is LoadState.Loading) Text(version?.message ?: "Your ReadAlong is being made. Text appears here as it's ready; you can keep listening.", Modifier.padding(24.dp))
+                if (items.loadState.refresh is LoadState.Error) TextButton(onClick = items::retry) { Text(tr("Retry loading text")) }
+                else if (renderedCount == 0 && items.loadState.refresh !is LoadState.Loading) Text(tr(version?.message ?: "Your ReadAlong is being made. Text appears here as it's ready; you can keep listening."), Modifier.padding(24.dp))
                 LazyColumn(Modifier.weight(1f).nestedScroll(scroll).smoothWheelScroll(list) { following = false; userScrolled = true }.testTag("follow_passages"), state = list,
                     contentPadding = PaddingValues(start = preferences.margin.dp + columnInset, end = preferences.margin.dp + columnInset,
                         top = 64.dp + cutoutTop, bottom = if (readingOnly) 24.dp else 100.dp), verticalArrangement = Arrangement.spacedBy(ReaderParagraphGap)) {
@@ -580,15 +581,15 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
                                 lineHeight = (preferences.fontSize * preferences.lineSpacing).sp)
                         } else PassageSkeleton()
                     }
-                    if (items.loadState.append is LoadState.Error) item { TextButton(onClick = items::retry) { Text("Retry loading text") } }
+                    if (items.loadState.append is LoadState.Error) item { TextButton(onClick = items::retry) { Text(tr("Retry loading text")) } }
                 }
             }
             if (panel == "search") Box(Modifier.fillMaxSize().padding(top = 64.dp + cutoutTop).background(colors.surface)) {
                     // Same look as the library search: accent progress line, a result count and rising cards.
                     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
                         SearchProgressLine(searching, searchAccent, Modifier.padding(top = 4.dp, bottom = 8.dp))
-                        if (searchQuery.isNotBlank()) searchNotice?.let { Text(it, Modifier.padding(horizontal = 8.dp, vertical = 4.dp), style = MaterialTheme.typography.bodyMedium) }
-                        searchError?.let { Text(it, Modifier.padding(8.dp), style = MaterialTheme.typography.bodyMedium) }
+                        if (searchQuery.isNotBlank()) searchNotice?.let { Text(tr(it), Modifier.padding(horizontal = 8.dp, vertical = 4.dp), style = MaterialTheme.typography.bodyMedium) }
+                        searchError?.let { Text(tr(it), Modifier.padding(8.dp), style = MaterialTheme.typography.bodyMedium) }
                         if (searchQuery.isNotBlank() && !searching && searchError == null) SearchCountLabel(searchResults.size, capped = searchResults.size >= 20)
                         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
                             itemsIndexed(searchResults, key = { _, it -> "${it.segment.id}:${it.offset}" }) { index, result ->
@@ -614,16 +615,16 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
 
                 androidx.compose.runtime.CompositionLocalProvider(LocalContentColor provides colors.onSurface) {
                 Row(Modifier.fillMaxWidth().background(colors.surface).windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)).padding(horizontal = 4.dp, vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                    IconButton(onClick = onPlayer) { Icon(painterResource(R.drawable.ic_back), "Player") }
-                    IconButton(onClick = { panel = "contents" }) { Icon(painterResource(R.drawable.ic_chapters), "Contents") }
+                    IconButton(onClick = onPlayer) { Icon(painterResource(R.drawable.ic_back), tr("Player")) }
+                    IconButton(onClick = { panel = "contents" }) { Icon(painterResource(R.drawable.ic_chapters), tr("Contents")) }
                     if (panel != "search") Box(Modifier.weight(1f), contentAlignment = androidx.compose.ui.Alignment.Center) {
                         ReaderModeSwitch(readingOnly, ::changeMode)
                     }
                     if (panel == "search") ReadAlongSearchField(searchQuery, { searchQuery = it.take(500); model.search(searchQuery) },
                         onClose = { panel = null; searchQuery = ""; model.search("") }, accent = searchAccent,
                         modifier = Modifier.weight(5f).padding(horizontal = 4.dp), testTag = "reader_search")
-                    else IconButton(onClick = { panel = "search" }) { Icon(painterResource(R.drawable.ic_search), "Search text") }
-                    IconButton(onClick = { panel = "appearance" }) { Icon(painterResource(R.drawable.ic_text_appearance), "Text appearance") }
+                    else IconButton(onClick = { panel = "search" }) { Icon(painterResource(R.drawable.ic_search), tr("Search text")) }
+                    IconButton(onClick = { panel = "appearance" }) { Icon(painterResource(R.drawable.ic_text_appearance), tr("Text appearance")) }
                 }
                 }
 
@@ -634,7 +635,7 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
                 enter = fadeIn(tween(160)) + androidx.compose.animation.scaleIn(tween(220, easing = ReaderMotionEasing), initialScale = .9f),
                 exit = fadeOut(tween(120)) + androidx.compose.animation.scaleOut(tween(160), targetScale = .9f)) {
                 FilledTonalButton(colors = ButtonDefaults.filledTonalButtonColors(containerColor = palette.preview, contentColor = Color.White),
-                    onClick = { following = true }) { Text("Return to current position", fontWeight = FontWeight.Medium) }
+                    onClick = { following = true }) { Text(tr("Return to current position"), fontWeight = FontWeight.Medium) }
             }
 
             }
@@ -665,24 +666,24 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
             onDismiss = model::dismissSync, onSave = model::saveSync) }
         correction?.let { draft ->
             var replacement by remember(draft) { mutableStateOf(draft.text) }
-            AlertDialog(onDismissRequest = model::dismissCorrection, title = { Text("Correct passage") }, text = {
+            AlertDialog(onDismissRequest = model::dismissCorrection, title = { Text(tr("Correct passage")) }, text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("The text made from the audio is kept, so you can undo this. It changes only this passage.", style = MaterialTheme.typography.bodySmall)
-                    OutlinedTextField(replacement, { replacement = it.take(8000) }, label = { Text("Corrected text") }, modifier = Modifier.heightIn(max = 240.dp))
-                    TextButton(onClick = { model.saveCorrection(draft.original, restore = true) }) { Text("Undo my correction") }
+                    Text(tr("The text made from the audio is kept, so you can undo this. It changes only this passage."), style = MaterialTheme.typography.bodySmall)
+                    OutlinedTextField(replacement, { replacement = it.take(8000) }, label = { Text(tr("Corrected text")) }, modifier = Modifier.heightIn(max = 240.dp))
+                    TextButton(onClick = { model.saveCorrection(draft.original, restore = true) }) { Text(tr("Undo my correction")) }
                 }
-            }, confirmButton = { TextButton(enabled = replacement.isNotBlank(), onClick = { model.saveCorrection(replacement) }) { Text("Save") } },
-                dismissButton = { TextButton(onClick = model::dismissCorrection) { Text("Cancel") } })
+            }, confirmButton = { TextButton(enabled = replacement.isNotBlank(), onClick = { model.saveCorrection(replacement) }) { Text(tr("Save")) } },
+                dismissButton = { TextButton(onClick = model::dismissCorrection) { Text(tr("Cancel")) } })
         }
         if (panel == "appearance") ReaderAppearance(preferences, { panel = null }, bookMode = readingOnly) { if (readingOnly) model.bookSettings(it) else model.settings(it); panel = null }
         untranscribedChapter?.let { chapter ->
-            AlertDialog(onDismissRequest = { untranscribedChapter = null }, title = { Text("No text yet") },
-                text = { Text("${chapter.title} hasn't been transcribed yet. Listen to it without the text?") },
+            AlertDialog(onDismissRequest = { untranscribedChapter = null }, title = { Text(tr("No text yet")) },
+                text = { Text(tr("${chapter.title} hasn't been transcribed yet. Listen to it without the text?")) },
                 confirmButton = { TextButton(onClick = {
                     untranscribedChapter = null; following = true; userScrolled = false
                     playback.seek(chapter.startMs); playback.play()
-                }) { Text("Listen only") } },
-                dismissButton = { TextButton(onClick = { untranscribedChapter = null }) { Text("Cancel") } })
+                }) { Text(tr("Listen only")) } },
+                dismissButton = { TextButton(onClick = { untranscribedChapter = null }) { Text(tr("Cancel")) } })
         }
         // The chapter on screen (in ReadAlong mode, the one being read aloud while following) gets a tick.
         val currentChapterId = if (panel == "contents") remember(chapters) {

@@ -1,5 +1,6 @@
 package com.example.readalong.ui.transcription
 
+import com.example.readalong.domain.i18n.tr
 import com.example.readalong.ui.components.userMessage
 
 import androidx.compose.animation.core.Animatable
@@ -141,11 +142,11 @@ fun QueueScreen(model: QueueViewModel, onBack: () -> Unit, onOpen: (String) -> U
             item(key = "header") {
                 Column(Modifier.padding(bottom = 16.dp)) {
                     Row(Modifier.fillMaxWidth().offset(x = (-12).dp), verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = onBack) { Icon(painterResource(R.drawable.ic_back), "Back to library") }
+                        IconButton(onClick = onBack) { Icon(painterResource(R.drawable.ic_back), tr("Back to library")) }
                         Spacer(Modifier.weight(1f))
-                        IconButton(onClick = { adding = true }, Modifier.offset(x = 24.dp)) { Icon(painterResource(R.drawable.ic_add), "Add book to queue") }
+                        IconButton(onClick = { adding = true }, Modifier.offset(x = 24.dp)) { Icon(painterResource(R.drawable.ic_add), tr("Add book to queue")) }
                     }
-                    Text("Queue", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                    Text(tr("Queue"), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                 }
             }
             // Placeholders, shaped like the real card and rows, until the queue has loaded.
@@ -153,7 +154,7 @@ fun QueueScreen(model: QueueViewModel, onBack: () -> Unit, onOpen: (String) -> U
                 item(key = "skeleton:current") { QueueSkeletonCard() }
                 items(2, key = { "skeleton:$it" }) { QueueSkeletonRow() }
             }
-            else if (ordered.isEmpty() && finished.isEmpty()) item(key = "empty") { Text("Tap + to add a book, then tap play on it to start its ReadAlong.", style = MaterialTheme.typography.bodyMedium) }
+            else if (ordered.isEmpty() && finished.isEmpty()) item(key = "empty") { Text(tr("Tap + to add a book, then tap play on it to start its ReadAlong."), style = MaterialTheme.typography.bodyMedium) }
             if (current != null) item(key = current.item.bookId) {
                 val id = current.item.bookId
                 SwipeToRemove(current.item.title, enabled = drag.key == null, onRemove = { model.remove(id) }, modifier = Modifier.animateItem(placementSpec = tween(220, easing = QueueEasing))) {
@@ -193,7 +194,7 @@ fun QueueScreen(model: QueueViewModel, onBack: () -> Unit, onOpen: (String) -> U
                     }, action = {
                         Row {
                             if (entry.item.state == "FAILED") IconButton(onClick = { model.rebuild(id) }) {
-                                Icon(painterResource(R.drawable.ic_redo), "Rebuild ${entry.item.title} from the start", Modifier.size(20.dp))
+                                Icon(painterResource(R.drawable.ic_redo), tr("Rebuild ${entry.item.title} from the start"), Modifier.size(20.dp))
                             }
                             IconButton(onClick = { model.next(id) }) {
                                 Icon(painterResource(R.drawable.ic_play), if (entry.item.state == "FAILED") "Try ${entry.item.title} again" else "Transcribe ${entry.item.title} now", Modifier.size(20.dp))
@@ -211,8 +212,8 @@ fun QueueScreen(model: QueueViewModel, onBack: () -> Unit, onOpen: (String) -> U
         }
     }
     if (adding) AddToQueueSheet(available, onAdd = model::add, onAddAll = { model.addAll(); adding = false }, onDismiss = { adding = false })
-    error?.let { message -> AlertDialog(onDismissRequest = model::dismissError, title = { Text("Couldn't update queue") },
-        text = { Text(message) }, confirmButton = { TextButton(onClick = model::dismissError) { Text("OK") } }) }
+    error?.let { message -> AlertDialog(onDismissRequest = model::dismissError, title = { Text(tr("Couldn't update queue")) },
+        text = { Text(tr(message)) }, confirmButton = { TextButton(onClick = model::dismissError) { Text(tr("OK")) } }) }
 }
 
 /**
@@ -231,9 +232,9 @@ private fun AddToQueueSheet(available: List<QueueBook>, onAdd: (String) -> Unit,
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = state, containerColor = MaterialTheme.colorScheme.surfaceContainerLow) {
         Column(Modifier.fillMaxWidth().fillMaxHeight(.85f).padding(horizontal = 20.dp).testTag("add_to_queue")) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("Add to queue", Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                IconButton(onClick = { searching = !searching; if (!searching) query = "" }) { Icon(painterResource(R.drawable.ic_search), "Search books") }
-                TextButton(enabled = available.isNotEmpty(), onClick = onAddAll, modifier = Modifier.offset(x = 12.dp)) { Text("Add all", fontWeight = FontWeight.SemiBold) }
+                Text(tr("Add to queue"), Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                IconButton(onClick = { searching = !searching; if (!searching) query = "" }) { Icon(painterResource(R.drawable.ic_search), tr("Search books")) }
+                TextButton(enabled = available.isNotEmpty(), onClick = onAddAll, modifier = Modifier.offset(x = 12.dp)) { Text(tr("Add all"), fontWeight = FontWeight.SemiBold) }
             }
             androidx.compose.animation.AnimatedVisibility(searching,
                 enter = androidx.compose.animation.expandVertically(tween(220, easing = QueueEasing)) + androidx.compose.animation.fadeIn(tween(220)),
@@ -243,12 +244,12 @@ private fun AddToQueueSheet(available: List<QueueBook>, onAdd: (String) -> Unit,
                     placeholder = "Search by title or author", testTag = "add_to_queue_search")
             }
             LazyColumn(Modifier.fillMaxWidth().weight(1f), contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp)) {
-                if (available.isEmpty()) item(key = "all-added") { Text("Every book has been added to the queue.", Modifier.padding(vertical = 12.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                else if (shown.isEmpty()) item(key = "no-match") { Text("No books match \"${query.trim()}\".", Modifier.padding(vertical = 12.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                if (available.isEmpty()) item(key = "all-added") { Text(tr("Every book has been added to the queue."), Modifier.padding(vertical = 12.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                else if (shown.isEmpty()) item(key = "no-match") { Text(tr("No books match \"${query.trim()}\"."), Modifier.padding(vertical = 12.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 items(shown, key = { it.item.bookId }) { entry ->
                     Box(Modifier.animateItem(fadeInSpec = tween(180), placementSpec = tween(260, easing = QueueEasing), fadeOutSpec = tween(160))) {
                         QueueRow(entry, action = {
-                            IconButton(onClick = { onAdd(entry.item.bookId) }) { Icon(painterResource(R.drawable.ic_add), "Add ${entry.item.title} to queue") }
+                            IconButton(onClick = { onAdd(entry.item.bookId) }) { Icon(painterResource(R.drawable.ic_add), tr("Add ${entry.item.title} to queue")) }
                         })
                     }
                 }
@@ -324,7 +325,7 @@ private class QueueDrag {
 
 @Composable
 private fun QueueHeading(text: String, modifier: Modifier = Modifier) {
-    Text(text, modifier.padding(bottom = 4.dp), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Text(tr(text), modifier.padding(bottom = 4.dp), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
 /** Swiping a card or row to the left removes the book from the queue, the way the trash button used to. */
@@ -389,22 +390,22 @@ private fun TranscribingCard(entry: QueueBook, onOpen: () -> Unit, onPause: () -
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 QueueCover(entry, 72.dp)
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                    Text(tr(label), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                     Text(entry.item.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    if (entry.chapter.isNotBlank()) Text(entry.chapter, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    if (entry.chapter.isNotBlank()) Text(tr(entry.chapter), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     // Same numbers as the player's ReadAlong card: the whole book first, the chapter second.
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("$bookPercent%", Modifier.alignByBaseline(), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                        Text(if (started) "of book · chapter $chapterPercent%" else "of book", Modifier.alignByBaseline(), style = MaterialTheme.typography.bodySmall,
+                        Text(tr("$bookPercent%"), Modifier.alignByBaseline(), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        Text(tr(if (started) "of book · chapter $chapterPercent%" else "of book"), Modifier.alignByBaseline(), style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     LinearProgressIndicator(progress = { bar.value }, modifier = Modifier.fillMaxWidth().height(6.dp), color = accent, trackColor = accent.copy(alpha = .2f), gapSize = 0.dp, drawStopIndicator = {})
                 }
-                FilledIconButton(onClick = onPause, modifier = Modifier.size(46.dp)) { Icon(painterResource(R.drawable.ic_pause), "Pause ${entry.item.title}", Modifier.size(20.dp)) }
+                FilledIconButton(onClick = onPause, modifier = Modifier.size(46.dp)) { Icon(painterResource(R.drawable.ic_pause), tr("Pause ${entry.item.title}"), Modifier.size(20.dp)) }
             }
             val message = entry.item.message.orEmpty()
             if (message.isNotBlank()) Column(Modifier.offset(y = (-6).dp)) {
@@ -414,13 +415,13 @@ private fun TranscribingCard(entry: QueueBook, onOpen: () -> Unit, onPause: () -
                         .semantics { stateDescription = if (details) "Details shown" else "Details hidden" }.testTag("queue_details")
                         .padding(vertical = 4.dp, horizontal = 2.dp),
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text("Details", style = MaterialTheme.typography.labelLarge, color = faint)
+                    Text(tr("Details"), style = MaterialTheme.typography.labelLarge, color = faint)
                     Icon(painterResource(R.drawable.ic_chevron_right), null, Modifier.size(16.dp).graphicsLayer { rotationZ = 90f + turn }, tint = faint)
                 }
                 androidx.compose.animation.AnimatedVisibility(details,
                     enter = androidx.compose.animation.expandVertically(androidx.compose.animation.core.spring(dampingRatio = .9f, stiffness = 380f), expandFrom = Alignment.Top) + androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(220, 60)),
                     exit = androidx.compose.animation.shrinkVertically(androidx.compose.animation.core.tween(220, easing = androidx.compose.animation.core.FastOutSlowInEasing), shrinkTowards = Alignment.Top) + androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(120))) {
-                    Text(message, Modifier.padding(top = 4.dp, start = 2.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(tr(message), Modifier.padding(top = 4.dp, start = 2.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
@@ -441,7 +442,7 @@ private fun QueueRow(entry: QueueBook, modifier: Modifier = Modifier, onOpen: ((
         QueueCover(entry, 48.dp)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(entry.item.title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (!subtitle.isNullOrBlank()) Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (!subtitle.isNullOrBlank()) Text(tr(subtitle), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (queued && entry.item.state != "READY" && percent > 0) LinearProgressIndicator(progress = { bar.value }, modifier = Modifier.fillMaxWidth().height(3.dp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant, trackColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .15f), gapSize = 0.dp, drawStopIndicator = {})
         }

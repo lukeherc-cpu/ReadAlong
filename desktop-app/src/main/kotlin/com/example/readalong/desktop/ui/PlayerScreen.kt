@@ -2,6 +2,7 @@
 
 package com.example.readalong.desktop.ui
 
+import com.example.readalong.domain.i18n.tr
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -66,11 +67,11 @@ fun PlayerScreen(app: AppState, bookId: String) {
                         Box {
                             AppIconButton("ic_more", "More", { menu = true })
                             DropdownMenu(menu, { menu = false }) {
-                                bookMenu(app, b).forEach { item -> DropdownMenuItem({ Text(item.label) }, { menu = false; item.onClick() }) }
+                                bookMenu(app, b).forEach { item -> DropdownMenuItem({ Text(tr(item.label)) }, { menu = false; item.onClick() }) }
                                 if (b.epubPath != null) DropdownMenuItem({ Text(if (b.textSource == "EPUB") "Read the transcript instead of the EPUB" else "Read the EPUB") }, {
                                     menu = false; app.library.update(bookId) { it.copy(textSource = if (it.textSource == "EPUB") "GENERATED" else "EPUB") }
                                 })
-                                if (app.transcripts.info(bookId) != null) DropdownMenuItem({ Text("Remove ReadAlong") }, { menu = false; app.transcription.discard(bookId) })
+                                if (app.transcripts.info(bookId) != null) DropdownMenuItem({ Text(tr("Remove ReadAlong")) }, { menu = false; app.transcription.discard(bookId) })
                             }
                         }
                     }
@@ -108,7 +109,7 @@ private fun TextPanel(app: AppState, book: LibraryBook, text: com.example.readal
                 ReturnToPosition(follow, Modifier.align(Alignment.BottomCenter).padding(bottom = 24.dp))
                 job?.takeIf { it.bookId == book.id }?.let { j ->
                     Surface(Modifier.align(Alignment.TopEnd).padding(14.dp), shape = CircleShape, color = Color.Black.copy(alpha = .35f)) {
-                        Text("Making ReadAlong · ${(j.fraction * 100).toInt()}%", Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        Text(tr("Making ReadAlong · ${(j.fraction * 100).toInt()}%"), Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                             style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = .8f))
                     }
                 }
@@ -167,11 +168,11 @@ private fun PlayerControls(app: AppState, book: LibraryBook, clock: State<Long>,
             seekBook(app, book.id, chapterStart + (f * (chapterEnd - chapterStart)).toLong())
         }, color = Color.White)
         Row(Modifier.fillMaxWidth()) {
-            Text(timeText(position - chapterStart), style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = .75f))
+            Text(tr(timeText(position - chapterStart)), style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = .75f))
             Spacer(Modifier.weight(1f))
-            Text("${hoursMinutes(((book.durationMs - position) / speed).toLong())} left in book", style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = .75f))
+            Text(tr("${hoursMinutes(((book.durationMs - position) / speed).toLong())} left in book"), style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = .75f))
             Spacer(Modifier.weight(1f))
-            Text(timeText(chapterEnd - chapterStart), style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = .75f))
+            Text(tr(timeText(chapterEnd - chapterStart)), style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = .75f))
         }
         Spacer(Modifier.height(18.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
@@ -197,7 +198,7 @@ private fun PlayerControls(app: AppState, book: LibraryBook, clock: State<Long>,
                 LabeledAction("ic_speed", speedLabel(speed), { speedMenu = true })
                 DropdownMenu(speedMenu, { speedMenu = false }) {
                     listOf(.75f, 1f, 1.1f, 1.25f, 1.5f, 1.75f, 2f, 2.5f, 3f).forEach { s ->
-                        DropdownMenuItem({ Text(speedLabel(s) + if (s == speed) "  ✓" else "") }, { speedMenu = false; if (!current) app.player.open(book.id, play = false); app.player.setSpeed(s) })
+                        DropdownMenuItem({ Text(tr(speedLabel(s) + if (s == speed) "  ✓" else "")) }, { speedMenu = false; if (!current) app.player.open(book.id, play = false); app.player.setSpeed(s) })
                     }
                 }
             }
@@ -208,9 +209,9 @@ private fun PlayerControls(app: AppState, book: LibraryBook, clock: State<Long>,
                     state.sleepEndsAt?.let { "${((it - System.currentTimeMillis()) / 60_000 + 1)} min" } ?: if (state.sleepAtChapterEnd) "Chapter end" else "Sleep",
                     { sleepMenu = true }, active = state.sleepEndsAt != null || state.sleepAtChapterEnd)
                 DropdownMenu(sleepMenu, { sleepMenu = false }) {
-                    DropdownMenuItem({ Text("Off") }, { sleepMenu = false; app.player.sleepAfter(null) })
-                    listOf(5, 10, 15, 30, 45, 60, 90).forEach { m -> DropdownMenuItem({ Text("$m minutes") }, { sleepMenu = false; app.player.sleepAfter(m) }) }
-                    DropdownMenuItem({ Text("End of chapter") }, { sleepMenu = false; app.player.sleepAtChapterEnd() })
+                    DropdownMenuItem({ Text(tr("Off")) }, { sleepMenu = false; app.player.sleepAfter(null) })
+                    listOf(5, 10, 15, 30, 45, 60, 90).forEach { m -> DropdownMenuItem({ Text(tr("$m minutes")) }, { sleepMenu = false; app.player.sleepAfter(m) }) }
+                    DropdownMenuItem({ Text(tr("End of chapter")) }, { sleepMenu = false; app.player.sleepAtChapterEnd() })
                 }
             }
             LabeledAction("ic_bookmark", "Bookmark", {
@@ -230,7 +231,7 @@ private fun PlayerControls(app: AppState, book: LibraryBook, clock: State<Long>,
 private fun SkipButton(icon: String, seconds: Int, description: String, onClick: () -> Unit) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         AppIconButton(icon, description, onClick, size = 52.dp, iconSize = 28.dp)
-        Text("$seconds", style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = .8f))
+        Text(tr("$seconds"), style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = .8f))
     }
 }
 
@@ -242,22 +243,22 @@ internal fun ContentsDialog(app: AppState, book: LibraryBook, position: Long, on
             Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surfaceContainer) {
                 Column {
                     TabRow(tab, containerColor = Color.Transparent) {
-                        Tab(tab == 0, { tab = 0 }, text = { Text("Chapters") })
-                        Tab(tab == 1, { tab = 1 }, text = { Text("Bookmarks (${book.bookmarks.size})") })
+                        Tab(tab == 0, { tab = 0 }, text = { Text(tr("Chapters")) })
+                        Tab(tab == 1, { tab = 1 }, text = { Text(tr("Bookmarks (${book.bookmarks.size})")) })
                     }
                     val current = book.chapterAt(position)
                     val list = rememberLazyListState(if (tab == 0) current.coerceAtLeast(0) else 0)
                     LazyColumn(Modifier.smoothWheelScroll(list), state = list, contentPadding = PaddingValues(vertical = 8.dp)) {
                         if (tab == 0) {
-                            if (book.chapters.isEmpty()) item { Text("This audiobook has no chapter marks.", Modifier.padding(24.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                            if (book.chapters.isEmpty()) item { Text(tr("This audiobook has no chapter marks."), Modifier.padding(24.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
                             itemsIndexed(book.chapters) { i, chapter ->
                                 ListItem({ Text(chapter.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                     Modifier.clickable { seekBook(app, book.id, chapter.startMs); onDismiss() }.pointerHoverIcon(PointerIcon.Hand),
-                                    trailingContent = { Text(timeText(chapter.startMs), style = MaterialTheme.typography.labelMedium) },
+                                    trailingContent = { Text(tr(timeText(chapter.startMs)), style = MaterialTheme.typography.labelMedium) },
                                     colors = ListItemDefaults.colors(containerColor = if (i == current) MaterialTheme.colorScheme.primary.copy(alpha = .14f) else Color.Transparent))
                             }
                         } else {
-                            if (book.bookmarks.isEmpty()) item { Text("No bookmarks yet. Use Bookmark in the player to save a place.", Modifier.padding(24.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                            if (book.bookmarks.isEmpty()) item { Text(tr("No bookmarks yet. Use Bookmark in the player to save a place."), Modifier.padding(24.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
                             itemsIndexed(book.bookmarks) { _, mark ->
                                 ListItem({ Text(mark.name) }, Modifier.clickable { seekBook(app, book.id, mark.positionMs); onDismiss() }.pointerHoverIcon(PointerIcon.Hand),
                                     trailingContent = { AppIconButton("ic_trash", "Remove bookmark", { app.library.update(book.id) { it.copy(bookmarks = it.bookmarks - mark, removedBookmarks = it.removedBookmarks + mark.id) }; app.bookmarksChanged(book.id) }) },

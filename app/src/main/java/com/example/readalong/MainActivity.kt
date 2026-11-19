@@ -46,6 +46,7 @@ open class MainActivity : ComponentActivity() {
     }
     companion object { const val OPEN_BOOK = "com.example.readalong.OPEN_BOOK" }
     override fun onCreate(savedInstanceState: Bundle?) {
+        com.example.readalong.ui.about.AppLanguage.load(this)
         val launchSettings = com.example.readalong.ui.launch.LaunchAppearance.read(this)
         setTheme(com.example.readalong.ui.launch.LaunchAppearance.theme(this, launchSettings))
         super.onCreate(savedInstanceState)

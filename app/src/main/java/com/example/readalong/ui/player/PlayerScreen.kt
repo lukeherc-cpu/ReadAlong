@@ -1,5 +1,6 @@
 package com.example.readalong.ui.player
 
+import com.example.readalong.domain.i18n.tr
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.ui.graphics.graphicsLayer
@@ -58,10 +59,10 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
     val timingRepair by reading.needsAudioTimingRepair.collectAsStateWithLifecycle()
     var timingRepairDismissed by rememberSaveable(book.id) { mutableStateOf(false) }
     if (timingRepair && !timingRepairDismissed) AlertDialog(onDismissRequest = { timingRepairDismissed = true },
-        title = { Text("Text timing is a little off") },
-        text = { Text("The highlighting in this book's ReadAlong can drift from the audio. Fixing it makes the ReadAlong again; your listening position and EPUB are kept.") },
-        confirmButton = { TextButton(onClick = { timingRepairDismissed = true; reading.rebuildTranscription() }) { Text("Fix timing") } },
-        dismissButton = { TextButton(onClick = { timingRepairDismissed = true }) { Text("Later") } })
+        title = { Text(tr("Text timing is a little off")) },
+        text = { Text(tr("The highlighting in this book's ReadAlong can drift from the audio. Fixing it makes the ReadAlong again; your listening position and EPUB are kept.")) },
+        confirmButton = { TextButton(onClick = { timingRepairDismissed = true; reading.rebuildTranscription() }) { Text(tr("Fix timing")) } },
+        dismissButton = { TextButton(onClick = { timingRepairDismissed = true }) { Text(tr("Later")) } })
     val execution by reading.execution.collectAsStateWithLifecycle()
     val tipScope = rememberCoroutineScope()
     val tipApp = androidx.compose.ui.platform.LocalContext.current.applicationContext as? com.example.readalong.ReadAlongApplication
@@ -132,11 +133,11 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                         }
                     }
                     .clickable(interactionSource = handlePress, indication = null, onClickLabel = "Close player", onClick = onCollapse)
-                    .semantics { contentDescription = "Close player" }, contentAlignment = Alignment.Center) {
+                    .semantics { contentDescription = tr("Close player") }, contentAlignment = Alignment.Center) {
                     Box(Modifier.size(width = 36.dp, height = 4.dp).background(handleColor, RoundedCornerShape(2.dp)))
                 }
                 Box(Modifier.align(Alignment.CenterEnd)) {
-                    IconButton(onClick = { menu = true }) { Icon(painterResource(R.drawable.ic_more), "More options") }
+                    IconButton(onClick = { menu = true }) { Icon(painterResource(R.drawable.ic_more), tr("More options")) }
                     DropdownMenu(menu, { menu = false }) {
                         // Adding the book's EPUB later swaps the ReadAlong to its exact text, so it leads the menu.
                         // Every item has an icon in the same quiet colour; the EPUB item leads, with one line on why.
@@ -144,28 +145,28 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                         if (!book.isDemo) DropdownMenuItem(
                             text = {
                                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                    Text(if (epub != null) "Replace matching EPUB" else "Add matching EPUB")
-                                    Text("Exact text for this ReadAlong", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+                                    Text(tr(if (epub != null) "Replace matching EPUB" else "Add matching EPUB"))
+                                    Text(tr("Exact text for this ReadAlong"), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
                                 }
                             },
                             leadingIcon = { menuIcon(R.drawable.ic_book) },
                             onClick = { menu = false; pickEpub() },
                             modifier = Modifier.testTag("menu_add_epub"))
                         if (!book.isDemo) HorizontalDivider(Modifier.padding(horizontal = 12.dp, vertical = 4.dp))
-                        if (!book.isDemo && tipApp != null) DropdownMenuItem(text = { Text("Sound") }, leadingIcon = { menuIcon(R.drawable.ic_headphones) },
+                        if (!book.isDemo && tipApp != null) DropdownMenuItem(text = { Text(tr("Sound")) }, leadingIcon = { menuIcon(R.drawable.ic_headphones) },
                             onClick = { panel = "sound"; menu = false }, modifier = Modifier.testTag("menu_sound"))
-                        DropdownMenuItem(text = { Text(if (book.isFinished) "Mark as not finished" else "Mark as finished") },
+                        DropdownMenuItem(text = { Text(tr(if (book.isFinished) "Mark as not finished" else "Mark as finished")) },
                             leadingIcon = { menuIcon(if (book.isFinished) R.drawable.ic_undo else R.drawable.ic_check_circle) },
                             onClick = { onFinished(!book.isFinished); menu = false })
-                        DropdownMenuItem(text = { Text("Save ReadAlong as EPUB") }, leadingIcon = { menuIcon(R.drawable.ic_download) },
+                        DropdownMenuItem(text = { Text(tr("Save ReadAlong as EPUB")) }, leadingIcon = { menuIcon(R.drawable.ic_download) },
                             onClick = { menu = false; export.launch("ReadAlong-${book.id}.epub") })
-                        DropdownMenuItem(text = { Text("Bookmarks") }, leadingIcon = { menuIcon(R.drawable.ic_bookmark) },
-                            trailingIcon = { if (bookmarks.isNotEmpty()) Text("${bookmarks.size}", style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant) },
+                        DropdownMenuItem(text = { Text(tr("Bookmarks")) }, leadingIcon = { menuIcon(R.drawable.ic_bookmark) },
+                            trailingIcon = { if (bookmarks.isNotEmpty()) Text(tr("${bookmarks.size}"), style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant) },
                             onClick = { panel = "bookmarks"; menu = false })
                         if (!book.isDemo) {
-                            DropdownMenuItem(text = { Text("Listening history") }, leadingIcon = { menuIcon(R.drawable.ic_undo) },
+                            DropdownMenuItem(text = { Text(tr("Listening history")) }, leadingIcon = { menuIcon(R.drawable.ic_undo) },
                                 onClick = { panel = "history"; menu = false }, modifier = Modifier.testTag("menu_history"))
-                            DropdownMenuItem(text = { Text("Character List") }, leadingIcon = { menuIcon(R.drawable.ic_book) },
+                            DropdownMenuItem(text = { Text(tr("Character List")) }, leadingIcon = { menuIcon(R.drawable.ic_book) },
                                 onClick = { panel = "characters"; menu = false }, modifier = Modifier.testTag("menu_characters"))
                         }
                     }
@@ -193,8 +194,8 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         if (book.mediaState == "MISSING") Surface(shape = RoundedCornerShape(com.example.readalong.ui.theme.Corners.medium), color = colors.errorContainer) {
                             Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Text("Can't find this book's audio. Its folder may have moved or been renamed.", color = colors.onErrorContainer, style = MaterialTheme.typography.bodyMedium)
-                                TextButton(onClick = onFolders, contentPadding = PaddingValues(0.dp)) { Text("Choose folder again", color = colors.onErrorContainer) }
+                                Text(tr("Can't find this book's audio. Its folder may have moved or been renamed."), color = colors.onErrorContainer, style = MaterialTheme.typography.bodyMedium)
+                                TextButton(onClick = onFolders, contentPadding = PaddingValues(0.dp)) { Text(tr("Choose folder again"), color = colors.onErrorContainer) }
                             }
                         }
                         Box(Modifier.widthIn(max = if (wide) wideCover else (screenHeight * 0.40f).coerceIn(260.dp, 380.dp)).fillMaxWidth().aspectRatio(1f)) {
@@ -218,7 +219,7 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                                     shape = RoundedCornerShape(50), color = Color.Black.copy(alpha = .62f), contentColor = Color.White) {
                                     Row(Modifier.padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                         Icon(painterResource(R.drawable.ic_highlighted_book), null, Modifier.size(18.dp))
-                                        Text("Tap the cover for the text", style = MaterialTheme.typography.labelLarge)
+                                        Text(tr("Tap the cover for the text"), style = MaterialTheme.typography.labelLarge)
                                     }
                                 }
                             }
@@ -230,7 +231,7 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                 }
                 val controls: @Composable ColumnScope.() -> Unit = {
                 com.example.readalong.ui.components.MarqueeTitle(book.title, Modifier.fillMaxWidth(), if (compact) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.headlineMedium)
-                Text(state.chapterTitle, style = if (compact) MaterialTheme.typography.titleSmall else MaterialTheme.typography.titleMedium, color = colors.onSurfaceVariant,
+                Text(tr(state.chapterTitle), style = if (compact) MaterialTheme.typography.titleSmall else MaterialTheme.typography.titleMedium, color = colors.onSurfaceVariant,
                     maxLines = if (wide) 1 else Int.MAX_VALUE, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                 val sliderColors = SliderDefaults.colors(thumbColor = colors.primary, activeTrackColor = colors.primary, inactiveTrackColor = colors.onSurface.copy(alpha = .18f))
                 Slider(
@@ -238,18 +239,18 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                     onValueChange = { dragging = true; draggedPosition = it },
                     onValueChangeFinished = { playback.seek(start + draggedPosition.toLong()); dragging = false },
                     valueRange = 0f..chapterDuration.toFloat(),
-                    modifier = Modifier.then(if (compact) Modifier.height(32.dp) else Modifier).semantics { contentDescription = "Seek within chapter" },
+                    modifier = Modifier.then(if (compact) Modifier.height(32.dp) else Modifier).semantics { contentDescription = tr("Seek within chapter") },
                     // A plain round thumb on one continuous rounded track (no split thumb, gap or end dot).
                     thumb = { Box(Modifier.size(18.dp).background(colors.primary, CircleShape)) },
                     track = { sliderState -> SliderDefaults.Track(sliderState = sliderState, modifier = Modifier.height(5.dp), colors = sliderColors,
                         drawStopIndicator = null, thumbTrackGapSize = 0.dp, trackInsideCornerSize = 0.dp) },
                 )
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(clockTime(chapterPosition), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant, modifier = Modifier.alignByBaseline())
-                    Text(if (state.durationMs > 0) "${hoursMinutes(state.durationMs - state.positionMs)} left in book" else "Length unknown", style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, lineHeight = 16.sp), color = colors.onSurfaceVariant, modifier = Modifier.alignByBaseline())
-                    Text(clockTime(chapterDuration), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant, modifier = Modifier.alignByBaseline())
+                    Text(tr(clockTime(chapterPosition)), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant, modifier = Modifier.alignByBaseline())
+                    Text(tr(if (state.durationMs > 0) "${hoursMinutes(state.durationMs - state.positionMs)} left in book" else "Length unknown"), style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, lineHeight = 16.sp), color = colors.onSurfaceVariant, modifier = Modifier.alignByBaseline())
+                    Text(tr(clockTime(chapterDuration)), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant, modifier = Modifier.alignByBaseline())
                 }
-                state.error?.let { Text(it, color = colors.error, style = MaterialTheme.typography.bodySmall) }
+                state.error?.let { Text(tr(it), color = colors.error, style = MaterialTheme.typography.bodySmall) }
 
                 Row(Modifier.fillMaxWidth().padding(vertical = if (wide) 2.dp else 12.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
                     PlayerAction("Rewind ${appSettings.playerBack} seconds", R.drawable.ic_rewind, "${appSettings.playerBack}", { playback.skip(-appSettings.playerBack * 1000L) })
@@ -272,7 +273,7 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                     PlayerAction("Bookmarks", R.drawable.ic_bookmark, "Bookmark", { panel = "bookmarks" })
                     PlayerAction("Chapters", R.drawable.ic_chapters, "Chapters", { panel = "chapters" })
                 }
-                readingError?.let { Text(it, color = colors.error, style = MaterialTheme.typography.bodySmall) }
+                readingError?.let { Text(tr(it), color = colors.error, style = MaterialTheme.typography.bodySmall) }
                 if (!wide) Spacer(Modifier.height(12.dp))
                 }
                 if (wide) Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
@@ -291,7 +292,7 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
         if (landscape) topBar()
         }
     }
-    if (showBuffering) LinearProgressIndicator(Modifier.align(Alignment.TopCenter).fillMaxWidth().height(2.dp).semantics { contentDescription = "Buffering audio" })
+    if (showBuffering) LinearProgressIndicator(Modifier.align(Alignment.TopCenter).fillMaxWidth().height(2.dp).semantics { contentDescription = tr("Buffering audio") })
     }
     if (panel == "bookmarks") BookmarksDialog(reading, state.positionMs, playback::seek, { panel = null }, state.chapters)
     if (panel == "sound" && tipApp != null) com.example.readalong.ui.sound.BookSoundSheet(tipApp, book.id, book.title) { panel = null }
@@ -325,7 +326,7 @@ private fun PlayerPanel(panel: String, book: Book, state: PlaybackState, playbac
                 }
                 item {
                     val shake = com.example.readalong.ui.theme.LocalAppSettings.current.shakeToReset
-                    Text(if (shake) "Fades out over the last 20 seconds. Shake the phone to start the timer again." else "Fades out over the last 20 seconds. Shake to reset is off in Settings → Sleep timer.",
+                    Text(tr(if (shake) "Fades out over the last 20 seconds. Shake the phone to start the timer again." else "Fades out over the last 20 seconds. Shake to reset is off in Settings → Sleep timer."),
                         Modifier.padding(horizontal = 24.dp, vertical = 12.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
@@ -355,9 +356,9 @@ private fun PlayerAction(description: String, icon: Int, label: String, onClick:
         Modifier.widthIn(min = 48.dp).heightIn(min = 56.dp).clickable(role = Role.Button, onClickLabel = description, onClick = onClick).padding(4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Icon(painterResource(icon), description, Modifier.size(26.dp))
+        Icon(painterResource(icon), tr(description), Modifier.size(26.dp))
         Spacer(Modifier.height(4.dp))
-        Text(label, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+        Text(tr(label), style = MaterialTheme.typography.labelSmall, maxLines = 1)
     }
 }
 
@@ -382,21 +383,21 @@ private fun SpeedSheet(speed: Float, title: String, change: (Float) -> Unit, clo
     fun set(next: Float) { value = com.example.readalong.domain.model.roundSpeed(next); change(value) }
     com.example.readalong.ui.components.ActionSheet(close, "Playback speed", if (settings.speedPerBook) "Saved for $title" else "Same for every book") {
         item {
-            Text(com.example.readalong.domain.model.speedLabel(value), Modifier.fillMaxWidth().padding(vertical = 4.dp).testTag("speed_value"),
+            Text(tr(com.example.readalong.domain.model.speedLabel(value)), Modifier.fillMaxWidth().padding(vertical = 4.dp).testTag("speed_value"),
                 style = MaterialTheme.typography.displaySmall, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
         }
         item {
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedIconButton(onClick = { set(value - .05f) }, Modifier.testTag("speed_down")) { Icon(painterResource(R.drawable.ic_remove), "Slower", Modifier.size(22.dp)) }
+                OutlinedIconButton(onClick = { set(value - .05f) }, Modifier.testTag("speed_down")) { Icon(painterResource(R.drawable.ic_remove), tr("Slower"), Modifier.size(22.dp)) }
                 Slider(value, { value = com.example.readalong.domain.model.roundSpeed(it) }, Modifier.weight(1f).testTag("speed_slider"),
                     valueRange = com.example.readalong.domain.model.MIN_SPEED..com.example.readalong.domain.model.MAX_SPEED, onValueChangeFinished = { change(value) })
-                OutlinedIconButton(onClick = { set(value + .05f) }, Modifier.testTag("speed_up")) { Icon(painterResource(R.drawable.ic_add), "Faster", Modifier.size(22.dp)) }
+                OutlinedIconButton(onClick = { set(value + .05f) }, Modifier.testTag("speed_up")) { Icon(painterResource(R.drawable.ic_add), tr("Faster"), Modifier.size(22.dp)) }
             }
         }
         item {
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 com.example.readalong.domain.model.SpeedChips.forEach { chip ->
-                    FilterChip(value == chip, { set(chip) }, { Text(com.example.readalong.domain.model.speedLabel(chip)) }, Modifier.testTag("speed_chip_$chip"))
+                    FilterChip(value == chip, { set(chip) }, { Text(tr(com.example.readalong.domain.model.speedLabel(chip))) }, Modifier.testTag("speed_chip_$chip"))
                 }
             }
         }

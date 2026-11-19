@@ -1,5 +1,6 @@
 package com.example.readalong.desktop.ui
 
+import com.example.readalong.domain.i18n.tr
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -16,17 +17,17 @@ fun EditInfoDialog(app: AppState) {
     var title by remember(id) { mutableStateOf(book.title) }
     var author by remember(id) { mutableStateOf(book.author.orEmpty()) }
     val close = { app.editingInfo = null }
-    AlertDialog(onDismissRequest = close, title = { Text("Edit title and author") }, text = {
+    AlertDialog(onDismissRequest = close, title = { Text(tr("Edit title and author")) }, text = {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedTextField(title, { title = it }, Modifier.fillMaxWidth(), label = { Text("Title") }, singleLine = true, isError = title.isBlank())
-            OutlinedTextField(author, { author = it }, Modifier.fillMaxWidth(), label = { Text("Author") }, singleLine = true)
-            Text("Your phone shows the same names after the next sync.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            OutlinedTextField(title, { title = it }, Modifier.fillMaxWidth(), label = { Text(tr("Title")) }, singleLine = true, isError = title.isBlank())
+            OutlinedTextField(author, { author = it }, Modifier.fillMaxWidth(), label = { Text(tr("Author")) }, singleLine = true)
+            Text(tr("Your phone shows the same names after the next sync."), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }, confirmButton = {
         TextButton({
             val (t, a) = title to author
             app.scope.launch(Dispatchers.IO) { runCatching { app.bookInfo.edit(id, t, a); app.link.changed() }.onFailure { app.messages.tryEmit(it.message ?: "Couldn't save.") } }
             close()
-        }, enabled = title.isNotBlank()) { Text("Save") }
-    }, dismissButton = { TextButton(close) { Text("Cancel") } })
+        }, enabled = title.isNotBlank()) { Text(tr("Save")) }
+    }, dismissButton = { TextButton(close) { Text(tr("Cancel")) } })
 }
