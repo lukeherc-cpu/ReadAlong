@@ -7,5 +7,5 @@
         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="8dp" android:text="@string/widget_readalong_label" android:textColor="#FF7B6F66" android:textSize="11sp" />
     </LinearLayout>
     <TextView android:id="@+id/widget_sentence" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:layout_marginTop="8dp"
-        android:fontFamily="@font/literata" android:textColor="#FF2A2622" android:textSize="17sp" android:lineSpacingExtra="4sp" android:ellipsize="end" android:text="@string/widget_preview_passage" />
+        android:fontFamily="@font/literata" android:textColor="#FFA49A90" android:textSize="16sp" android:lineSpacingExtra="5sp" android:ellipsize="end" android:text="@string/widget_preview_passage" />
 </LinearLayout>

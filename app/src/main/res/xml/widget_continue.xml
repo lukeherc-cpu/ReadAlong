@@ -3,4 +3,4 @@
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:minWidth="280dp" android:minHeight="250dp" android:minResizeWidth="150dp" android:minResizeHeight="150dp"
     android:resizeMode="horizontal|vertical" android:widgetCategory="home_screen" android:updatePeriodMillis="0"
-    android:initialLayout="@layout/widget_continue" android:previewLayout="@layout/widget_continue_preview" android:description="@string/widget_continue_description" />
+    android:initialLayout="@layout/widget_continue" android:previewLayout="@layout/widget_continue_preview" />

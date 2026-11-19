@@ -116,4 +116,33 @@ class WidgetCrashTest {
             InstrumentationRegistry.getInstrumentation().runOnMainSync { host.stopListening() }
         }
     }
+
+    /** Logs each widget and picker preview as a small JPEG (base64, tag WidgetShot) so the check can show what they look like. */
+    @Test fun shotsOfEveryWidget() {
+        val sizes = mapOf("cover" to (170 to 170), "continue" to (300 to 300), "now_playing" to (330 to 180), "strip" to (380 to 80), "readalong" to (380 to 260))
+        val density = app.resources.displayMetrics.density
+        fun shoot(name: String, views: RemoteViews, w: Int, h: Int) {
+            InstrumentationRegistry.getInstrumentation().runOnMainSync {
+                val v = views.apply(app, FrameLayout(app))
+                val pw = (w * density).toInt(); val ph = (h * density).toInt()
+                v.measure(android.view.View.MeasureSpec.makeMeasureSpec(pw, android.view.View.MeasureSpec.EXACTLY), android.view.View.MeasureSpec.makeMeasureSpec(ph, android.view.View.MeasureSpec.EXACTLY))
+                v.layout(0, 0, pw, ph)
+                val bitmap = android.graphics.Bitmap.createBitmap(pw, ph, android.graphics.Bitmap.Config.ARGB_8888)
+                val canvas = android.graphics.Canvas(bitmap); canvas.drawColor(0xFF55606A.toInt()); v.draw(canvas)
+                val scaled = android.graphics.Bitmap.createScaledBitmap(bitmap, pw / 2, ph / 2, true)
+                val out = java.io.ByteArrayOutputStream(); scaled.compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, out)
+                val data = android.util.Base64.encodeToString(out.toByteArray(), android.util.Base64.NO_WRAP)
+                data.chunked(3000).forEachIndexed { i, part -> android.util.Log.i("WidgetShot", "$name|$i|$part") }
+                android.util.Log.i("WidgetShot", "$name|end")
+            }
+        }
+        val names = mapOf(com.example.readalong.ui.widget.CoverWidget::class.java to "cover", com.example.readalong.ui.widget.ContinueWidget::class.java to "continue",
+            com.example.readalong.ui.widget.NowPlayingWidget::class.java to "now_playing", com.example.readalong.ui.widget.StripWidget::class.java to "strip", com.example.readalong.ui.widget.ReadAlongTextWidget::class.java to "readalong")
+        names.forEach { (_, n) ->
+            val (w, h) = sizes.getValue(n)
+            shoot("preview_$n", RemoteViews(app.packageName, app.resources.getIdentifier("widget_${n}_preview", "layout", app.packageName)), w, h)
+        }
+        val live = runBlocking { Widgets.build(app, Widgets.kinds.toSet(), ids[0], options(380, 260)) }
+        live.forEach { (kind, views) -> val n = names.getValue(kind); val (w, h) = sizes.getValue(n); shoot("live_$n", views, w, h) }
+    }
 }
