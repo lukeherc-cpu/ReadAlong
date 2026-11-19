@@ -310,7 +310,8 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
     if (panel == "bookmarks") BookmarksDialog(reading, state.positionMs, playback::seek, { panel = null }, state.chapters,
         history = if (book.isDemo) null else book.id, chapterTitle = state.chapterTitle)
     if (panel == "sound" && tipApp != null) com.example.readalong.ui.sound.BookSoundSheet(tipApp, book.id, book.title) { panel = null }
-    if (panel == "characters") CharacterListSheet(book.id, state.positionMs, state.chapters, playback::seek, { panel = null }, book.title, book.author)
+    if (panel == "characters") CharacterListSheet(book.id, state.positionMs, state.chapters, playback::seek, { panel = null }, book.title, book.author,
+        durationMs = state.durationMs, heardSoFar = reading::heardSoFar)
     if (panel != null && panel !in setOf("bookmarks", "characters", "sound")) PlayerPanel(panel!!, book, state, playback, close = { panel = null })
     }
 }

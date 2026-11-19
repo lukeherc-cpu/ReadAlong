@@ -125,13 +125,60 @@ private val COMMON = setOf(
  * "Make with AI": the app asks ChatGPT, Gemini or Claude for the book's characters up to where the
  * listener is, and reads the answer back. Only the title, author and chapter leave the phone.
  */
+/**
+ * Where the listener is, as exactly as the app knows it. Audio parts can be hours long (Pride and Prejudice
+ * comes as four), so the part alone isn't enough: the matching EPUB's chapter, how far through the book
+ * they are and the last words they heard pin it down.
+ */
+data class ListeningPlace(
+    /** The audio file or chapter playing, such as "Part 1", with its number and the count. */
+    val part: String? = null, val partNumber: Int = 0, val partCount: Int = 0,
+    /** Time into that part, such as "0:42:10". */
+    val partElapsed: String? = null,
+    /** Percent of the whole audiobook heard, when its length is known. */
+    val percent: Int? = null,
+    /** The matching EPUB's chapter at this point, such as "Chapter 3". */
+    val bookChapter: String? = null,
+    /** The book's last sentences before this point, from the EPUB or the transcript. */
+    val lastHeard: String? = null,
+)
+
 object AiCharacters {
-    fun prompt(title: String, author: String?, reachedAt: String): String {
+    fun prompt(title: String, author: String?, place: ListeningPlace): String {
         val by = author?.takeIf { it.isNotBlank() }?.let { " by $it" }.orEmpty()
-        return "I'm listening to the audiobook \"$title\"$by and I've reached $reachedAt. " +
-            "List the characters I've met so far, with no spoilers past that point. " +
-            "Put each person on their own line as: Name — who they are and how they connect to the others, in one sentence. " +
-            "Reply with the list only."
+        val part = place.part?.takeIf { it.isNotBlank() }?.let { name ->
+            val count = if (place.partCount > 1) " (${place.partNumber} of ${place.partCount})" else ""
+            val into = place.partElapsed?.let { ", $it in" }.orEmpty()
+            "Audio: \"$name\"$count$into"
+        } ?: place.partElapsed?.let { "Audio: $it in" }
+        val where = listOfNotNull(
+            place.bookChapter?.takeIf { it.isNotBlank() }?.let { "Book chapter: $it" },
+            place.percent?.let { "About $it% of the way through the book" },
+            part,
+            place.lastHeard?.takeIf { it.isNotBlank() }?.let { "The last words I heard: \"$it\"" },
+        )
+        val cutoff = if (place.lastHeard.isNullOrBlank()) "this exact point" else "those last words"
+        return buildString {
+            append("I'm listening to the audiobook \"$title\"$by and want a spoiler-free list of the characters I've met so far.\n\n")
+            if (where.isNotEmpty()) append("Exactly where I am:\n").append(where.joinToString("\n") { "- $it" }).append("\n\n")
+            append("Strict rules:\n")
+            append("- Only include characters who have appeared or been mentioned by name in the text up to $cutoff. ")
+            append("Audiobook parts and chapters can be long, so leave out anyone who first appears later in this part or chapter, however important they become.\n")
+            append("- If you're not sure someone has appeared yet, leave them out.\n")
+            append("- Describe each person only as they are known at this point: nothing about later events, relationships, reveals or fates.\n")
+            append("- Put each person on their own line as: Name — who they are and how they connect to the others, in one sentence.\n\n")
+            append("Reply with the list only.")
+        }
+    }
+
+    /** The end of [text], about [limit] characters, starting at a sentence where it can, for [ListeningPlace.lastHeard]. */
+    fun tail(text: String, limit: Int = 320): String? {
+        val clean = text.replace(Regex("\\s+"), " ").trim()
+        if (clean.isEmpty()) return null
+        if (clean.length <= limit) return clean
+        val cut = clean.takeLast(limit)
+        val sentence = Regex("[.!?…][\"'”’)]?\\s+").find(cut)?.let { it.range.last + 1 }?.takeIf { it < cut.length - 40 }
+        return "…" + (if (sentence != null) cut.substring(sentence) else cut.substringAfter(' ')).trim()
     }
 
     private val bullet = Regex("""^\s*(?:[-*•·]+|\d+[.)])\s*""")
