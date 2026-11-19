@@ -9,7 +9,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 internal object WhistleNative {
     init { System.loadLibrary("readalong_whistle") }
-    external fun transcribe(modelPath: String, pcmPath: String): ByteArray
+    /** [language] is a Whistle language code ("de"), or null to detect it. */
+    external fun transcribe(modelPath: String, pcmPath: String, language: String?): ByteArray
 }
 
 /** Private process owns the upstream non-thread-safe runtime and its bounded model lifetime. */
@@ -38,6 +39,8 @@ open class RecognitionService : Service() {
                     File(pcm).canonicalPath.startsWith(File(filesDir, "recognition").canonicalPath + "/"))) {
                 send(reply, null, "ReadAlong couldn't read this audio."); return
             }
+            // Only a language Whistle knows reaches it; anything else detects the language.
+            val language = com.example.readalong.domain.transcription.TranscriptionLanguages.forEngine(message.data.getString("language"))
             activeRequest = message.data.getString("requestId") ?: return
             busy = true; cancelled.set(false)
             try { reply.send(Message.obtain(null, PROGRESS).apply { arg1 = -1 }) } catch (_: RemoteException) { }
@@ -57,7 +60,7 @@ open class RecognitionService : Service() {
             handler.postDelayed(heartbeat, HEARTBEAT_MS)
             executor.execute {
                 try {
-                    val result = WhistleNative.transcribe(model, pcm).toString(Charsets.UTF_8)
+                    val result = WhistleNative.transcribe(model, pcm, language).toString(Charsets.UTF_8)
                     handler.post { busy = false; if (!cancelled.get()) send(reply, result, null) }
                 } catch (failure: Throwable) {
                     android.util.Log.w("ReadAlong", "Whistle recognition failed: ${failure.javaClass.simpleName}")

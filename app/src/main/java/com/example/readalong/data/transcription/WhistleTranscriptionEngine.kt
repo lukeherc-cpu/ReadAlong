@@ -10,6 +10,8 @@ import java.io.File
 
 class WhistleTranscriptionEngine(private val context: Context, private val store: SpeechModelStore, override val id: String = SpeechModelStore.ID,
     private val connection: RecognitionConnection = RecognitionConnection(context),
+    /** A [TranscriptionLanguages] code; "auto" lets Whistle detect the language. */
+    private val language: String = TranscriptionLanguages.AUTO,
     private val onProgress: suspend (String) -> Unit = {}) : TranscriptionEngine {
     override fun transcribe(input: TranscriptionInput) = flow {
         require(!input.isDemo && input.audioUri != null)
@@ -38,7 +40,7 @@ class WhistleTranscriptionEngine(private val context: Context, private val store
                                 else "${store.spec(id).name} · transcribing this audio section · ${progress.coerceIn(0, 100)}%")
                         }
                     }
-                    try { connection.transcribe(model, pcm, backend = store.spec(id).backend) { updates.trySend(it) } }
+                    try { connection.transcribe(model, pcm, backend = store.spec(id).backend, language = TranscriptionLanguages.forEngine(language)) { updates.trySend(it) } }
                     finally { updates.close(); reporter.join() }
                 }
                 android.util.Log.d("ReadAlongPerf", "recognition_ms=${android.os.SystemClock.elapsedRealtime() - recognitionBegan}")

@@ -21,6 +21,8 @@ sealed interface Screen {
     data object Settings : Screen
     /** Settings → Transcription (ReadAlong): where to run, language and speech model. */
     data object TranscriptionSettings : Screen
+    /** Settings → Languages: the language books are transcribed in, from every language Whisper knows. */
+    data object LanguageSettings : Screen
     /** Settings → Link a phone. */
     data object PhoneSettings : Screen
     data object Audible : Screen

@@ -62,6 +62,8 @@ data class AppPreferences(
     val resetSoundUri: String = "",
     /** Reset sound volume, 0 to 100. */
     val resetVolume: Int = 40,
+    /** The language Whistle transcribes in: a [com.example.readalong.domain.transcription.TranscriptionLanguages] code, or "auto" to detect it. */
+    val transcriptionLanguage: String = com.example.readalong.domain.transcription.TranscriptionLanguages.AUTO,
 )
 
 val ResumeRewinds = listOf("OFF", "SHORT", "LONG", "SMART", "SENTENCE")
@@ -111,6 +113,8 @@ class AppPreferencesStore(private val context: Context) {
         p[stringPreferencesKey("reset_sound")]?.takeIf { it in ResetSounds } ?: "CHIME",
         p[stringPreferencesKey("reset_sound_uri")] ?: "",
         (p[intPreferencesKey("reset_volume")] ?: 40).coerceIn(0, 100),
+        p[stringPreferencesKey("transcription_language")]?.takeIf { com.example.readalong.domain.transcription.TranscriptionLanguages.valid(it) }
+            ?: com.example.readalong.domain.transcription.TranscriptionLanguages.AUTO,
     )
     val preferences = store.data.catch { if (it is IOException) emit(emptyPreferences()) else throw it }.map(::decode)
     suspend fun update(change: (AppPreferences) -> AppPreferences) {
@@ -156,6 +160,8 @@ class AppPreferencesStore(private val context: Context) {
         p[stringPreferencesKey("reset_sound")] = value.resetSound.takeIf { it in ResetSounds } ?: "CHIME"
         p[stringPreferencesKey("reset_sound_uri")] = value.resetSoundUri
         p[intPreferencesKey("reset_volume")] = value.resetVolume.coerceIn(0, 100)
+        p[stringPreferencesKey("transcription_language")] = value.transcriptionLanguage
+            .takeIf { com.example.readalong.domain.transcription.TranscriptionLanguages.valid(it) } ?: com.example.readalong.domain.transcription.TranscriptionLanguages.AUTO
         }
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.example.readalong.ui.launch.LaunchAppearance.request(context, decode(saved)) }
     }

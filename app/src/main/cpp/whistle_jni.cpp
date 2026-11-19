@@ -156,8 +156,10 @@ void load(const std::string &path) {
 // Calls are serialized by RecognitionService. Process termination is the cancellation boundary
 // because the upstream C API has no abort callback or model-unload function.
 extern "C" JNIEXPORT jbyteArray JNICALL
-Java_com_example_readalong_data_transcription_WhistleNative_transcribe(JNIEnv *env, jobject, jstring model, jstring pcm) {
+Java_com_example_readalong_data_transcription_WhistleNative_transcribe(JNIEnv *env, jobject, jstring model, jstring pcm, jstring language) {
     try {
+        // A language code ("de") from Settings → Languages, checked by RecognitionService; null detects it.
+        const std::string forced = language ? utf8(env, language) : std::string();
         load(utf8(env, model));
         std::ifstream source(utf8(env, pcm), std::ios::binary | std::ios::ate);
         if (!source) throw std::runtime_error("Couldn't open decoded audio.");
@@ -172,8 +174,8 @@ Java_com_example_readalong_data_transcription_WhistleNative_transcribe(JNIEnv *e
             sample = std::clamp(sample, -1.0f, 1.0f);
         }
         std::vector<char> output(512*1024, 0);
-        // Full decoder, upstream beam search defaults, multilingual detection, real attention times.
-        if (needle_transcribe(samples.data(), samples.size(), nullptr, nullptr, 1, output.data(), output.size()) < 0)
+        // Full decoder, upstream beam search defaults, the chosen language (or detection), real attention times.
+        if (needle_transcribe(samples.data(), samples.size(), forced.empty() ? nullptr : forced.c_str(), nullptr, 1, output.data(), output.size()) < 0)
             throw std::runtime_error(needle_last_error() ? needle_last_error() : "Whistle inference failed.");
         const auto length = strnlen(output.data(), output.size());
         if (length == output.size()) throw std::runtime_error("Whistle output exceeded its buffer.");

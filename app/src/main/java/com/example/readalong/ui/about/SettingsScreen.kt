@@ -43,6 +43,7 @@ fun SettingsScreen(app: ReadAlongApplication, onBack: () -> Unit, onModel: () ->
     var copied by remember { mutableStateOf(false) }
     var battery by remember { mutableStateOf(false) }
     var equalizerPage by rememberSaveable { mutableStateOf(false) }
+    var languagePage by rememberSaveable { mutableStateOf(false) }
     var resumeDialog by remember { mutableStateOf(false) }
     var resetSoundSheet by remember { mutableStateOf(false) }
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -65,6 +66,10 @@ fun SettingsScreen(app: ReadAlongApplication, onBack: () -> Unit, onModel: () ->
                 Modifier.padding(horizontal = 24.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             com.example.readalong.ui.sound.EqualizerEditor(sound, ::saveSound)
         } }
+        return
+    }
+    if (languagePage) {
+        LanguageSettingsPage(preferences.transcriptionLanguage, onBack = { languagePage = false }) { code -> save { it.copy(transcriptionLanguage = code) } }
         return
     }
     Scaffold { insets -> Column(Modifier.fillMaxSize().padding(insets).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
@@ -117,6 +122,14 @@ fun SettingsScreen(app: ReadAlongApplication, onBack: () -> Unit, onModel: () ->
                 SettingsRow("Reset sound", Modifier.testTag("settings_reset_sound"), onClick = { resetSoundSheet = true }) { ValueText(resetSoundLabel(preferences.resetSound)); Chevron() }
             }
             Text("Playback fades out over the last 20 seconds.", Modifier.padding(start = 4.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        SettingsSection("Languages") {
+            SettingsGroup {
+                SettingsRow("Audiobook language", Modifier.testTag("settings_language"), summary = "The language ReadAlong transcribes in", onClick = { languagePage = true }) {
+                    ValueText(if (preferences.transcriptionLanguage == com.example.readalong.domain.transcription.TranscriptionLanguages.AUTO) "Detect"
+                        else com.example.readalong.domain.transcription.TranscriptionLanguages.name(preferences.transcriptionLanguage)); Chevron()
+                }
+            }
         }
         SettingsSection("Transcription") {
             SettingsGroup {
