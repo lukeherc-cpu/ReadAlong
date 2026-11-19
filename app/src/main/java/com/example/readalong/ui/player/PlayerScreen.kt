@@ -179,10 +179,12 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                 // Wide, the screen splits into two equal halves: the cover sits in the middle of the left
                 // half and the controls in the middle of the right half, both centred top to bottom. The
                 // cover fills the height it has, less 20dp above and below (and at most about half the width).
-                val wideCover = minOf(if (large) 760.dp else 360.dp, maxHeight - if (landscape) 40.dp else 8.dp, maxWidth * if (large) 0.48f else 0.45f).coerceAtLeast(160.dp)
-                // Upright on a tablet the cover takes the full width, leaving ~480dp below for the controls (a two-line title included).
+                val wideFit = minOf(if (large) 760.dp else 360.dp, maxHeight - if (landscape) 40.dp else 8.dp, maxWidth * if (large) 0.48f else 0.45f)
+                // On a tablet the cover is drawn at 75% of the space it could fill.
+                val wideCover = (if (large) wideFit * 0.75f else wideFit).coerceAtLeast(160.dp)
+                // Upright on a tablet the cover takes 75% of the width it could fill, leaving ~480dp below for the controls (a two-line title included).
                 // (The ReadAlong card is the cover's size, and the full reader keeps the card's column width.)
-                val tallCover = if (large) minOf(maxWidth, maxHeight - 480.dp).coerceAtLeast(300.dp) else (screenHeight * 0.40f).coerceIn(260.dp, 380.dp)
+                val tallCover = if (large) (minOf(maxWidth, maxHeight - 480.dp) * 0.75f).coerceAtLeast(300.dp) else (screenHeight * 0.40f).coerceIn(260.dp, 380.dp)
                 val wideControls = maxOf(wideCover, 320.dp).coerceAtMost(maxWidth / 2 - 24.dp)
                 val artwork: @Composable () -> Unit = {
                     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
