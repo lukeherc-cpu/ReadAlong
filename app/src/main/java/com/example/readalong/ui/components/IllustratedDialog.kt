@@ -1,5 +1,7 @@
 package com.example.readalong.ui.components
 
+import com.example.readalong.domain.i18n.tr
+
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
