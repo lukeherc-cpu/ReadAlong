@@ -9,6 +9,9 @@ on:
       tests:
         description: "Instrumentation class (or class#method)"
         default: "com.example.readalong.LiveSyncScrollTest"
+      unit_tests:
+        description: "Also run these JVM unit tests first (a Gradle --tests filter, e.g. com.example.readalong.ui.widget.*)"
+        default: ""
 
 jobs:
   emulator:
@@ -28,6 +31,10 @@ jobs:
           sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
 
       - uses: gradle/actions/setup-gradle@v4
+
+      - name: Unit tests
+        if: ${{ github.event.inputs.unit_tests != '' }}
+        run: ./gradlew --no-configuration-cache testGithubDebugUnitTest --tests "${{ github.event.inputs.unit_tests }}"
 
       - name: Build app and tests
         run: ./gradlew --no-configuration-cache assembleGithubDebug assembleGithubDebugAndroidTest

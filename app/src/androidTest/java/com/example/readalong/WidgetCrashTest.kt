@@ -26,7 +26,8 @@ class WidgetCrashTest {
     @Before fun books() = runBlocking {
         val dao = app.database.bookDao()
         dao.insertBooks(ids.mapIndexed { i, id -> BookEntity(id, "Widget test book number ${i + 1} with a long title", "Author $i", null, null, 9_000_000L, 1_000L + i, false, i % 4) })
-        dao.insertProgress(ids.mapIndexed { i, id -> BookProgressEntity(id, 60_000L * (i + 1), lastPlayedAt = 5_000L + i) })
+        // The last book was never played (no lastPlayedAt), as most of a real library is.
+        dao.insertProgress(ids.dropLast(1).mapIndexed { i, id -> BookProgressEntity(id, 60_000L * (i + 1), lastPlayedAt = 5_000L + i) })
     }
 
     @After fun cleanUp() = runBlocking { ids.forEach { runCatching { app.database.bookDao().removeBook(it) } } }
@@ -72,7 +73,8 @@ class WidgetCrashTest {
         val intent = Intent(app, WidgetSetupActivity::class.java).putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, 4242).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         ActivityScenario.launch<WidgetSetupActivity>(intent).use { scenario ->
             Thread.sleep(2_000)
-            scenario.onActivity { }
+            // Still open: the book list (played and never-played books together) sorted without crashing.
+            scenario.onActivity { org.junit.Assert.assertFalse(it.isFinishing) }
         }
         WidgetBooks.set(app, 4242, ids[1])
         org.junit.Assert.assertEquals(ids[1], WidgetBooks.book(app, 4242))
