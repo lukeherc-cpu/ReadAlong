@@ -1,0 +1,65 @@
+processing: /home/runner/work/ReadAlong/flatpak-build/files/lib/ReadAlong/lib/app/resources/whisper/libreadalong_whisper.so
+Nothing to do.
+stripping /home/runner/work/ReadAlong/flatpak-build/files/lib/ReadAlong/lib/app/resources/whisper/libreadalong_whisper.so to /home/runner/work/ReadAlong/flatpak-build/files/lib/debug/lib/ReadAlong/lib/app/resources/whisper/libreadalong_whisper.so.debug
+compressing debuginfo in: /home/runner/work/ReadAlong/flatpak-build/files/lib/ReadAlong/lib/app/resources/whisper/libggml-cpu-skylakex.so
+processing: /home/runner/work/ReadAlong/flatpak-build/files/lib/ReadAlong/lib/app/resources/whisper/libggml-cpu-skylakex.so
+Nothing to do.
+stripping /home/runner/work/ReadAlong/flatpak-build/files/lib/ReadAlong/lib/app/resources/whisper/libggml-cpu-skylakex.so to /home/runner/work/ReadAlong/flatpak-build/files/lib/debug/lib/ReadAlong/lib/app/resources/whisper/libggml-cpu-skylakex.so.debug
+compressing debuginfo in: /home/runner/work/ReadAlong/flatpak-build/files/lib/ReadAlong/lib/app/resources/whisper/libggml-cpu-piledriver.so
+processing: /home/runner/work/ReadAlong/flatpak-build/files/lib/ReadAlong/lib/app/resources/whisper/libggml-cpu-piledriver.so
+Nothing to do.
+stripping /home/runner/work/ReadAlong/flatpak-build/files/lib/ReadAlong/lib/app/resources/whisper/libggml-cpu-piledriver.so to /home/runner/work/ReadAlong/flatpak-build/files/lib/debug/lib/ReadAlong/lib/app/resources/whisper/libggml-cpu-piledriver.so.debug
+compressing debuginfo in: /home/runner/work/ReadAlong/flatpak-build/files/lib/ReadAlong/lib/app/resources/whisper/libggml-cpu-haswell.so
+processing: /home/runner/work/ReadAlong/flatpak-build/files/lib/ReadAlong/lib/app/resources/whisper/libggml-cpu-haswell.so
+Nothing to do.
+stripping /home/runner/work/ReadAlong/flatpak-build/files/lib/ReadAlong/lib/app/resources/whisper/libggml-cpu-haswell.so to /home/runner/work/ReadAlong/flatpak-build/files/lib/debug/lib/ReadAlong/lib/app/resources/whisper/libggml-cpu-haswell.so.debug
+compressing debuginfo in: /home/runner/work/ReadAlong/flatpak-build/files/lib/ReadAlong/lib/app/resources/whisper/libggml-cpu-sapphirerapids.so
+processing: /home/runner/work/ReadAlong/flatpak-build/files/lib/ReadAlong/lib/app/resources/whisper/libggml-cpu-sapphirerapids.so
+Nothing to do.
+stripping /home/runner/work/ReadAlong/flatpak-build/files/lib/ReadAlong/lib/app/resources/whisper/libggml-cpu-sapphirerapids.so to /home/runner/work/ReadAlong/flatpak-build/files/lib/debug/lib/ReadAlong/lib/app/resources/whisper/libggml-cpu-sapphirerapids.so.debug
+compressing debuginfo in: /home/runner/work/ReadAlong/flatpak-build/files/lib/ReadAlong/lib/app/resources/whisper/libggml-vulkan.so
+processing: /home/runner/work/ReadAlong/flatpak-build/files/lib/ReadAlong/lib/app/resources/whisper/libggml-vulkan.so
+Nothing to do.
+stripping /home/runner/work/ReadAlong/flatpak-build/files/lib/ReadAlong/lib/app/resources/whisper/libggml-vulkan.so to /home/runner/work/ReadAlong/flatpak-build/files/lib/debug/lib/ReadAlong/lib/app/resources/whisper/libggml-vulkan.so.debug
+compressing debuginfo in: /home/runner/work/ReadAlong/flatpak-build/files/lib/ReadAlong/lib/libapplauncher.so
+processing: /home/runner/work/ReadAlong/flatpak-build/files/lib/ReadAlong/lib/libapplauncher.so
+Nothing to do.
+stripping /home/runner/work/ReadAlong/flatpak-build/files/lib/ReadAlong/lib/libapplauncher.so to /home/runner/work/ReadAlong/flatpak-build/files/lib/debug/lib/ReadAlong/lib/libapplauncher.so.debug
+compressing debuginfo in: /home/runner/work/ReadAlong/flatpak-build/files/lib/ReadAlong/bin/ReadAlong
+processing: /home/runner/work/ReadAlong/flatpak-build/files/lib/ReadAlong/bin/ReadAlong
+Nothing to do.
+stripping /home/runner/work/ReadAlong/flatpak-build/files/lib/ReadAlong/bin/ReadAlong to /home/runner/work/ReadAlong/flatpak-build/files/lib/debug/lib/ReadAlong/bin/ReadAlong.debug
+Committing stage build-readalong to cache
+Cleaning up
+Running appstreamcli compose
+Only accepting components: io.github.lukeherc_cpu.ReadAlong, io.github.lukeherc_cpu.ReadAlong.desktop
+Processing directory: /home/runner/work/ReadAlong/flatpak-build/files
+Composing metadata...
+Success!
+Committing stage cleanup to cache
+Finishing app
+Exporting share/applications/io.github.lukeherc_cpu.ReadAlong.desktop
+Exporting share/icons/hicolor/512x512/apps/io.github.lukeherc_cpu.ReadAlong.png
+Exporting share/metainfo/io.github.lukeherc_cpu.ReadAlong.metainfo.xml
+Please review the exported files and the metadata
+Committing stage finish to cache
+Exporting io.github.lukeherc_cpu.ReadAlong to repo
+Commit: fb33b8d24ef524f5b3294352bfaa5265afb438c4f8af45feed66bf7842ad996a
+Metadata Total: 115
+Metadata Written: 43
+Content Total: 224
+Content Written: 179
+Content Bytes Written: 352112614 (352.1 MB)
+Exporting io.github.lukeherc_cpu.ReadAlong.Debug to repo
+Commit: 5008c9dddfa703643cf467902daadba369c930ca3b985b6a3e1d573b55330e15
+Metadata Total: 27
+Metadata Written: 13
+Content Total: 48
+Content Written: 47
+Content Bytes Written: 10672028 (10.7 MB)
+Pruning cache
+total 397512
+drwxr-xr-x  2 runner runner      4096 Nov 19 18:31 .
+drwxr-xr-x 15 runner runner      4096 Nov 19 18:28 ..
+-rw-r--r--  1 runner runner 221387891 Nov 19 18:28 ReadAlong-Linux-x86_64.tar.gz
+-rw-r--r--  1 runner runner 185651296 Nov 19 18:31 ReadAlong-Linux.flatpak
