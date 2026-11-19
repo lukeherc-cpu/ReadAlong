@@ -63,6 +63,7 @@ jobs:
             mkdir -p verification; adb pull /sdcard/Android/data/com.example.readalong/files/. verification/ || true
             adb logcat -d -s LiveSyncScrollTest:I ReadAlong:* AndroidRuntime:E > verification/logcat.txt || true
             adb shell dumpsys window | grep -E "mCurrentFocus|mFocusedApp" || true
+            adb logcat -d -s WidgetShot:I | grep "WidgetShot" || true
             adb logcat -d -b main,system,crash | grep -E "FATAL|ANR in|START u0|Displayed|WindowManager.*focus" | tail -60 || true
             ! grep -q "FAILURES!!!\|INSTRUMENTATION_FAILED\|Process crashed" instrument.txt
 

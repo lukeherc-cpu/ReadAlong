@@ -170,13 +170,12 @@ object Widgets {
             }
             val text: CharSequence = when {
                 passage != null -> android.text.SpannableStringBuilder().apply {
+                    // The sentence being heard is dark and highlighted; what follows stays in the lighter text colour.
                     val (parts, gap) = passage
                     append(parts.first())
-                    if (parts.size > 1) {
-                        val start = length
-                        append(gap); append(parts.drop(1).joinToString(gap))
-                        setSpan(android.text.style.ForegroundColorSpan(0xFF8A8078.toInt()), start, length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                    }
+                    setSpan(android.text.style.ForegroundColorSpan(0xFF2A2622.toInt()), 0, length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    setSpan(android.text.style.BackgroundColorSpan(0x2EC98B4A), 0, length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    if (parts.size > 1) { append(gap); append(parts.drop(1).joinToString(gap)) }
                 }
                 book == null -> ""
                 else -> "Make a ReadAlong for this book to read along here."
@@ -194,16 +193,14 @@ object Widgets {
             val slots = listOf(R.id.widget_book_0, R.id.widget_book_1, R.id.widget_book_2, R.id.widget_book_3, R.id.widget_book_4, R.id.widget_book_5)
             val views = RemoteViews(app.packageName, R.layout.widget_continue).apply {
                 setViewVisibility(R.id.widget_empty, if (shelf.isEmpty()) View.VISIBLE else View.GONE)
-                // One shelf for up to three books; the second appears once there's a fourth.
-                setViewVisibility(R.id.widget_row_1, if (shelf.size > 3) View.VISIBLE else View.INVISIBLE)
-                setViewVisibility(R.id.widget_shelf_1, if (shelf.size > 3) View.VISIBLE else View.INVISIBLE)
                 slots.forEachIndexed { index, slot ->
                     val item = shelf.getOrNull(index)
                     if (item == null) { setViewVisibility(slot, View.INVISIBLE); return@forEachIndexed }
                     setViewVisibility(slot, View.VISIBLE)
-                    val art = item.coverUri?.let { loadCover(app, it, 360, square = false) }
-                        ?: placeholder(item.title, com.example.readalong.ui.components.coverPaletteFor(app, item, settings.alwaysBasicColor, settings.basicColor), 240, 360)
-                    setImageViewBitmap(slot, rounded(art))
+                    // Square and small: the shelf crops each cover to its slot, and RemoteViews copies every bitmap.
+                    val art = item.coverUri?.let { loadCover(app, it, 240) }
+                        ?: placeholder(item.title, com.example.readalong.ui.components.coverPaletteFor(app, item, settings.alwaysBasicColor, settings.basicColor), 240, 240)
+                    setImageViewBitmap(slot, art)
                     setContentDescription(slot, "Open ${item.title}")
                     setOnClickPendingIntent(slot, openBook(app, item.id))
                 }
@@ -218,7 +215,7 @@ object Widgets {
     private fun textLines(context: Context, options: Bundle?): Int? {
         val height = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT)?.takeIf { it > 0 } ?: return null
         val scale = context.resources.configuration.fontScale
-        val line = 17f * scale * 1.33f + 4f * scale
+        val line = 16f * scale * 1.33f + 5f * scale
         val header = 14f * scale + 8f + 28f
         return ((height - header) / line).toInt().coerceAtLeast(1)
     }
@@ -259,22 +256,6 @@ object Widgets {
         val cropped = Bitmap.createBitmap(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side)
         Bitmap.createScaledBitmap(cropped, minOf(size, side), minOf(size, side), true)
     }.getOrNull()
-
-    /** A book on the shelf: softly rounded corners and a darker spine edge. */
-    private fun rounded(source: Bitmap): Bitmap {
-        val out = Bitmap.createBitmap(source.width, source.height, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(out)
-        val radius = minOf(source.width, source.height) * .035f
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-        val rect = android.graphics.RectF(0f, 0f, source.width.toFloat(), source.height.toFloat())
-        canvas.drawRoundRect(rect, radius, radius, paint)
-        paint.xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SRC_IN)
-        canvas.drawBitmap(source, 0f, 0f, paint)
-        paint.xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SRC_ATOP)
-        paint.shader = android.graphics.LinearGradient(0f, 0f, source.width * .06f, 0f, 0x55000000, 0x00000000, android.graphics.Shader.TileMode.CLAMP)
-        canvas.drawRect(rect, paint)
-        return out
-    }
 
     /** A plain cover in the book's colours with its title, for books without artwork. */
     private fun placeholder(title: String, palette: CoverPalette, width: Int, height: Int): Bitmap {

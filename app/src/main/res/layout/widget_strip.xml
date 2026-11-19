@@ -1,18 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Mini player: the title gets all the room the three fixed-size buttons leave. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@android:id/background"
-    android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="horizontal" android:paddingStart="10dp" android:paddingEnd="8dp" android:gravity="center_vertical"
+    android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="horizontal" android:paddingStart="12dp" android:paddingEnd="8dp" android:gravity="center_vertical"
     android:clipToOutline="true" android:background="@drawable/widget_shape" android:backgroundTint="#FF3D2E1F">
-    <ImageView android:id="@+id/widget_cover" android:layout_width="48dp" android:layout_height="48dp" android:scaleType="centerCrop" android:contentDescription="@string/widget_open_player" />
-    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1.7" android:layout_marginStart="12dp" android:layout_marginEnd="4dp" android:orientation="vertical">
+    <ImageView android:id="@+id/widget_cover" android:layout_width="50dp" android:layout_height="50dp" android:scaleType="centerCrop" android:background="@drawable/widget_book_shape" android:clipToOutline="true" android:contentDescription="@string/widget_open_player" />
+    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginStart="12dp" android:layout_marginEnd="4dp" android:orientation="vertical">
         <TextView android:id="@+id/widget_title" android:layout_width="match_parent" android:layout_height="wrap_content" android:textColor="#FFFFFFFF" android:textSize="15sp" android:textStyle="bold" android:maxLines="1" android:ellipsize="end" />
         <TextView android:id="@+id/widget_subtitle" android:layout_width="match_parent" android:layout_height="wrap_content" android:textColor="#CCFFFFFF" android:textSize="12sp" android:maxLines="1" android:ellipsize="end" />
     </LinearLayout>
-    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1.3" android:orientation="horizontal" android:gravity="center_vertical">
-        <ImageView android:id="@+id/widget_back" android:layout_width="0dp" android:layout_height="40dp" android:layout_weight="1" android:padding="8dp" android:src="@drawable/ic_rewind" android:contentDescription="@string/widget_back" />
-        <FrameLayout android:layout_width="48dp" android:layout_height="48dp">
-            <ImageView android:id="@+id/widget_play_bg" android:layout_width="48dp" android:layout_height="48dp" android:src="@drawable/widget_circle" android:importantForAccessibility="no" />
-            <ImageView android:id="@+id/widget_play" android:layout_width="48dp" android:layout_height="48dp" android:padding="13dp" android:src="@drawable/ic_play" android:contentDescription="@string/widget_play" />
-        </FrameLayout>
-        <ImageView android:id="@+id/widget_forward" android:layout_width="0dp" android:layout_height="40dp" android:layout_weight="1" android:padding="8dp" android:src="@drawable/ic_forward" android:contentDescription="@string/widget_forward" />
-    </LinearLayout>
+    <ImageView android:id="@+id/widget_back" android:layout_width="44dp" android:layout_height="40dp" android:padding="8dp" android:src="@drawable/ic_rewind" android:contentDescription="@string/widget_back" />
+    <FrameLayout android:layout_width="48dp" android:layout_height="48dp">
+        <ImageView android:id="@+id/widget_play_bg" android:layout_width="48dp" android:layout_height="48dp" android:src="@drawable/widget_circle" android:importantForAccessibility="no" />
+        <ImageView android:id="@+id/widget_play" android:layout_width="48dp" android:layout_height="48dp" android:padding="13dp" android:src="@drawable/ic_play" android:contentDescription="@string/widget_play" />
+    </FrameLayout>
+    <ImageView android:id="@+id/widget_forward" android:layout_width="44dp" android:layout_height="40dp" android:padding="8dp" android:src="@drawable/ic_forward" android:contentDescription="@string/widget_forward" />
+
 </LinearLayout>

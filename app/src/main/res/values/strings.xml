@@ -49,21 +49,17 @@
     <string name="widget_continue_title">Bookshelf</string>
     <string name="widget_nothing_started">Books you start show here.</string>
     <string name="widget_readalong_label">Read along</string>
-    <string name="widget_cover_description">The book\'s cover with a play button. Tap the cover to open ReadAlong.</string>
-    <string name="widget_continue_description">Up to six books you\'ve started, on a shelf. Tap one to open it.</string>
-    <string name="widget_now_playing_description">Cover, chapter and progress, with rewind, play, forward and a sleep timer</string>
-    <string name="widget_strip_description">One slim row: cover, title, rewind, play and forward</string>
-    <string name="widget_readalong_description">The words being read, filling the widget as you listen. Tap to open the book.</string>
     <string name="widget_nothing_playing">Pick a book in ReadAlong</string>
     <string name="widget_cover_label">Cover</string>
     <string name="widget_continue_label">Bookshelf</string>
     <string name="widget_now_playing_label">Now playing</string>
     <string name="widget_strip_label">Mini player</string>
     <string name="widget_readalong_label_name">Read along text</string>
-    <string name="widget_preview_title">Your book</string>
-    <string name="widget_preview_title_caps">Your book · Chapter 3</string>
-    <string name="widget_preview_chapter">Chapter 3 · 4h 12m left</string>
-    <string name="widget_preview_passage">The lamps along the harbour came on one by one as the boat slid in. She had read the letter twice already, and still she unfolded it again, as if the words might have changed on the crossing. They had not. Come home, it said. The house is yours now.</string>
+    <string name="widget_preview_title">The Count of Monte Cristo</string>
+    <string name="widget_preview_title_caps">The Count of Monte Cristo · Chapter 1</string>
+    <string name="widget_preview_chapter">Chapter 12 · 31h left</string>
+    <string name="widget_preview_chapter_short">Chapter 12</string>
+    <string name="widget_preview_passage"><font fgcolor="#FF2A2622">On the 24th of February, 1815, the look-out at Notre-Dame de la Garde signalled the three-master, the Pharaon from Smyrna, Trieste, and Naples.</font> As usual, a pilot put off immediately, and rounding the Château d\'If, got on board the vessel between Cape Morgiou and Rion island.</string>
     <string name="widget_setup_title">Which book should this widget show?</string>
     <string name="widget_setup_follow">Whatever I\'m listening to</string>
     <string name="widget_setup_follow_detail">Changes when you switch books</string>
