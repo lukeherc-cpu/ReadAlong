@@ -44,6 +44,8 @@ fun SettingsScreen(app: ReadAlongApplication, onBack: () -> Unit, onModel: () ->
     var battery by remember { mutableStateOf(false) }
     var equalizerPage by rememberSaveable { mutableStateOf(false) }
     var soundPage by rememberSaveable { mutableStateOf(false) }
+    /** The Languages page's open tab (0 books, 1 app), or -1 while it's closed. */
+    var languagePage by rememberSaveable { mutableIntStateOf(-1) }
     var resumeDialog by remember { mutableStateOf(false) }
     var resetSoundSheet by remember { mutableStateOf(false) }
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -65,6 +67,10 @@ fun SettingsScreen(app: ReadAlongApplication, onBack: () -> Unit, onModel: () ->
             }
             com.example.readalong.ui.sound.EqualizerEditor(sound, ::saveSound)
         } }
+        return
+    }
+    if (languagePage >= 0) {
+        LanguageSettingsPage(preferences.transcriptionLanguage, languagePage, onBack = { languagePage = -1 }) { code -> save { it.copy(transcriptionLanguage = code) } }
         return
     }
     if (soundPage) {
@@ -126,6 +132,17 @@ fun SettingsScreen(app: ReadAlongApplication, onBack: () -> Unit, onModel: () ->
             SettingsGroup {
                 PreferenceSwitch("Shake to reset", preferences.shakeToReset) { value -> save { it.copy(shakeToReset = value) } }
                 SettingsRow("Reset sound", Modifier.testTag("settings_reset_sound"), onClick = { resetSoundSheet = true }) { ValueText(resetSoundLabel(preferences.resetSound)); Chevron() }
+            }
+        }
+        SettingsSection("Languages") {
+            SettingsGroup {
+                SettingsRow("Book transcription", Modifier.testTag("settings_language"), summary = "The language your audiobooks are read in", onClick = { languagePage = 0 }) {
+                    ValueText(if (preferences.transcriptionLanguage == com.example.readalong.domain.transcription.TranscriptionLanguages.AUTO) "Detect"
+                        else com.example.readalong.domain.transcription.TranscriptionLanguages.name(preferences.transcriptionLanguage)); Chevron()
+                }
+                SettingsRow("App language", Modifier.testTag("settings_app_language"), summary = "Menus, buttons and messages", onClick = { languagePage = 1 }) {
+                    ValueText(AppLanguage.name(AppLanguage.current(context))); Chevron()
+                }
             }
         }
         SettingsSection("Transcription") {

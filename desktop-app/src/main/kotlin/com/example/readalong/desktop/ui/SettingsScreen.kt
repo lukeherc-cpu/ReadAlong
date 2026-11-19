@@ -25,11 +25,12 @@ import androidx.compose.ui.unit.dp
 import com.example.readalong.desktop.core.AppPaths
 import com.example.readalong.desktop.core.UpdateStatus
 import com.example.readalong.desktop.transcription.SpeechModels
+import com.example.readalong.desktop.transcription.TranscriptionLanguages
 import kotlinx.coroutines.launch
 
 /**
- * Settings, laid out like the phone's: the tip jar, Appearance, Playback, Transcription (ReadAlong), Other and
- * Advanced. Where to transcribe, the language and the speech model sit behind the Transcription (ReadAlong) row.
+ * Settings, laid out like the phone's: the tip jar, Appearance, Playback, Languages, Transcription (ReadAlong), Other
+ * and Advanced. Where to transcribe and the speech model sit behind the Transcription (ReadAlong) row.
  */
 @Composable
 fun SettingsScreen(app: AppState) {
@@ -67,6 +68,17 @@ fun SettingsScreen(app: AppState) {
             Stepper("Rewind", "ic_rewind", settings.skipBackSeconds) { v -> save { it.copy(skipBackSeconds = v) } }
             Stepper("Forward", "ic_forward", settings.skipForwardSeconds) { v -> save { it.copy(skipForwardSeconds = v) } }
             Hint("Keyboard: Space plays and pauses, ← and → skip, Esc goes back, ${AppPaths.shortcutKey}F searches the text.")
+        }
+
+        SectionLabel("Languages")
+        SettingsGroup {
+            SettingsRow("Audiobook language", "ic_globe", summary = "The language ReadAlong transcribes in. Whisper knows ${TranscriptionLanguages.whisper.size}.",
+                onClick = { app.open(Screen.LanguageSettings) }) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(languageName(settings.language), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Chevron()
+                }
+            }
         }
 
         SectionLabel("Transcription (ReadAlong)")
@@ -157,13 +169,10 @@ fun TranscriptionSettingsScreen(app: AppState) {
             }
             PreferenceSwitch("Aggressive transcription", settings.aggressive, "ic_speed") { v -> app.settingsStore.update { it.copy(aggressive = v) } }
             Hint("Uses the graphics card and the processor together, several parts of the book at once, with quicker decoding. Books finish several times sooner; the fans will spin up while it works.")
-            Column(Modifier.padding(start = 18.dp, end = 18.dp, bottom = 16.dp)) {
-                Text("Language of your audiobooks", style = MaterialTheme.typography.labelLarge)
-                Spacer(Modifier.height(8.dp))
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Languages.forEach { (code, label) ->
-                        FilterChip(settings.language == code, { app.settingsStore.update { it.copy(language = code) } }, { Text(label) })
-                    }
+            SettingsRow("Audiobook language", "ic_globe", summary = "Changed in Settings → Languages", onClick = { app.open(Screen.LanguageSettings) }) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(languageName(settings.language), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Chevron()
                 }
             }
         }
@@ -171,7 +180,7 @@ fun TranscriptionSettingsScreen(app: AppState) {
         SectionLabel("Speech model")
         val default = app.transcription.defaultModel()
         val chosen = app.transcription.model()
-        SpeechModels.all.filter { settings.language == "en" || !it.englishOnly }.forEach { model ->
+        SpeechModels.all.filter { SpeechModels.supports(it, settings.language) }.forEach { model ->
             val progress = downloads[model.id]
             val selected = chosen.id == model.id
             Surface(Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.large))
@@ -207,6 +216,54 @@ fun TranscriptionSettingsScreen(app: AppState) {
             }
         }
         Text("${default.name} downloads by itself, so your first book can start straight away. The others download from Hugging Face the first time they're used, then work offline.",
+            Modifier.padding(horizontal = 6.dp), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+/**
+ * Settings → Languages: the language books are transcribed in, from every language Whisper knows, with a search box.
+ * Choosing one the speech model can't do (German with an English-only model) moves to a model that can.
+ */
+@Composable
+fun LanguageSettingsScreen(app: AppState) {
+    val settings by app.settingsStore.settings.collectAsState()
+    var query by remember { mutableStateOf("") }
+    SettingsPage("Languages", "Back to Settings (Esc)", app) {
+        Text("The language your audiobooks are read in. Choosing it, rather than letting ReadAlong detect it, avoids a wrong guess on a short or quiet passage. " +
+            "It applies to the next part of a book that's transcribed.", Modifier.padding(horizontal = 6.dp),
+            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth(), singleLine = true, placeholder = { Text("Search ${TranscriptionLanguages.whisper.size} languages") },
+            leadingIcon = { Icon(AppIcons.get("ic_search"), null, Modifier.size(20.dp)) }, shape = RoundedCornerShape(Corners.large))
+        val needle = query.trim()
+        val shown = TranscriptionLanguages.all.filter { needle.isEmpty() || it.name.contains(needle, true) || it.nativeName?.contains(needle, true) == true || it.code.equals(needle, true) }
+        SettingsGroup {
+            if (shown.isEmpty()) Text("No language matches \"$needle\".", Modifier.padding(18.dp), style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            shown.forEach { language -> key(language.code) {
+                val chosen = settings.language == language.code
+                val interaction = remember { MutableInteractionSource() }
+                val hovered by interaction.collectIsHoveredAsState()
+                Row(Modifier.fillMaxWidth().heightIn(min = 52.dp).hoverable(interaction)
+                    .clickable(interaction, null) { app.settingsStore.update { it.copy(language = language.code) } }.pointerHoverIcon(PointerIcon.Hand)
+                    .background(if (hovered) MaterialTheme.colorScheme.onSurface.copy(alpha = .05f) else Color.Transparent)
+                    .padding(horizontal = 18.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    RadioButton(chosen, null)
+                    Column(Modifier.weight(1f)) {
+                        Text(language.name, style = MaterialTheme.typography.bodyLarge)
+                        val note = when {
+                            language.code == TranscriptionLanguages.AUTO -> "Works out the language from each part of the audio"
+                            language.code == "yue" -> listOfNotNull(language.nativeName, "Large v3 Turbo only").joinToString(" · ")
+                            else -> language.nativeName
+                        }
+                        note?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    }
+                    if (language.code in TranscriptionLanguages.whistle) Text("Also on the phone", style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            } }
+        }
+        Text("Books in any of these languages can be made here and read along on a linked phone. The phone's own speech model, Cactus Whistle, " +
+            "transcribes the ones marked \"Also on the phone\". Languages other than English use a model for every language: Tiny, or Large v3 Turbo with a graphics card.",
             Modifier.padding(horizontal = 6.dp), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
@@ -293,8 +350,7 @@ private fun SettingsPage(title: String, back: String, app: AppState, content: @C
     }
 }
 
-private val Languages = listOf("en" to "English", "auto" to "Detect", "de" to "German", "fr" to "French", "es" to "Spanish", "it" to "Italian", "nl" to "Dutch", "pl" to "Polish")
-private fun languageName(code: String) = Languages.firstOrNull { it.first == code }?.second ?: code
+private fun languageName(code: String) = if (code == TranscriptionLanguages.AUTO) "Detect" else TranscriptionLanguages.name(code)
 
 private fun linkSummary(state: com.example.readalong.desktop.link.LinkState): String = when (state.devices.size) {
     0 -> "Sync transcripts, positions and bookmarks with ReadAlong on your phone"

@@ -27,6 +27,9 @@ open class MainActivity : ComponentActivity() {
         com.example.readalong.ui.importing.ImportViewModel.factory((application as ReadAlongApplication).audioImporter, (application as ReadAlongApplication).importedEpub, (application as ReadAlongApplication).processing)
     }
 
+    /** Settings → Languages → App before Android 13, which has no per-app language of its own. */
+    override fun attachBaseContext(newBase: android.content.Context) = super.attachBaseContext(com.example.readalong.ui.about.AppLanguage.wrap(newBase))
+
     override fun onDestroy() {
         if (isFinishing) (application as ReadAlongApplication).playback.pause()
         super.onDestroy()

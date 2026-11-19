@@ -69,12 +69,13 @@ fun ReadAlongApp(app: AppState) {
                         Screen.Queue -> QueueScreen(app)
                         Screen.Settings -> SettingsScreen(app)
                         Screen.TranscriptionSettings -> TranscriptionSettingsScreen(app)
+                        Screen.LanguageSettings -> LanguageSettingsScreen(app)
                         Screen.PhoneSettings -> PhoneSettingsScreen(app)
                         Screen.Audible -> AudibleScreen(app)
                         Screen.Folders -> FoldersScreen(app)
                     }
                 }
-                AnimatedVisibility(app.screen.let { it == Screen.Library || it == Screen.Queue || it == Screen.Settings || it == Screen.TranscriptionSettings || it == Screen.PhoneSettings || it == Screen.Audible || it == Screen.Folders },
+                AnimatedVisibility(app.screen.let { it == Screen.Library || it == Screen.Queue || it == Screen.Settings || it == Screen.TranscriptionSettings || it == Screen.LanguageSettings || it == Screen.PhoneSettings || it == Screen.Audible || it == Screen.Folders },
                     enter = slideInVertically { it } + fadeIn(), exit = slideOutVertically { it } + fadeOut()) {
                     MiniPlayer(app)
                 }

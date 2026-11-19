@@ -40,8 +40,9 @@ class RecognitionConnection(private val context: Context, private val service: C
         }
     }
 
-    suspend fun transcribe(model: File, pcm: File, backend: String = "whistle", onMetrics: (LongArray) -> Unit = {}, onProgress: (Int) -> Unit = {}): String {
-        if (service == null) return withSession { it.transcribe(model, pcm, backend, onMetrics, onProgress) }
+    /** [language] is a Whistle language code, or null to let it detect the language. */
+    suspend fun transcribe(model: File, pcm: File, backend: String = "whistle", language: String? = null, onMetrics: (LongArray) -> Unit = {}, onProgress: (Int) -> Unit = {}): String {
+        if (service == null) return withSession { it.transcribe(model, pcm, backend, language, onMetrics, onProgress) }
         val limit = stallLimitMs()
         // The first chunk of a session includes starting the process and mapping the model: it doesn't set the pace.
         val first = chunks++ == 0
@@ -101,7 +102,7 @@ class RecognitionConnection(private val context: Context, private val service: C
                     remote = Messenger(binder)
                     try { remote!!.send(Message.obtain(null, RecognitionService.RECOGNIZE).apply {
                         replyTo = reply
-                        data = Bundle().apply { putString("model", model.absolutePath); putString("pcm", pcm.absolutePath); putString("backend", backend); putString("requestId", requestId) }
+                        data = Bundle().apply { putString("model", model.absolutePath); putString("pcm", pcm.absolutePath); putString("backend", backend); putString("language", language); putString("requestId", requestId) }
                     }) } catch (_: RemoteException) { failed() }
                 }
                 private fun failed() {
