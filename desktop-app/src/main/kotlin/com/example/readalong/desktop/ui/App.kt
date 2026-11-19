@@ -2,6 +2,7 @@
 
 package com.example.readalong.desktop.ui
 
+import com.example.readalong.domain.i18n.tr
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
@@ -27,7 +28,7 @@ import java.io.File
 fun ReadAlongApp(app: AppState) {
     val settings by app.settingsStore.settings.collectAsState()
     val snackbar = remember { SnackbarHostState() }
-    LaunchedEffect(Unit) { app.messages.collect { snackbar.showSnackbar(it, withDismissAction = true) } }
+    LaunchedEffect(Unit) { app.messages.collect { snackbar.showSnackbar(tr(it), withDismissAction = true) } }
     // Coming back to the computer picks up where the phone left off.
     val focused = androidx.compose.ui.platform.LocalWindowInfo.current.isWindowFocused
     LaunchedEffect(focused) { if (focused) app.syncProgress() }
@@ -89,7 +90,7 @@ fun ReadAlongApp(app: AppState) {
             AnimatedVisibility(dropping, enter = fadeIn(), exit = fadeOut()) {
                 Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .55f)).padding(24.dp), contentAlignment = Alignment.Center) {
                     Surface(shape = RoundedCornerShape(Corners.large), color = MaterialTheme.colorScheme.primaryContainer) {
-                        Text("Drop audiobooks (or a book's EPUB) to add them", Modifier.padding(28.dp), style = MaterialTheme.typography.titleLarge, color = Color.White)
+                        Text(tr("Drop audiobooks (or a book's EPUB) to add them"), Modifier.padding(28.dp), style = MaterialTheme.typography.titleLarge, color = Color.White)
                     }
                 }
             }

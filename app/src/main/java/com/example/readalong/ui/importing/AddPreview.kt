@@ -1,5 +1,6 @@
 package com.example.readalong.ui.importing
 
+import com.example.readalong.domain.i18n.tr
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -59,14 +60,14 @@ fun AddPreviewDialog(model: ImportViewModel, origin: String, onAdded: () -> Unit
         // Nothing to add yet, but the folder can still be the library: books put in it later, or synced from
         // ReadAlong on a computer (Settings › Link a computer), show up on their own.
         com.example.readalong.ui.components.IllustratedDialog(if (shown.empty) "This folder is empty" else "No audiobooks found", model::dismissPreview, actions = {
-            TextButton(onClick = model::dismissPreview) { Text("Choose another") }
-            Button(onClick = { model.useEmptyFolder(); onAdded() }, modifier = Modifier.testTag("use_empty_folder")) { Text("Use this folder") }
+            TextButton(onClick = model::dismissPreview) { Text(tr("Choose another")) }
+            Button(onClick = { model.useEmptyFolder(); onAdded() }, modifier = Modifier.testTag("use_empty_folder")) { Text(tr("Use this folder")) }
         }) {
-            if (shown.empty) Text("You can still use \u201c${shown.name}\u201d as your library folder. Books you put in it, or sync from ReadAlong on your computer, will show up in your library.",
+            if (shown.empty) Text(tr("You can still use \u201c${shown.name}\u201d as your library folder. Books you put in it, or sync from ReadAlong on your computer, will show up in your library."),
                 style = MaterialTheme.typography.bodyLarge)
             else {
-                Text(shown.emptyMessage, style = MaterialTheme.typography.bodyLarge)
-                Text("You can still use it as your library folder: audiobooks added to it later will show up in your library.",
+                Text(tr(shown.emptyMessage), style = MaterialTheme.typography.bodyLarge)
+                Text(tr("You can still use it as your library folder: audiobooks added to it later will show up in your library."),
                     style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
@@ -76,15 +77,15 @@ fun AddPreviewDialog(model: ImportViewModel, origin: String, onAdded: () -> Unit
     val library = mode == FolderMode.LIBRARY
     val title = if (library) "$count audiobooks found" else "1 audiobook found"
     com.example.readalong.ui.components.IllustratedDialog(title, model::dismissPreview, centered = true, actions = {}) {
-        Text("in your \u201c${shown.name}\u201d folder", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        Text(tr("in your \u201c${shown.name}\u201d folder"), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.offset(y = (-10).dp))
         if (library) PreviewGrid(shown.books)
         else {
             // One book: a square cover placeholder with its name, like the library's covers.
             val name = if (count == 1) shown.books.first().name else shown.name
             PreviewTile(name, 0, Modifier.size(176.dp), large = true, book = shown.books.firstOrNull { it.cover != null } ?: shown.books.firstOrNull())
-            Text(name, style = MaterialTheme.typography.titleLarge, textAlign = TextAlign.Center)
-            if (count >= 2) Text("All $count folders' audio is played as one audiobook, in order.", style = MaterialTheme.typography.bodyMedium,
+            Text(tr(name), style = MaterialTheme.typography.titleLarge, textAlign = TextAlign.Center)
+            if (count >= 2) Text(tr("All $count folders' audio is played as one audiobook, in order."), style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
         }
         // Only when something here was deleted earlier, naming what comes back.
@@ -99,28 +100,28 @@ fun AddPreviewDialog(model: ImportViewModel, origin: String, onAdded: () -> Unit
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
                 Checkbox(restore, null)
                 Spacer(Modifier.width(8.dp))
-                Text(label, style = MaterialTheme.typography.bodyLarge)
+                Text(tr(label), style = MaterialTheme.typography.bodyLarge)
             }
         }
         // Already in the library the other way: switching replaces its books, and with them what was made for them.
         val replacing = shown.savedMode != null && shown.savedMode != mode && shown.savedBooks > 0
         if (replacing) Text(
-            (if (shown.savedMode == FolderMode.LIBRARY) "This folder is in your library as ${shown.savedBooks} books. Adding it as one book replaces them."
+            tr((if (shown.savedMode == FolderMode.LIBRARY) "This folder is in your library as ${shown.savedBooks} books. Adding it as one book replaces them."
                 else "This folder is in your library as one book. Adding it as separate books replaces it.") +
-                (if (shown.savedWork > 0) " Their ReadAlongs, listening positions and bookmarks will be deleted." else ""),
+                (if (shown.savedWork > 0) " Their ReadAlongs, listening positions and bookmarks will be deleted." else "")),
             style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth().testTag("replace_warning"))
         Button(onClick = { model.confirmPreview(mode, restore); onAdded() }, enabled = deleted == 0 || restore || !everythingDeleted,
             modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).testTag("confirm_add"), shape = RoundedCornerShape(28.dp),
             colors = if (replacing) ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error, contentColor = MaterialTheme.colorScheme.onError) else ButtonDefaults.buttonColors()) {
-            Text(if (replacing) (if (library) "Replace with $count books" else "Replace with 1 book") else if (library) "Add $count books" else "Add book", style = MaterialTheme.typography.titleMedium)
+            Text(tr(if (replacing) (if (library) "Replace with $count books" else "Replace with 1 book") else if (library) "Add $count books" else "Add book"), style = MaterialTheme.typography.titleMedium)
         }
         when {
-            library -> TextButton(onClick = { mode = FolderMode.ONE_BOOK }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("as_one_book")) { Text("It's really one book") }
-            count >= 2 -> TextButton(onClick = { mode = FolderMode.LIBRARY }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("as_library")) { Text("They're $count separate books") }
-            else -> TextButton(onClick = model::dismissPreview, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("Cancel") }
+            library -> TextButton(onClick = { mode = FolderMode.ONE_BOOK }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("as_one_book")) { Text(tr("It's really one book")) }
+            count >= 2 -> TextButton(onClick = { mode = FolderMode.LIBRARY }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("as_library")) { Text(tr("They're $count separate books")) }
+            else -> TextButton(onClick = model::dismissPreview, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text(tr("Cancel")) }
         }
-        if (library) Text("ReadAlong will keep checking this folder for new books.", style = MaterialTheme.typography.labelSmall,
+        if (library) Text(tr("ReadAlong will keep checking this folder for new books."), style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
     }
 }
@@ -157,10 +158,10 @@ private fun PreviewGrid(books: List<PreviewBook>) {
                             verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             if (more) Box(Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(10.dp)).background(MaterialTheme.colorScheme.primaryContainer), contentAlignment = Alignment.Center) {
                                 androidx.compose.animation.AnimatedContent(open, label = "More tile") { isOpen ->
-                                    Text(if (isOpen) "Less" else "+$rest", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                                    Text(tr(if (isOpen) "Less" else "+$rest"), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
                                 }
                             } else PreviewTile(shown[index].name, index, Modifier.fillMaxWidth().alpha(if (deleted) .45f else 1f), book = shown[index])
-                            Text(label, style = MaterialTheme.typography.labelMedium, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                            Text(tr(label), style = MaterialTheme.typography.labelMedium, maxLines = 2, overflow = TextOverflow.Ellipsis,
                                 color = if (deleted) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface)
                         }
                     }

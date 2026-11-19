@@ -1,5 +1,6 @@
 package com.example.readalong.desktop.ui
 
+import com.example.readalong.domain.i18n.tr
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -91,11 +92,11 @@ fun QueueScreen(app: AppState) {
     val paneWidth = (maxWidth * .34f).coerceIn(340.dp, 520.dp)
     val listContent: androidx.compose.foundation.lazy.LazyListScope.(Boolean) -> Unit = { withCard ->
             if (current == null && upNext.isEmpty() && stopped.isEmpty() && done.isEmpty() && withCard) item(key = "empty") {
-                Text("Click + to add a book, then press play on it to start its ReadAlong.", Modifier.padding(start = 4.dp),
+                Text(tr("Click + to add a book, then press play on it to start its ReadAlong."), Modifier.padding(start = 4.dp),
                     style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             if (!withCard && upNext.isEmpty() && stopped.isEmpty() && done.isEmpty()) item(key = "empty") {
-                Text("Nothing waiting. Click + to add books to the queue.", Modifier.padding(start = 4.dp),
+                Text(tr("Nothing waiting. Click + to add books to the queue."), Modifier.padding(start = 4.dp),
                     style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             if (withCard) current?.let { (book, state) ->
@@ -180,7 +181,7 @@ fun QueueScreen(app: AppState) {
             Spacer(Modifier.weight(1f))
             AppIconButton("ic_add", "Add book to queue", { adding = true })
         }
-        Text("Queue", Modifier.padding(start = 4.dp, top = 4.dp, bottom = 16.dp), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+        Text(tr("Queue"), Modifier.padding(start = 4.dp, top = 4.dp, bottom = 16.dp), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         val list = rememberLazyListState()
         if (wide) Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(40.dp)) {
             Column(Modifier.width(paneWidth).fillMaxHeight().verticalScroll(rememberScrollState()).padding(bottom = 32.dp)) {
@@ -203,7 +204,7 @@ fun QueueScreen(app: AppState) {
 
 @Composable
 private fun QueueHeading(text: String, modifier: Modifier = Modifier) {
-    Text(text, modifier.padding(start = 4.dp, bottom = 4.dp), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Text(tr(text), modifier.padding(start = 4.dp, bottom = 4.dp), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
 /** The book being transcribed: cover, title and author, then one progress line and the pause button. A faint "Details" opens what it's doing now. */
@@ -229,7 +230,7 @@ private fun TranscribingCard(book: LibraryBook, job: JobState, modifier: Modifie
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 if (!large) BookCover(book, Modifier.size(72.dp), RoundedCornerShape(Corners.medium), size = 160)
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                    Text(tr(label), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                     Text(book.title, style = if (large) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Text(chapter ?: book.author ?: "", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
@@ -241,13 +242,13 @@ private fun TranscribingCard(book: LibraryBook, job: JobState, modifier: Modifie
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("${job.downloadProgress?.let { (it * 100).toInt() } ?: percent}%", Modifier.alignByBaseline(), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                        Text(if (job.downloadProgress != null) "downloaded" else "of book" + (chapterPercent?.let { " · chapter $it%" } ?: "") + (job.etaMs?.let { " · about ${hoursMinutes(it)} left" } ?: ""),
+                        Text(tr("${job.downloadProgress?.let { (it * 100).toInt() } ?: percent}%"), Modifier.alignByBaseline(), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        Text(tr(if (job.downloadProgress != null) "downloaded" else "of book" + (chapterPercent?.let { " · chapter $it%" } ?: "") + (job.etaMs?.let { " · about ${hoursMinutes(it)} left" } ?: "")),
                             Modifier.alignByBaseline(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     ProgressLine(job.downloadProgress ?: job.fraction, color = accent, height = 6.dp)
                 }
-                FilledIconButton(onPause, Modifier.size(46.dp).pointerHoverIcon(PointerIcon.Hand)) { Icon(AppIcons.get("ic_pause"), "Pause ${book.title}", Modifier.size(20.dp)) }
+                FilledIconButton(onPause, Modifier.size(46.dp).pointerHoverIcon(PointerIcon.Hand)) { Icon(AppIcons.get("ic_pause"), tr("Pause ${book.title}"), Modifier.size(20.dp)) }
             }
             val message = listOfNotNull(job.phase.takeIf { it != label && it != "Starting" },
                 job.device?.let { (if (job.onGpu) "GPU · " else "") + it + (job.speed?.let { s -> " · %.0f× real time".format(s) } ?: "") }).joinToString("\n")
@@ -256,12 +257,12 @@ private fun TranscribingCard(book: LibraryBook, job: JobState, modifier: Modifie
                 val faint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .6f)
                 Row(Modifier.clip(RoundedCornerShape(8.dp)).clickable { details = !details }.pointerHoverIcon(PointerIcon.Hand).padding(vertical = 4.dp, horizontal = 2.dp),
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text("Details", style = MaterialTheme.typography.labelLarge, color = faint)
+                    Text(tr("Details"), style = MaterialTheme.typography.labelLarge, color = faint)
                     Icon(AppIcons.get("ic_chevron_right"), null, Modifier.size(16.dp).graphicsLayer { rotationZ = 90f + turn }, tint = faint)
                 }
                 AnimatedVisibility(details, enter = expandVertically(spring(dampingRatio = .9f, stiffness = 380f), expandFrom = Alignment.Top) + fadeIn(tween(220, 60)),
                     exit = shrinkVertically(tween(220, easing = FastOutSlowInEasing), shrinkTowards = Alignment.Top) + fadeOut(tween(120))) {
-                    Text(message, Modifier.padding(top = 4.dp, start = 2.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(tr(message), Modifier.padding(top = 4.dp, start = 2.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
@@ -284,8 +285,8 @@ private fun IdleCard(paused: Boolean) {
     Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(Corners.large), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .4f)) {
         Column(Modifier.fillMaxWidth().padding(vertical = 48.dp, horizontal = 24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Icon(AppIcons.get("ic_waveform"), null, Modifier.size(48.dp), tint = MaterialTheme.colorScheme.primary)
-            Text(if (paused) "Queue paused" else "Nothing transcribing", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            Text("Press play on a book to start its ReadAlong.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            Text(tr(if (paused) "Queue paused" else "Nothing transcribing"), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(tr("Press play on a book to start its ReadAlong."), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center)
         }
     }
@@ -307,7 +308,7 @@ private fun QueueRow(book: LibraryBook, subtitle: String, progress: Float?, modi
         BookCover(book, Modifier.size(48.dp), RoundedCornerShape(Corners.small), size = 120)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(book.title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            val line = @Composable { Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+            val line = @Composable { Text(tr(subtitle), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis) }
             if (detail.isNullOrBlank()) line() else TooltipArea(tooltip = { Tooltip(detail) }, delayMillis = 300) { line() }
             if (progress != null) ProgressLine(progress, Modifier.padding(top = 2.dp).widthIn(max = 480.dp), color = MaterialTheme.colorScheme.onSurfaceVariant, height = 3.dp)
         }
@@ -330,20 +331,20 @@ private fun AddToQueueDialog(app: AppState, available: List<LibraryBook>, onDism
         Surface(Modifier.width(560.dp).heightIn(max = 640.dp), shape = RoundedCornerShape(Corners.large), color = MaterialTheme.colorScheme.surfaceContainerLow, shadowElevation = 12.dp) {
             Column(Modifier.padding(20.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Add to queue", Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text(tr("Add to queue"), Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                     AppIconButton("ic_search", "Search books", { searching = !searching; if (!searching) query = "" })
-                    TextButton({ available.forEach { app.transcription.enqueue(it.id) }; onDismiss() }, enabled = available.isNotEmpty()) { Text("Add all", fontWeight = FontWeight.SemiBold) }
+                    TextButton({ available.forEach { app.transcription.enqueue(it.id) }; onDismiss() }, enabled = available.isNotEmpty()) { Text(tr("Add all"), fontWeight = FontWeight.SemiBold) }
                 }
                 AnimatedVisibility(searching, enter = expandVertically(tween(220, easing = QueueEasing)) + fadeIn(tween(220)),
                     exit = shrinkVertically(tween(180, easing = QueueEasing)) + fadeOut(tween(140))) {
-                    OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth().padding(top = 8.dp), placeholder = { Text("Search by title or author") }, singleLine = true,
+                    OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth().padding(top = 8.dp), placeholder = { Text(tr("Search by title or author")) }, singleLine = true,
                         leadingIcon = { Icon(AppIcons.get("ic_search"), null, Modifier.size(18.dp)) }, shape = CircleShape)
                 }
                 Spacer(Modifier.height(8.dp))
                 val list = rememberLazyListState()
                 LazyColumn(Modifier.weight(1f, fill = false).smoothWheelScroll(list), state = list) {
-                    if (available.isEmpty()) item { Text("Every book has been added to the queue.", Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                    else if (shown.isEmpty()) item { Text("No books match \"${query.trim()}\".", Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    if (available.isEmpty()) item { Text(tr("Every book has been added to the queue."), Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    else if (shown.isEmpty()) item { Text(tr("No books match \"${query.trim()}\"."), Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
                     items(shown, key = { it.id }) { book ->
                         Row(Modifier.fillMaxWidth().animateItem(fadeInSpec = tween(180), placementSpec = tween(260, easing = QueueEasing), fadeOutSpec = tween(160)).padding(vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -356,7 +357,7 @@ private fun AddToQueueDialog(app: AppState, available: List<LibraryBook>, onDism
                         }
                     }
                 }
-                Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.End) { TextButton(onDismiss) { Text("Done") } }
+                Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.End) { TextButton(onDismiss) { Text(tr("Done")) } }
             }
         }
     }

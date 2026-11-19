@@ -1,5 +1,6 @@
 package com.example.readalong.desktop
 
+import com.example.readalong.domain.i18n.tr
 import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.DpSize
@@ -37,6 +38,8 @@ fun main(args: Array<String>) {
     application(exitProcessOnExit = true) {
         val state = rememberWindowState(size = DpSize(1360.dp, 860.dp), position = WindowPosition.Aligned(androidx.compose.ui.Alignment.Center))
         val settings by app.settingsStore.settings.collectAsState()
+        // ReadAlong's own text in the chosen language; changing it redraws the window in that language.
+        val language = remember(settings.appLanguage) { com.example.readalong.desktop.core.AppLanguage.load(settings.appLanguage); com.example.readalong.domain.i18n.Translations.language }
         // With "Keep running in the background" on, closing the window (or starting at sign-in) leaves ReadAlong in the
         // tray: books in the queue keep being made and a linked phone keeps syncing. Without a tray, closing quits as before.
         val background = settings.keepRunning && traySupported
@@ -48,18 +51,18 @@ fun main(args: Array<String>) {
                 if (com.example.readalong.desktop.core.SingleInstance.showRequested()) visible = true
             }
         }
-        if (background) Tray(androidx.compose.ui.res.painterResource("icon/readalong.png"), tooltip = "ReadAlong",
+        if (background) key(language) { Tray(androidx.compose.ui.res.painterResource("icon/readalong.png"), tooltip = "ReadAlong",
             onAction = { visible = true }, menu = {
-                Item("Open ReadAlong", onClick = { visible = true })
-                Item("Quit ReadAlong", onClick = quit)
-            })
-        Window(onCloseRequest = { if (background) visible = false else quit() }, state = state, visible = visible, title = "ReadAlong",
+                Item(tr("Open ReadAlong"), onClick = { visible = true })
+                Item(tr("Quit ReadAlong"), onClick = quit)
+            }) }
+        Window(onCloseRequest = { if (background) visible = false else quit() }, state = state, visible = visible, title = tr("ReadAlong"),
             icon = androidx.compose.ui.res.painterResource("icon/readalong.png"),
             onKeyEvent = { handleKey(app, it) }) {
             window.minimumSize = java.awt.Dimension(720, 560)
             LaunchedEffect(visible) { if (visible) { window.toFront(); window.requestFocus() } }
             LaunchedEffect(settings.light, settings.accent) { styleTitleBar(window, windowBackground(settings.accent, settings.light), dark = !settings.light) }
-            ReadAlongApp(app)
+            key(language) { ReadAlongApp(app) }
         }
     }
 }

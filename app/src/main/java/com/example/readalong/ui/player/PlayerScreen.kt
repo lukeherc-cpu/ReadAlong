@@ -1,5 +1,6 @@
 package com.example.readalong.ui.player
 
+import com.example.readalong.domain.i18n.tr
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.ui.graphics.graphicsLayer
@@ -57,10 +58,10 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
     val timingRepair by reading.needsAudioTimingRepair.collectAsStateWithLifecycle()
     var timingRepairDismissed by rememberSaveable(book.id) { mutableStateOf(false) }
     if (timingRepair && !timingRepairDismissed) AlertDialog(onDismissRequest = { timingRepairDismissed = true },
-        title = { Text("Text timing is a little off") },
-        text = { Text("The highlighting in this book's ReadAlong can drift from the audio. Fixing it makes the ReadAlong again; your listening position and EPUB are kept.") },
-        confirmButton = { TextButton(onClick = { timingRepairDismissed = true; reading.rebuildTranscription() }) { Text("Fix timing") } },
-        dismissButton = { TextButton(onClick = { timingRepairDismissed = true }) { Text("Later") } })
+        title = { Text(tr("Text timing is a little off")) },
+        text = { Text(tr("The highlighting in this book's ReadAlong can drift from the audio. Fixing it makes the ReadAlong again; your listening position and EPUB are kept.")) },
+        confirmButton = { TextButton(onClick = { timingRepairDismissed = true; reading.rebuildTranscription() }) { Text(tr("Fix timing")) } },
+        dismissButton = { TextButton(onClick = { timingRepairDismissed = true }) { Text(tr("Later")) } })
     val execution by reading.execution.collectAsStateWithLifecycle()
     val tipScope = rememberCoroutineScope()
     val tipApp = androidx.compose.ui.platform.LocalContext.current.applicationContext as? com.example.readalong.ReadAlongApplication
@@ -131,30 +132,30 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                         }
                     }
                     .clickable(interactionSource = handlePress, indication = null, onClickLabel = "Close player", onClick = onCollapse)
-                    .semantics { contentDescription = "Close player" }, contentAlignment = Alignment.Center) {
+                    .semantics { contentDescription = tr("Close player") }, contentAlignment = Alignment.Center) {
                     Box(Modifier.size(width = 36.dp, height = 4.dp).background(handleColor, RoundedCornerShape(2.dp)))
                 }
                 Box(Modifier.align(Alignment.CenterEnd)) {
-                    IconButton(onClick = { menu = true }) { Icon(painterResource(R.drawable.ic_more), "More options") }
+                    IconButton(onClick = { menu = true }) { Icon(painterResource(R.drawable.ic_more), tr("More options")) }
                     DropdownMenu(menu, { menu = false }) {
                         // Two short groups, one line each and one icon each: listening tools, then the book's files.
                         // Bookmarks and Listening history live behind the Bookmark button under the player.
                         val menuIcon: @Composable (Int) -> Unit = { Icon(painterResource(it), null, Modifier.size(22.dp), tint = colors.onSurfaceVariant) }
                         if (!book.isDemo) {
-                            if (tipApp != null) DropdownMenuItem(text = { Text("Sound") }, leadingIcon = { menuIcon(R.drawable.ic_headphones) },
+                            if (tipApp != null) DropdownMenuItem(text = { Text(tr("Sound")) }, leadingIcon = { menuIcon(R.drawable.ic_headphones) },
                                 onClick = { panel = "sound"; menu = false }, modifier = Modifier.testTag("menu_sound"))
-                            DropdownMenuItem(text = { Text("Character List") }, leadingIcon = { menuIcon(R.drawable.ic_people) },
+                            DropdownMenuItem(text = { Text(tr("Character List")) }, leadingIcon = { menuIcon(R.drawable.ic_people) },
                                 onClick = { panel = "characters"; menu = false }, modifier = Modifier.testTag("menu_characters"))
                             HorizontalDivider(Modifier.padding(horizontal = 12.dp, vertical = 4.dp))
-                            DropdownMenuItem(text = { Text(if (epub != null) "Replace matching EPUB" else "Add matching EPUB") },
+                            DropdownMenuItem(text = { Text(tr(if (epub != null) "Replace matching EPUB" else "Add matching EPUB")) },
                                 leadingIcon = { menuIcon(R.drawable.ic_book) },
                                 onClick = { menu = false; pickEpub() },
                                 modifier = Modifier.testTag("menu_add_epub"))
                         }
-                        DropdownMenuItem(text = { Text(if (book.isFinished) "Mark as not finished" else "Mark as finished") },
+                        DropdownMenuItem(text = { Text(tr(if (book.isFinished) "Mark as not finished" else "Mark as finished")) },
                             leadingIcon = { menuIcon(if (book.isFinished) R.drawable.ic_redo else R.drawable.ic_check_circle) },
                             onClick = { onFinished(!book.isFinished); menu = false })
-                        DropdownMenuItem(text = { Text("Save as EPUB") }, leadingIcon = { menuIcon(R.drawable.ic_download) },
+                        DropdownMenuItem(text = { Text(tr("Save as EPUB")) }, leadingIcon = { menuIcon(R.drawable.ic_download) },
                             onClick = { menu = false; export.launch("ReadAlong-${book.id}.epub") })
                     }
                 }
@@ -190,8 +191,8 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         if (book.mediaState == "MISSING") Surface(shape = RoundedCornerShape(com.example.readalong.ui.theme.Corners.medium), color = colors.errorContainer) {
                             Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Text("Can't find this book's audio. Its folder may have moved or been renamed.", color = colors.onErrorContainer, style = MaterialTheme.typography.bodyMedium)
-                                TextButton(onClick = onFolders, contentPadding = PaddingValues(0.dp)) { Text("Choose folder again", color = colors.onErrorContainer) }
+                                Text(tr("Can't find this book's audio. Its folder may have moved or been renamed."), color = colors.onErrorContainer, style = MaterialTheme.typography.bodyMedium)
+                                TextButton(onClick = onFolders, contentPadding = PaddingValues(0.dp)) { Text(tr("Choose folder again"), color = colors.onErrorContainer) }
                             }
                         }
                         Box(Modifier.widthIn(max = if (wide) wideCover else tallCover).fillMaxWidth().aspectRatio(1f)) {
@@ -215,7 +216,7 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                                     shape = RoundedCornerShape(50), color = Color.Black.copy(alpha = .62f), contentColor = Color.White) {
                                     Row(Modifier.padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                         Icon(painterResource(R.drawable.ic_highlighted_book), null, Modifier.size(18.dp))
-                                        Text("Tap the cover for the text", style = MaterialTheme.typography.labelLarge)
+                                        Text(tr("Tap the cover for the text"), style = MaterialTheme.typography.labelLarge)
                                     }
                                 }
                             }
@@ -230,7 +231,7 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                 if (large) Text(book.title, Modifier.fillMaxWidth(), style = MaterialTheme.typography.headlineLarge, maxLines = 2,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                 else com.example.readalong.ui.components.MarqueeTitle(book.title, Modifier.fillMaxWidth(), if (compact) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.headlineMedium)
-                Text(state.chapterTitle, style = if (compact) MaterialTheme.typography.titleSmall else if (large) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium, color = colors.onSurfaceVariant,
+                Text(tr(state.chapterTitle), style = if (compact) MaterialTheme.typography.titleSmall else if (large) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium, color = colors.onSurfaceVariant,
                     maxLines = if (wide) 1 else Int.MAX_VALUE, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                 val sliderColors = SliderDefaults.colors(thumbColor = colors.primary, activeTrackColor = colors.primary, inactiveTrackColor = colors.onSurface.copy(alpha = .18f))
                 Slider(
@@ -238,18 +239,18 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                     onValueChange = { dragging = true; draggedPosition = it },
                     onValueChangeFinished = { playback.seek(start + draggedPosition.toLong()); dragging = false },
                     valueRange = 0f..chapterDuration.toFloat(),
-                    modifier = Modifier.then(if (compact) Modifier.height(32.dp) else Modifier).semantics { contentDescription = "Seek within chapter" },
+                    modifier = Modifier.then(if (compact) Modifier.height(32.dp) else Modifier).semantics { contentDescription = tr("Seek within chapter") },
                     // A plain round thumb on one continuous rounded track (no split thumb, gap or end dot).
                     thumb = { Box(Modifier.size(18.dp).background(colors.primary, CircleShape)) },
                     track = { sliderState -> SliderDefaults.Track(sliderState = sliderState, modifier = Modifier.height(5.dp), colors = sliderColors,
                         drawStopIndicator = null, thumbTrackGapSize = 0.dp, trackInsideCornerSize = 0.dp) },
                 )
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(clockTime(chapterPosition), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant, modifier = Modifier.alignByBaseline())
-                    Text(if (state.durationMs > 0) "${hoursMinutes(state.durationMs - state.positionMs)} left in book" else "Length unknown", style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, lineHeight = 16.sp), color = colors.onSurfaceVariant, modifier = Modifier.alignByBaseline())
-                    Text(clockTime(chapterDuration), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant, modifier = Modifier.alignByBaseline())
+                    Text(tr(clockTime(chapterPosition)), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant, modifier = Modifier.alignByBaseline())
+                    Text(tr(if (state.durationMs > 0) "${hoursMinutes(state.durationMs - state.positionMs)} left in book" else "Length unknown"), style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, lineHeight = 16.sp), color = colors.onSurfaceVariant, modifier = Modifier.alignByBaseline())
+                    Text(tr(clockTime(chapterDuration)), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant, modifier = Modifier.alignByBaseline())
                 }
-                state.error?.let { Text(it, color = colors.error, style = MaterialTheme.typography.bodySmall) }
+                state.error?.let { Text(tr(it), color = colors.error, style = MaterialTheme.typography.bodySmall) }
 
                 Row(Modifier.fillMaxWidth().padding(vertical = if (wide) 2.dp else 12.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
                     PlayerAction("Rewind ${appSettings.playerBack} seconds", R.drawable.ic_rewind, "${appSettings.playerBack}", { playback.skip(-appSettings.playerBack * 1000L) }, large = large)
@@ -272,7 +273,7 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                     PlayerAction("Bookmarks", R.drawable.ic_bookmark, "Bookmark", { panel = "bookmarks" }, large = large)
                     PlayerAction("Chapters", R.drawable.ic_chapters, "Chapters", { panel = "chapters" }, large = large)
                 }
-                readingError?.let { Text(it, color = colors.error, style = MaterialTheme.typography.bodySmall) }
+                readingError?.let { Text(tr(it), color = colors.error, style = MaterialTheme.typography.bodySmall) }
                 if (!wide) Spacer(Modifier.height(12.dp))
                 }
                 if (wide) Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
@@ -300,7 +301,7 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
         if (landscape) topBar()
         }
     }
-    if (showBuffering) LinearProgressIndicator(Modifier.align(Alignment.TopCenter).fillMaxWidth().height(2.dp).semantics { contentDescription = "Buffering audio" })
+    if (showBuffering) LinearProgressIndicator(Modifier.align(Alignment.TopCenter).fillMaxWidth().height(2.dp).semantics { contentDescription = tr("Buffering audio") })
     }
     if (panel == "bookmarks") BookmarksDialog(reading, state.positionMs, playback::seek, { panel = null }, state.chapters,
         history = if (book.isDemo) null else book.id, chapterTitle = state.chapterTitle)
@@ -363,9 +364,9 @@ private fun PlayerAction(description: String, icon: Int, label: String, onClick:
         Modifier.widthIn(min = 48.dp).heightIn(min = 56.dp).clickable(role = Role.Button, onClickLabel = description, onClick = onClick).padding(4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Icon(painterResource(icon), description, Modifier.size(if (large) 30.dp else 26.dp))
+        Icon(painterResource(icon), tr(description), Modifier.size(if (large) 30.dp else 26.dp))
         Spacer(Modifier.height(4.dp))
-        Text(label, style = if (large) MaterialTheme.typography.labelLarge else MaterialTheme.typography.labelSmall, maxLines = 1)
+        Text(tr(label), style = if (large) MaterialTheme.typography.labelLarge else MaterialTheme.typography.labelSmall, maxLines = 1)
     }
 }
 
@@ -392,12 +393,12 @@ private fun SpeedSheet(speed: Float, title: String, change: (Float) -> Unit, clo
         item {
             Row(Modifier.fillMaxWidth().padding(horizontal = 40.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                 OutlinedIconButton(onClick = { set(value - .05f) }, Modifier.size(56.dp).testTag("speed_down"), enabled = value > com.example.readalong.domain.model.MIN_SPEED) {
-                    Icon(painterResource(R.drawable.ic_remove), "Slower", Modifier.size(24.dp))
+                    Icon(painterResource(R.drawable.ic_remove), tr("Slower"), Modifier.size(24.dp))
                 }
-                Text(com.example.readalong.domain.model.speedLabel(value), Modifier.testTag("speed_value"),
+                Text(tr(com.example.readalong.domain.model.speedLabel(value)), Modifier.testTag("speed_value"),
                     style = MaterialTheme.typography.displaySmall.copy(fontFeatureSettings = "tnum"), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                 OutlinedIconButton(onClick = { set(value + .05f) }, Modifier.size(56.dp).testTag("speed_up"), enabled = value < com.example.readalong.domain.model.MAX_SPEED) {
-                    Icon(painterResource(R.drawable.ic_add), "Faster", Modifier.size(24.dp))
+                    Icon(painterResource(R.drawable.ic_add), tr("Faster"), Modifier.size(24.dp))
                 }
             }
         }

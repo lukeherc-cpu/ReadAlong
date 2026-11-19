@@ -1,5 +1,6 @@
 package com.example.readalong.ui.reading
 
+import com.example.readalong.domain.i18n.tr
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -15,7 +16,7 @@ import androidx.compose.ui.unit.dp
 @Composable
 internal fun PassageSkeleton() {
     Column(Modifier.fillMaxWidth().padding(vertical = 6.dp).testTag("passage_skeleton")
-        .clearAndSetSemantics { contentDescription = "Loading reading text" },
+        .clearAndSetSemantics { contentDescription = tr("Loading reading text") },
         verticalArrangement = Arrangement.spacedBy(10.dp)) {
         listOf(1f, .94f, .62f).forEach { width ->
             Box(Modifier.fillMaxWidth(width).height(12.dp)

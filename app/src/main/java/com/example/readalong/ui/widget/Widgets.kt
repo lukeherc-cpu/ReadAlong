@@ -1,5 +1,6 @@
 package com.example.readalong.ui.widget
 
+import com.example.readalong.domain.i18n.tr
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
@@ -120,15 +121,15 @@ object Widgets {
             setImageViewResource(R.id.widget_play, if (playing) R.drawable.ic_pause else R.drawable.ic_play)
             setInt(R.id.widget_play_bg, "setColorFilter", palette.accent.toArgb())
             setInt(R.id.widget_play, "setColorFilter", palette.background.toArgb())
-            setContentDescription(R.id.widget_play, if (playing) "Pause" else "Play")
+            setContentDescription(R.id.widget_play, tr(if (playing) "Pause" else "Play"))
             setOnClickPendingIntent(R.id.widget_play, action(app, WidgetActionReceiver.TOGGLE, target))
             setOnClickPendingIntent(R.id.widget_back, action(app, WidgetActionReceiver.BACK, target))
             setOnClickPendingIntent(R.id.widget_forward, action(app, WidgetActionReceiver.FORWARD, target))
-            setContentDescription(R.id.widget_back, "Rewind ${settings.playerBack} seconds")
-            setContentDescription(R.id.widget_forward, "Forward ${settings.playerForward} seconds")
+            setContentDescription(R.id.widget_back, tr("Rewind ${settings.playerBack} seconds"))
+            setContentDescription(R.id.widget_forward, tr("Forward ${settings.playerForward} seconds"))
             if (withSleep) {
                 setImageViewResource(R.id.widget_sleep, if (sleeping) R.drawable.ic_sleep_filled else R.drawable.ic_sleep)
-                setContentDescription(R.id.widget_sleep, if (sleeping) "Turn off sleep timer" else app.getString(R.string.widget_sleep))
+                setContentDescription(R.id.widget_sleep, tr(if (sleeping) "Turn off sleep timer" else app.getString(R.string.widget_sleep)))
                 setOnClickPendingIntent(R.id.widget_sleep, action(app, WidgetActionReceiver.SLEEP, target))
             }
         }
@@ -148,14 +149,14 @@ object Widgets {
         if (NowPlayingWidget::class.java in wanted) run {
             val views = RemoteViews(app.packageName, R.layout.widget_now_playing).apply {
                 tint(palette); coverImage(); progressLine(); controls(withSleep = true)
-                setTextViewText(R.id.widget_title, title); setTextViewText(R.id.widget_subtitle, chapter + left)
+                setTextViewText(R.id.widget_title, title); setTextViewText(R.id.widget_subtitle, tr(chapter + left))
             }
             out[NowPlayingWidget::class.java] = views
         }
         if (StripWidget::class.java in wanted) run {
             val views = RemoteViews(app.packageName, R.layout.widget_strip).apply {
                 tint(palette); coverImage(); controls(withSleep = false)
-                setTextViewText(R.id.widget_title, title); setTextViewText(R.id.widget_subtitle, chapter)
+                setTextViewText(R.id.widget_title, title); setTextViewText(R.id.widget_subtitle, tr(chapter))
             }
             out[StripWidget::class.java] = views
         }
@@ -204,7 +205,7 @@ object Widgets {
                     val art = item.coverUri?.let { loadCover(app, it, 360, square = false) }
                         ?: placeholder(item.title, com.example.readalong.ui.components.coverPaletteFor(app, item, settings.alwaysBasicColor, settings.basicColor), 240, 360)
                     setImageViewBitmap(slot, rounded(art))
-                    setContentDescription(slot, "Open ${item.title}")
+                    setContentDescription(slot, tr("Open ${item.title}"))
                     setOnClickPendingIntent(slot, openBook(app, item.id))
                 }
                 setOnClickPendingIntent(R.id.widget_heading, PendingIntent.getActivity(app, 0, com.example.readalong.ui.launch.LaunchAppearance.intent(app), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))

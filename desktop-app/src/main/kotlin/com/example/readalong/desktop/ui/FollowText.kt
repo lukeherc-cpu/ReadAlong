@@ -2,6 +2,7 @@
 
 package com.example.readalong.desktop.ui
 
+import com.example.readalong.domain.i18n.tr
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -190,7 +191,7 @@ fun ReturnToPosition(follow: FollowState, modifier: Modifier = Modifier) {
             Row(Modifier.padding(horizontal = 18.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(AppIcons.get("ic_down"), null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onPrimary)
                 Spacer(Modifier.width(8.dp))
-                Text("Return to current position", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onPrimary)
+                Text(tr("Return to current position"), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onPrimary)
             }
         }
     }

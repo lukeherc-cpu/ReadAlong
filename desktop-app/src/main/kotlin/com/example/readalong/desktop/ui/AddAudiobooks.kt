@@ -1,5 +1,6 @@
 package com.example.readalong.desktop.ui
 
+import com.example.readalong.domain.i18n.tr
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -58,7 +59,7 @@ private fun SourceOption(shade: Pair<Color, Color>, icon: String, title: String,
         contentPadding = PaddingValues(horizontal = 20.dp)) {
         Icon(AppIcons.get(icon), null, Modifier.size(if (hero) 32.dp else 22.dp))
         Spacer(Modifier.width(14.dp))
-        Text(title, Modifier.weight(1f), style = if (hero) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleSmall)
+        Text(tr(title), Modifier.weight(1f), style = if (hero) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleSmall)
     }
 }
 
@@ -74,15 +75,15 @@ fun AddBookButton(app: AppState) {
                 transformOrigin = androidx.compose.ui.graphics.TransformOrigin(1f, 0f))) {
                 Surface(Modifier.width(340.dp), shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surfaceContainerLow, shadowElevation = 12.dp) {
                     Column(Modifier.padding(18.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text("Add audiobook", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 4.dp))
+                        Text(tr("Add audiobook"), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 4.dp))
                         val shades = sourceShades()
                         SourceOption(shades[0], "ic_folder", "Add one book", hero = true) { open = false; chooseFolder("Choose an audiobook folder")?.let(app::chooseFolder) }
                         SourceOption(shades[1], "ic_play", "Add audio file") { open = false; chooseAudioFile()?.let { app.addPaths(listOf(it)) } }
                         SourceOption(shades[2], "ic_book_add", "Import from Audible") { open = false; app.open(Screen.Audible) }
                         TextButton({ open = false; app.open(Screen.Folders) }, Modifier.pointerHoverIcon(PointerIcon.Hand)) {
-                            Icon(AppIcons.get("ic_bookshelf"), null, Modifier.size(16.dp)); Spacer(Modifier.width(8.dp)); Text("Manage library folders")
+                            Icon(AppIcons.get("ic_bookshelf"), null, Modifier.size(16.dp)); Spacer(Modifier.width(8.dp)); Text(tr("Manage library folders"))
                         }
-                        Text("Or drop folders and files on the window", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(tr("Or drop folders and files on the window"), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
@@ -116,8 +117,8 @@ private fun ManyBooksFound(found: FolderFound, onAdd: () -> Unit, onOneBook: () 
     val rest = books.size - first
     Column(Modifier.width(640.dp).padding(28.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("${books.size} audiobooks found", style = MaterialTheme.typography.headlineSmall)
-            Text("in your “${found.folder.name}” folder", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(tr("${books.size} audiobooks found"), style = MaterialTheme.typography.headlineSmall)
+            Text(tr("in your “${found.folder.name}” folder"), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         val tiles = shownBooks.map { it.name to it.images.firstOrNull()?.path } + if (rest > 0) listOf((if (open) "Show less" else "more, added too") to null) else emptyList()
         Column(Modifier.animateContentSize(spring(dampingRatio = .9f, stiffness = 300f)).heightIn(max = 460.dp).verticalScroll(rememberScrollState()),
@@ -132,9 +133,9 @@ private fun ManyBooksFound(found: FolderFound, onAdd: () -> Unit, onOneBook: () 
                             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 if (index >= shownBooks.size) Box(Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(10.dp)).background(MaterialTheme.colorScheme.primaryContainer)
                                     .clickable(onClickLabel = if (open) "Show fewer books" else "Show all ${books.size} books") { open = !open }.pointerHoverIcon(PointerIcon.Hand), contentAlignment = Alignment.Center) {
-                                    Text(if (open) "Less" else "+$rest", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                                    Text(tr(if (open) "Less" else "+$rest"), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
                                 } else FoundCover(name, image, index, Modifier.fillMaxWidth())
-                                Text(name, style = MaterialTheme.typography.labelMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                Text(tr(name), style = MaterialTheme.typography.labelMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
                             }
                         }
                     }
@@ -143,10 +144,10 @@ private fun ManyBooksFound(found: FolderFound, onAdd: () -> Unit, onOneBook: () 
             }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End), verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onOneBook, Modifier.pointerHoverIcon(PointerIcon.Hand)) { Text("It's really one book") }
-            Button(onAdd, Modifier.heightIn(min = 48.dp).pointerHoverIcon(PointerIcon.Hand), shape = CircleShape, contentPadding = PaddingValues(horizontal = 28.dp)) { Text("Add ${books.size} books") }
+            TextButton(onOneBook, Modifier.pointerHoverIcon(PointerIcon.Hand)) { Text(tr("It's really one book")) }
+            Button(onAdd, Modifier.heightIn(min = 48.dp).pointerHoverIcon(PointerIcon.Hand), shape = CircleShape, contentPadding = PaddingValues(horizontal = 28.dp)) { Text(tr("Add ${books.size} books")) }
         }
-        Text("ReadAlong will keep checking this folder for new books.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(tr("ReadAlong will keep checking this folder for new books."), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -165,13 +166,13 @@ private fun OneBookFound(found: FolderFound, onAdd: () -> Unit, onBack: (() -> U
     Row(Modifier.width(580.dp).padding(28.dp), horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.CenterVertically) {
         FoundCover(name, found.books.firstNotNullOfOrNull { it.images.firstOrNull() }?.path, 0, Modifier.size(176.dp), large = true)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(title, style = MaterialTheme.typography.titleLarge)
-            Text(name, style = MaterialTheme.typography.titleMedium)
-            if (single == null) Text("All ${found.books.size} parts play as one audiobook, in order.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(tr(title), style = MaterialTheme.typography.titleLarge)
+            Text(tr(name), style = MaterialTheme.typography.titleMedium)
+            if (single == null) Text(tr("All ${found.books.size} parts play as one audiobook, in order."), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                if (onBack != null) TextButton(onBack, Modifier.pointerHoverIcon(PointerIcon.Hand)) { Text("They're ${found.books.size} books") }
-                else TextButton(onCancel, Modifier.pointerHoverIcon(PointerIcon.Hand)) { Text("Cancel") }
-                Button(onAdd, Modifier.weight(1f).heightIn(min = 48.dp).pointerHoverIcon(PointerIcon.Hand), shape = CircleShape) { Text("Add book") }
+                if (onBack != null) TextButton(onBack, Modifier.pointerHoverIcon(PointerIcon.Hand)) { Text(tr("They're ${found.books.size} books")) }
+                else TextButton(onCancel, Modifier.pointerHoverIcon(PointerIcon.Hand)) { Text(tr("Cancel")) }
+                Button(onAdd, Modifier.weight(1f).heightIn(min = 48.dp).pointerHoverIcon(PointerIcon.Hand), shape = CircleShape) { Text(tr("Add book")) }
             }
         }
     }
@@ -184,7 +185,7 @@ private fun FoundCover(name: String, image: String?, index: Int, modifier: Modif
     val colors = MaterialTheme.colorScheme
     val shade = lerp(colors.primary, colors.background, listOf(0f, .3f, .15f, .5f, .22f)[index % 5])
     Box(modifier.aspectRatio(1f).clip(RoundedCornerShape(if (large) 14.dp else 10.dp)).background(shade), contentAlignment = Alignment.Center) {
-        if (bitmap != null) Image(bitmap, name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        if (bitmap != null) Image(bitmap, tr(name), Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
         else Text(name.trim().take(1).uppercase(), color = colors.onPrimary, style = if (large) MaterialTheme.typography.displayMedium else MaterialTheme.typography.titleLarge)
     }
 }
@@ -206,8 +207,8 @@ fun FoldersScreen(app: AppState) {
         }
         Column(Modifier.widthIn(max = 820.dp).fillMaxWidth().align(Alignment.CenterHorizontally).padding(horizontal = 28.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Column(Modifier.fillMaxWidth().padding(bottom = 6.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Library folders", style = MaterialTheme.typography.headlineMedium)
-                Text("ReadAlong checks these for new books each time it opens", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(tr("Library folders"), style = MaterialTheme.typography.headlineMedium)
+                Text(tr("ReadAlong checks these for new books each time it opens"), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             // Folders two to a row, then the drop zone in the next free place (null).
             val cells: List<String?> = folders + listOf(null)
@@ -222,7 +223,7 @@ fun FoldersScreen(app: AppState) {
                         } else Box(cell.heightIn(min = 96.dp).dashedOutline(MaterialTheme.colorScheme.outline, 24.dp), contentAlignment = Alignment.Center) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Icon(AppIcons.get("ic_down"), null, Modifier.size(22.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text("Drop a folder here to add it", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(tr("Drop a folder here to add it"), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                     }
@@ -231,9 +232,9 @@ fun FoldersScreen(app: AppState) {
             }
             Column(Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Button({ chooseFolder("Choose a folder of audiobooks")?.let(app::chooseFolder) }, Modifier.width(420.dp).heightIn(min = 60.dp).pointerHoverIcon(PointerIcon.Hand), shape = CircleShape) {
-                    Icon(AppIcons.get("ic_add"), null, Modifier.size(22.dp)); Spacer(Modifier.width(10.dp)); Text("Add audiobooks", style = MaterialTheme.typography.titleMedium)
+                    Icon(AppIcons.get("ic_add"), null, Modifier.size(22.dp)); Spacer(Modifier.width(10.dp)); Text(tr("Add audiobooks"), style = MaterialTheme.typography.titleMedium)
                 }
-                TextButton({ app.open(Screen.Audible) }, Modifier.pointerHoverIcon(PointerIcon.Hand)) { Text("Import from Audible") }
+                TextButton({ app.open(Screen.Audible) }, Modifier.pointerHoverIcon(PointerIcon.Hand)) { Text(tr("Import from Audible")) }
             }
         }
     }
@@ -251,18 +252,18 @@ private fun FolderCard(app: AppState, folder: String, books: List<com.example.re
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(file.name.ifEmpty { folder }, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     when {
-                        missing -> Text("This folder can't be found. Is the drive plugged in?", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-                        scanning -> Text(scanLabel.ifEmpty { "Looking for books…" }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        else -> Text(if (books.size == 1) "1 book" else "${books.size} books", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        missing -> Text(tr("This folder can't be found. Is the drive plugged in?"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                        scanning -> Text(tr(scanLabel.ifEmpty { "Looking for books…" }), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        else -> Text(tr(if (books.size == 1) "1 book" else "${books.size} books"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
-                if (missing) FilledTonalButton({ chooseFolder("Choose this folder again")?.let { app.removeFolder(folder); app.chooseFolder(it) } }, Modifier.pointerHoverIcon(PointerIcon.Hand)) { Text("Choose again") }
+                if (missing) FilledTonalButton({ chooseFolder("Choose this folder again")?.let { app.removeFolder(folder); app.chooseFolder(it) } }, Modifier.pointerHoverIcon(PointerIcon.Hand)) { Text(tr("Choose again")) }
                 else Box {
                     AppIconButton("ic_more", "Options for ${file.name}", { menu = true }, size = 40.dp, iconSize = 20.dp)
                     DropdownMenu(menu, { menu = false }) {
-                        DropdownMenuItem({ Text("Check for new books") }, { menu = false; app.scope.launch { runCatching { app.importer.rescan() } } })
-                        DropdownMenuItem({ Text("Show in file manager") }, { menu = false; runCatching { Desktop.getDesktop().open(file) } })
-                        DropdownMenuItem({ Text("Remove folder", color = MaterialTheme.colorScheme.error) }, { menu = false; removing = true })
+                        DropdownMenuItem({ Text(tr("Check for new books")) }, { menu = false; app.scope.launch { runCatching { app.importer.rescan() } } })
+                        DropdownMenuItem({ Text(tr("Show in file manager")) }, { menu = false; runCatching { Desktop.getDesktop().open(file) } })
+                        DropdownMenuItem({ Text(tr("Remove folder"), color = MaterialTheme.colorScheme.error) }, { menu = false; removing = true })
                     }
                 }
             }
@@ -270,10 +271,10 @@ private fun FolderCard(app: AppState, folder: String, books: List<com.example.re
             if (!missing && books.isNotEmpty()) { FolderCovers(app, books); BadgeKey() }
         }
     }
-    if (removing) AlertDialog(onDismissRequest = { removing = false }, title = { Text("Remove this folder?") },
-        text = { Text("Its books leave your library, along with their ReadAlongs and listening progress. The audio files stay where they are.") },
-        confirmButton = { TextButton({ removing = false; app.removeFolder(folder) }) { Text("Remove folder", color = MaterialTheme.colorScheme.error) } },
-        dismissButton = { TextButton({ removing = false }) { Text("Cancel") } })
+    if (removing) AlertDialog(onDismissRequest = { removing = false }, title = { Text(tr("Remove this folder?")) },
+        text = { Text(tr("Its books leave your library, along with their ReadAlongs and listening progress. The audio files stay where they are.")) },
+        confirmButton = { TextButton({ removing = false; app.removeFolder(folder) }) { Text(tr("Remove folder"), color = MaterialTheme.colorScheme.error) } },
+        dismissButton = { TextButton({ removing = false }) { Text(tr("Cancel")) } })
 }
 
 /**
@@ -305,7 +306,7 @@ fun LibrarySetup(app: AppState, scanning: Boolean) {
 }
 
 @Composable
-private fun SetupLogo(size: Dp) = Image(AppIcons.get("ic_readalong"), "ReadAlong", Modifier.size(size))
+private fun SetupLogo(size: Dp) = Image(AppIcons.get("ic_readalong"), tr("ReadAlong"), Modifier.size(size))
 
 @Composable
 private fun SetupChoose(onLocal: () -> Unit, onAudible: () -> Unit) {
@@ -319,9 +320,9 @@ private fun SetupChoose(onLocal: () -> Unit, onAudible: () -> Unit) {
     Text(buildAnnotatedString {
         words.forEachIndexed { i, word -> if (i > 0) append(" "); withStyle(SpanStyle(color = shade(i.toFloat()))) { append(word) } }
     }, style = MaterialTheme.typography.headlineLarge, textAlign = TextAlign.Center)
-    Text("Your audiobooks, with the words on screen as they're read to you.", style = MaterialTheme.typography.bodyLarge,
+    Text(tr("Your audiobooks, with the words on screen as they're read to you."), style = MaterialTheme.typography.bodyLarge,
         color = shade(words.size + .5f), textAlign = TextAlign.Center, modifier = Modifier.padding(bottom = 12.dp))
-    Text("How would you like to set up your library?", style = MaterialTheme.typography.titleMedium)
+    Text(tr("How would you like to set up your library?"), style = MaterialTheme.typography.titleMedium)
     val shades = sourceShades()
     Row(Modifier.width(620.dp).height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         SetupCard(shades[0], "ic_folder", "Local files", "Audiobooks already on this computer", Modifier.weight(1f).fillMaxHeight(), onLocal)
@@ -338,8 +339,8 @@ private fun SetupCard(shade: Pair<Color, Color>, icon: String, title: String, su
                 Icon(AppIcons.get(icon), null, Modifier.size(28.dp))
             }
             Column(Modifier.padding(top = 18.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(title, style = MaterialTheme.typography.titleMedium)
-                Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = shade.second.copy(alpha = .85f))
+                Text(tr(title), style = MaterialTheme.typography.titleMedium)
+                Text(tr(subtitle), style = MaterialTheme.typography.bodyMedium, color = shade.second.copy(alpha = .85f))
             }
         }
     }
@@ -348,32 +349,32 @@ private fun SetupCard(shade: Pair<Color, Color>, icon: String, title: String, su
 @Composable
 private fun SetupLocal(app: AppState, scanning: Boolean) {
     SetupLogo(104.dp)
-    Text(if (scanning) "Looking for audiobooks…" else "Add your audiobooks", style = MaterialTheme.typography.headlineMedium)
-    Text("Pick a folder. It can hold one book or your whole library. ReadAlong works out which and shows you before adding.",
+    Text(tr(if (scanning) "Looking for audiobooks…" else "Add your audiobooks"), style = MaterialTheme.typography.headlineMedium)
+    Text(tr("Pick a folder. It can hold one book or your whole library. ReadAlong works out which and shows you before adding."),
         style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center,
         modifier = Modifier.widthIn(max = 460.dp).padding(bottom = 12.dp))
     Column(Modifier.width(460.dp).dashedOutline(MaterialTheme.colorScheme.outline, 28.dp).padding(26.dp), horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Button({ chooseFolder()?.let(app::chooseFolder) }, Modifier.fillMaxWidth().heightIn(min = 60.dp).pointerHoverIcon(PointerIcon.Hand), shape = CircleShape, enabled = !scanning) {
-            Text("Choose folder", style = MaterialTheme.typography.titleMedium)
+            Text(tr("Choose folder"), style = MaterialTheme.typography.titleMedium)
         }
-        Text("or drop it here", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(tr("or drop it here"), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
     TextButton({ chooseAudioFile()?.let { app.addPaths(listOf(it)) } }, Modifier.pointerHoverIcon(PointerIcon.Hand),
         colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onBackground)) {
-        Icon(AppIcons.get("ic_play"), null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Or add a single audio file")
+        Icon(AppIcons.get("ic_play"), null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text(tr("Or add a single audio file"))
     }
 }
 
 @Composable
 private fun SetupAudible(app: AppState) {
     SetupLogo(104.dp)
-    Text("Import from Audible", style = MaterialTheme.typography.headlineMedium)
-    Text("Sign in to Audible in your browser, then pick the books to download. They're saved on this computer and added to your library.",
+    Text(tr("Import from Audible"), style = MaterialTheme.typography.headlineMedium)
+    Text(tr("Sign in to Audible in your browser, then pick the books to download. They're saved on this computer and added to your library."),
         style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center,
         modifier = Modifier.widthIn(max = 460.dp).padding(bottom = 12.dp))
     Button({ app.open(Screen.Audible) }, Modifier.width(460.dp).heightIn(min = 60.dp).pointerHoverIcon(PointerIcon.Hand), shape = CircleShape) {
-        Text("Sign in to Audible", style = MaterialTheme.typography.titleMedium)
+        Text(tr("Sign in to Audible"), style = MaterialTheme.typography.titleMedium)
     }
 }
 
@@ -423,7 +424,7 @@ private fun FolderCovers(app: AppState, books: List<LibraryBook>) {
                 Box(Modifier.size(56.dp).clip(shape).background(MaterialTheme.colorScheme.primaryContainer).border(2.dp, MaterialTheme.colorScheme.surface, shape)
                     .clickable(onClickLabel = if (expanded) "Show fewer books" else "Show all ${books.size} books") { expanded = !expanded }
                     .pointerHoverIcon(PointerIcon.Hand), contentAlignment = Alignment.Center) {
-                    Text(if (expanded) "Less" else "+${books.size - 5}", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                    Text(tr(if (expanded) "Less" else "+${books.size - 5}"), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
                 }
             }
         }
@@ -464,10 +465,10 @@ private fun BadgeKey() {
     val color = MaterialTheme.colorScheme.onSurfaceVariant
     Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-            EpubBadge(); Text("= linked EPUB", style = style, color = color)
+            EpubBadge(); Text(tr("= linked EPUB"), style = style, color = color)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-            ReadAlongBadge(); Text("= ReadAlong ready", style = style, color = color)
+            ReadAlongBadge(); Text(tr("= ReadAlong ready"), style = style, color = color)
         }
     }
 }

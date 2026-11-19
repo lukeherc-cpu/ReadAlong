@@ -1,5 +1,6 @@
 package com.example.readalong.ui.components
 
+import com.example.readalong.domain.i18n.tr
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -51,7 +52,7 @@ fun FirstVisitGuide(app: ReadAlongApplication, page: GuidePage, eligible: Boolea
 internal fun FirstVisitGuideDialog(page: GuidePage, finish: (Boolean) -> Unit) {
     var dontShow by rememberSaveable(page) { mutableStateOf(true) }
     IllustratedDialog(page.title, { finish(dontShow) }, actions = {
-        Button(onClick = { finish(dontShow) }) { Text("Got it") }
+        Button(onClick = { finish(dontShow) }) { Text(tr("Got it")) }
     }) {
         when (page) {
             GuidePage.HOME -> {
@@ -84,7 +85,7 @@ internal fun FirstVisitGuideDialog(page: GuidePage, finish: (Boolean) -> Unit) {
         }
         Row(Modifier.fillMaxWidth().testTag("guide_dont_show").toggleable(dontShow, role = Role.Checkbox, onValueChange = { dontShow = it }), verticalAlignment = Alignment.CenterVertically) {
             Checkbox(dontShow, onCheckedChange = null)
-            Text("Don't show this again", style = MaterialTheme.typography.bodyMedium)
+            Text(tr("Don't show this again"), style = MaterialTheme.typography.bodyMedium)
         }
     }
 }
@@ -96,8 +97,8 @@ internal fun FirstVisitGuideDialog(page: GuidePage, finish: (Boolean) -> Unit) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Box(Modifier.width(52.dp), contentAlignment = Alignment.Center) { icon() }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(title, style = MaterialTheme.typography.titleSmall)
-            Text(description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(tr(title), style = MaterialTheme.typography.titleSmall)
+            Text(tr(description), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

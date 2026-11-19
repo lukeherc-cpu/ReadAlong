@@ -1,5 +1,6 @@
 package com.example.readalong.ui.reading
 
+import com.example.readalong.domain.i18n.tr
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
@@ -198,7 +199,7 @@ fun FollowCard(state: PlaybackState, model: ReadingViewModel, onExpand: () -> Un
             androidx.compose.foundation.lazy.LazyColumn(state = list, userScrollEnabled = false,
                 modifier = Modifier.fillMaxSize().padding(top = insets.top, bottom = insets.bottom).onSizeChanged { viewport = it.height }.testTag("follow_preview"),
                 contentPadding = PaddingValues(horizontal = preferences.margin.dp), verticalArrangement = Arrangement.spacedBy(ReaderParagraphGap)) {
-                if (displayed.isEmpty() && !notStarted) item { Text("Text isn't available at this position yet. You can keep listening.", color = ink.copy(alpha = .7f)) }
+                if (displayed.isEmpty() && !notStarted) item { Text(tr("Text isn't available at this position yet. You can keep listening."), color = ink.copy(alpha = .7f)) }
                 items(displayed.size, key = { displayed[it].id }) { index ->
                     val paragraph = displayed[index]
                     val cues = remember(paragraph, sources) { sentenceCues(paragraph, sources) }
@@ -223,7 +224,7 @@ fun FollowCard(state: PlaybackState, model: ReadingViewModel, onExpand: () -> Un
                 style = MaterialTheme.typography.bodyLarge.copy(color = ink.copy(alpha = .78f), lineHeight = androidx.compose.ui.unit.TextUnit(1.35f, androidx.compose.ui.unit.TextUnitType.Em)),
                 autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 9.sp, maxFontSize = 17.sp, stepSize = .5.sp))
             if (showExpand) IconButton(onClick = onExpand, modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)) {
-                Icon(painterResource(R.drawable.ic_fullscreen), "Read in full screen", tint = ink)
+                Icon(painterResource(R.drawable.ic_fullscreen), tr("Read in full screen"), tint = ink)
             }
         }
     }

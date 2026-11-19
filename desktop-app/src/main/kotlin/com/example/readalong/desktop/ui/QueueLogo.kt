@@ -2,6 +2,7 @@
 
 package com.example.readalong.desktop.ui
 
+import com.example.readalong.domain.i18n.tr
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -55,10 +56,10 @@ fun QueueLogo(scanning: Boolean, readingFolder: Boolean, transcribing: Boolean, 
         Column(Modifier.widthIn(min = 64.dp).scale(scale).clip(RoundedCornerShape(Corners.medium)).background(background)
             .hoverable(interaction).clickable(interaction, null, onClick = onClick).pointerHoverIcon(PointerIcon.Hand).padding(horizontal = 6.dp, vertical = 2.dp),
             horizontalAlignment = Alignment.CenterHorizontally) {
-            BadgedBox(badge = { if (queued > 0) Badge { Text("$queued") } }) { PageTurnLogo(page, Modifier.size(size)) }
+            BadgedBox(badge = { if (queued > 0) Badge { Text(tr("$queued")) } }) { PageTurnLogo(page, Modifier.size(size)) }
             // The label's line is always reserved, so the header doesn't jump when work starts or stops.
             Box(Modifier.height(16.dp), contentAlignment = Alignment.Center) {
-                if (label != null) Text(label, fontSize = 11.sp, lineHeight = 14.sp, maxLines = 1, softWrap = false, color = MaterialTheme.colorScheme.primary)
+                if (label != null) Text(tr(label), fontSize = 11.sp, lineHeight = 14.sp, maxLines = 1, softWrap = false, color = MaterialTheme.colorScheme.primary)
             }
         }
     }

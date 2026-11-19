@@ -1,5 +1,6 @@
 package com.example.readalong.ui.components
 
+import com.example.readalong.domain.i18n.tr
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -15,7 +16,7 @@ import androidx.compose.ui.semantics.semantics
 fun PlayPauseIcon(playing: Boolean, modifier: Modifier = Modifier, description: String = if (playing) "Pause" else "Play") {
     val fraction = animateFloatAsState(if (playing) 1f else 0f, tween(220), label = "Play pause")
     val ink = LocalContentColor.current
-    Canvas(modifier.semantics { contentDescription = description }) {
+    Canvas(modifier.semantics { contentDescription = tr(description) }) {
         val triangle = arrayOf(floatArrayOf(7f,4f,13f,8f,13f,16f,7f,20f), floatArrayOf(13f,8f,21f,12f,21f,12f,13f,16f))
         val bars = arrayOf(floatArrayOf(6f,5f,10f,5f,10f,19f,6f,19f), floatArrayOf(14f,5f,18f,5f,18f,19f,14f,19f))
         val combined = Path()

@@ -1,5 +1,6 @@
 package com.example.readalong.ui.components
 
+import com.example.readalong.domain.i18n.tr
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.LinearEasing
@@ -63,12 +64,12 @@ fun ReadAlongSearchField(query: String, onQuery: (String) -> Unit, onClose: () -
         .heightIn(min = 56.dp).clip(shape).background(MaterialTheme.colorScheme.surface).border(2.dp, accent, shape).padding(start = 16.dp),
         verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-            if (query.isEmpty()) Text(placeholder, color = content.copy(alpha = .5f), style = MaterialTheme.typography.bodyLarge.copy(fontSize = 18.sp), maxLines = 1)
+            if (query.isEmpty()) Text(tr(placeholder), color = content.copy(alpha = .5f), style = MaterialTheme.typography.bodyLarge.copy(fontSize = 18.sp), maxLines = 1)
             BasicTextField(query, onQuery, Modifier.fillMaxWidth().focusRequester(focus).testTag(testTag), singleLine = true,
                 textStyle = MaterialTheme.typography.bodyLarge.copy(color = content, fontSize = 18.sp), cursorBrush = SolidColor(accent),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search))
         }
-        IconButton(onClick = onClose, modifier = Modifier.semantics { contentDescription = "Close search" }) {
+        IconButton(onClick = onClose, modifier = Modifier.semantics { contentDescription = tr("Close search") }) {
             // Drawn, not a "×" glyph: font metrics put the glyph below the optical centre.
             CloseGlyph(content.copy(alpha = .75f))
         }
@@ -90,7 +91,7 @@ fun SearchProgressLine(active: Boolean, accent: Color, modifier: Modifier = Modi
 @Composable
 fun SearchCountLabel(count: Int, modifier: Modifier = Modifier, capped: Boolean = false) {
     val label = (if (capped) "$count+" else "$count") + if (count == 1) " result" else " results"
-    Text(label.uppercase(), modifier.padding(horizontal = 4.dp, vertical = 6.dp), style = MaterialTheme.typography.labelMedium.copy(letterSpacing = .6.sp, fontWeight = FontWeight.Bold),
+    Text(tr(label.uppercase()), modifier.padding(horizontal = 4.dp, vertical = 6.dp), style = MaterialTheme.typography.labelMedium.copy(letterSpacing = .6.sp, fontWeight = FontWeight.Bold),
         color = MaterialTheme.colorScheme.onSurface.copy(alpha = .55f))
 }
 
@@ -108,7 +109,7 @@ fun SearchResultCard(text: AnnotatedString, meta: String, index: Int, fontFamily
         }.clip(shape).background(MaterialTheme.colorScheme.onSurface.copy(alpha = .06f))
         .clickable(interaction, null, role = Role.Button, onClick = onClick).padding(horizontal = 16.dp, vertical = 14.dp)) {
         Text(text, style = TextStyle(fontFamily = fontFamily, fontSize = 18.sp, lineHeight = 26.sp), color = MaterialTheme.colorScheme.onSurface, maxLines = 3)
-        Text(meta, Modifier.padding(top = 6.dp), style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface.copy(alpha = .55f))
+        Text(tr(meta), Modifier.padding(top = 6.dp), style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface.copy(alpha = .55f))
     }
 }
 
@@ -130,7 +131,7 @@ fun highlightMatches(text: String, query: String, accent: Color): AnnotatedStrin
 /** A drawn X, optically centred (a "×" glyph sits low). [description] labels it when it isn't inside a labelled button. */
 @Composable
 fun CloseGlyph(color: Color, description: String? = null) {
-    androidx.compose.foundation.Canvas(Modifier.size(14.dp).then(if (description != null) Modifier.semantics { contentDescription = description } else Modifier)) {
+    androidx.compose.foundation.Canvas(Modifier.size(14.dp).then(if (description != null) Modifier.semantics { contentDescription = tr(description) } else Modifier)) {
         val w = 2.dp.toPx()
         drawLine(color, androidx.compose.ui.geometry.Offset.Zero, androidx.compose.ui.geometry.Offset(size.width, size.height), w, androidx.compose.ui.graphics.StrokeCap.Round)
         drawLine(color, androidx.compose.ui.geometry.Offset(size.width, 0f), androidx.compose.ui.geometry.Offset(0f, size.height), w, androidx.compose.ui.graphics.StrokeCap.Round)
@@ -203,12 +204,12 @@ fun SpringSearchBar(visible: Boolean, anchor: androidx.compose.ui.geometry.Offse
     }.clip(shape).background(MaterialTheme.colorScheme.surface).border(2.dp, accent, shape).padding(start = 18.dp)) {
         Row(Modifier.fillMaxSize().graphicsLayer { alpha = text.value }, verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-                if (query.isEmpty()) Text(placeholder, color = content.copy(alpha = .5f), style = MaterialTheme.typography.bodyLarge.copy(fontSize = 18.sp), maxLines = 1, softWrap = false)
+                if (query.isEmpty()) Text(tr(placeholder), color = content.copy(alpha = .5f), style = MaterialTheme.typography.bodyLarge.copy(fontSize = 18.sp), maxLines = 1, softWrap = false)
                 BasicTextField(query, onQuery, Modifier.fillMaxWidth().focusRequester(focus).testTag(testTag), singleLine = true,
                     textStyle = MaterialTheme.typography.bodyLarge.copy(color = content, fontSize = 18.sp), cursorBrush = SolidColor(accent),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search))
             }
-            IconButton(onClick = onClose, modifier = Modifier.semantics { contentDescription = "Close search" }) { CloseGlyph(content.copy(alpha = .75f)) }
+            IconButton(onClick = onClose, modifier = Modifier.semantics { contentDescription = tr("Close search") }) { CloseGlyph(content.copy(alpha = .75f)) }
         }
     }
 }

@@ -1,5 +1,6 @@
 package com.example.readalong.ui.player
 
+import com.example.readalong.domain.i18n.tr
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.clickable
@@ -51,7 +52,7 @@ internal fun androidx.compose.foundation.lazy.LazyListScope.historyItems(entries
     seek: (Long) -> Unit, close: () -> Unit) {
     item { SheetRow("Now", {}, icon = R.drawable.ic_headphones, supporting = chapterTitle, meta = clockTime(positionMs), selected = true) }
     if (entries.isEmpty()) item {
-        Text("Skips and chapter changes show up here, so you can go back.",
+        Text(tr("Skips and chapter changes show up here, so you can go back."),
             Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp),
             style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
@@ -95,11 +96,11 @@ fun CharacterListSheet(bookId: String, positionMs: Long, chapters: List<Playback
             Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(top = 12.dp).heightIn(min = 48.dp).testTag("add_character")) {
             Icon(painterResource(R.drawable.ic_add), null, Modifier.size(20.dp))
             Spacer(Modifier.width(8.dp))
-            Text("Add character")
+            Text(tr("Add character"))
         }
     }) {
         if (people.isEmpty()) item {
-            Text("Keep track of who's who. Add people as you meet them, with a note to jog your memory.",
+            Text(tr("Keep track of who's who. Add people as you meet them, with a note to jog your memory."),
                 Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
                 style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
@@ -112,7 +113,7 @@ fun CharacterListSheet(bookId: String, positionMs: Long, chapters: List<Playback
             item { SheetDivider() }
             item {
                 Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Heard so far", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(tr("Heard so far"), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(Modifier.horizontalScroll(rememberScrollState()).testTag("character_suggestions"), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         suggestions.forEach { suggestion ->
                             AssistChip(onClick = { scope.launch { repository.saveCharacter(bookId, CharacterEntry(BookNotesRepository.newId(), suggestion.name, firstMs = suggestion.firstMs)) } },
@@ -123,29 +124,29 @@ fun CharacterListSheet(bookId: String, positionMs: Long, chapters: List<Playback
             }
         }
     }
-    if (chooseHow) AlertDialog(onDismissRequest = { chooseHow = false }, title = { Text("Add characters") }, text = {
+    if (chooseHow) AlertDialog(onDismissRequest = { chooseHow = false }, title = { Text(tr("Add characters")) }, text = {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = { chooseHow = false; editing = CharacterEntry(BookNotesRepository.newId(), "") },
                 Modifier.fillMaxWidth().heightIn(min = 56.dp).testTag("add_myself")) {
-                Column(Modifier.fillMaxWidth()) { Text("Add someone myself"); Text("Type a name and a note", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                Column(Modifier.fillMaxWidth()) { Text(tr("Add someone myself")); Text(tr("Type a name and a note"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             }
             OutlinedButton(onClick = { chooseHow = false; askAi = true }, Modifier.fillMaxWidth().heightIn(min = 56.dp).testTag("make_with_ai")) {
-                Column(Modifier.fillMaxWidth()) { Text("Make with AI"); Text("Ask ChatGPT, Gemini or Claude who's who so far", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                Column(Modifier.fillMaxWidth()) { Text(tr("Make with AI")); Text(tr("Ask ChatGPT, Gemini or Claude who's who so far"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             }
         }
-    }, confirmButton = {}, dismissButton = { TextButton(onClick = { chooseHow = false }) { Text("Cancel") } })
+    }, confirmButton = {}, dismissButton = { TextButton(onClick = { chooseHow = false }) { Text(tr("Cancel")) } })
     if (askAi) AiCharacterDialog(AiCharacters.prompt(title, author, chapters.lastOrNull { it.startMs <= positionMs }?.title ?: "the ${clockTime(positionMs)} mark"),
         import = { answer -> repository.importCharacters(bookId, AiCharacters.parse(answer)) }, close = { askAi = false })
     editing?.let { person ->
         var name by remember(person.id) { mutableStateOf(person.name) }
         var note by remember(person.id) { mutableStateOf(person.note) }
         val isNew = people.none { it.id == person.id }
-        AlertDialog(onDismissRequest = { editing = null }, title = { Text(if (isNew) "Add character" else "Edit character") }, text = {
+        AlertDialog(onDismissRequest = { editing = null }, title = { Text(tr(if (isNew) "Add character" else "Edit character")) }, text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(name, { name = it.take(80) }, singleLine = true, label = { Text("Name") }, modifier = Modifier.testTag("character_name"))
-                OutlinedTextField(note, { note = it.take(300) }, label = { Text("Note") }, minLines = 2, maxLines = 4, modifier = Modifier.testTag("character_note"))
+                OutlinedTextField(name, { name = it.take(80) }, singleLine = true, label = { Text(tr("Name")) }, modifier = Modifier.testTag("character_name"))
+                OutlinedTextField(note, { note = it.take(300) }, label = { Text(tr("Note")) }, minLines = 2, maxLines = 4, modifier = Modifier.testTag("character_note"))
                 if (!isNew) TextButton(onClick = { scope.launch { repository.removeCharacter(bookId, person.id) }; editing = null }, contentPadding = PaddingValues(0.dp)) {
-                    Text("Remove from list", color = MaterialTheme.colorScheme.error)
+                    Text(tr("Remove from list"), color = MaterialTheme.colorScheme.error)
                 }
             }
         }, confirmButton = {
@@ -153,8 +154,8 @@ fun CharacterListSheet(bookId: String, positionMs: Long, chapters: List<Playback
                 val trimmed = name.trim()
                 if (trimmed.isNotEmpty()) scope.launch { repository.saveCharacter(bookId, person.copy(name = trimmed, note = note.trim(), firstMs = person.firstMs.takeIf { trimmed.equals(person.name, true) })) }
                 editing = null
-            }, enabled = name.isNotBlank()) { Text("Save") }
-        }, dismissButton = { TextButton(onClick = { editing = null }) { Text("Cancel") } })
+            }, enabled = name.isNotBlank()) { Text(tr("Save")) }
+        }, dismissButton = { TextButton(onClick = { editing = null }) { Text(tr("Cancel")) } })
     }
 }
 
@@ -171,24 +172,24 @@ private fun AiCharacterDialog(prompt: String, import: suspend (String) -> Int, c
     var result by remember { mutableStateOf<String?>(null) }
     val query = android.net.Uri.encode(prompt)
     val assistants = listOf("ChatGPT" to "https://chatgpt.com/?q=$query", "Gemini" to "https://gemini.google.com/app", "Claude" to "https://claude.ai/new?q=$query")
-    AlertDialog(onDismissRequest = close, title = { Text("Make with AI") }, text = {
+    AlertDialog(onDismissRequest = close, title = { Text(tr("Make with AI")) }, text = {
         Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("1. Ask an assistant. The question is copied for you, and only the book's title, author and your chapter are shared.",
+            Text(tr("1. Ask an assistant. The question is copied for you, and only the book's title, author and your chapter are shared."),
                 style = MaterialTheme.typography.bodyMedium)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 assistants.forEach { (name, url) ->
                     OutlinedButton(onClick = {
                         clipboard.setText(androidx.compose.ui.text.AnnotatedString(prompt))
                         runCatching { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
-                    }, Modifier.weight(1f).testTag("ai_$name"), contentPadding = PaddingValues(horizontal = 4.dp)) { Text(name, maxLines = 1) }
+                    }, Modifier.weight(1f).testTag("ai_$name"), contentPadding = PaddingValues(horizontal = 4.dp)) { Text(tr(name), maxLines = 1) }
                 }
             }
-            Text("2. Copy its answer, then paste it here.", style = MaterialTheme.typography.bodyMedium)
+            Text(tr("2. Copy its answer, then paste it here."), style = MaterialTheme.typography.bodyMedium)
             OutlinedTextField(answer, { answer = it.take(20_000); result = null }, Modifier.fillMaxWidth().testTag("ai_answer"),
-                label = { Text("Answer") }, minLines = 3, maxLines = 6,
-                trailingIcon = { TextButton(onClick = { clipboard.getText()?.text?.let { answer = it.take(20_000); result = null } }) { Text("Paste") } })
-            result?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.testTag("ai_result")) }
-            Text("AI can get details wrong or give things away, so check the list. You can edit or remove anyone.",
+                label = { Text(tr("Answer")) }, minLines = 3, maxLines = 6,
+                trailingIcon = { TextButton(onClick = { clipboard.getText()?.text?.let { answer = it.take(20_000); result = null } }) { Text(tr("Paste")) } })
+            result?.let { Text(tr(it), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.testTag("ai_result")) }
+            Text(tr("AI can get details wrong or give things away, so check the list. You can edit or remove anyone."),
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }, confirmButton = {
@@ -198,8 +199,8 @@ private fun AiCharacterDialog(prompt: String, import: suspend (String) -> Int, c
                 if (added > 0) close()
                 else result = if (AiCharacters.parse(answer).isEmpty()) "No names found. Paste the list with one person per line, like “Name — who they are”." else "Everyone in that answer is already on your list."
             }
-        }, modifier = Modifier.testTag("ai_add")) { Text("Add to list") }
-    }, dismissButton = { TextButton(onClick = close) { Text("Cancel") } })
+        }, modifier = Modifier.testTag("ai_add")) { Text(tr("Add to list")) }
+    }, dismissButton = { TextButton(onClick = close) { Text(tr("Cancel")) } })
 }
 
 /**
@@ -216,16 +217,16 @@ private fun CharacterRow(person: CharacterEntry, expanded: Boolean, firstHeard: 
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(person.name, style = MaterialTheme.typography.bodyLarge)
                 val summary = person.note.ifBlank { firstHeard ?: "Tap the pencil to add a note" }
-                Text(summary, style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant,
+                Text(tr(summary), style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant,
                     maxLines = if (expanded) Int.MAX_VALUE else 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
             }
-            IconButton(onClick = edit) { Icon(painterResource(R.drawable.ic_edit), "Edit ${person.name}", Modifier.size(22.dp), tint = colors.onSurfaceVariant) }
+            IconButton(onClick = edit) { Icon(painterResource(R.drawable.ic_edit), tr("Edit ${person.name}"), Modifier.size(22.dp), tint = colors.onSurfaceVariant) }
         }
         if (expanded && (go != null || (firstHeard != null && person.note.isNotBlank()))) Row(Modifier.fillMaxWidth().padding(top = 6.dp, end = 16.dp),
             verticalAlignment = Alignment.CenterVertically) {
             if (person.note.isNotBlank() && firstHeard != null) Text(firstHeard, Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
             else Spacer(Modifier.weight(1f))
-            if (go != null) TextButton(onClick = go, Modifier.testTag("character_go")) { Text("Go there") }
+            if (go != null) TextButton(onClick = go, Modifier.testTag("character_go")) { Text(tr("Go there")) }
         }
     }
 }
