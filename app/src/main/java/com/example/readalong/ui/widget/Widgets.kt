@@ -199,7 +199,7 @@ object Widgets {
                     setViewVisibility(slot, View.VISIBLE)
                     // Square and small: the shelf crops each cover to its slot, and RemoteViews copies every bitmap.
                     val art = item.coverUri?.let { loadCover(app, it, 240) }
-                        ?: placeholder(item.title, com.example.readalong.ui.components.coverPaletteFor(app, item, settings.alwaysBasicColor, settings.basicColor), 240, 240)
+                        ?: placeholder(item.title, com.example.readalong.ui.components.coverPaletteFor(app, item, settings.alwaysBasicColor, settings.basicColor), 160, 240)
                     setImageViewBitmap(slot, art)
                     setContentDescription(slot, "Open ${item.title}")
                     setOnClickPendingIntent(slot, openBook(app, item.id))

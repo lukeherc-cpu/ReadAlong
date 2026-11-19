@@ -7,20 +7,20 @@
         android:text="@string/widget_continue_title" android:textColor="#FFF1E4CC" android:textSize="13sp" android:textStyle="bold" android:maxLines="1" />
     <LinearLayout android:id="@+id/widget_row_0" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:orientation="horizontal" android:paddingStart="4dp" android:paddingEnd="4dp">
             <ImageView android:id="@+id/widget_book_0" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:layout_marginEnd="8dp"
-                android:scaleType="centerCrop" android:background="@drawable/widget_book_shape" android:clipToOutline="true" android:src="@drawable/widget_sample_monte" />
+                android:scaleType="fitXY" android:background="@drawable/widget_book_shape" android:clipToOutline="true" android:src="@drawable/widget_sample_monte" />
             <ImageView android:id="@+id/widget_book_1" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:layout_marginEnd="8dp"
-                android:scaleType="centerCrop" android:background="@drawable/widget_book_shape" android:clipToOutline="true" android:src="@drawable/widget_sample_pride" />
+                android:scaleType="fitXY" android:background="@drawable/widget_book_shape" android:clipToOutline="true" android:src="@drawable/widget_sample_pride" />
             <ImageView android:id="@+id/widget_book_2" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1"
-                android:scaleType="centerCrop" android:background="@drawable/widget_book_shape" android:clipToOutline="true" android:src="@drawable/widget_sample_moby" />
+                android:scaleType="fitXY" android:background="@drawable/widget_book_shape" android:clipToOutline="true" android:src="@drawable/widget_sample_moby" />
     </LinearLayout>
     <ImageView android:id="@+id/widget_shelf_0" android:layout_width="match_parent" android:layout_height="7dp" android:layout_marginBottom="8dp" android:src="@drawable/widget_shelf" android:scaleType="fitXY" android:importantForAccessibility="no" />
     <LinearLayout android:id="@+id/widget_row_1" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:orientation="horizontal" android:paddingStart="4dp" android:paddingEnd="4dp">
             <ImageView android:id="@+id/widget_book_3" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:layout_marginEnd="8dp"
-                android:scaleType="centerCrop" android:background="@drawable/widget_book_shape" android:clipToOutline="true" android:src="@drawable/widget_sample_frank" />
+                android:scaleType="fitXY" android:background="@drawable/widget_book_shape" android:clipToOutline="true" android:src="@drawable/widget_sample_frank" />
             <ImageView android:id="@+id/widget_book_4" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:layout_marginEnd="8dp"
-                android:scaleType="centerCrop" android:background="@drawable/widget_book_shape" android:clipToOutline="true" android:src="@drawable/widget_sample_dracula" />
+                android:scaleType="fitXY" android:background="@drawable/widget_book_shape" android:clipToOutline="true" android:src="@drawable/widget_sample_dracula" />
             <ImageView android:id="@+id/widget_book_5" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1"
-                android:scaleType="centerCrop" android:background="@drawable/widget_book_shape" android:clipToOutline="true" android:src="@drawable/widget_sample_treasure" />
+                android:scaleType="fitXY" android:background="@drawable/widget_book_shape" android:clipToOutline="true" android:src="@drawable/widget_sample_treasure" />
     </LinearLayout>
     <ImageView android:id="@+id/widget_shelf_1" android:layout_width="match_parent" android:layout_height="7dp" android:layout_marginBottom="0dp" android:src="@drawable/widget_shelf" android:scaleType="fitXY" android:importantForAccessibility="no" />
     <TextView android:id="@+id/widget_empty" android:layout_width="match_parent" android:layout_height="wrap_content" android:visibility="gone" android:paddingStart="2dp" android:paddingTop="6dp"
