@@ -387,10 +387,10 @@ private fun SpeedSheet(speed: Float, title: String, change: (Float) -> Unit, clo
         }
         item {
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedIconButton(onClick = { set(value - .05f) }, Modifier.testTag("speed_down")) { Text("−", style = MaterialTheme.typography.titleLarge) }
+                OutlinedIconButton(onClick = { set(value - .05f) }, Modifier.testTag("speed_down")) { Icon(painterResource(R.drawable.ic_remove), "Slower", Modifier.size(22.dp)) }
                 Slider(value, { value = com.example.readalong.domain.model.roundSpeed(it) }, Modifier.weight(1f).testTag("speed_slider"),
                     valueRange = com.example.readalong.domain.model.MIN_SPEED..com.example.readalong.domain.model.MAX_SPEED, onValueChangeFinished = { change(value) })
-                OutlinedIconButton(onClick = { set(value + .05f) }, Modifier.testTag("speed_up")) { Text("+", style = MaterialTheme.typography.titleLarge) }
+                OutlinedIconButton(onClick = { set(value + .05f) }, Modifier.testTag("speed_up")) { Icon(painterResource(R.drawable.ic_add), "Faster", Modifier.size(22.dp)) }
             }
         }
         item {

@@ -211,7 +211,7 @@ class FoundationNavigationTest {
         try {
             waitForLibrary()
             compose.onNodeWithTag("library_sort").performScrollTo().performClick()
-            compose.onNodeWithText("List mode").performClick()
+            compose.onNodeWithTag("library_view_list").performClick()
             compose.waitUntil(5000) { kotlinx.coroutines.runBlocking { app.appPreferences.preferences.first().listLibrary } }
             compose.onRoot().captureToImage().asAndroidBitmap().let { bitmap -> java.io.File(app.getExternalFilesDir(null), "verification-library-list.png").outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) } }
             compose.onNodeWithContentDescription("Settings").performScrollTo().performClick()
