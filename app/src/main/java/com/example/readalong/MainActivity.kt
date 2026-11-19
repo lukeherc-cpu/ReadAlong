@@ -42,9 +42,17 @@ open class MainActivity : ComponentActivity() {
     private fun openFromWidget(intent: android.content.Intent?) {
         val id = intent?.getStringExtra(OPEN_BOOK) ?: return
         intent.removeExtra(OPEN_BOOK)
+        if (intent.getBooleanExtra(OPEN_READER, false)) openReader.value = id
+        intent.removeExtra(OPEN_READER)
         importViewModel.open(id)
     }
-    companion object { const val OPEN_BOOK = "com.example.readalong.OPEN_BOOK" }
+    companion object {
+        const val OPEN_BOOK = "com.example.readalong.OPEN_BOOK"
+        /** With [OPEN_BOOK]: open the book's text at the current sentence rather than its player (the Read along widget). */
+        const val OPEN_READER = "com.example.readalong.OPEN_READER"
+        /** The book whose text a widget asked to open; its book screen switches to the reader and clears this. */
+        val openReader = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
+    }
     override fun onCreate(savedInstanceState: Bundle?) {
         com.example.readalong.ui.about.AppLanguage.load(this)
         val launchSettings = com.example.readalong.ui.launch.LaunchAppearance.read(this)

@@ -55,11 +55,11 @@
     <string name="widget_now_playing_label">Now playing</string>
     <string name="widget_strip_label">Mini player</string>
     <string name="widget_readalong_label_name">Read along text</string>
-    <string name="widget_preview_title">The Count of Monte Cristo</string>
-    <string name="widget_preview_title_caps">The Count of Monte Cristo · Chapter 1</string>
-    <string name="widget_preview_chapter">Chapter 12 · 31h left</string>
-    <string name="widget_preview_chapter_short">Chapter 12</string>
-    <string name="widget_preview_passage"><font fgcolor="#FF2A2622">On the 24th of February, 1815, the look-out at Notre-Dame de la Garde signalled the three-master, the Pharaon from Smyrna, Trieste, and Naples.</font> As usual, a pilot put off immediately, and rounding the Château d\'If, got on board the vessel between Cape Morgiou and Rion island.</string>
+    <string name="widget_preview_title">Your book</string>
+    <string name="widget_preview_title_caps">Your book · Chapter 1</string>
+    <string name="widget_preview_chapter">Chapter 1 · 8h left</string>
+    <string name="widget_preview_chapter_short">Chapter 1</string>
+    <string name="widget_preview_passage"><font fgcolor="#FF2A2622">The sentence you\'re hearing shows here, highlighted as it\'s read.</font> What comes next follows in a softer colour, so you can read along with the narrator.</string>
     <string name="widget_setup_title">Which book should this widget show?</string>
     <string name="widget_setup_follow">Whatever I\'m listening to</string>
     <string name="widget_setup_follow_detail">Changes when you switch books</string>
