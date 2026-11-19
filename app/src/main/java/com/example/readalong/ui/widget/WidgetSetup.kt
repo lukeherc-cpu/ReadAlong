@@ -1,5 +1,6 @@
 package com.example.readalong.ui.widget
 
+import com.example.readalong.domain.i18n.tr
 import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
@@ -41,13 +42,17 @@ object WidgetBooks {
      * started book takes the next free place, and one that's finished (or pushed off by a seventh) leaves.
      */
     fun shelf(context: Context, started: List<Book>): List<Book> {
-        val wanted = started.sortedByDescending { it.lastPlayedAt ?: 0 }.take(6)
+        val wanted = started.sortedByDescending { it.lastPlayedAt ?: 0L }.take(6)
         val byId = wanted.associateBy { it.id }
         val saved = prefs(context).getString("shelf", "").orEmpty().split('\n').filter { it.isNotEmpty() }
         val order = shelfOrder(saved, wanted.map { it.id })
         if (order != saved) prefs(context).edit().putString("shelf", order.joinToString("\n")).apply()
         return order.mapNotNull { byId[it] }
     }
+
+    /** The setup screen's books: unfinished first, most recently played first, then by title. */
+    internal fun setupOrder(books: List<Book>): List<Book> =
+        books.filter { !it.isDemo }.sortedWith(compareBy<Book> { it.isFinished }.thenByDescending { it.lastPlayedAt ?: 0L }.thenBy { it.title.lowercase() })
 
     /** Keeps [saved]'s order for the books still in [wanted], then adds the new ones, most recent first. */
     internal fun shelfOrder(saved: List<String>, wanted: List<String>): List<String> =
@@ -69,7 +74,7 @@ class WidgetSetupActivity : ComponentActivity() {
         val app = application as ReadAlongApplication
         setContent {
             val settings by app.appPreferences.preferences.collectAsStateWithLifecycle(null)
-            val books by remember { app.bookRepository.observeBooks().map { list -> list.filter { !it.isDemo }.sortedWith(compareBy<Book> { it.isFinished }.thenByDescending { it.lastPlayedAt ?: 0 }.thenBy { it.title.lowercase() }) } }
+            val books by remember { app.bookRepository.observeBooks().map { list -> WidgetBooks.setupOrder(list) } }
                 .collectAsStateWithLifecycle(null)
             val chosen = remember { WidgetBooks.book(this, widgetId) }
             val preferences = settings ?: return@setContent

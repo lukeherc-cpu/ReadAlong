@@ -1,5 +1,6 @@
 package com.example.readalong.desktop.ui
 
+import com.example.readalong.domain.i18n.tr
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -33,15 +34,15 @@ private fun UpdateBody(app: AppState, release: AppRelease) {
     Column(Modifier.width(380.dp).padding(horizontal = 28.dp, vertical = 30.dp), horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Icon(AppIcons.get("ic_readalong"), null, Modifier.size(72.dp), tint = androidx.compose.ui.graphics.Color.Unspecified)
-        Text("Update available", style = MaterialTheme.typography.headlineSmall)
+        Text(tr("Update available"), style = MaterialTheme.typography.headlineSmall)
         Spacer(Modifier.height(4.dp))
-        Text("ReadAlong ${release.version} is out. You have ${app.updates.current}.", style = MaterialTheme.typography.bodyMedium,
+        Text(tr("ReadAlong ${release.version} is out. You have ${app.updates.current}."), style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
         // What changed, from the release's notes.
         UpdateCheck.summary(release.notes, maxLines = 5).takeIf { it.isNotBlank() }?.let { notes ->
             Text(notes, Modifier.fillMaxWidth(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        if (app.updates.flatpak) Text("Open the downloaded file with your software centre, or run flatpak install --user on it. It installs over this version and keeps your library.",
+        if (app.updates.flatpak) Text(tr("Open the downloaded file with your software centre, or run flatpak install --user on it. It installs over this version and keeps your library."),
             Modifier.fillMaxWidth(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         PillButton("Download", {
             if (!openBrowser(app.updates.downloadUrl(release))) app.messages.tryEmit("Open ${release.pageUrl} to download the update.")
@@ -49,7 +50,7 @@ private fun UpdateBody(app: AppState, release: AppRelease) {
         }, Modifier.fillMaxWidth().height(48.dp))
         PillButton("Later", app.updates::later, Modifier.fillMaxWidth().height(48.dp), filled = false)
         // Not offered again automatically until a newer version is out; Check for updates still shows it.
-        TextButton({ app.updates.skip(release) }) { Text("Skip ${release.version}") }
+        TextButton({ app.updates.skip(release) }) { Text(tr("Skip ${release.version}")) }
     }
 }
 
@@ -63,8 +64,8 @@ fun UpdatesSettings(app: AppState) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("Check for updates automatically", style = MaterialTheme.typography.titleSmall)
-                    Text("Once a day, ReadAlong asks GitHub whether a newer version is out. Nothing downloads until you choose to.",
+                    Text(tr("Check for updates automatically"), style = MaterialTheme.typography.titleSmall)
+                    Text(tr("Once a day, ReadAlong asks GitHub whether a newer version is out. Nothing downloads until you choose to."),
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Spacer(Modifier.width(12.dp))
@@ -74,9 +75,9 @@ fun UpdatesSettings(app: AppState) {
                 PillButton(if (status == UpdateStatus.Checking) "Checking…" else "Check for updates", { scope.launch { app.updates.check(manual = true) } },
                     filled = false, enabled = status != UpdateStatus.Checking)
                 when (val s = status) {
-                    UpdateStatus.UpToDate -> Text("ReadAlong ${app.updates.current} is the latest version.", style = MaterialTheme.typography.bodyMedium)
-                    is UpdateStatus.Available -> TextButton({ openBrowser(app.updates.downloadUrl(s.release)) }) { Text("Download ReadAlong ${s.release.version}") }
-                    is UpdateStatus.Failed -> Text(s.message, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+                    UpdateStatus.UpToDate -> Text(tr("ReadAlong ${app.updates.current} is the latest version."), style = MaterialTheme.typography.bodyMedium)
+                    is UpdateStatus.Available -> TextButton({ openBrowser(app.updates.downloadUrl(s.release)) }) { Text(tr("Download ReadAlong ${s.release.version}")) }
+                    is UpdateStatus.Failed -> Text(tr(s.message), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
                     else -> {}
                 }
             }

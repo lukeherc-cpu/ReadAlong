@@ -27,6 +27,9 @@ open class MainActivity : ComponentActivity() {
         com.example.readalong.ui.importing.ImportViewModel.factory((application as ReadAlongApplication).audioImporter, (application as ReadAlongApplication).importedEpub, (application as ReadAlongApplication).processing)
     }
 
+    /** Settings → Languages → App before Android 13, which has no per-app language of its own. */
+    override fun attachBaseContext(newBase: android.content.Context) = super.attachBaseContext(com.example.readalong.ui.about.AppLanguage.wrap(newBase))
+
     override fun onDestroy() {
         if (isFinishing) (application as ReadAlongApplication).playback.pause()
         super.onDestroy()
@@ -43,6 +46,7 @@ open class MainActivity : ComponentActivity() {
     }
     companion object { const val OPEN_BOOK = "com.example.readalong.OPEN_BOOK" }
     override fun onCreate(savedInstanceState: Bundle?) {
+        com.example.readalong.ui.about.AppLanguage.load(this)
         val launchSettings = com.example.readalong.ui.launch.LaunchAppearance.read(this)
         setTheme(com.example.readalong.ui.launch.LaunchAppearance.theme(this, launchSettings))
         super.onCreate(savedInstanceState)

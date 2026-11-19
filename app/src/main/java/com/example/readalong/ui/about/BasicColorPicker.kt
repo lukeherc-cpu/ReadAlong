@@ -1,5 +1,6 @@
 package com.example.readalong.ui.about
 
+import com.example.readalong.domain.i18n.tr
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -13,17 +14,17 @@ import com.example.readalong.ui.launch.LaunchPalettes
 @Composable
 fun BasicColorPicker(initial: Long, close: () -> Unit, save: (Long) -> Unit) {
     var selected by remember { mutableStateOf(LaunchPalettes.closest(initial).color) }
-    AlertDialog(onDismissRequest = close, title = { Text("Accent color") }, text = {
+    AlertDialog(onDismissRequest = close, title = { Text(tr("Accent color")) }, text = {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Choose a matching color for the app, launcher icon and opening animation.", style = MaterialTheme.typography.bodySmall)
+            Text(tr("Choose a matching color for the app, launcher icon and opening animation."), style = MaterialTheme.typography.bodySmall)
             LaunchPalettes.all.chunked(2).forEach { row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     row.forEach { palette ->
                         FilterChip(selected = selected == palette.color, onClick = { selected = palette.color }, modifier = Modifier.weight(1f),
-                            leadingIcon = { Box(Modifier.size(16.dp).background(Color(palette.color), CircleShape)) }, label = { Text(palette.name) })
+                            leadingIcon = { Box(Modifier.size(16.dp).background(Color(palette.color), CircleShape)) }, label = { Text(tr(palette.name)) })
                     }
                 }
             }
         }
-    }, confirmButton = { TextButton(onClick = { save(selected) }) { Text("Set") } }, dismissButton = { TextButton(onClick = close) { Text("Cancel") } })
+    }, confirmButton = { TextButton(onClick = { save(selected) }) { Text(tr("Set")) } }, dismissButton = { TextButton(onClick = close) { Text(tr("Cancel")) } })
 }

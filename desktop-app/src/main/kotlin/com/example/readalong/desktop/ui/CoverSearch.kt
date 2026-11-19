@@ -1,5 +1,6 @@
 package com.example.readalong.desktop.ui
 
+import com.example.readalong.domain.i18n.tr
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -100,16 +101,16 @@ fun CoverSearchDialog(app: AppState) {
         AnimatedVisibility(shown, enter = fadeIn(tween(200)) + slideInVertically(spring(dampingRatio = .85f, stiffness = 500f)) { it / 12 } + scaleIn(initialScale = .97f)) {
             Surface(shape = RoundedCornerShape(28.dp), color = MaterialTheme.colorScheme.surfaceContainerLow, shadowElevation = 16.dp) {
                 Column(Modifier.width(720.dp).padding(28.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Text("Find a cover", style = MaterialTheme.typography.headlineSmall)
+                    Text(tr("Find a cover"), style = MaterialTheme.typography.headlineSmall)
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        OutlinedTextField(query, { query = it }, Modifier.weight(1f), singleLine = true, label = { Text("Title and author") },
+                        OutlinedTextField(query, { query = it }, Modifier.weight(1f), singleLine = true, label = { Text(tr("Title and author")) },
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), keyboardActions = KeyboardActions(onSearch = { search() }))
                         PillButton("Search", { search() }, enabled = !searching, icon = "ic_search")
                     }
                     Box(Modifier.fillMaxWidth().height(420.dp)) {
                         when {
                             searching -> CircularProgressIndicator(Modifier.align(Alignment.Center).size(28.dp), strokeWidth = 2.dp)
-                            error != null && results.isEmpty() -> Text(error!!, Modifier.align(Alignment.Center), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            error != null && results.isEmpty() -> Text(tr(error!!), Modifier.align(Alignment.Center), color = MaterialTheme.colorScheme.onSurfaceVariant)
                             else -> LazyVerticalGrid(GridCells.Adaptive(150.dp), Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                                 items(results, key = { it.url }) { cover ->
                                     CoverResult(cover, busy = saving == cover.url, enabled = saving == null) {
@@ -128,12 +129,12 @@ fun CoverSearchDialog(app: AppState) {
                             }
                         }
                     }
-                    if (error != null && results.isNotEmpty()) Text(error!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
+                    if (error != null && results.isNotEmpty()) Text(tr(error!!), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text("From Apple Books and Open Library", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(tr("From Apple Books and Open Library"), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(Modifier.weight(1f))
-                        TextButton(onClick = { close(); chooseCoverFile(app, book) }) { Text("Choose a file instead…") }
-                        TextButton(onClick = close) { Text("Cancel") }
+                        TextButton(onClick = { close(); chooseCoverFile(app, book) }) { Text(tr("Choose a file instead…")) }
+                        TextButton(onClick = close) { Text(tr("Cancel")) }
                     }
                 }
             }

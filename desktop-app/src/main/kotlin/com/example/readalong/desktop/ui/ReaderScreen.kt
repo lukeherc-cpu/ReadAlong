@@ -2,6 +2,7 @@
 
 package com.example.readalong.desktop.ui
 
+import com.example.readalong.domain.i18n.tr
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -169,7 +170,7 @@ private fun SearchPanel(text: ReadingText, colors: ReaderColors, focus: FocusReq
                     if (it.key == Key.Escape && it.type == KeyEventType.KeyDown) { onClose(); true } else false
                 }, singleLine = true, textStyle = MaterialTheme.typography.bodyMedium.copy(color = colors.ink), cursorBrush = SolidColor(colors.ink))
             }
-            if (query.trim().length >= 2) Text(if (results.isEmpty()) "No matches in this book." else "${results.size}${if (results.size == 50) "+" else ""} matches",
+            if (query.trim().length >= 2) Text(tr(if (results.isEmpty()) "No matches in this book." else "${results.size}${if (results.size == 50) "+" else ""} matches"),
                 Modifier.padding(horizontal = 6.dp, vertical = 10.dp), style = MaterialTheme.typography.labelMedium, color = colors.ink.copy(alpha = .6f))
             val list = rememberLazyListState()
             LazyColumn(Modifier.smoothWheelScroll(list), state = list) {
@@ -178,7 +179,7 @@ private fun SearchPanel(text: ReadingText, colors: ReaderColors, focus: FocusReq
                     val startMs = paragraph.cues.firstOrNull { hit.offset in it.start until it.end }?.audioStartMs ?: paragraph.startMs
                     Column(Modifier.fillMaxWidth().clickable { onOpen(hit.passage.index, startMs) }.pointerHoverIcon(PointerIcon.Hand).padding(horizontal = 6.dp, vertical = 8.dp)) {
                         Text("…" + hit.preview.trim() + "…", color = colors.ink, style = MaterialTheme.typography.bodySmall, maxLines = 3, overflow = TextOverflow.Ellipsis)
-                        if (startMs != null) Text(timeText(startMs), style = MaterialTheme.typography.labelSmall, color = colors.ink.copy(alpha = .5f))
+                        if (startMs != null) Text(tr(timeText(startMs)), style = MaterialTheme.typography.labelSmall, color = colors.ink.copy(alpha = .5f))
                     }
                 }
             }
@@ -196,18 +197,18 @@ fun AppearanceMenu(app: AppState, themes: Boolean = true) {
         DropdownMenu(open, { open = false }) {
             if (themes) Row(Modifier.padding(horizontal = 12.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf("DARK" to "Dark", "SEPIA" to "Sepia", "LIGHT" to "Light").forEach { (key, label) ->
-                    FilterChip(settings.readerTheme == key, { app.settingsStore.update { it.copy(readerTheme = key) } }, { Text(label) })
+                    FilterChip(settings.readerTheme == key, { app.settingsStore.update { it.copy(readerTheme = key) } }, { Text(tr(label)) })
                 }
             }
             Row(Modifier.padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("Size", Modifier.width(52.dp))
+                Text(tr("Size"), Modifier.width(52.dp))
                 OutlinedButton({ app.settingsStore.update { it.copy(readerSize = (it.readerSize - 1).coerceAtLeast(14f)) } }) { Text("A−") }
-                Text("${settings.readerSize.toInt()}", Modifier.padding(horizontal = 12.dp))
+                Text(tr("${settings.readerSize.toInt()}"), Modifier.padding(horizontal = 12.dp))
                 OutlinedButton({ app.settingsStore.update { it.copy(readerSize = (it.readerSize + 1).coerceAtMost(40f)) } }) { Text("A+") }
             }
             HorizontalDivider()
             Fonts.reading.forEach { (key, label) ->
-                DropdownMenuItem({ Text(label, fontFamily = Fonts.reading(key)) }, { app.settingsStore.update { it.copy(readerFont = key) } },
+                DropdownMenuItem({ Text(tr(label), fontFamily = Fonts.reading(key)) }, { app.settingsStore.update { it.copy(readerFont = key) } },
                     trailingIcon = { if (settings.readerFont == key) Text("✓") })
             }
         }

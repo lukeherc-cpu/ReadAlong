@@ -2,6 +2,7 @@
 
 package com.example.readalong.desktop.ui
 
+import com.example.readalong.domain.i18n.tr
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -81,7 +82,7 @@ fun LibraryScreen(app: AppState) {
             AnimatedVisibility(scan.running, enter = fadeIn(), exit = fadeOut()) {
                 Column(Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     LinearProgressIndicator(Modifier.fillMaxWidth())
-                    Text(scan.label, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(tr(scan.label), style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
         }
@@ -91,14 +92,14 @@ fun LibraryScreen(app: AppState) {
             LazyVerticalGrid(GridCells.Adaptive(176.dp), Modifier.smoothWheelScroll(grid), state = grid, contentPadding = PaddingValues(start = 28.dp, end = 28.dp, bottom = 32.dp),
                 horizontalArrangement = Arrangement.spacedBy(22.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
                 if (groups.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
-                    Text("No books match “$query”.", Modifier.padding(top = 40.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(tr("No books match “$query”."), Modifier.padding(top = 40.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 groups.forEach { group ->
                     item(key = "section:${group.section}", span = { GridItemSpan(maxLineSpan) }) {
                         SectionTitle(when (group.section) { LibrarySection.CURRENT -> "Current"; LibrarySection.NEW -> "New"; LibrarySection.NOT_STARTED -> "Not started"; LibrarySection.FINISHED -> "Finished" },
                             Modifier.animateItem()) {
                             if (group == groups.first()) SortButton(sort) { sort = it }
-                            else Text(group.books.size.toString(), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
+                            else Text(tr(group.books.size.toString()), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
                         }
                     }
                     items(group.books, key = { it.id }) { item ->
@@ -180,14 +181,14 @@ private fun SpringSearchBar(visible: Boolean, anchor: androidx.compose.ui.geomet
             Icon(AppIcons.get("ic_search"), null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
             Spacer(Modifier.width(10.dp))
             Box(Modifier.weight(1f)) {
-                if (query.isEmpty()) Text("Search by title or author", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .7f), style = MaterialTheme.typography.bodyMedium, maxLines = 1, softWrap = false)
+                if (query.isEmpty()) Text(tr("Search by title or author"), color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .7f), style = MaterialTheme.typography.bodyMedium, maxLines = 1, softWrap = false)
                 BasicTextField(query, onQuery, Modifier.fillMaxWidth().focusRequester(focus).onPreviewKeyEvent { event ->
                         if (event.key == Key.Escape && event.type == KeyEventType.KeyDown) { onClose(); true } else false
                     }, singleLine = true,
                     textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurface), cursorBrush = SolidColor(MaterialTheme.colorScheme.primary))
             }
             IconButton(onClose, Modifier.size(40.dp).pointerHoverIcon(PointerIcon.Hand)) {
-                Icon(Icons.Rounded.Close, "Close search", Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Icon(Icons.Rounded.Close, tr("Close search"), Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
@@ -213,8 +214,8 @@ private fun SortButton(sort: LibrarySort, onSort: (LibrarySort) -> Unit) {
         AppIconButton("ic_sort", "Sort", { open = true }, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         DropdownMenu(open, { open = false }) {
             listOf(LibrarySort.RECENT to "Recently played", LibrarySort.TITLE to "Title").forEach { (choice, label) ->
-                DropdownMenuItem({ Text(label) }, { onSort(choice); open = false },
-                    trailingIcon = { if (choice == sort) Icon(Icons.Rounded.Check, "Selected", Modifier.size(18.dp)) })
+                DropdownMenuItem({ Text(tr(label)) }, { onSort(choice); open = false },
+                    trailingIcon = { if (choice == sort) Icon(Icons.Rounded.Check, tr("Selected"), Modifier.size(18.dp)) })
             }
         }
     }
@@ -236,14 +237,14 @@ private fun BookTile(app: AppState, book: LibraryBook, making: Float?, queued: B
                 androidx.compose.animation.AnimatedVisibility(hovered, Modifier.align(Alignment.BottomEnd).padding(10.dp),
                     enter = fadeIn(tween(120)) + scaleIn(initialScale = .7f), exit = fadeOut(tween(100)) + scaleOut(targetScale = .7f)) {
                     Surface(Modifier.size(44.dp).clickable { app.play(book.id) }, shape = CircleShape, color = MaterialTheme.colorScheme.primary, shadowElevation = 6.dp) {
-                        Box(contentAlignment = Alignment.Center) { Icon(AppIcons.get("ic_play"), "Play", Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onPrimary) }
+                        Box(contentAlignment = Alignment.Center) { Icon(AppIcons.get("ic_play"), tr("Play"), Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onPrimary) }
                     }
                 }
                 if (making != null || queued) Surface(Modifier.align(Alignment.TopStart).padding(8.dp), shape = CircleShape, color = Color.Black.copy(alpha = .6f)) {
                     Row(Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(AppIcons.get("ic_waveform"), null, Modifier.size(12.dp), tint = Color.White)
                         Spacer(Modifier.width(4.dp))
-                        Text(if (making != null) "${(making * 100).toInt()}%" else "Queued", style = MaterialTheme.typography.labelSmall, color = Color.White)
+                        Text(tr(if (making != null) "${(making * 100).toInt()}%" else "Queued"), style = MaterialTheme.typography.labelSmall, color = Color.White)
                     }
                 }
             }
@@ -252,7 +253,7 @@ private fun BookTile(app: AppState, book: LibraryBook, making: Float?, queued: B
             Spacer(Modifier.height(10.dp))
             Text(book.title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
             val detail = listOfNotNull(if (book.missing) "Files missing" else null, book.author, if (book.progress in .005f..0.995f && !book.finished) "${(book.progress * 100).toInt()}%" else null).joinToString(" · ")
-            if (detail.isNotEmpty()) Text(detail, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (detail.isNotEmpty()) Text(tr(detail), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }

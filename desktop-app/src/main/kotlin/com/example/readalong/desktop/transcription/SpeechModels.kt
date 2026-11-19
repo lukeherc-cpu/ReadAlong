@@ -27,6 +27,13 @@ object SpeechModels {
     )
     fun find(id: String?) = all.firstOrNull { it.id == id }
 
+    /** Whether [model] can transcribe [language]: English-only models know English alone, and Cantonese needs Large v3. */
+    fun supports(model: SpeechModel, language: String): Boolean = when {
+        model.englishOnly -> language == "en"
+        language == "yue" -> model.id.startsWith("large-v3")
+        else -> true
+    }
+
     /**
      * Used until a model is chosen in Settings. A computer is where the accurate text gets made, so one with a real
      * graphics card (3 GB or more) starts on Large v3 Turbo, and one with built-in graphics on Base for English.
@@ -36,7 +43,7 @@ object SpeechModels {
         val gpus = devices.orEmpty().filter { it.isGpu }
         val card = gpus.any { it.type == "gpu" && it.memoryTotal >= 3L * 1024 * 1024 * 1024 }
         return find(when {
-            card -> "large-v3-turbo-q5_0"
+            card || language == "yue" -> "large-v3-turbo-q5_0"
             gpus.isNotEmpty() && language == "en" -> "base.en"
             language == "en" -> "tiny.en"
             else -> "tiny"

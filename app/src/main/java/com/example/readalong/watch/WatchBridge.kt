@@ -80,7 +80,7 @@ object WatchBridge {
             putLongArray("chapterStarts", if (live) state.chapters.map { it.startMs }.toLongArray() else LongArray(0))
             putInt("background", palette.background.toArgb())
             putInt("accent", palette.accent.toArgb())
-            val started = books.filter { it.section == LibrarySection.CURRENT && !it.isDemo }.sortedByDescending { it.lastPlayedAt ?: 0 }.take(12)
+            val started = books.filter { it.section == LibrarySection.CURRENT && !it.isDemo }.sortedByDescending { it.lastPlayedAt ?: 0L }.take(12)
             putStringArray("startedIds", started.map { it.id }.toTypedArray())
             putStringArray("startedTitles", started.map { it.title }.toTypedArray())
             cover(app, book)?.let { putAsset("cover", it) }

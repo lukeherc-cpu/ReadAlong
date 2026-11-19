@@ -1,5 +1,6 @@
 package com.example.readalong.ui.link
 
+import com.example.readalong.domain.i18n.tr
 import com.example.readalong.ui.components.userMessage
 
 import android.content.pm.PackageManager
@@ -70,10 +71,10 @@ fun LinkScreen(app: ReadAlongApplication, onBack: () -> Unit) {
     }
     if (typingAddress) {
         var address by rememberSaveable { mutableStateOf(state.computer?.hosts?.firstOrNull().orEmpty()) }
-        AlertDialog(onDismissRequest = { typingAddress = false }, title = { Text("Computer's address") },
+        AlertDialog(onDismissRequest = { typingAddress = false }, title = { Text(tr("Computer's address")) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("On your computer, open ReadAlong › Settings › Link a phone. Type the address shown there.", style = MaterialTheme.typography.bodyMedium)
+                    Text(tr("On your computer, open ReadAlong › Settings › Link a phone. Type the address shown there."), style = MaterialTheme.typography.bodyMedium)
                     OutlinedTextField(address, { address = it }, singleLine = true, placeholder = { Text("192.168.1.20") })
                 }
             },
@@ -85,8 +86,8 @@ fun LinkScreen(app: ReadAlongApplication, onBack: () -> Unit) {
                     catch (failure: Exception) { error = failure.userMessage("Couldn't reach the computer at that address. Check ReadAlong is open on it and both are on the same network.") }
                     finally { busy = null }
                 } }
-            }) { Text("Connect") } },
-            dismissButton = { TextButton(onClick = { typingAddress = false }) { Text("Cancel") } })
+            }) { Text(tr("Connect")) } },
+            dismissButton = { TextButton(onClick = { typingAddress = false }) { Text(tr("Cancel")) } })
     }
     fun link(text: String) {
         val code = LinkCode.parse(text) ?: run { error = "That isn't a ReadAlong link code. On your computer, open Settings › Phone › Link phone."; return }
@@ -117,33 +118,33 @@ fun LinkScreen(app: ReadAlongApplication, onBack: () -> Unit) {
     // Shown once, when folder sync is first turned on: the phone starts writing files into the user's folders.
     var transcriptNotice by rememberSaveable { mutableStateOf(false) }
     if (transcriptNotice) AlertDialog(onDismissRequest = { transcriptNotice = false },
-        title = { Text("ReadAlong files will be in your audiobook folders") },
-        text = { Text("So ${state.computer?.name ?: "your computer"} doesn't have to transcribe them again, each book this phone has transcribed now gets a small " +
-            ".readalong file beside its audio in the folders you sync. They're copied to the computer with each sync. Your audio isn't changed.") },
-        confirmButton = { TextButton(onClick = { transcriptNotice = false }) { Text("OK") } })
+        title = { Text(tr("ReadAlong files will be in your audiobook folders")) },
+        text = { Text(tr("So ${state.computer?.name ?: "your computer"} doesn't have to transcribe them again, each book this phone has transcribed now gets a small ") + tr(
+            ".readalong file beside its audio in the folders you sync. They're copied to the computer with each sync. Your audio isn't changed.")) },
+        confirmButton = { TextButton(onClick = { transcriptNotice = false }) { Text(tr("OK")) } })
     // Linked earlier but "Sync your audiobook folders?" was never answered: ask now.
     LaunchedEffect(state.computer != null && !state.foldersAsked) { if (state.computer != null && !state.foldersAsked && offered == null && busy == null) loadFolders() }
 
     Scaffold { insets -> Column(Modifier.fillMaxSize().padding(insets).verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) { Icon(painterResource(R.drawable.ic_back), "Back to settings") }
-            Text(if (choosing) "Sync your audiobook folders?" else "Link a computer", style = MaterialTheme.typography.headlineMedium)
+            IconButton(onClick = onBack) { Icon(painterResource(R.drawable.ic_back), tr("Back to settings")) }
+            Text(tr(if (choosing) "Sync your audiobook folders?" else "Link a computer"), style = MaterialTheme.typography.headlineMedium)
         }
-        busy?.let { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { LinearProgressIndicator(Modifier.fillMaxWidth()); Text(it) } }
-        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        busy?.let { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { LinearProgressIndicator(Modifier.fillMaxWidth()); Text(tr(it)) } }
+        error?.let { Text(tr(it), color = MaterialTheme.colorScheme.error) }
         val computer = state.computer
         when {
             computer == null -> {
-                Text("Keep your audiobooks, ReadAlongs and listening progress the same on this phone and ReadAlong on your computer. " +
-                    "They sync directly over your Wi-Fi, encrypted, with no account or cloud.", style = MaterialTheme.typography.bodyLarge)
-                Text("On the computer, open ReadAlong › Settings › Phone › Link phone, then scan the code it shows.", style = MaterialTheme.typography.bodyMedium,
+                Text(tr("Keep your audiobooks, ReadAlongs and listening progress the same on this phone and ReadAlong on your computer. ") + tr(
+                    "They sync directly over your Wi-Fi, encrypted, with no account or cloud."), style = MaterialTheme.typography.bodyLarge)
+                Text(tr("On the computer, open ReadAlong › Settings › Phone › Link phone, then scan the code it shows."), style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Button(onClick = ::scan, enabled = busy == null) { Text("Scan the code") }
-                if (!pasting) TextButton(onClick = { pasting = true }) { Text("Paste the code instead") }
+                Button(onClick = ::scan, enabled = busy == null) { Text(tr("Scan the code")) }
+                if (!pasting) TextButton(onClick = { pasting = true }) { Text(tr("Paste the code instead")) }
                 else {
                     var text by remember { mutableStateOf("") }
-                    OutlinedTextField(text, { text = it }, Modifier.fillMaxWidth(), label = { Text("Link code") }, singleLine = true)
-                    Button(onClick = { link(text) }, enabled = text.isNotBlank() && busy == null) { Text("Link") }
+                    OutlinedTextField(text, { text = it }, Modifier.fillMaxWidth(), label = { Text(tr("Link code")) }, singleLine = true)
+                    Button(onClick = { link(text) }, enabled = text.isNotBlank() && busy == null) { Text(tr("Link")) }
                 }
             }
             choosing -> offered?.let { folders ->
@@ -165,34 +166,34 @@ fun LinkScreen(app: ReadAlongApplication, onBack: () -> Unit) {
             else -> {
                 Surface(shape = RoundedCornerShape(com.example.readalong.ui.theme.Corners.large), color = MaterialTheme.colorScheme.surfaceContainer) {
                     Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("Linked to ${computer.name}", style = MaterialTheme.typography.titleMedium)
+                        Text(tr("Linked to ${computer.name}"), style = MaterialTheme.typography.titleMedium)
                         val last = state.lastSyncAt?.let { "Last synced ${DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(it))}." } ?: "Not synced yet."
-                        Text(listOfNotNull(last, state.lastResult).joinToString(" "), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(tr(listOfNotNull(last, state.lastResult).joinToString(" ")), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         progress?.let { p ->
                             Text(p.text, style = MaterialTheme.typography.bodyMedium)
                             p.fraction?.let { f -> LinearProgressIndicator({ f }, Modifier.fillMaxWidth()) } ?: LinearProgressIndicator(Modifier.fillMaxWidth())
                         }
                     }
                 }
-                Text("Synced folders", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                if (state.pairs.isEmpty()) Text("None yet.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(tr("Synced folders"), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (state.pairs.isEmpty()) Text(tr("None yet."), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 state.pairs.forEach { pair ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("${pair.localName}  ⇄  ${pair.remoteName} on ${computer.name}", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-                        TextButton(onClick = { withNetwork { choosingBooks = pair } }) { Text("Choose books") }
+                        Text(tr("${pair.localName}  ⇄  ${pair.remoteName} on ${computer.name}"), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                        TextButton(onClick = { withNetwork { choosingBooks = pair } }) { Text(tr("Choose books")) }
                     }
                 }
-                Text("Syncs when this phone is on Wi-Fi and ReadAlong is open on the computer. Books one side doesn't have are copied over; nothing is ever deleted.",
+                Text(tr("Syncs when this phone is on Wi-Fi and ReadAlong is open on the computer. Books one side doesn't have are copied over; nothing is ever deleted."),
                     style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                if (state.pairs.isNotEmpty()) Text("Books this phone transcribes get a .readalong file beside them in these folders, so ${computer.name} reads them without transcribing again.",
+                if (state.pairs.isNotEmpty()) Text(tr("Books this phone transcribes get a .readalong file beside them in these folders, so ${computer.name} reads them without transcribing again."),
                     style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 SyncKinds(state.skipped) { skipped -> sync.store.update { it.copy(skipped = skipped) } }
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Button(onClick = { withNetwork { LinkSyncWorker.syncNow(context) } }, enabled = state.pairs.isNotEmpty() && progress == null) { Text("Sync now") }
-                    OutlinedButton(onClick = ::loadFolders, enabled = busy == null) { Text("Choose folders") }
+                    Button(onClick = { withNetwork { LinkSyncWorker.syncNow(context) } }, enabled = state.pairs.isNotEmpty() && progress == null) { Text(tr("Sync now")) }
+                    OutlinedButton(onClick = ::loadFolders, enabled = busy == null) { Text(tr("Choose folders")) }
                 }
-                TextButton(onClick = { typingAddress = true }) { Text("Can't find ${computer.name}? Enter its address") }
-                TextButton(onClick = { LinkSyncWorker.cancel(context); sync.store.unlink(); offered = null }) { Text("Unlink ${computer.name}") }
+                TextButton(onClick = { typingAddress = true }) { Text(tr("Can't find ${computer.name}? Enter its address")) }
+                TextButton(onClick = { LinkSyncWorker.cancel(context); sync.store.unlink(); offered = null }) { Text(tr("Unlink ${computer.name}")) }
             }
         }
     } }
@@ -235,9 +236,9 @@ private fun FolderChooser(app: ReadAlongApplication, computer: String, offered: 
         }
     }
 
-    Text("$computer is linked. Choose which folders to keep the same on both: books one side doesn't have are copied to the other, " +
-        "with their ReadAlongs and listening progress, whenever this phone is on Wi-Fi. Nothing is ever deleted.", style = MaterialTheme.typography.bodyLarge)
-    if (shared.isEmpty()) Text("$computer isn't sharing any folders yet. On the computer, open Settings › Phone and tick the folders to sync, then come back here.",
+    Text(tr("$computer is linked. Choose which folders to keep the same on both: books one side doesn't have are copied to the other, ") + tr(
+        "with their ReadAlongs and listening progress, whenever this phone is on Wi-Fi. Nothing is ever deleted."), style = MaterialTheme.typography.bodyLarge)
+    if (shared.isEmpty()) Text(tr("$computer isn't sharing any folders yet. On the computer, open Settings › Phone and tick the folders to sync, then come back here."),
         style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     shared.forEach { remote ->
         val local = chosen[remote.id]
@@ -246,22 +247,22 @@ private fun FolderChooser(app: ReadAlongApplication, computer: String, offered: 
                 Checkbox(local != null, { on -> if (on) { picking = remote.id; picker.launch(null) } else chosen.remove(remote.id) })
                 Column(Modifier.weight(1f)) {
                     Text(remote.name, style = MaterialTheme.typography.titleMedium)
-                    Text(local?.let { "On this phone: ${it.second}" } ?: "Not synced", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(tr(local?.let { "On this phone: ${it.second}" } ?: "Not synced"), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                TextButton(onClick = { picking = remote.id; picker.launch(null) }) { Text(if (local == null) "Choose folder" else "Change") }
+                TextButton(onClick = { picking = remote.id; picker.launch(null) }) { Text(tr(if (local == null) "Choose folder" else "Change")) }
             }
         }
     }
     val unpaired = library.filter { folder -> chosen.values.none { it.first == folder.uri } }
     if (unpaired.isNotEmpty()) {
-        Text("Send these phone folders to $computer too", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(tr("Send these phone folders to $computer too"), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         unpaired.forEach { folder ->
             Row(Modifier.fillMaxWidth().clickable { if (folder.uri in sendHere) sendHere.remove(folder.uri) else sendHere[folder.uri] = folder.name }, verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(folder.uri in sendHere, { on -> if (on) sendHere[folder.uri] = folder.name else sendHere.remove(folder.uri) })
                 Text(folder.name, style = MaterialTheme.typography.bodyLarge)
             }
         }
-        Text("They go in Audiobooks in your home folder on the computer.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(tr("They go in Audiobooks in your home folder on the computer."), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
     val linkState by app.folderLink.store.state.collectAsStateWithLifecycle()
     SyncKinds(linkState.skipped) { kinds -> app.folderLink.store.update { it.copy(skipped = kinds) } }
@@ -269,8 +270,8 @@ private fun FolderChooser(app: ReadAlongApplication, computer: String, offered: 
         Button(onClick = {
             val pairs = shared.mapNotNull { remote -> chosen[remote.id]?.let { (uri, name) -> FolderPair(remote.id, remote.name, uri, name) } }
             onDone(pairs, sendHere.map { it.key to it.value })
-        }, enabled = chosen.isNotEmpty() || sendHere.isNotEmpty()) { Text("Sync these folders") }
-        OutlinedButton(onClick = onSkip) { Text("Not now") }
+        }, enabled = chosen.isNotEmpty() || sendHere.isNotEmpty()) { Text(tr("Sync these folders")) }
+        OutlinedButton(onClick = onSkip) { Text(tr("Not now")) }
     }
 }
 
@@ -278,14 +279,14 @@ private fun FolderChooser(app: ReadAlongApplication, computer: String, offered: 
 @Composable
 private fun SyncKinds(skipped: Set<String>, onChange: (Set<String>) -> Unit) {
     Column {
-        Text("What to sync", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text("Audiobooks always sync. Untick anything you'd rather keep separate on each device.", style = MaterialTheme.typography.bodySmall,
+        Text(tr("What to sync"), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(tr("Audiobooks always sync. Untick anything you'd rather keep separate on each device."), style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
         com.example.readalong.domain.link.FolderSyncPlan.checkboxes.forEach { (label, ids) ->
             val on = ids.none { it in skipped }
             Row(Modifier.fillMaxWidth().clickable { onChange(if (on) skipped + ids else skipped - ids) }, verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(on, { onChange(if (on) skipped + ids else skipped - ids) })
-                Text(label, style = MaterialTheme.typography.bodyLarge)
+                Text(tr(label), style = MaterialTheme.typography.bodyLarge)
             }
         }
     }
@@ -301,17 +302,17 @@ private fun ChooseBooksDialog(app: ReadAlongApplication, pair: FolderPair, onDis
     LaunchedEffect(pair) {
         try { books = sync.remoteBooks(pair) } catch (failure: java.io.IOException) { failed = failure.message ?: "Couldn't reach your computer." }
     }
-    AlertDialog(onDismissRequest = onDismiss, title = { Text("Books from ${pair.remoteName}") },
+    AlertDialog(onDismissRequest = onDismiss, title = { Text(tr("Books from ${pair.remoteName}")) },
         text = {
             Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
                 val shown = books
                 when {
-                    failed != null -> Text(failed!!)
+                    failed != null -> Text(tr(failed!!))
                     shown == null -> LinearProgressIndicator(Modifier.fillMaxWidth())
-                    shown.isEmpty() -> Text("No books in this folder on the computer yet.")
+                    shown.isEmpty() -> Text(tr("No books in this folder on the computer yet."))
                     else -> {
                         val wanted = shown.filter { it.key !in leftOut }.sumOf { it.bytes }
-                        Text("Ticked books sync to this phone: ${android.text.format.Formatter.formatShortFileSize(app, wanted)} in all. Unticking one leaves it on the computer and deletes nothing here.",
+                        Text(tr("Ticked books sync to this phone: ${android.text.format.Formatter.formatShortFileSize(app, wanted)} in all. Unticking one leaves it on the computer and deletes nothing here."),
                             style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         shown.forEach { book ->
                             val ticked = book.key !in leftOut
@@ -333,6 +334,6 @@ private fun ChooseBooksDialog(app: ReadAlongApplication, pair: FolderPair, onDis
             sync.store.update { it.copy(leftOut = leftOut) }
             if (changed) LinkSyncWorker.syncNow(app)
             onDismiss()
-        }, enabled = books != null) { Text("Done") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } })
+        }, enabled = books != null) { Text(tr("Done")) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(tr("Cancel")) } })
 }

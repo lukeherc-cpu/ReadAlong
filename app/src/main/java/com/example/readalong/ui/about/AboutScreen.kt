@@ -1,5 +1,6 @@
 package com.example.readalong.ui.about
 
+import com.example.readalong.domain.i18n.tr
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -59,10 +60,10 @@ fun AboutScreen(onBack: () -> Unit, onSpeechModel: () -> Unit) {
                 )
                 Spacer(Modifier.height(24.dp))
                 Text(stringResource(R.string.about_description), style = MaterialTheme.typography.bodyLarge)
-                Text("Version ${context.packageManager.getPackageInfo(context.packageName, 0).versionName}", style = MaterialTheme.typography.labelMedium)
-                androidx.compose.material3.TextButton(onClick = { uriHandler.openUri("https://github.com/readalongapp/ReadAlong") }) { Text("Source code · GPLv3") }
-                androidx.compose.material3.TextButton(onClick = { showLicenses = true }) { Text("Software licenses") }
-                androidx.compose.material3.OutlinedButton(onClick = onSpeechModel) { Text("Offline speech model") }
+                Text(tr("Version ${context.packageManager.getPackageInfo(context.packageName, 0).versionName}"), style = MaterialTheme.typography.labelMedium)
+                androidx.compose.material3.TextButton(onClick = { uriHandler.openUri("https://github.com/readalongapp/ReadAlong") }) { Text(tr("Source code · GPLv3")) }
+                androidx.compose.material3.TextButton(onClick = { showLicenses = true }) { Text(tr("Software licenses")) }
+                androidx.compose.material3.OutlinedButton(onClick = onSpeechModel) { Text(tr("Offline speech model")) }
                 Spacer(Modifier.height(32.dp))
                 Text(stringResource(R.string.preview_title), style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(8.dp))
@@ -75,8 +76,8 @@ fun AboutScreen(onBack: () -> Unit, onSpeechModel: () -> Unit) {
         }
     }
     if (showLicenses) androidx.compose.material3.AlertDialog(onDismissRequest = { showLicenses = false },
-        title = { Text("Software licenses") },
-        text = { Text(notices, modifier = Modifier.height(360.dp).verticalScroll(rememberScrollState()), style = MaterialTheme.typography.bodySmall) },
-        confirmButton = { androidx.compose.material3.TextButton(onClick = { showLicenses = false }) { Text("Close") } })
+        title = { Text(tr("Software licenses")) },
+        text = { Text(tr(notices), modifier = Modifier.height(360.dp).verticalScroll(rememberScrollState()), style = MaterialTheme.typography.bodySmall) },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = { showLicenses = false }) { Text(tr("Close")) } })
 
 }

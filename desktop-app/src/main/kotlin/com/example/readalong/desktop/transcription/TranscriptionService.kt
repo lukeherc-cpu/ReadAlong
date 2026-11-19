@@ -87,7 +87,8 @@ class TranscriptionService(private val scope: CoroutineScope, private val librar
         } else mutableDevices.value = emptyList()
     }
 
-    fun model(): SpeechModel = SpeechModels.find(settings.value.modelId) ?: defaultModel()
+    /** The chosen model, unless it can't transcribe the chosen language (an English-only one for a German book): then the default. */
+    fun model(): SpeechModel = SpeechModels.find(settings.value.modelId)?.takeIf { SpeechModels.supports(it, settings.value.language) } ?: defaultModel()
 
     /** The model used until one is chosen in Settings: by this computer's graphics card (see [SpeechModels.default]). */
     fun defaultModel(): SpeechModel = SpeechModels.default(settings.value.language, mutableDevices.value)

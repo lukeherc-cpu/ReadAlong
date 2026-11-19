@@ -1,5 +1,7 @@
 package com.example.readalong.ui.components
 
+import com.example.readalong.domain.i18n.tr
+
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -28,7 +30,7 @@ fun IllustratedDialog(title: String, onDismiss: () -> Unit, artwork: (@Composabl
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 24.dp, end = 24.dp, bottom = 24.dp).navigationBarsPadding(),
             verticalArrangement = Arrangement.spacedBy(16.dp), horizontalAlignment = if (centered) Alignment.CenterHorizontally else Alignment.Start) {
             artwork?.invoke()
-            Text(title, modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.headlineSmall, textAlign = if (centered) androidx.compose.ui.text.style.TextAlign.Center else androidx.compose.ui.text.style.TextAlign.Start)
+            Text(tr(title), modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.headlineSmall, textAlign = if (centered) androidx.compose.ui.text.style.TextAlign.Center else androidx.compose.ui.text.style.TextAlign.Start)
             content()
             Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End), verticalAlignment = Alignment.CenterVertically, content = actions)
         }

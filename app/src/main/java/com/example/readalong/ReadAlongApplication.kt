@@ -67,6 +67,7 @@ class ReadAlongApplication : Application() {
         com.example.readalong.data.diagnostics.CrashDiagnostics.install(this)
         com.example.readalong.data.diagnostics.BackgroundFailures.install(this)
         if (processName != packageName) return
+        com.example.readalong.ui.about.AppLanguage.load(this)
         // Audible books saved in ReadAlong's own storage by 0.49.0/0.49.1 move to shared Documents, where an uninstall can't delete them.
         Thread({ runCatching { com.example.readalong.data.importing.OwnFolderProvider.migrate(this) } }, "own-folder-migration").start()
         // The launcher icon and launch colors switch once no ReadAlong screen is showing (see LaunchAppearance).

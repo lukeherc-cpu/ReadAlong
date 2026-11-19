@@ -1,5 +1,6 @@
 package com.example.readalong.ui.player
 
+import com.example.readalong.domain.i18n.tr
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -59,7 +60,7 @@ fun MiniPlayer(book: Book, state: PlaybackState, onOpen: () -> Unit, onToggle: (
         enableDismissFromEndToStart = onDismiss != null, backgroundContent = {},
         modifier = Modifier.navigationBarsPadding().padding(12.dp)) {
     Surface(onClick = onOpen, modifier = Modifier.semantics {
-        contentDescription = "Expand mini player"
+        contentDescription = tr("Expand mini player")
         if (onDismiss != null) customActions = listOf(CustomAccessibilityAction("Dismiss mini player") { visible.targetState = false; true })
     }.fillMaxWidth().miniPlayerBounds().then(if (onDrag == null) Modifier else Modifier.pointerInput(book.id) {
         // Vertical drags pull the player up; horizontal swipes still dismiss.
@@ -78,7 +79,7 @@ fun MiniPlayer(book: Book, state: PlaybackState, onOpen: () -> Unit, onToggle: (
             BookCover(book, Modifier.size(52.dp), showTitle = false)
             Column(Modifier.weight(1f)) {
                 Text(book.title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleSmall)
-                Text(state.chapterTitle, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall, color = if (colored) foreground.copy(alpha = .7f) else basicForeground.copy(alpha = .7f))
+                Text(tr(state.chapterTitle), maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall, color = if (colored) foreground.copy(alpha = .7f) else basicForeground.copy(alpha = .7f))
             }
             IconButton(onClick = { haptics.performHapticFeedback(if (state.isPlaying) androidx.compose.ui.hapticfeedback.HapticFeedbackType.ToggleOff else androidx.compose.ui.hapticfeedback.HapticFeedbackType.ToggleOn); onToggle() }) { com.example.readalong.ui.components.PlayPauseIcon(state.isPlaying, Modifier.size(28.dp), if (state.isPlaying) "Pause mini player" else "Play mini player") }
         }

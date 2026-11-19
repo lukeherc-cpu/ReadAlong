@@ -1,5 +1,6 @@
 package com.example.readalong.ui.transcription
 
+import com.example.readalong.domain.i18n.tr
 import android.content.Intent
 import android.net.Uri
 import android.os.PowerManager
@@ -74,17 +75,17 @@ fun BackgroundPreparationPrompt(app: ReadAlongApplication, force: Boolean = fals
                                 launcher.launch(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}")))
                             }
                         }
-                    }) { Text("Allow background work", textAlign = TextAlign.Center) }
-                    if (askBackground) TextButton(modifier = Modifier.fillMaxWidth(), onClick = { finish(); onClose() }) { Text("Not now") }
-                    else Button(modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp), onClick = { finish(); onClose() }) { Text("Continue") }
+                    }) { Text(tr("Allow background work"), textAlign = TextAlign.Center) }
+                    if (askBackground) TextButton(modifier = Modifier.fillMaxWidth(), onClick = { finish(); onClose() }) { Text(tr("Not now")) }
+                    else Button(modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp), onClick = { finish(); onClose() }) { Text(tr("Continue")) }
                 }
             }) {
-            if (firstTime) Text("Making a ReadAlong for a whole book takes a while and uses battery. Progress is saved as it goes, and you can keep listening.")
-            if (askBackground) Text("Allow ReadAlong to keep working while you use other apps or your screen is off.", modifier = Modifier.fillMaxWidth(),
+            if (firstTime) Text(tr("Making a ReadAlong for a whole book takes a while and uses battery. Progress is saved as it goes, and you can keep listening."))
+            if (askBackground) Text(tr("Allow ReadAlong to keep working while you use other apps or your screen is off."), modifier = Modifier.fillMaxWidth(),
                 textAlign = if (firstTime) TextAlign.Start else TextAlign.Center)
             if (firstTime) Surface(shape = androidx.compose.foundation.shape.RoundedCornerShape(com.example.readalong.ui.theme.Corners.medium), color = MaterialTheme.colorScheme.surfaceVariant) {
                 Row(Modifier.fillMaxWidth().toggleable(charging, role = Role.Checkbox, onValueChange = { charging = it }).padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(charging, onCheckedChange = null); Text("Only while charging")
+                    Checkbox(charging, onCheckedChange = null); Text(tr("Only while charging"))
                 }
             }
         }

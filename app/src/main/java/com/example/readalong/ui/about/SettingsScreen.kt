@@ -1,5 +1,6 @@
 package com.example.readalong.ui.about
 
+import com.example.readalong.domain.i18n.tr
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.background
 import androidx.compose.foundation.selection.toggleable
@@ -44,6 +45,8 @@ fun SettingsScreen(app: ReadAlongApplication, onBack: () -> Unit, onModel: () ->
     var battery by remember { mutableStateOf(false) }
     var equalizerPage by rememberSaveable { mutableStateOf(false) }
     var soundPage by rememberSaveable { mutableStateOf(false) }
+    /** The Languages page's open tab (0 books, 1 app), or -1 while it's closed. */
+    var languagePage by rememberSaveable { mutableIntStateOf(-1) }
     var resumeDialog by remember { mutableStateOf(false) }
     var resetSoundSheet by remember { mutableStateOf(false) }
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -60,21 +63,25 @@ fun SettingsScreen(app: ReadAlongApplication, onBack: () -> Unit, onModel: () ->
         androidx.activity.compose.BackHandler { equalizerPage = false }
         Scaffold { insets -> Column(Modifier.fillMaxSize().padding(insets).verticalScroll(rememberScrollState()).padding(vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(Modifier.padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = { equalizerPage = false }) { Icon(painterResource(R.drawable.ic_back), "Back to sound") }
-                Text("Equalizer", style = MaterialTheme.typography.headlineMedium)
+                IconButton(onClick = { equalizerPage = false }) { Icon(painterResource(R.drawable.ic_back), tr("Back to sound")) }
+                Text(tr("Equalizer"), style = MaterialTheme.typography.headlineMedium)
             }
             com.example.readalong.ui.sound.EqualizerEditor(sound, ::saveSound)
         } }
+        return
+    }
+    if (languagePage >= 0) {
+        LanguageSettingsPage(preferences.transcriptionLanguage, languagePage, onBack = { languagePage = -1 }) { code -> save { it.copy(transcriptionLanguage = code) } }
         return
     }
     if (soundPage) {
         androidx.activity.compose.BackHandler { soundPage = false }
         Scaffold { insets -> Column(Modifier.fillMaxSize().padding(insets).verticalScroll(rememberScrollState()).padding(vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(Modifier.padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = { soundPage = false }) { Icon(painterResource(R.drawable.ic_back), "Back to settings") }
+                IconButton(onClick = { soundPage = false }) { Icon(painterResource(R.drawable.ic_back), tr("Back to settings")) }
                 Column {
-                    Text("Sound", style = MaterialTheme.typography.headlineMedium)
-                    Text("Defaults for every book", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(tr("Sound"), style = MaterialTheme.typography.headlineMedium)
+                    Text(tr("Defaults for every book"), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             com.example.readalong.ui.sound.SoundBasics(sound, ::saveSound) { equalizerPage = true }
@@ -83,8 +90,8 @@ fun SettingsScreen(app: ReadAlongApplication, onBack: () -> Unit, onModel: () ->
     }
     Scaffold { insets -> Column(Modifier.fillMaxSize().padding(insets).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) { Icon(painterResource(R.drawable.ic_back), "Back to library") }
-            Text("Settings", style = MaterialTheme.typography.headlineMedium)
+            IconButton(onClick = onBack) { Icon(painterResource(R.drawable.ic_back), tr("Back to library")) }
+            Text(tr("Settings"), style = MaterialTheme.typography.headlineMedium)
         }
         if (!preferences.tipJarInOther) TipJarSection(false) { move -> save { it.copy(tipJarInOther = move) } }
         // Grouped by where a setting shows up, so no group mixes the app's look with the player or the reader.
@@ -105,7 +112,7 @@ fun SettingsScreen(app: ReadAlongApplication, onBack: () -> Unit, onModel: () ->
             }
         }
         SettingsSection("Listening and reading") {
-            Text("Open books to", Modifier.padding(start = 4.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(tr("Open books to"), Modifier.padding(start = 4.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             OpeningChoices(preferences.openingView) { view -> save { it.copy(openingView = view) } }
             SettingsGroup {
                 if (preferences.openingView in setOf("PREVIEW", "FULLSCREEN"))
@@ -125,8 +132,19 @@ fun SettingsScreen(app: ReadAlongApplication, onBack: () -> Unit, onModel: () ->
         SettingsSection("Sleep timer") {
             SettingsGroup {
                 // The sleep timer's fade is explained here rather than on the Sleep sheet.
-                PreferenceSwitch("Shake to reset", preferences.shakeToReset, summary = "Playback fades out over the last 20 seconds. Shake the phone to start the timer again") { value -> save { it.copy(shakeToReset = value) } }
+                PreferenceSwitch("Shake to reset", preferences.shakeToReset, summary = "Fades out over the last 20 seconds. Shake the phone to start the timer again.") { value -> save { it.copy(shakeToReset = value) } }
                 SettingsRow("Reset sound", Modifier.testTag("settings_reset_sound"), onClick = { resetSoundSheet = true }) { ValueText(resetSoundLabel(preferences.resetSound)); Chevron() }
+            }
+        }
+        SettingsSection("Languages") {
+            SettingsGroup {
+                SettingsRow("Book transcription", Modifier.testTag("settings_language"), summary = "The language your audiobooks are read in", onClick = { languagePage = 0 }) {
+                    ValueText(if (preferences.transcriptionLanguage == com.example.readalong.domain.transcription.TranscriptionLanguages.AUTO) "Detect"
+                        else com.example.readalong.domain.i18n.Translations.languageName(preferences.transcriptionLanguage, com.example.readalong.domain.transcription.TranscriptionLanguages.name(preferences.transcriptionLanguage))); Chevron()
+                }
+                SettingsRow("App language", Modifier.testTag("settings_app_language"), summary = "Menus, buttons and messages", onClick = { languagePage = 1 }) {
+                    ValueText(AppLanguage.name(AppLanguage.current(context))); Chevron()
+                }
             }
         }
         SettingsSection("Transcription") {
@@ -175,38 +193,38 @@ fun SettingsScreen(app: ReadAlongApplication, onBack: () -> Unit, onModel: () ->
         val valid = listOf(back, forward, readerBack, readerForward).all { (it.toIntOrNull() ?: 0) in 1..600 }
         // One back/forward pair; full-screen reading has its own (5 s by default) behind an expander.
         var readerTimes by remember { mutableStateOf(preferences.readerBack != 5 || preferences.readerForward != 5) }
-        AlertDialog(onDismissRequest = { skipDialog = false }, title = { Text("Rewind and forward") }, text = {
+        AlertDialog(onDismissRequest = { skipDialog = false }, title = { Text(tr("Rewind and forward")) }, text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("How far the rewind and forward buttons jump, in seconds (1 to 600).")
+                Text(tr("How far the rewind and forward buttons jump, in seconds (1 to 600)."))
                 SecondsField("Rewind", back) { back = it }; SecondsField("Forward", forward) { forward = it }
                 TextButton(onClick = { readerTimes = !readerTimes }, contentPadding = PaddingValues(0.dp)) {
-                    Text(if (readerTimes) "Full-screen reading times" else "Change full-screen reading times")
+                    Text(tr(if (readerTimes) "Full-screen reading times" else "Change full-screen reading times"))
                 }
                 if (readerTimes) { SecondsField("Full-screen rewind", readerBack) { readerBack = it }; SecondsField("Full-screen forward", readerForward) { readerForward = it } }
             }
         }, confirmButton = { TextButton(enabled = valid, onClick = {
             save { it.copy(playerBack = back.toInt(), playerForward = forward.toInt(), readerBack = readerBack.toInt(), readerForward = readerForward.toInt()) }; skipDialog = false
-        }) { Text("Save") } }, dismissButton = { TextButton(onClick = { skipDialog = false }) { Text("Cancel") } })
+        }) { Text(tr("Save")) } }, dismissButton = { TextButton(onClick = { skipDialog = false }) { Text(tr("Cancel")) } })
     }
     if (battery) com.example.readalong.ui.transcription.BackgroundPreparationPrompt(app, force = true, onClose = { battery = false })
     if (resumeDialog) {
         var choice by remember { mutableStateOf(preferences.resumeRewind) }
-        AlertDialog(onDismissRequest = { resumeDialog = false }, title = { Text("Rewind when resuming") }, text = {
+        AlertDialog(onDismissRequest = { resumeDialog = false }, title = { Text(tr("Rewind when resuming")) }, text = {
             Column(Modifier.selectableGroup()) {
-                Text("When you press play after a pause, start a little earlier so you don't lose the thread.", Modifier.padding(bottom = 8.dp))
+                Text(tr("When you press play after a pause, start a little earlier so you don't lose the thread."), Modifier.padding(bottom = 8.dp))
                 com.example.readalong.data.preferences.ResumeRewinds.forEach { mode ->
                     Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).selectable(choice == mode, role = androidx.compose.ui.semantics.Role.RadioButton) { choice = mode }.testTag("resume_$mode"),
                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         RadioButton(choice == mode, onClick = null)
                         Column {
-                            Text(resumeLabel(mode))
-                            resumeSummary(mode)?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                            Text(tr(resumeLabel(mode)))
+                            resumeSummary(mode)?.let { Text(tr(it), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                         }
                     }
                 }
             }
-        }, confirmButton = { TextButton(onClick = { save { it.copy(resumeRewind = choice) }; resumeDialog = false }) { Text("OK") } },
-            dismissButton = { TextButton(onClick = { resumeDialog = false }) { Text("Cancel") } })
+        }, confirmButton = { TextButton(onClick = { save { it.copy(resumeRewind = choice) }; resumeDialog = false }) { Text(tr("OK")) } },
+            dismissButton = { TextButton(onClick = { resumeDialog = false }) { Text(tr("Cancel")) } })
     }
     if (resetSoundSheet) com.example.readalong.ui.components.ActionSheet({ resetSoundSheet = false }, "Reset sound", "Plays when a shake resets the timer") {
         items(com.example.readalong.data.preferences.ResetSounds) { sound ->
@@ -218,12 +236,12 @@ fun SettingsScreen(app: ReadAlongApplication, onBack: () -> Unit, onModel: () ->
         item {
             var volume by remember { mutableFloatStateOf(preferences.resetVolume.toFloat()) }
             Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Volume", style = MaterialTheme.typography.bodyMedium)
+                Text(tr("Volume"), style = MaterialTheme.typography.bodyMedium)
                 Slider(volume, { volume = it }, Modifier.weight(1f).testTag("reset_volume"), valueRange = 0f..100f, onValueChangeFinished = {
                     save { it.copy(resetVolume = volume.toInt()) }
                     com.example.readalong.playback.SleepShake.playResetSound(context, preferences.copy(resetVolume = volume.toInt()))
                 })
-                Text("${volume.toInt()}%", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(tr("${volume.toInt()}%"), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
@@ -232,7 +250,7 @@ fun SettingsScreen(app: ReadAlongApplication, onBack: () -> Unit, onModel: () ->
 // Quiet, sentence-case headings so the rows, not the labels, carry the page.
 @Composable private fun SettingsSection(title: String, content: @Composable ColumnScope.() -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(title, Modifier.padding(start = 4.dp).semantics { heading() }, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(tr(title), Modifier.padding(start = 4.dp).semantics { heading() }, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         content()
     }
 }
@@ -241,11 +259,11 @@ fun SettingsScreen(app: ReadAlongApplication, onBack: () -> Unit, onModel: () ->
 }
 @Composable internal fun Chevron() = Icon(painterResource(R.drawable.ic_chevron_right), null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
 /** A row's current value, shown before its chevron. */
-@Composable internal fun ValueText(value: String) = Text(value, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+@Composable internal fun ValueText(value: String) = Text(tr(value), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
 @Composable private fun RowLabel(label: String, summary: String?, modifier: Modifier) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(label, style = MaterialTheme.typography.bodyLarge)
-        if (summary != null) Text(summary, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(tr(label), style = MaterialTheme.typography.bodyLarge)
+        if (summary != null) Text(tr(summary), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 /** A tappable settings row; also used by the flavour-specific update and tip jar rows. */
@@ -257,7 +275,7 @@ fun SettingsScreen(app: ReadAlongApplication, onBack: () -> Unit, onModel: () ->
 @Composable internal fun PreferenceSwitch(label: String, checked: Boolean, description: String = label, summary: String? = null, modifier: Modifier = Modifier, change: (Boolean) -> Unit) {
     // The whole row toggles, with a switch on every on/off setting (no checkboxes).
     Row(modifier.fillMaxWidth().heightIn(min = 56.dp).toggleable(value = checked, role = androidx.compose.ui.semantics.Role.Switch, onValueChange = change)
-        .semantics { contentDescription = description }.padding(horizontal = 16.dp, vertical = 8.dp),
+        .semantics { contentDescription = tr(description) }.padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         RowLabel(label, summary, Modifier.weight(1f))
         Switch(checked, onCheckedChange = null)
@@ -271,12 +289,12 @@ fun SettingsScreen(app: ReadAlongApplication, onBack: () -> Unit, onModel: () ->
         options.forEachIndexed { index, (view, label, description) ->
             val selected = if (view == "PREVIEW") openingView in setOf("PREVIEW", "FULLSCREEN") else openingView == view
             SegmentedButton(selected = selected, onClick = { if (!selected) choose(view) }, shape = SegmentedButtonDefaults.itemShape(index, options.size),
-                modifier = Modifier.semantics { contentDescription = description }) { Text(label, maxLines = 1) }
+                modifier = Modifier.semantics { contentDescription = tr(description) }) { Text(tr(label), maxLines = 1) }
         }
     }
 }
 @Composable private fun SecondsField(label: String, value: String, change: (String) -> Unit) {
-    OutlinedTextField(value, { change(it.filter(Char::isDigit).take(3)) }, label = { Text(label) }, singleLine = true, keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number))
+    OutlinedTextField(value, { change(it.filter(Char::isDigit).take(3)) }, label = { Text(tr(label)) }, singleLine = true, keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number))
 }
 
 private fun resumeLabel(mode: String) = when (mode) {

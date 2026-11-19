@@ -36,6 +36,8 @@ val sharedResources by tasks.registering(Sync::class) {
     from("../app/src/main/res/drawable") { include("ic_*.xml", "ic_launcher_foreground.xml"); exclude("ic_launcher_background*", "ic_launcher_padded*", "ic_splash*", "ic_notification*"); into("icons") }
     // The tip jar's artwork lives in the phone's GitHub flavor.
     from("../app/src/github/res/drawable") { include("ic_tip_jar.xml"); into("icons") }
+    // ReadAlong's text in other languages (Settings → Languages → App language), shared with the phone.
+    from("../app/src/main/assets/i18n") { into("i18n") }
     into(layout.buildDirectory.dir("shared-resources"))
 }
 // The version inside the jar too, for launches without -Dreadalong.version (see UpdateService).

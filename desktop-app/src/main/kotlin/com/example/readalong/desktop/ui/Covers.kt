@@ -1,5 +1,6 @@
 package com.example.readalong.desktop.ui
 
+import com.example.readalong.domain.i18n.tr
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -132,7 +133,7 @@ fun BookCover(book: LibraryBook, modifier: Modifier = Modifier, shape: Shape = M
                         style = MaterialTheme.typography.titleMedium.copy(fontSize = if (size < 120) 9.sp else 16.sp, lineHeight = if (size < 120) 11.sp else 20.sp))
                     if (size >= 120) book.author?.let {
                         Spacer(Modifier.height(6.dp))
-                        Text(it, color = p.accent.copy(alpha = .7f), style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(tr(it), color = p.accent.copy(alpha = .7f), style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
             }

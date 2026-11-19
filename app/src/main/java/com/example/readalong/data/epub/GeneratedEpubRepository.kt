@@ -9,6 +9,7 @@ import com.example.readalong.data.local.*
 import com.example.readalong.data.reading.toSegment
 import com.example.readalong.domain.epub.*
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.xmlpull.v1.XmlPullParser
@@ -88,6 +89,9 @@ class GeneratedEpubRepository(private val context: Context, private val database
             }
         }
         val partial = !book.isDemo && previous.totalChapters?.let { previous.completedChapters < it } == true
+        // The language chosen in Settings → Languages, so readers hyphenate and pick voices for it; English while it's detected.
+        val language = com.example.readalong.domain.transcription.TranscriptionLanguages.forEngine(
+            com.example.readalong.data.preferences.AppPreferencesStore(context).preferences.first().transcriptionLanguage) ?: "en"
         val revision = previous.transcriptRevision
         val chapters = dao.chapters(bookId)
         check(chapters.isNotEmpty()) { "This ReadAlong has no text to save yet." }
@@ -105,7 +109,7 @@ class GeneratedEpubRepository(private val context: Context, private val database
             // No database write transaction surrounds ZIP creation or XHTML indexing.
             temporary.outputStream().use { output -> EpubWriter.write(output,
                 EpubMetadata(bookId, if (book.isDemo) "${book.title} — ReadAlong sample excerpt" else if (partial) "${book.title} — partial transcript" else book.title,
-                    if (book.isDemo) "ReadAlong demonstration" else book.author,
+                    if (book.isDemo) "ReadAlong demonstration" else book.author, language = if (book.isDemo) "en" else language,
                     description = if (book.isDemo) "Original sample prose with synthetic timestamps. No real narration." else if (partial) "Partial generated transcript. Only currently available text is included; later chapters are still being prepared." else "Generated from the timestamped audiobook transcript."), headings) { chapter, offset, limit ->
                 ensureActive(); dao.chapterSegments(bookId, chapter, limit, offset).map { it.toSegment() }
             } }

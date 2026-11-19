@@ -1,5 +1,6 @@
 package com.example.readalong.ui.reading
 
+import com.example.readalong.domain.i18n.tr
 import com.example.readalong.ui.components.userMessage
 
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -47,32 +48,32 @@ internal fun ReaderAppearance(value: ReaderPreferences, onDismiss: () -> Unit, b
         }
     }
     val choices = listOf("SERIF" to "Serif", "SANS" to "Sans serif", "MONO" to "Monospace") + ReaderFonts.bundled.map { it.first to it.second } + fontImports
-    AlertDialog(onDismissRequest = onDismiss, title = { Text("Reading appearance") }, text = {
+    AlertDialog(onDismissRequest = onDismiss, title = { Text(tr("Reading appearance")) }, text = {
         // Everything fits without scrolling on a phone; it scrolls only on very small screens.
         Column(Modifier.verticalScroll(rememberScrollState())) {
             // Background first: "Cover" is the book's own color; "Dark" is Read only's black.
             @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
             androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 (if (bookMode) listOf("LIGHT" to "Light", "SEPIA" to "Sepia", "DARK" to "Dark") else listOf("DARK" to "Cover", "BLACK" to "Dark", "LIGHT" to "Light", "SEPIA" to "Sepia")).forEach { (theme, label) ->
-                    FilterChip(selected = draft.theme == theme, onClick = { draft = draft.copy(theme = theme) }, label = { Text(label) })
+                    FilterChip(selected = draft.theme == theme, onClick = { draft = draft.copy(theme = theme) }, label = { Text(tr(label)) })
                 }
             }
             FontChoice("Reader font", draft.fontFamily, listOf("EPUB" to "EPUB / serif") + choices) { draft = draft.copy(fontFamily = it) }
             FontChoice("Preview font", draft.previewFont, listOf("MATCH" to "Match reader") + choices) { draft = draft.copy(previewFont = it) }
-            TextButton(enabled = !importing, onClick = { importFont.launch(arrayOf("*/*")) }) { Text(if (importing) "Importing font…" else "Import font (TTF, OTF, TTC)…") }
-            importError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            TextButton(enabled = !importing, onClick = { importFont.launch(arrayOf("*/*")) }) { Text(tr(if (importing) "Importing font…" else "Import font (TTF, OTF, TTC)…")) }
+            importError?.let { Text(tr(it), color = MaterialTheme.colorScheme.error) }
             Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                Text("Use EPUB fonts", Modifier.weight(1f))
+                Text(tr("Use EPUB fonts"), Modifier.weight(1f))
                 Switch(draft.useEpubFonts, { draft = draft.copy(useEpubFonts = it) })
             }
-            Text("Font size · ${draft.fontSize.toInt()}")
+            Text(tr("Font size · ${draft.fontSize.toInt()}"))
             Slider(draft.fontSize, { draft = draft.copy(fontSize = it) }, valueRange = 16f..32f, modifier = Modifier.testTag("reader_font_size"))
-            Text("Line spacing · ${"%.1f".format(draft.lineSpacing)}")
+            Text(tr("Line spacing · ${"%.1f".format(draft.lineSpacing)}"))
             Slider(draft.lineSpacing, { draft = draft.copy(lineSpacing = it) }, valueRange = 1.2f..2.2f)
-            Text("Margins · ${draft.margin.toInt()}")
+            Text(tr("Margins · ${draft.margin.toInt()}"))
             Slider(draft.margin, { draft = draft.copy(margin = it) }, valueRange = 12f..40f)
         }
-    }, confirmButton = { TextButton(enabled = !importing, onClick = { onSave(draft) }) { Text("Apply") } }, dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } })
+    }, confirmButton = { TextButton(enabled = !importing, onClick = { onSave(draft) }) { Text(tr("Apply")) } }, dismissButton = { TextButton(onClick = onDismiss) { Text(tr("Cancel")) } })
 }
 
 
@@ -101,9 +102,9 @@ internal fun readingFont(name: String): FontFamily {
 internal fun FontChoice(label: String, value: String, choices: List<Pair<String, String>>, choose: (String) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     Box {
-        TextButton(onClick = { expanded = true }) { Text("$label · ${choices.firstOrNull { it.first == value }?.second.orEmpty()}") }
+        TextButton(onClick = { expanded = true }) { Text(tr("$label · ${choices.firstOrNull { it.first == value }?.second.orEmpty()}")) }
         DropdownMenu(expanded, { expanded = false }) {
-            choices.forEach { (key, title) -> DropdownMenuItem(text = { Text(title) }, onClick = { choose(key); expanded = false }) }
+            choices.forEach { (key, title) -> DropdownMenuItem(text = { Text(tr(title)) }, onClick = { choose(key); expanded = false }) }
         }
     }
 }

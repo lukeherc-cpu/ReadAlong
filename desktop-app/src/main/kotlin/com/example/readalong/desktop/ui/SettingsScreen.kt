@@ -2,6 +2,7 @@
 
 package com.example.readalong.desktop.ui
 
+import com.example.readalong.domain.i18n.tr
 import androidx.compose.foundation.*
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
@@ -25,11 +26,14 @@ import androidx.compose.ui.unit.dp
 import com.example.readalong.desktop.core.AppPaths
 import com.example.readalong.desktop.core.UpdateStatus
 import com.example.readalong.desktop.transcription.SpeechModels
+import com.example.readalong.desktop.transcription.TranscriptionLanguages
+import com.example.readalong.desktop.core.AppLanguage
+import com.example.readalong.domain.i18n.Translations
 import kotlinx.coroutines.launch
 
 /**
- * Settings, laid out like the phone's: the tip jar, Appearance, Playback, Transcription (ReadAlong), Other and
- * Advanced. Where to transcribe, the language and the speech model sit behind the Transcription (ReadAlong) row.
+ * Settings, laid out like the phone's: the tip jar, Appearance, Playback, Languages, Transcription (ReadAlong), Other
+ * and Advanced. Where to transcribe and the speech model sit behind the Transcription (ReadAlong) row.
  */
 @Composable
 fun SettingsScreen(app: AppState) {
@@ -67,6 +71,24 @@ fun SettingsScreen(app: AppState) {
             Stepper("Rewind", "ic_rewind", settings.skipBackSeconds) { v -> save { it.copy(skipBackSeconds = v) } }
             Stepper("Forward", "ic_forward", settings.skipForwardSeconds) { v -> save { it.copy(skipForwardSeconds = v) } }
             Hint("Keyboard: Space plays and pauses, ← and → skip, Esc goes back, ${AppPaths.shortcutKey}F searches the text.")
+        }
+
+        SectionLabel("Languages")
+        SettingsGroup {
+            SettingsRow("Audiobook language", "ic_globe", summary = "The language ReadAlong transcribes in. Whisper knows ${TranscriptionLanguages.whisper.size}.",
+                onClick = { app.languageTab = 0; app.open(Screen.LanguageSettings) }) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(tr(languageName(settings.language)), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Chevron()
+                }
+            }
+            SettingsRow("App language", "ic_globe", summary = "Menus, buttons and messages",
+                onClick = { app.languageTab = 1; app.open(Screen.LanguageSettings) }) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(tr(AppLanguage.name(settings.appLanguage)), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Chevron()
+                }
+            }
         }
 
         SectionLabel("Transcription (ReadAlong)")
@@ -124,7 +146,7 @@ fun SettingsScreen(app: AppState) {
         }
 
         if (settings.tipJarInOther) TipJarSection(true) { move -> save { it.copy(tipJarInOther = move) } }
-        Text("ReadAlong for ${AppPaths.platformName} ${System.getProperty("readalong.version") ?: "dev"}", Modifier.fillMaxWidth().padding(top = 8.dp),
+        Text(tr("ReadAlong for ${AppPaths.platformName} ${System.getProperty("readalong.version") ?: "dev"}"), Modifier.fillMaxWidth().padding(top = 8.dp),
             style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
     }
 }
@@ -141,29 +163,26 @@ fun TranscriptionSettingsScreen(app: AppState) {
         val gpus = devices.orEmpty().filter { it.isGpu }
         SettingsGroup {
             Column(Modifier.padding(18.dp)) {
-                Text(when {
+                Text(tr(when {
                     devices == null -> "Checking this computer's graphics card…"
                     gpus.isEmpty() -> "No graphics card that ReadAlong can use was found, so it transcribes on the processor. Updating the graphics driver can help."
                     else -> "Graphics card: " + gpus.joinToString { "${it.description.ifBlank { it.name }} (${it.backend}${if (it.memoryTotal > 0) ", ${it.memoryTotal / (1L shl 30)} GB" else ""})" }
-                }, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(14.dp))
-                Text("Run on", style = MaterialTheme.typography.labelLarge)
+                Text(tr("Run on"), style = MaterialTheme.typography.labelLarge)
                 Spacer(Modifier.height(8.dp))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf("auto" to "Graphics card if available", "cpu" to "Processor only").forEach { (key, label) ->
-                        FilterChip(settings.device == key || (key == "auto" && settings.device == "gpu"), { app.settingsStore.update { it.copy(device = key) } }, { Text(label) })
+                        FilterChip(settings.device == key || (key == "auto" && settings.device == "gpu"), { app.settingsStore.update { it.copy(device = key) } }, { Text(tr(label)) })
                     }
                 }
             }
             PreferenceSwitch("Aggressive transcription", settings.aggressive, "ic_speed") { v -> app.settingsStore.update { it.copy(aggressive = v) } }
             Hint("Uses the graphics card and the processor together, several parts of the book at once, with quicker decoding. Books finish several times sooner; the fans will spin up while it works.")
-            Column(Modifier.padding(start = 18.dp, end = 18.dp, bottom = 16.dp)) {
-                Text("Language of your audiobooks", style = MaterialTheme.typography.labelLarge)
-                Spacer(Modifier.height(8.dp))
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Languages.forEach { (code, label) ->
-                        FilterChip(settings.language == code, { app.settingsStore.update { it.copy(language = code) } }, { Text(label) })
-                    }
+            SettingsRow("Audiobook language", "ic_globe", summary = "Changed in Settings → Languages", onClick = { app.languageTab = 0; app.open(Screen.LanguageSettings) }) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(tr(languageName(settings.language)), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Chevron()
                 }
             }
         }
@@ -171,7 +190,7 @@ fun TranscriptionSettingsScreen(app: AppState) {
         SectionLabel("Speech model")
         val default = app.transcription.defaultModel()
         val chosen = app.transcription.model()
-        SpeechModels.all.filter { settings.language == "en" || !it.englishOnly }.forEach { model ->
+        SpeechModels.all.filter { SpeechModels.supports(it, settings.language) }.forEach { model ->
             val progress = downloads[model.id]
             val selected = chosen.id == model.id
             Surface(Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.large))
@@ -185,29 +204,102 @@ fun TranscriptionSettingsScreen(app: AppState) {
                     Spacer(Modifier.width(8.dp))
                     Column(Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(model.name, style = MaterialTheme.typography.titleSmall)
+                            Text(tr(model.name), style = MaterialTheme.typography.titleSmall)
                             if (model.id == default.id) {
                                 Spacer(Modifier.width(8.dp))
-                                Text("Default", Modifier.background(MaterialTheme.colorScheme.primary, CircleShape).padding(horizontal = 8.dp, vertical = 2.dp),
+                                Text(tr("Default"), Modifier.background(MaterialTheme.colorScheme.primary, CircleShape).padding(horizontal = 8.dp, vertical = 2.dp),
                                     style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimary)
                             }
                         }
-                        Text(model.summary + " ${model.sizeBytes / 1_000_000} MB.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(tr(model.summary + " ${model.sizeBytes / 1_000_000} MB."), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         if (progress != null) { Spacer(Modifier.height(8.dp)); ProgressLine(progress) }
                     }
                     when {
-                        progress != null -> Text("${(progress * 100).toInt()}%", style = MaterialTheme.typography.labelLarge)
+                        progress != null -> Text(tr("${(progress * 100).toInt()}%"), style = MaterialTheme.typography.labelLarge)
                         // The default downloads by itself and is kept, so the first book never waits on a manual step.
-                        model.id == default.id -> Text(if (model.id in installed) "Ready" else "Downloading soon", style = MaterialTheme.typography.labelLarge,
+                        model.id == default.id -> Text(tr(if (model.id in installed) "Ready" else "Downloading soon"), style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 12.dp))
-                        model.id in installed -> TextButton({ app.models.delete(model) }) { Text("Delete") }
-                        else -> TextButton({ scope.launch { runCatching { app.models.download(model) }.onFailure { app.messages.emit(it.message ?: "Download failed.") } } }) { Text("Download") }
+                        model.id in installed -> TextButton({ app.models.delete(model) }) { Text(tr("Delete")) }
+                        else -> TextButton({ scope.launch { runCatching { app.models.download(model) }.onFailure { app.messages.emit(it.message ?: "Download failed.") } } }) { Text(tr("Download")) }
                     }
                 }
             }
         }
-        Text("${default.name} downloads by itself, so your first book can start straight away. The others download from Hugging Face the first time they're used, then work offline.",
+        Text(tr("${default.name} downloads by itself, so your first book can start straight away. The others download from Hugging Face the first time they're used, then work offline."),
             Modifier.padding(horizontal = 6.dp), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+/**
+ * Settings → Languages: the language books are transcribed in, from every language Whisper knows, with a search box.
+ * Choosing one the speech model can't do (German with an English-only model) moves to a model that can.
+ */
+@Composable
+fun LanguageSettingsScreen(app: AppState) {
+    val settings by app.settingsStore.settings.collectAsState()
+    var query by remember { mutableStateOf("") }
+    SettingsPage("Languages", "Back to Settings (Esc)", app) {
+        TabRow(app.languageTab, containerColor = Color.Transparent) {
+            Tab(app.languageTab == 0, { app.languageTab = 0 }, text = { Text(tr("Book transcription")) })
+            Tab(app.languageTab == 1, { app.languageTab = 1 }, text = { Text(tr("App language")) })
+        }
+        if (app.languageTab == 1) {
+            Text(tr("The language of ReadAlong's menus, buttons and messages. Your books keep their own language."), Modifier.padding(horizontal = 6.dp),
+                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            SettingsGroup {
+                (listOf(AppLanguage.SYSTEM) + Translations.languages).forEach { code -> key(code) {
+                    LanguageChoice(settings.appLanguage == code, AppLanguage.name(code),
+                        if (code == AppLanguage.SYSTEM) "Follows your computer's language when ReadAlong has it" else null) {
+                        app.settingsStore.update { it.copy(appLanguage = code) }
+                    }
+                } }
+            }
+        } else {
+            Text(tr("The language your audiobooks are read in. Choosing it, rather than letting ReadAlong detect it, avoids a wrong guess on a short or quiet passage. ") + tr(
+                "It applies to the next part of a book that's transcribed."), Modifier.padding(horizontal = 6.dp),
+                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth(), singleLine = true, placeholder = { Text(tr("Search ${TranscriptionLanguages.whisper.size} languages")) },
+                leadingIcon = { Icon(AppIcons.get("ic_search"), null, Modifier.size(20.dp)) }, shape = RoundedCornerShape(Corners.large))
+            val needle = query.trim()
+            val shown = TranscriptionLanguages.all.filter { needle.isEmpty() || it.name.contains(needle, true) || Translations.languageName(it.code, it.name).contains(needle, true) ||
+                it.nativeName?.contains(needle, true) == true || it.code.equals(needle, true) }
+            SettingsGroup {
+                if (shown.isEmpty()) Text(tr("No language matches \"$needle\"."), Modifier.padding(18.dp), style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                shown.forEach { language -> key(language.code) {
+                    val note = when {
+                        language.code == TranscriptionLanguages.AUTO -> "Works out the language from each part of the audio"
+                        language.code == "yue" -> listOfNotNull(language.nativeName, "Large v3 Turbo only").joinToString(" · ")
+                        else -> language.nativeName
+                    }
+                    LanguageChoice(settings.language == language.code, if (language.code == TranscriptionLanguages.AUTO) language.name else Translations.languageName(language.code, language.name), note,
+                        tag = if (language.code in TranscriptionLanguages.whistle) "Also on the phone" else null) {
+                        app.settingsStore.update { it.copy(language = language.code) }
+                    }
+                } }
+            }
+            Text(tr("Books in any of these languages can be made here and read along on a linked phone. The phone's own speech model, Cactus Whistle, ") + tr(
+                "transcribes the ones marked \"Also on the phone\". Languages other than English use a model for every language: Tiny, or Large v3 Turbo with a graphics card."),
+                Modifier.padding(horizontal = 6.dp), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+/** One radio row on the Languages page. */
+@Composable
+private fun LanguageChoice(chosen: Boolean, name: String, note: String?, tag: String? = null, onClick: () -> Unit) {
+    val interaction = remember { MutableInteractionSource() }
+    val hovered by interaction.collectIsHoveredAsState()
+    Row(Modifier.fillMaxWidth().heightIn(min = 52.dp).hoverable(interaction)
+        .clickable(interaction, null, onClick = onClick).pointerHoverIcon(PointerIcon.Hand)
+        .background(if (hovered) MaterialTheme.colorScheme.onSurface.copy(alpha = .05f) else Color.Transparent)
+        .padding(horizontal = 18.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        RadioButton(chosen, null)
+        Column(Modifier.weight(1f)) {
+            Text(tr(name), style = MaterialTheme.typography.bodyLarge)
+            note?.let { Text(tr(it), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        }
+        tag?.let { Text(tr(it), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
     }
 }
 
@@ -239,8 +331,8 @@ private fun TipJarSection(inOther: Boolean, onMove: (Boolean) -> Unit) {
                 .padding(20.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 Icon(AppIcons.get("ic_tip_jar"), null, Modifier.size(width = 48.dp, height = 60.dp), tint = colors.primary)
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Tip jar", style = MaterialTheme.typography.titleLarge, color = colors.onSurface)
-                    Text("Support the development of ReadAlong", style = MaterialTheme.typography.bodySmall, color = colors.primary)
+                    Text(tr("Tip jar"), style = MaterialTheme.typography.titleLarge, color = colors.onSurface)
+                    Text(tr("Support the development of ReadAlong"), style = MaterialTheme.typography.bodySmall, color = colors.primary)
                 }
                 Icon(AppIcons.get("ic_chevron_right"), null, Modifier.size(24.dp), tint = colors.onSurface)
             }
@@ -248,7 +340,7 @@ private fun TipJarSection(inOther: Boolean, onMove: (Boolean) -> Unit) {
         Row(Modifier.toggleable(inOther, role = Role.Checkbox, onValueChange = onMove).pointerHoverIcon(PointerIcon.Hand).padding(8.dp),
             verticalAlignment = Alignment.CenterVertically) {
             Checkbox(inOther, null)
-            Text("Move tip jar to the bottom of Settings", Modifier.padding(start = 10.dp), style = MaterialTheme.typography.bodyMedium)
+            Text(tr("Move tip jar to the bottom of Settings"), Modifier.padding(start = 10.dp), style = MaterialTheme.typography.bodyMedium)
         }
     }
 }
@@ -261,14 +353,14 @@ private fun AppFontRow(value: String, onChoose: (String) -> Unit) {
     Box {
         SettingsRow("App font", "ic_font", onClick = { open = true }) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(name, fontFamily = Fonts.reading(value), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(tr(name), fontFamily = Fonts.reading(value), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Chevron()
             }
         }
         DropdownMenu(open, { open = false }, Modifier.align(Alignment.TopEnd)) {
             Fonts.reading.forEach { (key, label) ->
-                DropdownMenuItem({ Text(label, fontFamily = Fonts.reading(key)) }, { onChoose(key); open = false },
-                    trailingIcon = { if (key == value) Icon(androidx.compose.material.icons.Icons.Rounded.Check, "Selected", Modifier.size(18.dp)) })
+                DropdownMenuItem({ Text(tr(label), fontFamily = Fonts.reading(key)) }, { onChoose(key); open = false },
+                    trailingIcon = { if (key == value) Icon(androidx.compose.material.icons.Icons.Rounded.Check, tr("Selected"), Modifier.size(18.dp)) })
             }
         }
     }
@@ -283,7 +375,7 @@ private fun SettingsPage(title: String, back: String, app: AppState, content: @C
             Row(Modifier.padding(vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                 AppIconButton("ic_back", back, { app.back() })
                 Spacer(Modifier.width(10.dp))
-                Text(title, style = MaterialTheme.typography.headlineMedium)
+                Text(tr(title), style = MaterialTheme.typography.headlineMedium)
             }
             // The page's full width, like the phone's Settings.
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
@@ -293,8 +385,7 @@ private fun SettingsPage(title: String, back: String, app: AppState, content: @C
     }
 }
 
-private val Languages = listOf("en" to "English", "auto" to "Detect", "de" to "German", "fr" to "French", "es" to "Spanish", "it" to "Italian", "nl" to "Dutch", "pl" to "Polish")
-private fun languageName(code: String) = Languages.firstOrNull { it.first == code }?.second ?: code
+private fun languageName(code: String) = if (code == TranscriptionLanguages.AUTO) "Detect" else Translations.languageName(code, TranscriptionLanguages.name(code))
 
 private fun linkSummary(state: com.example.readalong.desktop.link.LinkState): String = when (state.devices.size) {
     0 -> "Sync transcripts, positions and bookmarks with ReadAlong on your phone"
@@ -304,7 +395,7 @@ private fun linkSummary(state: com.example.readalong.desktop.link.LinkState): St
 
 // Quiet, sentence-case headings so the rows, not the labels, carry the page (as on the phone).
 @Composable private fun SectionLabel(value: String) {
-    Text(value, Modifier.padding(top = 14.dp, start = 6.dp), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Text(tr(value), Modifier.padding(top = 14.dp, start = 6.dp), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
 @Composable private fun SettingsGroup(content: @Composable ColumnScope.() -> Unit) {
@@ -312,7 +403,7 @@ private fun linkSummary(state: com.example.readalong.desktop.link.LinkState): St
 }
 
 @Composable private fun Hint(text: String) {
-    Text(text, Modifier.padding(start = 58.dp, end = 18.dp).padding(bottom = 14.dp), style = MaterialTheme.typography.bodySmall,
+    Text(tr(text), Modifier.padding(start = 58.dp, end = 18.dp).padding(bottom = 14.dp), style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
@@ -331,8 +422,8 @@ private fun linkSummary(state: com.example.readalong.desktop.link.LinkState): St
         .padding(horizontal = 18.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         RowIcon(icon)
         Column(Modifier.weight(1f)) {
-            Text(label, style = MaterialTheme.typography.bodyLarge)
-            summary?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            Text(tr(label), style = MaterialTheme.typography.bodyLarge)
+            summary?.let { Text(tr(it), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
         trailing()
     }
@@ -343,7 +434,7 @@ private fun linkSummary(state: com.example.readalong.desktop.link.LinkState): St
     Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).toggleable(checked, role = Role.Switch, onValueChange = change).pointerHoverIcon(PointerIcon.Hand)
         .padding(horizontal = 18.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         RowIcon(icon)
-        Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+        Text(tr(label), Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
         Switch(checked, null)
     }
 }
@@ -352,9 +443,9 @@ private fun linkSummary(state: com.example.readalong.desktop.link.LinkState): St
     Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 18.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         RowIcon(icon)
-        Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+        Text(tr(label), Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
         OutlinedButton({ onChange((value - 5).coerceAtLeast(5)) }) { Text("−") }
-        Text("$value s", Modifier.width(56.dp), textAlign = TextAlign.Center)
+        Text(tr("$value s"), Modifier.width(56.dp), textAlign = TextAlign.Center)
         OutlinedButton({ onChange((value + 5).coerceAtMost(120)) }) { Text("+") }
     }
 }

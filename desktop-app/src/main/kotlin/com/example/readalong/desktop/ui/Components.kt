@@ -2,6 +2,7 @@
 
 package com.example.readalong.desktop.ui
 
+import com.example.readalong.domain.i18n.tr
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -59,7 +60,7 @@ fun AppIconButton(icon: String, description: String, onClick: () -> Unit, modifi
         Box(modifier.size(size).scale(scale).clip(CircleShape).background(background)
             .hoverable(interaction).clickable(interaction, null, enabled = enabled, onClick = onClick)
             .pointerHoverIcon(PointerIcon.Hand), contentAlignment = Alignment.Center) {
-            Icon(AppIcons.get(icon), description, Modifier.size(iconSize), tint = if (enabled) tint else tint.copy(alpha = .38f))
+            Icon(AppIcons.get(icon), tr(description), Modifier.size(iconSize), tint = if (enabled) tint else tint.copy(alpha = .38f))
         }
     }
 }
@@ -67,7 +68,7 @@ fun AppIconButton(icon: String, description: String, onClick: () -> Unit, modifi
 @Composable
 fun Tooltip(text: String) {
     Surface(shape = RoundedCornerShape(6.dp), color = MaterialTheme.colorScheme.inverseSurface, shadowElevation = 4.dp) {
-        Text(text, Modifier.padding(horizontal = 8.dp, vertical = 4.dp), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.inverseOnSurface)
+        Text(tr(text), Modifier.padding(horizontal = 8.dp, vertical = 4.dp), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.inverseOnSurface)
     }
 }
 
@@ -80,9 +81,9 @@ fun LabeledAction(icon: String, label: String, onClick: () -> Unit, modifier: Mo
     Column(modifier.clip(RoundedCornerShape(Corners.medium)).background(if (hovered) tint.copy(alpha = .08f) else Color.Transparent)
         .hoverable(interaction).clickable(interaction, null, onClick = onClick).pointerHoverIcon(PointerIcon.Hand).padding(horizontal = 14.dp, vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally) {
-        Icon(AppIcons.get(icon), label, Modifier.size(22.dp), tint = tint)
+        Icon(AppIcons.get(icon), tr(label), Modifier.size(22.dp), tint = tint)
         Spacer(Modifier.height(6.dp))
-        Text(label, style = MaterialTheme.typography.labelMedium, color = tint, maxLines = 1)
+        Text(tr(label), style = MaterialTheme.typography.labelMedium, color = tint, maxLines = 1)
     }
 }
 
@@ -131,7 +132,7 @@ fun ProgressLine(fraction: Float, modifier: Modifier = Modifier, color: Color = 
 @Composable
 fun SectionTitle(text: String, modifier: Modifier = Modifier, trailing: @Composable RowScope.() -> Unit = {}) {
     Row(modifier.fillMaxWidth().padding(top = 18.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(text, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(tr(text), style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
         trailing()
     }
 }
@@ -143,7 +144,7 @@ fun PillButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier,
     Button(onClick, modifier.pointerHoverIcon(PointerIcon.Hand), enabled = enabled, colors = colors, shape = CircleShape,
         contentPadding = PaddingValues(horizontal = 18.dp, vertical = 10.dp)) {
         icon?.let { Icon(AppIcons.get(it), null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)) }
-        Text(text, style = MaterialTheme.typography.labelLarge)
+        Text(tr(text), style = MaterialTheme.typography.labelLarge)
     }
 }
 
@@ -158,7 +159,7 @@ fun VolumeSlider(app: AppState, modifier: Modifier = Modifier) {
     val tint = Color.White.copy(alpha = .85f)
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
         Icon(if (muted) Icons.Rounded.VolumeOff else Icons.Rounded.VolumeDown,
-            if (muted) "Unmute (M)" else "Mute (M)",
+            tr(if (muted) "Unmute (M)" else "Mute (M)"),
             Modifier.size(32.dp).clip(CircleShape).clickable { app.player.toggleMute() }.pointerHoverIcon(PointerIcon.Hand).padding(6.dp),
             tint = if (muted) MaterialTheme.colorScheme.primary else tint)
         Spacer(Modifier.width(8.dp))
@@ -202,7 +203,7 @@ fun VolumeSlider(app: AppState, modifier: Modifier = Modifier) {
                         val p = measurable.measure(constraints)
                         layout(p.width, p.height) { p.place(-p.width / 2, 0) }
                     }, shape = RoundedCornerShape(6.dp), color = Color.White, contentColor = Color(0xFF111111)) {
-                    Text("${Math.round(volume * 100)}%", Modifier.padding(horizontal = 7.dp, vertical = 3.dp), style = MaterialTheme.typography.labelSmall)
+                    Text(tr("${Math.round(volume * 100)}%"), Modifier.padding(horizontal = 7.dp, vertical = 3.dp), style = MaterialTheme.typography.labelSmall)
                 }
             }
         }

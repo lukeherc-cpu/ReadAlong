@@ -1,5 +1,6 @@
 package com.example.readalong.ui.launch
 
+import com.example.readalong.domain.i18n.tr
 import android.animation.ValueAnimator
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
@@ -39,7 +40,7 @@ fun LibraryLogo(scanningFolder: String?, transcribing: Boolean = false, animate:
     // Books being added or updated: "Reading books 3 / 30". A routine check with nothing to read keeps the brief "Syncing".
     val label = if (syncCount != null) "Reading books $syncCount" else if (readingFolder) "Reading books" else if (transcribing) "Transcribing" else if (syncNote) "Syncing" else null
     Column(Modifier.widthIn(min = 64.dp).clickable(onClickLabel = "Open the queue", onClick = onClick).semantics(mergeDescendants = true) {
-        contentDescription = "ReadAlong queue"
+        contentDescription = tr("ReadAlong queue")
         stateDescription = if (syncCount != null) "Reading books, ${syncCount.replace(" / ", " of ")}" else if (readingFolder) "Reading books" else if (transcribing) "Transcribing" else scanningFolder?.let { "Syncing $it" } ?: "Library up to date"
     }, horizontalAlignment = Alignment.CenterHorizontally) {
         PageTurnLogo(page, Modifier.size(52.dp))
@@ -47,7 +48,7 @@ fun LibraryLogo(scanningFolder: String?, transcribing: Boolean = false, animate:
         // toolbar doesn't jump when work starts or stops.
         val lineHeight = with(androidx.compose.ui.platform.LocalDensity.current) { 18.sp.toDp() }
         Box(Modifier.heightIn(min = lineHeight), contentAlignment = Alignment.Center) {
-            if (label != null) Text(label, fontSize = 12.sp, lineHeight = 16.sp, maxLines = 1, softWrap = false,
+            if (label != null) Text(tr(label), fontSize = 12.sp, lineHeight = 16.sp, maxLines = 1, softWrap = false,
                 color = MaterialTheme.colorScheme.primary,
                 style = androidx.compose.material3.LocalTextStyle.current.copy(fontFeatureSettings = "tnum", platformStyle = androidx.compose.ui.text.PlatformTextStyle(includeFontPadding = true)))
         }

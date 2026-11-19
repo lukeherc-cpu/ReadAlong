@@ -1,5 +1,6 @@
 package com.example.readalong.ui.player
 
+import com.example.readalong.domain.i18n.tr
 import android.net.Uri
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -67,17 +68,17 @@ internal fun NoTextYet(book: Book, reading: ReadingViewModel, onNotNow: () -> Un
             }
             Text(if (asked) "Being made on $computer" else "No text for this book yet", style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
             if (asked) {
-                Text(when {
+                Text(tr(when {
                     computerJob?.state == com.example.readalong.domain.link.ComputerJob.STOPPED -> computerJob.error ?: "It stopped on $computer. Open ReadAlong there to see why."
                     computerJob?.state == com.example.readalong.domain.link.ComputerJob.WORKING -> "${computerJob.percent}% done. It arrives here when it's finished."
                     else -> "Waiting its turn. It arrives here when it's finished."
-                }, style = MaterialTheme.typography.bodySmall, color = ink.copy(alpha = .62f), textAlign = TextAlign.Center, modifier = Modifier.testTag("computer_job"))
-                TextButton(onClick = { app.applicationScope.launch { app.folderLink.cancelOnComputer(book.id) } }) { Text("Make it another way") }
+                }), style = MaterialTheme.typography.bodySmall, color = ink.copy(alpha = .62f), textAlign = TextAlign.Center, modifier = Modifier.testTag("computer_job"))
+                TextButton(onClick = { app.applicationScope.launch { app.folderLink.cancelOnComputer(book.id) } }) { Text(tr("Make it another way")) }
             } else if (!book.isDemo) Button(onClick = { choosing = true }, modifier = Modifier.heightIn(min = 48.dp).testTag("make_readalong_cover")) {
-                Text("Make a ReadAlong")
+                Text(tr("Make a ReadAlong"))
             }
-            if (!asked) Text("From the matching EPUB or the audio", style = MaterialTheme.typography.bodySmall, color = ink.copy(alpha = .62f), textAlign = TextAlign.Center)
-            TextButton(onClick = onNotNow, modifier = Modifier.testTag("not_right_now")) { Text("Not right now") }
+            if (!asked) Text(tr("From the matching EPUB or the audio"), style = MaterialTheme.typography.bodySmall, color = ink.copy(alpha = .62f), textAlign = TextAlign.Center)
+            TextButton(onClick = onNotNow, modifier = Modifier.testTag("not_right_now")) { Text(tr("Not right now")) }
         }
     }
     if (choosing) MakeReadAlongSheet(reading) { choosing = false }
@@ -96,7 +97,7 @@ private fun MakeReadAlongSheet(reading: ReadingViewModel, onDismiss: () -> Unit)
     }
     val colors = MaterialTheme.colorScheme
     com.example.readalong.ui.components.IllustratedDialog("Make a ReadAlong", { if (!busy) onDismiss() }, centered = true, actions = {}) {
-        Text("Read the words as they're spoken. Pick where the text comes from.", style = MaterialTheme.typography.bodyMedium,
+        Text(tr("Read the words as they're spoken. Pick where the text comes from."), style = MaterialTheme.typography.bodyMedium,
             color = colors.onSurfaceVariant, textAlign = TextAlign.Center)
         com.example.readalong.ui.importing.SourceButton(colors.primary to colors.onPrimary, R.drawable.ic_book,
             if (epub != null) "Use my matching EPUB" else "Add the matching EPUB", "Exact text from your EPUB. Best results.", !busy,
@@ -180,7 +181,7 @@ internal fun ReadAlongStatusPill(book: Book, job: ProcessingJobEntity?, estimate
             Box(Modifier.size(36.dp).clip(androidx.compose.foundation.shape.CircleShape)
                 .clickable(onClickLabel = if (open) "Minimize" else "Show ReadAlong progress") { open = !open }
                 .testTag("readalong_ring")
-                .semantics { contentDescription = if (open) "Minimize ReadAlong progress" else label },
+                .semantics { contentDescription = tr(if (open) "Minimize ReadAlong progress" else label) },
                 contentAlignment = Alignment.Center) {
                 val ring = lerp(20.dp, 17.dp, grow)
                 if (active && !waitingForCharging) CircularProgressIndicator(progress = { percent / 100f }, modifier = Modifier.size(ring), strokeWidth = 2.dp,
@@ -199,7 +200,7 @@ internal fun ReadAlongStatusPill(book: Book, job: ProcessingJobEntity?, estimate
                 .then(if (open) Modifier.clickable(onClickLabel = label, onClick = tap) else Modifier)
                 .testTag("readalong_label"),
                 contentAlignment = Alignment.CenterStart) {
-                Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis,
+                Text(tr(label), style = MaterialTheme.typography.labelLarge, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(start = 2.dp, end = 14.dp).graphicsLayer { alpha = ((grow - .35f) / .65f).coerceIn(0f, 1f) })
             }
         }
@@ -211,18 +212,18 @@ internal fun ReadAlongStatusPill(book: Book, job: ProcessingJobEntity?, estimate
 private fun StoppedReadAlongDialog(job: ProcessingJobEntity, percent: Int, diagnostics: String?, onRetry: () -> Unit, onRebuild: () -> Unit, onDismiss: () -> Unit) {
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
     var copied by remember { mutableStateOf(false) }
-    AlertDialog(onDismissRequest = onDismiss, title = { Text("ReadAlong stopped") },
+    AlertDialog(onDismissRequest = onDismiss, title = { Text(tr("ReadAlong stopped")) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                job.message?.let { Text(it) }
-                Text("Try again continues from $percent%. Rebuild makes this book's ReadAlong again from the start; the text you have stays until it's replaced.",
+                job.message?.let { Text(tr(it)) }
+                Text(tr("Try again continues from $percent%. Rebuild makes this book's ReadAlong again from the start; the text you have stays until it's replaced."),
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (diagnostics != null) TextButton(onClick = { clipboard.setText(androidx.compose.ui.text.AnnotatedString(diagnostics)); copied = true },
-                    contentPadding = PaddingValues(0.dp)) { Text(if (copied) "Error details copied" else "Copy error details") }
+                    contentPadding = PaddingValues(0.dp)) { Text(tr(if (copied) "Error details copied" else "Copy error details")) }
             }
         },
-        confirmButton = { TextButton(onClick = onRetry) { Text("Try again") } },
-        dismissButton = { TextButton(onClick = onRebuild) { Text("Rebuild") } })
+        confirmButton = { TextButton(onClick = onRetry) { Text(tr("Try again")) } },
+        dismissButton = { TextButton(onClick = onRebuild) { Text(tr("Rebuild")) } })
 }
 
 /** "About 1 h 48 min remaining" → "1h 48m"; null while there's no estimate yet. */

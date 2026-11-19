@@ -9,6 +9,9 @@ on:
       tests:
         description: "Instrumentation class (or class#method)"
         default: "com.example.readalong.LiveSyncScrollTest"
+      unit_tests:
+        description: "Also run these JVM unit tests first (a Gradle --tests filter, e.g. com.example.readalong.ui.widget.*)"
+        default: ""
 
 jobs:
   emulator:
@@ -28,6 +31,10 @@ jobs:
           sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
 
       - uses: gradle/actions/setup-gradle@v4
+
+      - name: Unit tests
+        if: ${{ github.event.inputs.unit_tests != '' }}
+        run: ./gradlew --no-configuration-cache testGithubDebugUnitTest --tests "${{ github.event.inputs.unit_tests }}"
 
       - name: Build app and tests
         run: ./gradlew --no-configuration-cache assembleGithubDebug assembleGithubDebugAndroidTest
@@ -51,6 +58,7 @@ jobs:
             adb shell am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS || true
             adb install -r -g app/build/outputs/apk/github/debug/app-github-debug.apk
             adb install -r -g app/build/outputs/apk/androidTest/github/debug/app-github-debug-androidTest.apk
+            adb shell appwidget grantbind --package com.example.readalong --user 0 || true
             adb shell am instrument -w -r -e class "${{ github.event.inputs.tests || 'com.example.readalong.LiveSyncScrollTest' }}" com.example.readalong.test/androidx.test.runner.AndroidJUnitRunner | tee instrument.txt
             mkdir -p verification; adb pull /sdcard/Android/data/com.example.readalong/files/. verification/ || true
             adb logcat -d -s LiveSyncScrollTest:I ReadAlong:* AndroidRuntime:E > verification/logcat.txt || true
