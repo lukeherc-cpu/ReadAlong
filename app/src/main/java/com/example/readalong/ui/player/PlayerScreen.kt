@@ -168,14 +168,21 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
         Box(Modifier.fillMaxSize().padding(if (landscape) PaddingValues(horizontal = sideIn, vertical = edgeIn) else insets)) {
         Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
             if (!landscape) topBar()
-            BoxWithConstraints(Modifier.weight(1f).widthIn(max = 960.dp).fillMaxWidth().padding(horizontal = if (landscape) 0.dp else 24.dp)) {
-                val wide = maxWidth >= 640.dp
+            BoxWithConstraints(Modifier.weight(1f).widthIn(max = 1600.dp).fillMaxWidth().padding(horizontal = if (landscape) 0.dp else 24.dp)) {
+                // Side by side only when the space is wider than tall: an upright tablet stacks the cover
+                // over the controls like a phone, just bigger, instead of two small halves floating mid-screen.
+                val wide = maxWidth >= 640.dp && maxWidth >= maxHeight
+                // Tablet-sized space (either way up): bigger cover, type and buttons.
+                val large = minOf(maxWidth, maxHeight) >= 560.dp
                 // Sideways on a phone the height is tight, so the controls get smaller type and buttons.
                 val compact = wide && maxHeight < 440.dp
                 // Wide, the screen splits into two equal halves: the cover sits in the middle of the left
                 // half and the controls in the middle of the right half, both centred top to bottom. The
-                // cover fills the height it has, less 20dp above and below (and at most ~45% of the width).
-                val wideCover = minOf(360.dp, maxHeight - if (landscape) 40.dp else 8.dp, maxWidth * 0.45f).coerceAtLeast(160.dp)
+                // cover fills the height it has, less 20dp above and below (and at most about half the width).
+                val wideCover = minOf(if (large) 760.dp else 360.dp, maxHeight - if (landscape) 40.dp else 8.dp, maxWidth * if (large) 0.48f else 0.45f).coerceAtLeast(160.dp)
+                // Upright on a tablet the cover takes the full width, leaving room below for the controls.
+                // (The ReadAlong card is the cover's size, and the full reader keeps the card's column width.)
+                val tallCover = if (large) minOf(maxWidth, maxHeight - 440.dp).coerceAtLeast(300.dp) else (screenHeight * 0.40f).coerceIn(260.dp, 380.dp)
                 val wideControls = maxOf(wideCover, 320.dp).coerceAtMost(maxWidth / 2 - 24.dp)
                 val artwork: @Composable () -> Unit = {
                     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -185,7 +192,7 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                                 TextButton(onClick = onFolders, contentPadding = PaddingValues(0.dp)) { Text("Choose folder again", color = colors.onErrorContainer) }
                             }
                         }
-                        Box(Modifier.widthIn(max = if (wide) wideCover else (screenHeight * 0.40f).coerceIn(260.dp, 380.dp)).fillMaxWidth().aspectRatio(1f)) {
+                        Box(Modifier.widthIn(max = if (wide) wideCover else tallCover).fillMaxWidth().aspectRatio(1f)) {
                         Box(Modifier.fillMaxSize().graphicsLayer {
                                 rotationY = flip
                                 cameraDistance = 16 * density
@@ -217,8 +224,11 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                     }
                 }
                 val controls: @Composable ColumnScope.() -> Unit = {
-                com.example.readalong.ui.components.MarqueeTitle(book.title, Modifier.fillMaxWidth(), if (compact) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.headlineMedium)
-                Text(state.chapterTitle, style = if (compact) MaterialTheme.typography.titleSmall else MaterialTheme.typography.titleMedium, color = colors.onSurfaceVariant,
+                // On a tablet a long title wraps onto a second line instead of scrolling past a clipped edge.
+                if (large) Text(book.title, Modifier.fillMaxWidth(), style = MaterialTheme.typography.headlineLarge, maxLines = 2,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                else com.example.readalong.ui.components.MarqueeTitle(book.title, Modifier.fillMaxWidth(), if (compact) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.headlineMedium)
+                Text(state.chapterTitle, style = if (compact) MaterialTheme.typography.titleSmall else if (large) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium, color = colors.onSurfaceVariant,
                     maxLines = if (wide) 1 else Int.MAX_VALUE, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                 val sliderColors = SliderDefaults.colors(thumbColor = colors.primary, activeTrackColor = colors.primary, inactiveTrackColor = colors.onSurface.copy(alpha = .18f))
                 Slider(
@@ -240,15 +250,15 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                 state.error?.let { Text(it, color = colors.error, style = MaterialTheme.typography.bodySmall) }
 
                 Row(Modifier.fillMaxWidth().padding(vertical = if (wide) 2.dp else 12.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-                    PlayerAction("Rewind ${appSettings.playerBack} seconds", R.drawable.ic_rewind, "${appSettings.playerBack}", { playback.skip(-appSettings.playerBack * 1000L) })
+                    PlayerAction("Rewind ${appSettings.playerBack} seconds", R.drawable.ic_rewind, "${appSettings.playerBack}", { playback.skip(-appSettings.playerBack * 1000L) }, large = large)
                     val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
-                    FilledIconButton(onClick = { haptics.performHapticFeedback(if (state.isPlaying) androidx.compose.ui.hapticfeedback.HapticFeedbackType.ToggleOff else androidx.compose.ui.hapticfeedback.HapticFeedbackType.ToggleOn); playback.toggle() }, modifier = Modifier.size(if (compact) 64.dp else 76.dp), shape = CircleShape) {
-                        com.example.readalong.ui.components.PlayPauseIcon(state.isPlaying, Modifier.size(if (compact) 30.dp else 36.dp))
+                    FilledIconButton(onClick = { haptics.performHapticFeedback(if (state.isPlaying) androidx.compose.ui.hapticfeedback.HapticFeedbackType.ToggleOff else androidx.compose.ui.hapticfeedback.HapticFeedbackType.ToggleOn); playback.toggle() }, modifier = Modifier.size(if (compact) 64.dp else if (large) 92.dp else 76.dp), shape = CircleShape) {
+                        com.example.readalong.ui.components.PlayPauseIcon(state.isPlaying, Modifier.size(if (compact) 30.dp else if (large) 42.dp else 36.dp))
                     }
-                    PlayerAction("Forward ${appSettings.playerForward} seconds", R.drawable.ic_forward, "${appSettings.playerForward}", { playback.skip(appSettings.playerForward * 1000L) })
+                    PlayerAction("Forward ${appSettings.playerForward} seconds", R.drawable.ic_forward, "${appSettings.playerForward}", { playback.skip(appSettings.playerForward * 1000L) }, large = large)
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    PlayerAction("Playback speed", R.drawable.ic_speed, com.example.readalong.domain.model.speedLabel(state.speed), { panel = "speed" })
+                    PlayerAction("Playback speed", R.drawable.ic_speed, com.example.readalong.domain.model.speedLabel(state.speed), { panel = "speed" }, large = large)
                     // Running timer: the moon fills in and the label counts down.
                     val sleepLeft by produceState<Long?>(null, state.sleepEndsAt) {
                         while (true) { value = state.sleepEndsAt?.let { it - System.currentTimeMillis() }; kotlinx.coroutines.delay(15_000) }
@@ -256,9 +266,9 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                     val sleeping = state.sleepEndsAt != null || state.sleepAtChapterEnd
                     PlayerAction("Sleep timer", if (sleeping) R.drawable.ic_sleep_filled else R.drawable.ic_sleep,
                         when { state.sleepAtChapterEnd -> "End of chapter"; sleepLeft != null -> "${((sleepLeft!! + 59_999) / 60_000).coerceAtLeast(1)} min left"; else -> "Sleep" },
-                        { panel = "sleep" })
-                    PlayerAction("Bookmarks", R.drawable.ic_bookmark, "Bookmark", { panel = "bookmarks" })
-                    PlayerAction("Chapters", R.drawable.ic_chapters, "Chapters", { panel = "chapters" })
+                        { panel = "sleep" }, large = large)
+                    PlayerAction("Bookmarks", R.drawable.ic_bookmark, "Bookmark", { panel = "bookmarks" }, large = large)
+                    PlayerAction("Chapters", R.drawable.ic_chapters, "Chapters", { panel = "chapters" }, large = large)
                 }
                 readingError?.let { Text(it, color = colors.error, style = MaterialTheme.typography.bodySmall) }
                 if (!wide) Spacer(Modifier.height(12.dp))
@@ -269,6 +279,13 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                     Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
                         Column(Modifier.width(wideControls).verticalScroll(androidx.compose.foundation.rememberScrollState()),
                             verticalArrangement = Arrangement.spacedBy(if (compact) 2.dp else 6.dp), content = controls)
+                    }
+                } else if (large) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    // Upright tablet: the cover and the controls share one width and sit centred on the screen.
+                    Column(Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box(Modifier.width(tallCover)) { artwork() }
+                        Column(Modifier.width(tallCover), verticalArrangement = Arrangement.spacedBy(12.dp), content = controls)
                     }
                 } else Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     artwork()
@@ -337,14 +354,14 @@ private fun PlayerPanel(panel: String, book: Book, state: PlaybackState, playbac
 }
 
 @Composable
-private fun PlayerAction(description: String, icon: Int, label: String, onClick: () -> Unit) {
+private fun PlayerAction(description: String, icon: Int, label: String, onClick: () -> Unit, large: Boolean = false) {
     Column(
         Modifier.widthIn(min = 48.dp).heightIn(min = 56.dp).clickable(role = Role.Button, onClickLabel = description, onClick = onClick).padding(4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Icon(painterResource(icon), description, Modifier.size(26.dp))
+        Icon(painterResource(icon), description, Modifier.size(if (large) 30.dp else 26.dp))
         Spacer(Modifier.height(4.dp))
-        Text(label, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+        Text(label, style = if (large) MaterialTheme.typography.labelLarge else MaterialTheme.typography.labelSmall, maxLines = 1)
     }
 }
 
