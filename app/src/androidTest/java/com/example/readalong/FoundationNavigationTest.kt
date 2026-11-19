@@ -157,32 +157,32 @@ class FoundationNavigationTest {
         org.junit.Assert.assertTrue(app.playback.state.value.positionMs >= 12000)
     }
 
-    @Test fun appearanceChangesWaitForRestartConfirmationAndCancelKeepsTheCurrentPalette() {
+    @Test fun appearanceChangesApplyAtOnceWithoutARestart() {
         val app = compose.activity.application as ReadAlongApplication
         val original = kotlinx.coroutines.runBlocking { app.appPreferences.preferences.first() }
-        waitForLibrary()
-        compose.onNodeWithContentDescription("Settings").performClick()
-        compose.onNodeWithContentDescription("Light theme").performClick()
-        compose.onNodeWithText("Restart ReadAlong?").assertIsDisplayed()
-        assertEquals(original.libraryLight, kotlinx.coroutines.runBlocking { app.appPreferences.preferences.first().libraryLight })
-        compose.onNodeWithText("Cancel").performClick()
-        compose.onNodeWithText("Accent color").performClick()
-        compose.onNodeWithText("Orange").performClick()
-        compose.onNodeWithText("Set", substring = false).performClick()
-        compose.onNodeWithText("Restart ReadAlong?").assertIsDisplayed()
-        compose.onNodeWithText("Cancel").performClick()
-        assertEquals(original.basicColor, kotlinx.coroutines.runBlocking { app.appPreferences.preferences.first().basicColor })
+        try {
+            waitForLibrary()
+            compose.onNodeWithContentDescription("Settings").performClick()
+            compose.onNodeWithContentDescription("Light theme").performClick()
+            compose.waitUntil(5000) { kotlinx.coroutines.runBlocking { app.appPreferences.preferences.first().libraryLight != original.libraryLight } }
+            compose.onNodeWithText("Accent color").performScrollTo().performClick()
+            compose.onNodeWithText("Orange").performClick()
+            compose.onNodeWithText("Set", substring = false).performClick()
+            compose.waitUntil(5000) { kotlinx.coroutines.runBlocking { app.appPreferences.preferences.first().basicColor == 0xFFA76535 } }
+            // Still in Settings: nothing asked to restart the app.
+            compose.onNodeWithText("Accent color").assertExists()
+        } finally { kotlinx.coroutines.runBlocking { app.appPreferences.update { original } } }
     }
 
     @Test fun settingsSaveLibraryThemeOpeningViewAndSeparatePreviewFont() {
         val app = compose.activity.application as ReadAlongApplication
         val originalReader = kotlinx.coroutines.runBlocking { app.readerPreferences.preferences.first() }
+        // Starts light whatever the install default is (new installs start dark), so the switch turns it off.
+        kotlinx.coroutines.runBlocking { app.appPreferences.update { it.copy(libraryLight = true) } }
         try {
             waitForLibrary()
             compose.onNodeWithContentDescription("Settings").performClick()
             compose.onNodeWithContentDescription("Light theme").performClick()
-            compose.onNodeWithText("Restart ReadAlong?").assertIsDisplayed()
-            compose.onNodeWithText("Restart").performClick()
             compose.onNodeWithContentDescription("Match mini player to book colors").performClick()
             compose.onNodeWithContentDescription("Follow along").performScrollTo().performClick()
             compose.onNodeWithContentDescription("Open Read Along in full screen").performScrollTo().performClick()
@@ -219,8 +219,6 @@ class FoundationNavigationTest {
             compose.onNodeWithText("Accent color").performScrollTo().performClick()
             compose.onNodeWithText("Orange").performClick()
             compose.onNodeWithText("Set", substring = false).performClick()
-            compose.onNodeWithText("Restart ReadAlong?").assertIsDisplayed()
-            compose.onNodeWithText("Restart").performClick()
             compose.onNodeWithContentDescription("Always use basic color").performScrollTo().performClick()
             compose.onNodeWithText("Player background").performScrollTo().performClick()
             compose.onNodeWithText("Solid color").performClick()

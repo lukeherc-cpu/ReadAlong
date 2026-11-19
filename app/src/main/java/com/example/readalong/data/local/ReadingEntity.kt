@@ -126,6 +126,12 @@ interface ReadingDao {
     /** The EPUB paragraph matched to [atMs], for books read from an EPUB without a transcript. */
     @Query("SELECT p.startMs, p.text FROM epub_paragraphs p INNER JOIN readable_versions v ON v.bookId = p.bookId AND v.activeEditionId = p.editionId WHERE p.bookId = :bookId AND p.startMs <= :atMs ORDER BY p.startMs DESC LIMIT 1")
     suspend fun paragraphAt(bookId: String, atMs: Long): TimedText?
+    /** The sentence being heard at [atMs] and the ones after it, so the Read along widget can fill its space. */
+    @Query("SELECT t.startMs, COALESCE(c.replacement, t.text) AS text FROM transcript_segments t LEFT JOIN transcript_corrections c ON c.bookId = t.bookId AND c.segmentId = t.id AND c.originalText = t.text WHERE t.bookId = :bookId AND t.startMs >= COALESCE((SELECT MAX(startMs) FROM transcript_segments WHERE bookId = :bookId AND startMs <= :atMs), 0) ORDER BY t.startMs ASC LIMIT :limit")
+    suspend fun heardFrom(bookId: String, atMs: Long, limit: Int): List<TimedText>
+    /** The EPUB paragraph matched to [atMs] and the ones after it. */
+    @Query("SELECT p.startMs, p.text FROM epub_paragraphs p INNER JOIN readable_versions v ON v.bookId = p.bookId AND v.activeEditionId = p.editionId WHERE p.bookId = :bookId AND p.startMs >= COALESCE((SELECT MAX(q.startMs) FROM epub_paragraphs q INNER JOIN readable_versions w ON w.bookId = q.bookId AND w.activeEditionId = q.editionId WHERE q.bookId = :bookId AND q.startMs <= :atMs), 0) ORDER BY p.startMs ASC LIMIT :limit")
+    suspend fun paragraphsFrom(bookId: String, atMs: Long, limit: Int): List<TimedText>
 }
 
 data class TranscriptChapter(val chapterId: String, val startMs: Long, val title: String = "")

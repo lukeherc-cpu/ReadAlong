@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A made-up book for the Bookshelf picker preview; each one is tinted a different colour. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="40dp" android:height="56dp" android:viewportWidth="40" android:viewportHeight="56">
+    <path android:fillColor="#FFFFFFFF" android:pathData="M2,0h36a2,2 0,0 1,2 2v52a2,2 0,0 1,-2 2h-36a2,2 0,0 1,-2 -2v-52a2,2 0,0 1,2 -2z" />
+    <path android:fillColor="#40000000" android:pathData="M0,2a2,2 0,0 1,2 -2h2v56h-2a2,2 0,0 1,-2 -2z" />
+    <path android:fillColor="#59FFFFFF" android:pathData="M9,12h24v4h-24z" />
+    <path android:fillColor="#59FFFFFF" android:pathData="M12,20h18v3h-18z" />
+</vector>

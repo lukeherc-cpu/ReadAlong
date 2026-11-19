@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Sizes are in dp rather than cells, so the first size suits dense and roomy home screen grids alike. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
-    android:minWidth="110dp" android:minHeight="110dp" android:targetCellWidth="2" android:targetCellHeight="2"
+    android:minWidth="110dp" android:minHeight="110dp" android:minResizeWidth="100dp" android:minResizeHeight="100dp"
     android:resizeMode="horizontal|vertical" android:widgetCategory="home_screen" android:updatePeriodMillis="0"
-    android:initialLayout="@layout/widget_cover" android:previewLayout="@layout/widget_cover" android:description="@string/widget_cover_description" />
+    android:initialLayout="@layout/widget_cover" android:previewLayout="@layout/widget_cover_preview" android:description="@string/widget_cover_description"
+    android:configure="com.example.readalong.ui.widget.WidgetSetupActivity" android:widgetFeatures="reconfigurable" />

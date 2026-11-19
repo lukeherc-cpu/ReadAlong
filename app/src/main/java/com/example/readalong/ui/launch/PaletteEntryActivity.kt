@@ -13,7 +13,7 @@ open class PaletteEntryActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         // Transfer the selected system splash to the stable activity without drawing an intermediate page.
         splash.setKeepOnScreenCondition { true }
-        startActivity(Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
+        startActivity(Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP).apply { intent.extras?.let { putExtras(it) } })
         finish()
     }
 }

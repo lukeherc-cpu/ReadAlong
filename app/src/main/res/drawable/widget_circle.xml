@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Sized, so an ImageView keeps it round instead of stretching it to fit a narrow slot. -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
+    <size android:width="48dp" android:height="48dp" />
     <solid android:color="#FFFFFFFF" />
 </shape>

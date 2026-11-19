@@ -31,6 +31,17 @@ open class MainActivity : ComponentActivity() {
         if (isFinishing) (application as ReadAlongApplication).playback.pause()
         super.onDestroy()
     }
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        openFromWidget(intent)
+    }
+    /** A Bookshelf or Read along widget tap names the book to open. */
+    private fun openFromWidget(intent: android.content.Intent?) {
+        val id = intent?.getStringExtra(OPEN_BOOK) ?: return
+        intent.removeExtra(OPEN_BOOK)
+        importViewModel.open(id)
+    }
+    companion object { const val OPEN_BOOK = "com.example.readalong.OPEN_BOOK" }
     override fun onCreate(savedInstanceState: Bundle?) {
         val launchSettings = com.example.readalong.ui.launch.LaunchAppearance.read(this)
         setTheme(com.example.readalong.ui.launch.LaunchAppearance.theme(this, launchSettings))
@@ -51,6 +62,7 @@ open class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) { importViewModel.watchFolders() }
         }
+        if (savedInstanceState == null) openFromWidget(intent)
         val animateLaunch = savedInstanceState == null
         setContent {
             var launching by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(animateLaunch) }
