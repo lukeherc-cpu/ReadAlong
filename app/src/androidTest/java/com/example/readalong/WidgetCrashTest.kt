@@ -65,7 +65,7 @@ class WidgetCrashTest {
         runBlocking { Widgets.update(app) }
         val views = runBlocking { Widgets.build(app, setOf(com.example.readalong.ui.widget.ContinueWidget::class.java)) }
         val parcel = android.os.Parcel.obtain()
-        try { views.values.single().writeToParcel(parcel, 0); org.junit.Assert.assertTrue("Bookshelf is ${parcel.dataSize()} bytes" } } finally { parcel.recycle(), parcel.dataSize() < 1_000_000)
+        try { views.values.single().writeToParcel(parcel, 0); org.junit.Assert.assertTrue("Bookshelf is ${parcel.dataSize()} bytes", parcel.dataSize() < 1_000_000) } finally { parcel.recycle() }
     }
 
     @Test fun setupScreenOpensAndChoosesABook() {
