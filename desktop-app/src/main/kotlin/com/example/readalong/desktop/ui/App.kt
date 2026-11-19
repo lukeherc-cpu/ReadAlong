@@ -106,6 +106,9 @@ fun handleKey(app: AppState, event: KeyEvent): Boolean {
         event.key == Key.F && shortcut && app.screen is Screen.Reader -> { app.searchRequests++; true }
         event.key == Key.Escape && app.screen != Screen.Library -> { app.back(); true }
         event.key == Key.Spacebar && !shortcut && app.player.state.value.bookId != null -> { app.player.toggle(); true }
+        event.key == Key.M && !shortcut && app.player.state.value.bookId != null -> { app.player.toggleMute(); true }
+        event.key == Key.DirectionUp && !shortcut && app.screen is Screen.Player -> { app.player.nudgeVolume(.05f); true }
+        event.key == Key.DirectionDown && !shortcut && app.screen is Screen.Player -> { app.player.nudgeVolume(-.05f); true }
         event.key == Key.DirectionLeft && shortcut -> { app.player.skip(-settings.skipBackSeconds * 1000L); true }
         event.key == Key.DirectionRight && shortcut -> { app.player.skip(settings.skipForwardSeconds * 1000L); true }
         event.key == Key.DirectionLeft && app.screen !is Screen.Library -> { app.player.skip(-settings.skipBackSeconds * 1000L); true }
