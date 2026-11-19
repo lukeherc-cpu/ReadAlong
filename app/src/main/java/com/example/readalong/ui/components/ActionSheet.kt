@@ -15,6 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -94,6 +95,27 @@ fun SheetRow(
         if (meta != null) Text(meta, style = MaterialTheme.typography.bodyMedium, color = muted)
         if (on) Icon(painterResource(R.drawable.ic_check), null, Modifier.size(22.dp), tint = colors.primary)
         trailing?.invoke()
+    }
+}
+
+/**
+ * Quick picks laid out four to a row, so every choice is in view (no sideways scrolling). Used by the
+ * speed and sleep timer sheets.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun <T> ChoiceGrid(choices: List<T>, label: (T) -> String, selected: (T) -> Boolean, onPick: (T) -> Unit, modifier: Modifier = Modifier, tag: (T) -> String = { "" }) {
+    Column(modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        choices.chunked(4).forEach { row ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                row.forEach { choice ->
+                    FilterChip(selected(choice), { onPick(choice) }, {
+                        Text(label(choice), Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center, maxLines = 1)
+                    }, Modifier.weight(1f).heightIn(min = 44.dp).testTag(tag(choice)))
+                }
+                repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
+            }
+        }
     }
 }
 

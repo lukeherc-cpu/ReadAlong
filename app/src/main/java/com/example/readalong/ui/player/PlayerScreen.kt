@@ -52,7 +52,6 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
     var menu by remember { mutableStateOf(false) }
     var dragging by remember { mutableStateOf(false) }
     var draggedPosition by remember { mutableFloatStateOf(0f) }
-    val bookmarks by reading.bookmarks.collectAsStateWithLifecycle()
     val timeRemaining by reading.timeRemaining.collectAsStateWithLifecycle()
     val job by reading.processingJob.collectAsStateWithLifecycle()
     val timingRepair by reading.needsAudioTimingRepair.collectAsStateWithLifecycle()
@@ -138,36 +137,25 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                 Box(Modifier.align(Alignment.CenterEnd)) {
                     IconButton(onClick = { menu = true }) { Icon(painterResource(R.drawable.ic_more), "More options") }
                     DropdownMenu(menu, { menu = false }) {
-                        // Adding the book's EPUB later swaps the ReadAlong to its exact text, so it leads the menu.
-                        // Every item has an icon in the same quiet colour; the EPUB item leads, with one line on why.
+                        // Two short groups, one line each and one icon each: listening tools, then the book's files.
+                        // Bookmarks and Listening history live behind the Bookmark button under the player.
                         val menuIcon: @Composable (Int) -> Unit = { Icon(painterResource(it), null, Modifier.size(22.dp), tint = colors.onSurfaceVariant) }
-                        if (!book.isDemo) DropdownMenuItem(
-                            text = {
-                                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                    Text(if (epub != null) "Replace matching EPUB" else "Add matching EPUB")
-                                    Text("Exact text for this ReadAlong", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
-                                }
-                            },
-                            leadingIcon = { menuIcon(R.drawable.ic_book) },
-                            onClick = { menu = false; pickEpub() },
-                            modifier = Modifier.testTag("menu_add_epub"))
-                        if (!book.isDemo) HorizontalDivider(Modifier.padding(horizontal = 12.dp, vertical = 4.dp))
-                        if (!book.isDemo && tipApp != null) DropdownMenuItem(text = { Text("Sound") }, leadingIcon = { menuIcon(R.drawable.ic_headphones) },
-                            onClick = { panel = "sound"; menu = false }, modifier = Modifier.testTag("menu_sound"))
-                        DropdownMenuItem(text = { Text(if (book.isFinished) "Mark as not finished" else "Mark as finished") },
-                            leadingIcon = { menuIcon(if (book.isFinished) R.drawable.ic_undo else R.drawable.ic_check_circle) },
-                            onClick = { onFinished(!book.isFinished); menu = false })
-                        DropdownMenuItem(text = { Text("Save ReadAlong as EPUB") }, leadingIcon = { menuIcon(R.drawable.ic_download) },
-                            onClick = { menu = false; export.launch("ReadAlong-${book.id}.epub") })
-                        DropdownMenuItem(text = { Text("Bookmarks") }, leadingIcon = { menuIcon(R.drawable.ic_bookmark) },
-                            trailingIcon = { if (bookmarks.isNotEmpty()) Text("${bookmarks.size}", style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant) },
-                            onClick = { panel = "bookmarks"; menu = false })
                         if (!book.isDemo) {
-                            DropdownMenuItem(text = { Text("Listening history") }, leadingIcon = { menuIcon(R.drawable.ic_undo) },
-                                onClick = { panel = "history"; menu = false }, modifier = Modifier.testTag("menu_history"))
-                            DropdownMenuItem(text = { Text("Character List") }, leadingIcon = { menuIcon(R.drawable.ic_book) },
+                            if (tipApp != null) DropdownMenuItem(text = { Text("Sound") }, leadingIcon = { menuIcon(R.drawable.ic_headphones) },
+                                onClick = { panel = "sound"; menu = false }, modifier = Modifier.testTag("menu_sound"))
+                            DropdownMenuItem(text = { Text("Character List") }, leadingIcon = { menuIcon(R.drawable.ic_people) },
                                 onClick = { panel = "characters"; menu = false }, modifier = Modifier.testTag("menu_characters"))
+                            HorizontalDivider(Modifier.padding(horizontal = 12.dp, vertical = 4.dp))
+                            DropdownMenuItem(text = { Text(if (epub != null) "Replace matching EPUB" else "Add matching EPUB") },
+                                leadingIcon = { menuIcon(R.drawable.ic_book) },
+                                onClick = { menu = false; pickEpub() },
+                                modifier = Modifier.testTag("menu_add_epub"))
                         }
+                        DropdownMenuItem(text = { Text(if (book.isFinished) "Mark as not finished" else "Mark as finished") },
+                            leadingIcon = { menuIcon(if (book.isFinished) R.drawable.ic_redo else R.drawable.ic_check_circle) },
+                            onClick = { onFinished(!book.isFinished); menu = false })
+                        DropdownMenuItem(text = { Text("Save as EPUB") }, leadingIcon = { menuIcon(R.drawable.ic_download) },
+                            onClick = { menu = false; export.launch("ReadAlong-${book.id}.epub") })
                     }
                 }
             }
@@ -293,11 +281,11 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
     }
     if (showBuffering) LinearProgressIndicator(Modifier.align(Alignment.TopCenter).fillMaxWidth().height(2.dp).semantics { contentDescription = "Buffering audio" })
     }
-    if (panel == "bookmarks") BookmarksDialog(reading, state.positionMs, playback::seek, { panel = null }, state.chapters)
+    if (panel == "bookmarks") BookmarksDialog(reading, state.positionMs, playback::seek, { panel = null }, state.chapters,
+        history = if (book.isDemo) null else book.id, chapterTitle = state.chapterTitle)
     if (panel == "sound" && tipApp != null) com.example.readalong.ui.sound.BookSoundSheet(tipApp, book.id, book.title) { panel = null }
-    if (panel == "history") HistorySheet(book.id, state.positionMs, state.chapterTitle, playback::seek, { panel = null })
     if (panel == "characters") CharacterListSheet(book.id, state.positionMs, state.chapters, playback::seek, { panel = null }, book.title, book.author)
-    if (panel != null && panel !in setOf("bookmarks", "history", "characters", "sound")) PlayerPanel(panel!!, book, state, playback, close = { panel = null })
+    if (panel != null && panel !in setOf("bookmarks", "characters", "sound")) PlayerPanel(panel!!, book, state, playback, close = { panel = null })
     }
 }
 
@@ -308,25 +296,24 @@ private fun PlayerPanel(panel: String, book: Book, state: PlaybackState, playbac
         "speed" -> SpeedSheet(state.speed, book.title, playback::speed, close)
         "sleep" -> {
             val left = state.sleepEndsAt?.let { it - System.currentTimeMillis() }
-            val status = when {
+            val running = when {
                 state.sleepAtChapterEnd -> "Stops at end of chapter"
                 left != null -> "Stops in ${((left + 59_999) / 60_000).coerceAtLeast(1)} min"
                 else -> null
             }
+            // The fade (and shake to restart, when it's on) is said once, as the subtitle.
+            val shake = com.example.readalong.ui.theme.LocalAppSettings.current.shakeToReset
             val chapterLeft = ((state.chapterDurationMs - state.chapterPositionMs) / state.speed.coerceAtLeast(.1f)).toLong()
-            com.example.readalong.ui.components.ActionSheet(close, "Sleep timer", status) {
-                item { com.example.readalong.ui.components.SheetRow("Off", { playback.sleep(null); close() }, selected = status == null) }
-                items(listOf(5, 10, 15, 30, 45, 60)) { minutes ->
-                    com.example.readalong.ui.components.SheetRow("$minutes minutes", { playback.sleep(minutes); close() }, selected = false)
+            com.example.readalong.ui.components.ActionSheet(close, "Sleep timer", running ?: if (shake) "Fades out gently · shake to restart" else "Fades out gently") {
+                item {
+                    // Off, then the times as a grid of chips; End of chapter keeps its own row for its countdown.
+                    com.example.readalong.ui.components.ChoiceGrid(listOf<Int?>(null) + listOf(5, 10, 15, 30, 45, 60),
+                        label = { it?.let { m -> "$m min" } ?: "Off" }, selected = { it == null && running == null },
+                        onPick = { playback.sleep(it); close() }, tag = { "sleep_${it ?: "off"}" })
                 }
                 item {
-                    com.example.readalong.ui.components.SheetRow("End of chapter", { playback.sleepAtChapterEnd(); close() },
+                    com.example.readalong.ui.components.SheetRow("End of chapter", { playback.sleepAtChapterEnd(); close() }, icon = R.drawable.ic_chapters,
                         meta = if (state.sleepAtChapterEnd) null else "in ${hoursMinutes(chapterLeft)}", selected = state.sleepAtChapterEnd)
-                }
-                item {
-                    val shake = com.example.readalong.ui.theme.LocalAppSettings.current.shakeToReset
-                    Text(if (shake) "Fades out over the last 20 seconds. Shake the phone to start the timer again." else "Fades out over the last 20 seconds. Shake to reset is off in Settings → Sleep timer.",
-                        Modifier.padding(horizontal = 24.dp, vertical = 12.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
@@ -372,7 +359,7 @@ internal fun hoursMinutes(ms: Long): String {
     }
 }
 
-/** 0.5× to 3× in 0.05 steps: a slider with − and +, quick picks, and whether this book keeps its own speed. */
+/** 0.5× to 3× in 0.05 steps: − and + beside the number for fine changes, every quick pick in view, and whether this book keeps its own speed. */
 @Composable
 private fun SpeedSheet(speed: Float, title: String, change: (Float) -> Unit, close: () -> Unit) {
     val settings = com.example.readalong.ui.theme.LocalAppSettings.current
@@ -382,27 +369,24 @@ private fun SpeedSheet(speed: Float, title: String, change: (Float) -> Unit, clo
     fun set(next: Float) { value = com.example.readalong.domain.model.roundSpeed(next); change(value) }
     com.example.readalong.ui.components.ActionSheet(close, "Playback speed", if (settings.speedPerBook) "Saved for $title" else "Same for every book") {
         item {
-            Text(com.example.readalong.domain.model.speedLabel(value), Modifier.fillMaxWidth().padding(vertical = 4.dp).testTag("speed_value"),
-                style = MaterialTheme.typography.displaySmall, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-        }
-        item {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedIconButton(onClick = { set(value - .05f) }, Modifier.testTag("speed_down")) { Icon(painterResource(R.drawable.ic_remove), "Slower", Modifier.size(22.dp)) }
-                Slider(value, { value = com.example.readalong.domain.model.roundSpeed(it) }, Modifier.weight(1f).testTag("speed_slider"),
-                    valueRange = com.example.readalong.domain.model.MIN_SPEED..com.example.readalong.domain.model.MAX_SPEED, onValueChangeFinished = { change(value) })
-                OutlinedIconButton(onClick = { set(value + .05f) }, Modifier.testTag("speed_up")) { Icon(painterResource(R.drawable.ic_add), "Faster", Modifier.size(22.dp)) }
-            }
-        }
-        item {
-            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                com.example.readalong.domain.model.SpeedChips.forEach { chip ->
-                    FilterChip(value == chip, { set(chip) }, { Text(com.example.readalong.domain.model.speedLabel(chip)) }, Modifier.testTag("speed_chip_$chip"))
+            Row(Modifier.fillMaxWidth().padding(horizontal = 40.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                OutlinedIconButton(onClick = { set(value - .05f) }, Modifier.size(56.dp).testTag("speed_down"), enabled = value > com.example.readalong.domain.model.MIN_SPEED) {
+                    Icon(painterResource(R.drawable.ic_remove), "Slower", Modifier.size(24.dp))
+                }
+                Text(com.example.readalong.domain.model.speedLabel(value), Modifier.testTag("speed_value"),
+                    style = MaterialTheme.typography.displaySmall.copy(fontFeatureSettings = "tnum"), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                OutlinedIconButton(onClick = { set(value + .05f) }, Modifier.size(56.dp).testTag("speed_up"), enabled = value < com.example.readalong.domain.model.MAX_SPEED) {
+                    Icon(painterResource(R.drawable.ic_add), "Faster", Modifier.size(24.dp))
                 }
             }
         }
+        item {
+            com.example.readalong.ui.components.ChoiceGrid(com.example.readalong.domain.model.SpeedChips, label = { com.example.readalong.domain.model.speedLabel(it) },
+                selected = { kotlin.math.abs(it - value) < .001f }, onPick = { set(it) }, tag = { "speed_chip_$it" })
+        }
         if (app != null) item {
-            com.example.readalong.ui.sound.SoundSwitch("Remember for this book", "Other books keep their own speed", settings.speedPerBook,
-                { on -> scope.launch { app.appPreferences.update { it.copy(speedPerBook = on) } } })
+            com.example.readalong.ui.sound.SoundSwitch("Remember for this book", null, settings.speedPerBook,
+                { on -> scope.launch { app.appPreferences.update { it.copy(speedPerBook = on) } } }, Modifier.padding(horizontal = 8.dp))
         }
     }
 }
