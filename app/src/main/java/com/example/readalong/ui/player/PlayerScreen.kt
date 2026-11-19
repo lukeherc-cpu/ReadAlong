@@ -317,19 +317,14 @@ private fun PlayerPanel(panel: String, book: Book, state: PlaybackState, playbac
         "speed" -> SpeedSheet(state.speed, book.title, playback::speed, close)
         "sleep" -> {
             val left = state.sleepEndsAt?.let { it - System.currentTimeMillis() }
-            val running = when {
-                state.sleepAtChapterEnd -> "Stops at end of chapter"
-                left != null -> "Stops in ${((left + 59_999) / 60_000).coerceAtLeast(1)} min"
-                else -> null
-            }
-            // The fade (and shake to restart, when it's on) is said once, as the subtitle.
-            val shake = com.example.readalong.ui.theme.LocalAppSettings.current.shakeToReset
+            // No subheading: the button under the player already counts down, and the fade is explained in Settings.
+            val running = state.sleepAtChapterEnd || left != null
             val chapterLeft = ((state.chapterDurationMs - state.chapterPositionMs) / state.speed.coerceAtLeast(.1f)).toLong()
-            com.example.readalong.ui.components.ActionSheet(close, "Sleep timer", running ?: if (shake) "Fades out gently · shake to restart" else "Fades out gently") {
+            com.example.readalong.ui.components.ActionSheet(close, "Sleep timer") {
                 item {
                     // Off, then the times as a grid of chips; End of chapter keeps its own row for its countdown.
                     com.example.readalong.ui.components.ChoiceGrid(listOf<Int?>(null) + listOf(5, 10, 15, 30, 45, 60),
-                        label = { it?.let { m -> "$m min" } ?: "Off" }, selected = { it == null && running == null },
+                        label = { it?.let { m -> "$m min" } ?: "Off" }, selected = { it == null && !running },
                         onPick = { playback.sleep(it); close() }, tag = { "sleep_${it ?: "off"}" })
                 }
                 item {
