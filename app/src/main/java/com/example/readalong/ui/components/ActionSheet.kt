@@ -15,6 +15,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -58,7 +59,8 @@ fun ActionSheet(
 /**
  * One row in an [ActionSheet]: optional icon, a label with an optional second line, and quiet meta
  * (a time, a count) on the right. [selected] marks the current choice with a tint and a tick; pass
- * it only for rows that are choices, so screen readers hear them as one.
+ * it only for rows that are choices, so screen readers hear them as one. [highlight] tints the row as the
+ * sheet's main action (an inset accent block), such as Add matching EPUB.
  */
 @Composable
 fun SheetRow(
@@ -72,25 +74,27 @@ fun SheetRow(
     destructive: Boolean = false,
     enabled: Boolean = true,
     weight: FontWeight? = null,
+    highlight: Boolean = false,
     trailing: (@Composable () -> Unit)? = null,
 ) {
     val colors = MaterialTheme.colorScheme
     val on = selected == true
-    val ink = when { destructive -> colors.error; on -> colors.primary; else -> colors.onSurface }
-    val muted = when { destructive -> colors.error; on -> colors.primary; else -> colors.onSurfaceVariant }
+    val ink = when { destructive -> colors.error; on -> colors.primary; highlight -> colors.onPrimaryContainer; else -> colors.onSurface }
+    val muted = when { destructive -> colors.error; on -> colors.primary; highlight -> colors.onPrimaryContainer; else -> colors.onSurfaceVariant }
+    val block = if (highlight) Modifier.padding(horizontal = 12.dp, vertical = 2.dp).clip(RoundedCornerShape(12.dp)).background(colors.primaryContainer) else Modifier
     val press = if (selected != null) Modifier.selectable(on, enabled, role = Role.RadioButton, onClick = onClick)
         else Modifier.clickable(enabled, role = Role.Button, onClick = onClick)
     Row(
-        modifier.fillMaxWidth().heightIn(min = if (supporting != null) 64.dp else 52.dp)
+        modifier.fillMaxWidth().then(block).heightIn(min = if (supporting != null) 64.dp else 52.dp)
             .background(if (on) colors.primary.copy(alpha = .12f) else Color.Transparent)
             .then(press).alpha(if (enabled) 1f else .38f)
-            .padding(start = 24.dp, end = if (trailing != null) 12.dp else 24.dp, top = 8.dp, bottom = 8.dp),
+            .padding(start = if (highlight) 12.dp else 24.dp, end = if (trailing != null || highlight) 12.dp else 24.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         if (icon != null) Icon(painterResource(icon), null, Modifier.size(22.dp), tint = muted)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(tr(text), style = MaterialTheme.typography.bodyLarge, color = ink, fontWeight = weight, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(tr(text), style = MaterialTheme.typography.bodyLarge, color = ink, fontWeight = weight ?: if (highlight) FontWeight.SemiBold else null, maxLines = 2, overflow = TextOverflow.Ellipsis)
             if (supporting != null) Text(tr(supporting), style = MaterialTheme.typography.bodySmall, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         if (meta != null) Text(tr(meta), style = MaterialTheme.typography.bodyMedium, color = muted)

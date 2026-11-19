@@ -115,12 +115,13 @@ fun BookActions(book: Book, model: BookActionsViewModel, onDismiss: () -> Unit) 
         error?.let { Text(tr(it), Modifier.padding(horizontal = 24.dp, vertical = 4.dp), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
         if (busy) LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 4.dp))
     }) {
-        if (!book.isDemo) item { Column {
+        // The matching EPUB first and tinted; everyday rows next; one-time edits and Sound and equalizer
+        // at the bottom, with Delete last.
+        if (!book.isDemo) item {
             com.example.readalong.ui.components.SheetRow(if (epub == null) "Add matching EPUB" else "Replace matching EPUB",
-                { epubPicker.launch(arrayOf("application/epub+zip", "application/octet-stream")) }, icon = R.drawable.ic_book, enabled = !busy)
-            if (soundApp != null) com.example.readalong.ui.components.SheetRow("Sound", { sound = true }, Modifier.testTag("book_sound"),
-                icon = R.drawable.ic_headphones, enabled = !busy)
-        } }
+                { epubPicker.launch(arrayOf("application/epub+zip", "application/octet-stream")) }, Modifier.testTag("book_add_epub"),
+                icon = R.drawable.ic_book, enabled = !busy, highlight = true)
+        }
         if (collectionApp != null) item {
             val inside = collections.filter { book.id in it.bookIds }.sortedBy { it.name.lowercase() }
             com.example.readalong.ui.components.SheetRow("Collections", { collectionsOpen = true }, Modifier.testTag("book_collections_row"), icon = R.drawable.ic_bookshelf,
@@ -128,17 +129,19 @@ fun BookActions(book: Book, model: BookActionsViewModel, onDismiss: () -> Unit) 
                 trailing = { Icon(painterResource(R.drawable.ic_chevron_right), null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant) })
         }
         item { Column {
+            val finish = !book.isFinished
+            val reset = book.section != com.example.readalong.domain.model.LibrarySection.NOT_STARTED
+            if (finish || reset) com.example.readalong.ui.components.SheetDivider()
+            if (finish)
+                com.example.readalong.ui.components.SheetRow("Mark as finished", { model.finished(book); onDismiss() }, icon = R.drawable.ic_check_circle, enabled = !busy)
+            if (reset)
+                com.example.readalong.ui.components.SheetRow("Mark as not started", { model.notStarted(book); onDismiss() }, icon = R.drawable.ic_undo, enabled = !busy)
             com.example.readalong.ui.components.SheetDivider()
             com.example.readalong.ui.components.SheetRow("Edit title and author", { details = true }, Modifier.testTag("book_edit_details"), icon = R.drawable.ic_edit, enabled = !busy)
             com.example.readalong.ui.components.SheetRow("Change cover", { coverChoice = true }, Modifier.testTag("book_change_cover"), icon = R.drawable.ic_image,
                 supporting = "From your files or online", enabled = !busy)
-            com.example.readalong.ui.components.SheetDivider()
-        } }
-        item { Column {
-            if (!book.isFinished)
-                com.example.readalong.ui.components.SheetRow("Mark as finished", { model.finished(book); onDismiss() }, icon = R.drawable.ic_check_circle, enabled = !busy)
-            if (book.section != com.example.readalong.domain.model.LibrarySection.NOT_STARTED)
-                com.example.readalong.ui.components.SheetRow("Mark as not started", { model.notStarted(book); onDismiss() }, icon = R.drawable.ic_undo, enabled = !busy)
+            if (!book.isDemo && soundApp != null) com.example.readalong.ui.components.SheetRow("Sound and equalizer", { sound = true }, Modifier.testTag("book_sound"),
+                icon = R.drawable.ic_headphones, enabled = !busy)
             com.example.readalong.ui.components.SheetRow("Delete book", { delete = true }, icon = R.drawable.ic_trash, destructive = true, enabled = !busy)
         } }
     }

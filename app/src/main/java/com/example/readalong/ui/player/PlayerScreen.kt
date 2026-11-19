@@ -6,6 +6,8 @@ import androidx.compose.animation.core.tween
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.background
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.verticalScroll
@@ -138,25 +140,27 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                 Box(Modifier.align(Alignment.CenterEnd)) {
                     IconButton(onClick = { menu = true }) { Icon(painterResource(R.drawable.ic_more), tr("More options")) }
                     DropdownMenu(menu, { menu = false }) {
-                        // Two short groups, one line each and one icon each: listening tools, then the book's files.
-                        // Bookmarks and Listening history live behind the Bookmark button under the player.
+                        // The matching EPUB comes first and tinted, since it's what turns an audiobook into a ReadAlong.
+                        // Sound and equalizer sits last. Bookmarks and Listening history live behind the Bookmark button.
                         val menuIcon: @Composable (Int) -> Unit = { Icon(painterResource(it), null, Modifier.size(22.dp), tint = colors.onSurfaceVariant) }
                         if (!book.isDemo) {
-                            if (tipApp != null) DropdownMenuItem(text = { Text(tr("Sound")) }, leadingIcon = { menuIcon(R.drawable.ic_headphones) },
-                                onClick = { panel = "sound"; menu = false }, modifier = Modifier.testTag("menu_sound"))
+                            DropdownMenuItem(text = { Text(tr(if (epub != null) "Replace matching EPUB" else "Add matching EPUB"), fontWeight = FontWeight.SemiBold) },
+                                leadingIcon = { Icon(painterResource(R.drawable.ic_book), null, Modifier.size(22.dp)) },
+                                onClick = { menu = false; pickEpub() },
+                                colors = MenuDefaults.itemColors(textColor = colors.onPrimaryContainer, leadingIconColor = colors.onPrimaryContainer),
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp).clip(RoundedCornerShape(12.dp))
+                                    .background(colors.primaryContainer).testTag("menu_add_epub"))
                             DropdownMenuItem(text = { Text(tr("Character List")) }, leadingIcon = { menuIcon(R.drawable.ic_people) },
                                 onClick = { panel = "characters"; menu = false }, modifier = Modifier.testTag("menu_characters"))
                             HorizontalDivider(Modifier.padding(horizontal = 12.dp, vertical = 4.dp))
-                            DropdownMenuItem(text = { Text(tr(if (epub != null) "Replace matching EPUB" else "Add matching EPUB")) },
-                                leadingIcon = { menuIcon(R.drawable.ic_book) },
-                                onClick = { menu = false; pickEpub() },
-                                modifier = Modifier.testTag("menu_add_epub"))
                         }
                         DropdownMenuItem(text = { Text(tr(if (book.isFinished) "Mark as not finished" else "Mark as finished")) },
                             leadingIcon = { menuIcon(if (book.isFinished) R.drawable.ic_redo else R.drawable.ic_check_circle) },
                             onClick = { onFinished(!book.isFinished); menu = false })
                         DropdownMenuItem(text = { Text(tr("Save as EPUB")) }, leadingIcon = { menuIcon(R.drawable.ic_download) },
                             onClick = { menu = false; export.launch("ReadAlong-${book.id}.epub") })
+                        if (!book.isDemo && tipApp != null) DropdownMenuItem(text = { Text(tr("Sound and equalizer")) }, leadingIcon = { menuIcon(R.drawable.ic_headphones) },
+                            onClick = { panel = "sound"; menu = false }, modifier = Modifier.testTag("menu_sound"))
                     }
                 }
             }
