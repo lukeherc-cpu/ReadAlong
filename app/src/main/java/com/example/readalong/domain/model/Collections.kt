@@ -39,15 +39,14 @@ fun collectionRows(collections: List<BookCollection>, books: List<Book>, sort: L
 
 const val NOT_IN_A_COLLECTION = "Not in a collection"
 
-/** "3 books · 1 started · 2 new", for a collection's row. */
+/** "3 books · 1 started" (or "· all finished"), for a collection's row: two parts at most, so it fits on one line. */
 fun collectionSummary(books: List<Book>): String {
     val started = books.count { it.section == LibrarySection.CURRENT }
     val finished = books.count { it.section == LibrarySection.FINISHED }
-    val fresh = books.size - started - finished
-    return buildList {
-        add(if (books.size == 1) "1 book" else "${books.size} books")
-        if (started > 0) add("$started started")
-        if (fresh > 0 && fresh != books.size) add("$fresh new")
-        if (finished > 0) add(if (finished == books.size) "all finished" else "$finished finished")
-    }.joinToString(" · ")
+    val count = if (books.size == 1) "1 book" else "${books.size} books"
+    return when {
+        started > 0 -> "$count · $started started"
+        books.isNotEmpty() && finished == books.size -> "$count · all finished"
+        else -> count
+    }
 }

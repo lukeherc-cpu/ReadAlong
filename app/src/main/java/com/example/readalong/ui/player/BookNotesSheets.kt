@@ -37,17 +37,29 @@ fun HistorySheet(bookId: String, positionMs: Long, chapterTitle: String, seek: (
     val repository = notes(LocalContext.current) ?: return
     val entries by remember(bookId) { repository.history(bookId) }.collectAsStateWithLifecycle(emptyList())
     ActionSheet(close, "Listening history", if (entries.isEmpty()) null else "Your last ${entries.size} jumps") {
-        item { SheetRow("Now", {}, icon = R.drawable.ic_headphones, supporting = chapterTitle, meta = clockTime(positionMs), selected = true) }
-        if (entries.isEmpty()) item {
-            Text(tr("Skips, chapter changes and other jumps show up here, so you can go back if one was a mistake."),
-                Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp),
-                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        items(entries, key = { "${it.savedAt}:${it.positionMs}" }) { entry ->
-            SheetRow(entry.kind.label, { seek(entry.positionMs); close() }, Modifier.testTag("history_entry"), icon = R.drawable.ic_undo,
-                supporting = listOf(entry.chapterTitle, ago(entry.savedAt)).filter { it.isNotBlank() }.joinToString(" · "),
-                meta = clockTime(entry.positionMs))
-        }
+        historyItems(entries, positionMs, chapterTitle, seek, close)
+    }
+}
+
+/** The book's recent jumps, newest first, under a "Now" row. Shared by the Bookmarks sheet's History tab. */
+@Composable
+internal fun rememberHistory(bookId: String): State<List<com.example.readalong.domain.model.HistoryEntry>> {
+    val repository = notes(LocalContext.current)
+    return remember(bookId, repository) { repository?.history(bookId) ?: kotlinx.coroutines.flow.flowOf(emptyList()) }.collectAsStateWithLifecycle(emptyList())
+}
+
+internal fun androidx.compose.foundation.lazy.LazyListScope.historyItems(entries: List<com.example.readalong.domain.model.HistoryEntry>, positionMs: Long, chapterTitle: String,
+    seek: (Long) -> Unit, close: () -> Unit) {
+    item { SheetRow("Now", {}, icon = R.drawable.ic_headphones, supporting = chapterTitle, meta = clockTime(positionMs), selected = true) }
+    if (entries.isEmpty()) item {
+        Text(tr("Skips and chapter changes show up here, so you can go back."),
+            Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp),
+            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+    items(entries, key = { "${it.savedAt}:${it.positionMs}" }) { entry ->
+        SheetRow(entry.kind.label, { seek(entry.positionMs); close() }, Modifier.testTag("history_entry"), icon = R.drawable.ic_history,
+            supporting = listOf(entry.chapterTitle, ago(entry.savedAt)).filter { it.isNotBlank() }.joinToString(" · "),
+            meta = clockTime(entry.positionMs))
     }
 }
 
@@ -101,15 +113,13 @@ fun CharacterListSheet(bookId: String, positionMs: Long, chapters: List<Playback
             item { SheetDivider() }
             item {
                 Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(tr("Suggested from the text so far"), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                    Text(tr("Heard so far"), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(Modifier.horizontalScroll(rememberScrollState()).testTag("character_suggestions"), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         suggestions.forEach { suggestion ->
                             AssistChip(onClick = { scope.launch { repository.saveCharacter(bookId, CharacterEntry(BookNotesRepository.newId(), suggestion.name, firstMs = suggestion.firstMs)) } },
                                 label = { Text(suggestion.name) }, leadingIcon = { Icon(painterResource(R.drawable.ic_add), null, Modifier.size(18.dp)) })
                         }
                     }
-                    Text(tr("Names that come up often, up to where you are. Tap one to add it."),
-                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }

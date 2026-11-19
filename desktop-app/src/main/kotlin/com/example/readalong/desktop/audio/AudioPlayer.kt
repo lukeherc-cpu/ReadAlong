@@ -111,6 +111,15 @@ class AudioPlayer(private val scope: CoroutineScope, private val library: Librar
         commands += Speed(s)
     }
     fun setVolume(volume: Float) { settings.update { it.copy(volume = volume.coerceIn(0f, 1f)) }; applyVolume() }
+    /** The level to go back to when unmuting; this session only. */
+    private var volumeBeforeMute = 1f
+    /** Mutes, or brings back the level from before muting. */
+    fun toggleMute() {
+        val now = settings.value.volume
+        if (now < .01f) setVolume(volumeBeforeMute.takeIf { it >= .01f } ?: 1f) else { volumeBeforeMute = now; setVolume(0f) }
+    }
+    /** Moves the volume by [delta], landing on a whole 5%. */
+    fun nudgeVolume(delta: Float) = setVolume(Math.round((settings.value.volume + delta) * 20f) / 20f)
     fun sleepAfter(minutes: Int?) = mutableState.update { it.copy(sleepEndsAt = minutes?.let { m -> System.currentTimeMillis() + m * 60_000L }, sleepAtChapterEnd = false) }
     fun sleepAtChapterEnd() = mutableState.update { it.copy(sleepEndsAt = null, sleepAtChapterEnd = true) }
     fun close() { mutableState.value.bookId?.let { id -> val p = positionNow(); library.update(id) { it.copy(positionMs = p) } }; commands += Close; mutableState.value = PlaybackState() }

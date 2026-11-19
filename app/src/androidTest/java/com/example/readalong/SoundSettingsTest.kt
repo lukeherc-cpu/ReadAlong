@@ -24,7 +24,8 @@ class SoundSettingsTest {
         try {
             runBlocking { app.sound.saveDefaults(SoundSettings.DEFAULT) }
             compose.setContent { ReadAlongTheme { SettingsScreen(app, {}, {}, {}) } }
-            compose.onNodeWithTag("settings_equalizer").performScrollTo().performClick()
+            compose.onNodeWithTag("settings_sound").performScrollTo().performClick()
+            compose.onNodeWithTag("sound_equalizer").performScrollTo().performClick()
             compose.onNodeWithTag("eq_preset_BRIGHTER").performClick()
             compose.waitUntil(5_000) { runBlocking { app.sound.defaults.first() }.let { it.equalizer && it.preset == EqPreset.BRIGHTER } }
             compose.onNodeWithTag("eq_reset").performScrollTo().performClick()
@@ -36,8 +37,12 @@ class SoundSettingsTest {
         val book = "sound-test-${System.nanoTime()}"
         compose.setContent { ReadAlongTheme { BookSoundSheet(app, book, "Test book") {} } }
         compose.onNodeWithText("Your defaults").assertExists()
+        compose.onNodeWithTag("sound_equalizer").performScrollTo().performClick()
         compose.onNodeWithTag("eq_preset_CAR").performScrollTo().performClick()
         compose.waitUntil(5_000) { runBlocking { app.sound.own(book).first() }?.preset == EqPreset.CAR }
+        // Closing the equalizer goes back to the Sound sheet, where "Use my defaults" now shows.
+        androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
+        compose.waitUntil(5_000) { compose.onAllNodesWithTag("sound_use_defaults").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("sound_use_defaults").performScrollTo().performClick()
         compose.waitUntil(5_000) { runBlocking { app.sound.own(book).first() } == null }
         assertNull(runBlocking { app.sound.own(book).first() })

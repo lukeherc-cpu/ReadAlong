@@ -6,6 +6,10 @@ import com.example.readalong.domain.i18n.tr
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.VolumeDown
+import androidx.compose.material.icons.rounded.VolumeOff
+import androidx.compose.material.icons.rounded.VolumeUp
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -27,6 +31,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -140,5 +145,69 @@ fun PillButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier,
         contentPadding = PaddingValues(horizontal = 18.dp, vertical = 10.dp)) {
         icon?.let { Icon(AppIcons.get(it), null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)) }
         Text(tr(text), style = MaterialTheme.typography.labelLarge)
+    }
+}
+
+/**
+ * The full player's volume: speaker, slider, louder speaker. Unlike [SeekBar] it follows the drag live, shows the
+ * level while hovered or dragged, and the mouse wheel over it moves it in 5% steps. The low speaker mutes and unmutes.
+ */
+@Composable
+fun VolumeSlider(app: AppState, modifier: Modifier = Modifier) {
+    val volume = app.settingsStore.settings.collectAsState().value.volume
+    val muted = volume < .01f
+    val tint = Color.White.copy(alpha = .85f)
+    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+        Icon(if (muted) Icons.Rounded.VolumeOff else Icons.Rounded.VolumeDown,
+            tr(if (muted) "Unmute (M)" else "Mute (M)"),
+            Modifier.size(32.dp).clip(CircleShape).clickable { app.player.toggleMute() }.pointerHoverIcon(PointerIcon.Hand).padding(6.dp),
+            tint = if (muted) MaterialTheme.colorScheme.primary else tint)
+        Spacer(Modifier.width(8.dp))
+        var width by remember { mutableStateOf(1) }
+        var dragging by remember { mutableStateOf(false) }
+        val interaction = remember { MutableInteractionSource() }
+        val hovered by interaction.collectIsHoveredAsState()
+        val thumb by animateDpAsState(if (dragging) 9.dp else if (hovered) 8.dp else 6.dp, spring(stiffness = 700f))
+        Box(Modifier.weight(1f)) {
+            Canvas(Modifier.height(24.dp).fillMaxWidth().onSizeChanged { width = it.width }.hoverable(interaction).pointerHoverIcon(PointerIcon.Hand)
+                .pointerInput(Unit) { detectTapGestures { app.player.setVolume((it.x / width).coerceIn(0f, 1f)) } }
+                .pointerInput(Unit) {
+                    detectHorizontalDragGestures(
+                        onDragStart = { dragging = true; app.player.setVolume((it.x / width).coerceIn(0f, 1f)) },
+                        onDragEnd = { dragging = false }, onDragCancel = { dragging = false }) { change, _ ->
+                        app.player.setVolume((change.position.x / width).coerceIn(0f, 1f))
+                    }
+                }
+                .pointerInput(Unit) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            // The Initial pass, after the scrolling column around the player has claimed the wheel, so it stays still.
+                            val event = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
+                            if (event.type != androidx.compose.ui.input.pointer.PointerEventType.Scroll) continue
+                            val dy = event.changes.fold(0f) { sum, c -> sum + c.scrollDelta.y }
+                            if (dy == 0f) continue
+                            claimWheelForControl()
+                            event.changes.forEach { it.consume() }
+                            app.player.nudgeVolume(if (dy < 0) .05f else -.05f)
+                        }
+                    }
+                }) {
+                val y = size.height / 2; val h = 4.dp.toPx(); val r = thumb.toPx()
+                drawRoundRect(Color.White.copy(alpha = .22f), Offset(0f, y - h / 2), Size(size.width, h), CornerRadius(h / 2))
+                drawRoundRect(tint, Offset(0f, y - h / 2), Size(size.width * volume, h), CornerRadius(h / 2))
+                drawCircle(Color.White, r, Offset(size.width * volume, y))
+            }
+            if (hovered || dragging) {
+                Surface(Modifier.align(Alignment.TopStart).offset { androidx.compose.ui.unit.IntOffset((width * volume).toInt(), -26.dp.roundToPx()) }
+                    .layout { measurable, constraints ->
+                        val p = measurable.measure(constraints)
+                        layout(p.width, p.height) { p.place(-p.width / 2, 0) }
+                    }, shape = RoundedCornerShape(6.dp), color = Color.White, contentColor = Color(0xFF111111)) {
+                    Text(tr("${Math.round(volume * 100)}%"), Modifier.padding(horizontal = 7.dp, vertical = 3.dp), style = MaterialTheme.typography.labelSmall)
+                }
+            }
+        }
+        Spacer(Modifier.width(8.dp))
+        Icon(Icons.Rounded.VolumeUp, null, Modifier.size(20.dp), tint = tint)
     }
 }

@@ -15,6 +15,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import com.example.readalong.R
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
@@ -73,8 +74,6 @@ class BookActionsViewModel(private val app: ReadAlongApplication) : ViewModel() 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BookActions(book: Book, model: BookActionsViewModel, onDismiss: () -> Unit) {
-    var edit by rememberSaveable(book.id) { mutableStateOf<String?>(null) }
-    var value by rememberSaveable(book.id) { mutableStateOf("") }
     var internetCover by remember { mutableStateOf(false) }
     var delete by remember { mutableStateOf(false) }
     val busy by model.busy.collectAsStateWithLifecycle()
@@ -87,11 +86,24 @@ fun BookActions(book: Book, model: BookActionsViewModel, onDismiss: () -> Unit) 
     val epubPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let { uri -> model.addEpub(book, uri, onDismiss) } }
     val cover = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let { uri -> model.edit(book, cover = uri) } }
     var sound by rememberSaveable(book.id) { mutableStateOf(false) }
+    var collectionsOpen by rememberSaveable(book.id) { mutableStateOf(false) }
+    var coverChoice by remember { mutableStateOf(false) }
+    var details by remember { mutableStateOf(false) }
     val soundApp = androidx.compose.ui.platform.LocalContext.current.applicationContext as? ReadAlongApplication
     // The book's own sound replaces this sheet, so closing it goes straight back to the library.
     if (sound && soundApp != null) { com.example.readalong.ui.sound.BookSoundSheet(soundApp, book.id, book.title, onDismiss); return }
-    // Grouped rows: the EPUB (what a long-press is most often for), then editing, then status, then delete.
-    // Status rows only offer a change that applies to this book.
+    // The book's collections replace this sheet with a short checklist; closing it comes back here.
+    if (collectionsOpen && collectionApp != null) {
+        com.example.readalong.ui.components.ActionSheet({ collectionsOpen = false }, "Collections", book.title) {
+            item { BookCollectionsSection(book, collections, onToggle = { collection, inside -> collectionScope.launch { collectionApp.collections.setInside(collection, book.id, inside) } },
+                onNew = { newCollection = true }) }
+        }
+        if (newCollection) CollectionNameDialog("New collection", confirm = "Create", message = "${book.title} goes in it. You can add more books later.",
+            onDismiss = { newCollection = false }) { name -> newCollection = false; collectionScope.launch { runCatching { collectionApp.collections.create(name, listOf(book.id)) } } }
+        return
+    }
+    // Grouped rows, one line each where possible: the EPUB, sound and collections; then editing; then
+    // status and delete. Status rows only offer a change that applies to this book.
     com.example.readalong.ui.components.ActionSheet(onDismiss, header = {
         Row(Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
             BookCover(book, Modifier.width(64.dp), showTitle = false)
@@ -106,40 +118,47 @@ fun BookActions(book: Book, model: BookActionsViewModel, onDismiss: () -> Unit) 
         if (!book.isDemo) item { Column {
             com.example.readalong.ui.components.SheetRow(if (epub == null) "Add matching EPUB" else "Replace matching EPUB",
                 { epubPicker.launch(arrayOf("application/epub+zip", "application/octet-stream")) }, icon = R.drawable.ic_book, enabled = !busy)
-            if (soundApp != null) com.example.readalong.ui.components.SheetRow("Sound and equalizer", { sound = true }, Modifier.testTag("book_sound"),
-                icon = R.drawable.ic_headphones, supporting = "Just for this book", enabled = !busy)
-            com.example.readalong.ui.components.SheetDivider()
+            if (soundApp != null) com.example.readalong.ui.components.SheetRow("Sound", { sound = true }, Modifier.testTag("book_sound"),
+                icon = R.drawable.ic_headphones, enabled = !busy)
         } }
-        if (collectionApp != null) item { Column {
-            BookCollectionsSection(book, collections, onToggle = { collection, inside -> collectionScope.launch { collectionApp.collections.setInside(collection, book.id, inside) } },
-                onNew = { newCollection = true })
+        if (collectionApp != null) item {
+            val inside = collections.filter { book.id in it.bookIds }.sortedBy { it.name.lowercase() }
+            com.example.readalong.ui.components.SheetRow("Collections", { collectionsOpen = true }, Modifier.testTag("book_collections_row"), icon = R.drawable.ic_bookshelf,
+                supporting = inside.takeIf { it.isNotEmpty() }?.joinToString { it.name }, enabled = !busy,
+                trailing = { Icon(painterResource(R.drawable.ic_chevron_right), null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant) })
+        }
+        item { Column {
+            com.example.readalong.ui.components.SheetDivider()
+            com.example.readalong.ui.components.SheetRow("Edit title and author", { details = true }, Modifier.testTag("book_edit_details"), icon = R.drawable.ic_edit, enabled = !busy)
+            com.example.readalong.ui.components.SheetRow("Change cover", { coverChoice = true }, Modifier.testTag("book_change_cover"), icon = R.drawable.ic_image,
+                supporting = "From your files or online", enabled = !busy)
             com.example.readalong.ui.components.SheetDivider()
         } }
         item { Column {
-            com.example.readalong.ui.components.SheetRow("Edit title", { edit = "Title"; value = book.title }, icon = R.drawable.ic_edit, enabled = !busy)
-            com.example.readalong.ui.components.SheetRow("Edit author", { edit = "Author"; value = book.author.orEmpty() }, icon = R.drawable.ic_edit, enabled = !busy)
-            com.example.readalong.ui.components.SheetRow("Choose cover from files", { cover.launch(arrayOf("image/*")) }, icon = R.drawable.ic_image, enabled = !busy)
-            com.example.readalong.ui.components.SheetRow("Find cover online", { internetCover = true }, icon = R.drawable.ic_globe, enabled = !busy)
-            com.example.readalong.ui.components.SheetDivider()
-        } }
-        item { Column {
-            if (book.section != com.example.readalong.domain.model.LibrarySection.NOT_STARTED)
-                com.example.readalong.ui.components.SheetRow("Mark as not started", { model.notStarted(book); onDismiss() }, icon = R.drawable.ic_undo, enabled = !busy)
             if (!book.isFinished)
                 com.example.readalong.ui.components.SheetRow("Mark as finished", { model.finished(book); onDismiss() }, icon = R.drawable.ic_check_circle, enabled = !busy)
-            com.example.readalong.ui.components.SheetDivider()
+            if (book.section != com.example.readalong.domain.model.LibrarySection.NOT_STARTED)
+                com.example.readalong.ui.components.SheetRow("Mark as not started", { model.notStarted(book); onDismiss() }, icon = R.drawable.ic_undo, enabled = !busy)
             com.example.readalong.ui.components.SheetRow("Delete book", { delete = true }, icon = R.drawable.ic_trash, destructive = true, enabled = !busy)
         } }
     }
-    if (newCollection && collectionApp != null) CollectionNameDialog("New collection", confirm = "Create", message = "${book.title} goes in it. You can add more books later.",
-        onDismiss = { newCollection = false }) { name -> newCollection = false; collectionScope.launch { runCatching { collectionApp.collections.create(name, listOf(book.id)) } } }
+    if (coverChoice) com.example.readalong.ui.components.ActionSheet({ coverChoice = false }, "Change cover") {
+        item { com.example.readalong.ui.components.SheetRow("From your files", { coverChoice = false; cover.launch(arrayOf("image/*")) }, icon = R.drawable.ic_image) }
+        item { com.example.readalong.ui.components.SheetRow("Find online", { coverChoice = false; internetCover = true }, icon = R.drawable.ic_globe) }
+    }
+    if (details) {
+        var title by rememberSaveable(book.id) { mutableStateOf(book.title) }
+        var author by rememberSaveable(book.id) { mutableStateOf(book.author.orEmpty()) }
+        AlertDialog(onDismissRequest = { details = false }, title = { Text(tr("Edit title and author")) },
+            text = { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(title, { title = it.take(500) }, label = { Text(tr("Title")) }, singleLine = true, modifier = Modifier.testTag("book_edit_title"))
+                OutlinedTextField(author, { author = it.take(500) }, label = { Text(tr("Author")) }, singleLine = true, modifier = Modifier.testTag("book_edit_author"))
+            } },
+            confirmButton = { TextButton(enabled = title.isNotBlank(), onClick = {
+                model.edit(book, title = title.takeIf { it != book.title }, author = author.takeIf { it != book.author.orEmpty() }); details = false
+            }) { Text(tr("Save")) } }, dismissButton = { TextButton(onClick = { details = false }) { Text(tr("Cancel")) } })
+    }
     if (internetCover) InternetCoverPicker(book.title, onDismiss = { internetCover = false }, onSave = { model.edit(book, cover = it); internetCover = false })
-    edit?.let { field -> AlertDialog(onDismissRequest = { edit = null }, title = { Text(tr("Edit ${field.lowercase()}")) },
-        text = { OutlinedTextField(value, { value = it.take(500) }, label = { Text(tr(field)) }, singleLine = true) },
-        confirmButton = { TextButton(enabled = field != "Title" || value.isNotBlank(), onClick = {
-            if (field == "Title") model.edit(book, title = value) else model.edit(book, author = value)
-            edit = null
-        }) { Text(tr("Save")) } }, dismissButton = { TextButton(onClick = { edit = null }) { Text(tr("Cancel")) } }) }
     if (delete) AlertDialog(onDismissRequest = { delete = false }, title = { Text(tr("Delete this book?")) },
         text = { Text(tr("This removes the book, its ReadAlong and its listening position from ReadAlong. The audio and EPUB files stay in your folders.")) },
         confirmButton = { TextButton(onClick = { model.delete(book); onDismiss() }) { Text(tr("Delete book"), color = MaterialTheme.colorScheme.error) } },

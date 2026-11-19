@@ -158,7 +158,7 @@ private fun VolumeControl(app: AppState) {
     val settings by app.settingsStore.settings.collectAsState()
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.width(130.dp).padding(start = 6.dp)) {
         Icon(if (settings.volume < .01f) Icons.Rounded.VolumeOff else Icons.Rounded.VolumeUp,
-            tr("Volume"), Modifier.size(20.dp).clip(CircleShape).clickable { app.player.setVolume(if (settings.volume < .01f) 1f else 0f) }.pointerHoverIcon(PointerIcon.Hand),
+            tr("Volume"), Modifier.size(20.dp).clip(CircleShape).clickable { app.player.toggleMute() }.pointerHoverIcon(PointerIcon.Hand),
             tint = Color.White.copy(alpha = .85f))
         Spacer(Modifier.width(6.dp))
         SeekBar(settings.volume, { app.player.setVolume(it) }, Modifier.weight(1f), color = Color.White.copy(alpha = .85f))

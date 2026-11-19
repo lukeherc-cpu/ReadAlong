@@ -191,6 +191,8 @@ private fun PlayerControls(app: AppState, book: LibraryBook, clock: State<Long>,
             }
             SkipButton("ic_forward", forward, "Forward $forward seconds (→)") { if (current) app.player.skip(forward * 1000L) else seekBook(app, book.id, position + forward * 1000L) }
         }
+        Spacer(Modifier.height(14.dp))
+        VolumeSlider(app, Modifier.width(340.dp).padding(horizontal = 8.dp))
         Spacer(Modifier.height(16.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
             var speedMenu by remember { mutableStateOf(false) }

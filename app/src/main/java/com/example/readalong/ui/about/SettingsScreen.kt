@@ -44,6 +44,7 @@ fun SettingsScreen(app: ReadAlongApplication, onBack: () -> Unit, onModel: () ->
     var copied by remember { mutableStateOf(false) }
     var battery by remember { mutableStateOf(false) }
     var equalizerPage by rememberSaveable { mutableStateOf(false) }
+    var soundPage by rememberSaveable { mutableStateOf(false) }
     /** The Languages page's open tab (0 books, 1 app), or -1 while it's closed. */
     var languagePage by rememberSaveable { mutableIntStateOf(-1) }
     var resumeDialog by remember { mutableStateOf(false) }
@@ -57,21 +58,34 @@ fun SettingsScreen(app: ReadAlongApplication, onBack: () -> Unit, onModel: () ->
     }
     val sound by app.sound.defaults.collectAsStateWithLifecycle(com.example.readalong.domain.model.SoundSettings.DEFAULT)
     fun saveSound(value: com.example.readalong.domain.model.SoundSettings) { scope.launch { app.sound.saveDefaults(value) } }
+    // Sound and its equalizer are pages of their own: Settings shows one row for them.
     if (equalizerPage) {
         androidx.activity.compose.BackHandler { equalizerPage = false }
         Scaffold { insets -> Column(Modifier.fillMaxSize().padding(insets).verticalScroll(rememberScrollState()).padding(vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(Modifier.padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = { equalizerPage = false }) { Icon(painterResource(R.drawable.ic_back), tr("Back to settings")) }
+                IconButton(onClick = { equalizerPage = false }) { Icon(painterResource(R.drawable.ic_back), tr("Back to sound")) }
                 Text(tr("Equalizer"), style = MaterialTheme.typography.headlineMedium)
             }
-            Text(tr("The default for every book. A book changed from its own Sound sheet keeps its own equalizer."),
-                Modifier.padding(horizontal = 24.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             com.example.readalong.ui.sound.EqualizerEditor(sound, ::saveSound)
         } }
         return
     }
     if (languagePage >= 0) {
         LanguageSettingsPage(preferences.transcriptionLanguage, languagePage, onBack = { languagePage = -1 }) { code -> save { it.copy(transcriptionLanguage = code) } }
+        return
+    }
+    if (soundPage) {
+        androidx.activity.compose.BackHandler { soundPage = false }
+        Scaffold { insets -> Column(Modifier.fillMaxSize().padding(insets).verticalScroll(rememberScrollState()).padding(vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { soundPage = false }) { Icon(painterResource(R.drawable.ic_back), tr("Back to settings")) }
+                Column {
+                    Text(tr("Sound"), style = MaterialTheme.typography.headlineMedium)
+                    Text(tr("Defaults for every book"), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            com.example.readalong.ui.sound.SoundBasics(sound, ::saveSound) { equalizerPage = true }
+        } }
         return
     }
     Scaffold { insets -> Column(Modifier.fillMaxSize().padding(insets).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
@@ -112,18 +126,14 @@ fun SettingsScreen(app: ReadAlongApplication, onBack: () -> Unit, onModel: () ->
         }
         SettingsSection("Sound") {
             SettingsGroup {
-                SettingsRow("Equalizer", Modifier.testTag("settings_equalizer"), onClick = { equalizerPage = true }) { ValueText(com.example.readalong.ui.sound.equalizerText(sound)); Chevron() }
-                Column(Modifier.padding(vertical = 8.dp)) { com.example.readalong.ui.sound.SoundBasics(sound, ::saveSound) }
+                SettingsRow("Sound and equalizer", Modifier.testTag("settings_sound"), summary = com.example.readalong.ui.sound.soundSummary(sound), onClick = { soundPage = true })
             }
-            Text(tr("Defaults for every book. Change one book from the player's ⋯ menu or by holding its cover in the library."),
-                Modifier.padding(start = 4.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         SettingsSection("Sleep timer") {
             SettingsGroup {
-                PreferenceSwitch("Shake to reset", preferences.shakeToReset, summary = "Shake the phone to start the timer again, even while it fades") { value -> save { it.copy(shakeToReset = value) } }
+                PreferenceSwitch("Shake to reset", preferences.shakeToReset) { value -> save { it.copy(shakeToReset = value) } }
                 SettingsRow("Reset sound", Modifier.testTag("settings_reset_sound"), onClick = { resetSoundSheet = true }) { ValueText(resetSoundLabel(preferences.resetSound)); Chevron() }
             }
-            Text(tr("Playback fades out over the last 20 seconds."), Modifier.padding(start = 4.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         SettingsSection("Languages") {
             SettingsGroup {

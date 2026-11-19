@@ -17,6 +17,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -58,6 +59,23 @@ internal fun CollectionRowView(row: CollectionRow, modifier: Modifier = Modifier
             Text(tr(if (books.isEmpty()) "No books yet" else collectionSummary(books)), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Icon(painterResource(R.drawable.ic_chevron_right), null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+/** "New collection" as the last row of the Collections view, with a dashed cover where the stack would be. */
+@Composable
+internal fun NewCollectionRow(onClick: () -> Unit) {
+    val ink = MaterialTheme.colorScheme.primary
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.medium)).clickable(onClick = onClick).padding(vertical = 6.dp).testTag("new_collection"),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        Box(Modifier.size(72.dp), contentAlignment = Alignment.Center) {
+            val outline = MaterialTheme.colorScheme.outlineVariant
+            Box(Modifier.size(56.dp).offset(y = 4.dp).drawBehind {
+                drawRoundRect(outline, cornerRadius = androidx.compose.ui.geometry.CornerRadius(8.dp.toPx()),
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(2.dp.toPx(), pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 4.dp.toPx()))))
+            }, contentAlignment = Alignment.Center) { Icon(painterResource(R.drawable.ic_add), null, tint = ink) }
+        }
+        Text(tr("New collection"), Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, color = ink)
     }
 }
 

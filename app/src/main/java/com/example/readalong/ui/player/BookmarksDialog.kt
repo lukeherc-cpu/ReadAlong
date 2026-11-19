@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
@@ -17,20 +19,35 @@ import com.example.readalong.ui.components.ActionSheet
 import com.example.readalong.ui.components.SheetRow
 import com.example.readalong.ui.reading.ReadingViewModel
 
-/** Bookmarks as a sheet: add one at the current position up top, then each saved one with its chapter and time. */
+/**
+ * Bookmarks as a sheet: add one at the current position up top, then each saved one with its chapter and
+ * time. Given a book id in [history], a second tab holds the book's Listening history (recent jumps), so
+ * both ways back to a place live behind the one Bookmark button.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BookmarksDialog(model: ReadingViewModel, positionMs: Long, seek: (Long) -> Unit, close: () -> Unit, chapters: List<PlaybackChapter> = emptyList()) {
+fun BookmarksDialog(model: ReadingViewModel, positionMs: Long, seek: (Long) -> Unit, close: () -> Unit, chapters: List<PlaybackChapter> = emptyList(),
+    history: String? = null, chapterTitle: String = "") {
     val bookmarks by model.bookmarks.collectAsStateWithLifecycle()
     var addingAt by remember { mutableStateOf<Long?>(null) }
     var name by remember { mutableStateOf("") }
+    var showHistory by rememberSaveable { mutableStateOf(false) }
+    val jumps by rememberHistory(history ?: "")
     fun where(ms: Long) = chapters.lastOrNull { it.startMs <= ms }?.let { "${it.title} · ${clockTime(ms)}" } ?: clockTime(ms)
-    ActionSheet(close, "Bookmarks", when (bookmarks.size) { 0 -> null; 1 -> "1 saved"; else -> "${bookmarks.size} saved" }, header = {
-        Button(onClick = { addingAt = positionMs; name = "" }, Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(top = 4.dp, bottom = 12.dp).heightIn(min = 48.dp)) {
+    ActionSheet(close, "Bookmarks", header = {
+        if (history != null) SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 12.dp)) {
+            SegmentedButton(!showHistory, { showHistory = false }, SegmentedButtonDefaults.itemShape(0, 2), Modifier.testTag("bookmarks_saved_tab"), icon = {}) {
+                Text(tr(if (bookmarks.isEmpty()) "Saved" else "Saved · ${bookmarks.size}"))
+            }
+            SegmentedButton(showHistory, { showHistory = true }, SegmentedButtonDefaults.itemShape(1, 2), Modifier.testTag("bookmarks_history_tab"), icon = {}) { Text(tr("History")) }
+        }
+        if (!showHistory) Button(onClick = { addingAt = positionMs; name = "" }, Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(top = 4.dp, bottom = 12.dp).heightIn(min = 48.dp)) {
             Icon(painterResource(R.drawable.ic_add), null, Modifier.size(20.dp))
             Spacer(Modifier.width(8.dp))
             Text(tr("Add bookmark at ${clockTime(positionMs)}"))
         }
     }) {
+        if (showHistory) { historyItems(jumps, positionMs, chapterTitle, seek, close); return@ActionSheet }
         if (bookmarks.isEmpty()) item {
             Text(tr("No bookmarks yet"), Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp),
                 style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
