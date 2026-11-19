@@ -105,7 +105,7 @@ object FolderSyncPlan {
             }
         }
         // Small files first, so progress and transcripts arrive before a long audiobook copy.
-        return actions.sortedBy { (mine[it.path] ?: theirs[it.path])?.size ?: 0 }
+        return actions.sortedBy { (mine[it.path] ?: theirs[it.path])?.size ?: 0L }
     }
 
     /** Modification times this close are the same save (file systems round them differently). */

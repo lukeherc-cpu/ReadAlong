@@ -31,9 +31,9 @@ internal class AutoLibrary(private val app: ReadAlongApplication) {
             return rows.firstOrNull { (it.collection?.id ?: LOOSE) == id }?.books.orEmpty().take(200).map { item(it) }
         }
         val chosen = when (parent) {
-            STARTED -> books.filter { it.section == LibrarySection.CURRENT }.sortedByDescending { it.lastPlayedAt ?: 0 }
+            STARTED -> books.filter { it.section == LibrarySection.CURRENT }.sortedByDescending { it.lastPlayedAt ?: 0L }
             NEW -> books.filter { it.section == LibrarySection.NOT_STARTED }.sortedByDescending { it.addedAt }
-            FINISHED -> books.filter { it.section == LibrarySection.FINISHED }.sortedByDescending { it.lastPlayedAt ?: 0 }
+            FINISHED -> books.filter { it.section == LibrarySection.FINISHED }.sortedByDescending { it.lastPlayedAt ?: 0L }
             else -> return emptyList()
         }
         return chosen.take(200).map { item(it) }
