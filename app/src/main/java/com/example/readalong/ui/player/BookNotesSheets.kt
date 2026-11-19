@@ -95,8 +95,6 @@ fun CharacterListSheet(bookId: String, positionMs: Long, chapters: List<Playback
                 Text("Add character", maxLines = 1)
             }
             if (title.isNotBlank()) Button(onClick = { askAi = true }, Modifier.weight(1f).heightIn(min = 48.dp).testTag("make_with_ai"), contentPadding = PaddingValues(horizontal = 12.dp)) {
-                Icon(painterResource(R.drawable.ic_ai), null, Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
                 Text("Make with AI", maxLines = 1)
             }
         }
