@@ -177,6 +177,8 @@ class FoundationNavigationTest {
     @Test fun settingsSaveLibraryThemeOpeningViewAndSeparatePreviewFont() {
         val app = compose.activity.application as ReadAlongApplication
         val originalReader = kotlinx.coroutines.runBlocking { app.readerPreferences.preferences.first() }
+        // Starts light whatever the install default is (new installs start dark), so the switch turns it off.
+        kotlinx.coroutines.runBlocking { app.appPreferences.update { it.copy(libraryLight = true) } }
         try {
             waitForLibrary()
             compose.onNodeWithContentDescription("Settings").performClick()
