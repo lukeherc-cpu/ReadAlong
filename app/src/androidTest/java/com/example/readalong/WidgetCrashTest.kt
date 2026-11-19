@@ -78,4 +78,40 @@ class WidgetCrashTest {
         assert(WidgetBooks.book(app, 4242) == ids[1])
         WidgetBooks.forget(app, intArrayOf(4242))
     }
+
+    /** Places each widget for real (as a launcher does, with the bind permission granted by the check), then updates it. */
+    @Test fun realPlacedWidgetsLoadWithoutAnError() {
+        val manager = AppWidgetManager.getInstance(app)
+        val host = android.appwidget.AppWidgetHost(app, 7341)
+        val placed = mutableListOf<Int>()
+        try {
+            InstrumentationRegistry.getInstrumentation().runOnMainSync { host.startListening() }
+            for (kind in Widgets.kinds) {
+                val id = host.allocateAppWidgetId(); placed += id
+                val provider = android.content.ComponentName(app, kind)
+                assert(manager.bindAppWidgetIdIfAllowed(id, provider)) { "Couldn't bind ${kind.simpleName}; is grantbind set?" }
+                if (kind != com.example.readalong.ui.widget.ContinueWidget::class.java && placed.size % 2 == 0) WidgetBooks.set(app, id, ids[2])
+                manager.updateAppWidgetOptions(id, options(340, 200))
+            }
+            runBlocking { Widgets.update(app) }
+            Thread.sleep(1_500)
+            val errors = mutableListOf<String>()
+            InstrumentationRegistry.getInstrumentation().runOnMainSync {
+                placed.forEach { id ->
+                    val info = manager.getAppWidgetInfo(id)
+                    val view = host.createView(app, id, info)
+                    view.measure(android.view.View.MeasureSpec.makeMeasureSpec(1000, android.view.View.MeasureSpec.EXACTLY), android.view.View.MeasureSpec.makeMeasureSpec(600, android.view.View.MeasureSpec.EXACTLY))
+                    view.layout(0, 0, 1000, 600)
+                    // A RemoteViews that fails to apply leaves the host's error view: a single TextView.
+                    val child = view.getChildAt(0)
+                    val text = (child as? android.widget.TextView)?.text?.toString()
+                    if (view.childCount == 0 || (child is android.widget.TextView && child.id == android.view.View.NO_ID)) errors += "${info.provider.shortClassName}: ${text ?: "nothing drawn"}"
+                }
+            }
+            assert(errors.isEmpty()) { "Widgets didn't load: $errors" }
+        } finally {
+            placed.forEach { host.deleteAppWidgetId(it) }
+            InstrumentationRegistry.getInstrumentation().runOnMainSync { host.stopListening() }
+        }
+    }
 }
