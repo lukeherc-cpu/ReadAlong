@@ -65,7 +65,7 @@ class WidgetCrashTest {
         runBlocking { Widgets.update(app) }
         val views = runBlocking { Widgets.build(app, setOf(com.example.readalong.ui.widget.ContinueWidget::class.java)) }
         val parcel = android.os.Parcel.obtain()
-        try { views.values.single().writeToParcel(parcel, 0); assert(parcel.dataSize() < 1_000_000) { "Bookshelf is ${parcel.dataSize()} bytes" } } finally { parcel.recycle() }
+        try { views.values.single().writeToParcel(parcel, 0); org.junit.Assert.assertTrue("Bookshelf is ${parcel.dataSize()} bytes" } } finally { parcel.recycle(), parcel.dataSize() < 1_000_000)
     }
 
     @Test fun setupScreenOpensAndChoosesABook() {
@@ -75,7 +75,7 @@ class WidgetCrashTest {
             scenario.onActivity { }
         }
         WidgetBooks.set(app, 4242, ids[1])
-        assert(WidgetBooks.book(app, 4242) == ids[1])
+        org.junit.Assert.assertEquals(ids[1], WidgetBooks.book(app, 4242))
         WidgetBooks.forget(app, intArrayOf(4242))
     }
 
@@ -89,7 +89,7 @@ class WidgetCrashTest {
             for (kind in Widgets.kinds) {
                 val id = host.allocateAppWidgetId(); placed += id
                 val provider = android.content.ComponentName(app, kind)
-                assert(manager.bindAppWidgetIdIfAllowed(id, provider)) { "Couldn't bind ${kind.simpleName}; is grantbind set?" }
+                org.junit.Assert.assertTrue("Couldn't bind ${kind.simpleName}; is grantbind set?", manager.bindAppWidgetIdIfAllowed(id, provider))
                 if (kind != com.example.readalong.ui.widget.ContinueWidget::class.java && placed.size % 2 == 0) WidgetBooks.set(app, id, ids[2])
                 manager.updateAppWidgetOptions(id, options(340, 200))
             }
@@ -108,7 +108,7 @@ class WidgetCrashTest {
                     if (view.childCount == 0 || (child is android.widget.TextView && child.id == android.view.View.NO_ID)) errors += "${info.provider.shortClassName}: ${text ?: "nothing drawn"}"
                 }
             }
-            assert(errors.isEmpty()) { "Widgets didn't load: $errors" }
+            org.junit.Assert.assertTrue("Widgets didn't load: $errors", errors.isEmpty())
         } finally {
             placed.forEach { host.deleteAppWidgetId(it) }
             InstrumentationRegistry.getInstrumentation().runOnMainSync { host.stopListening() }
