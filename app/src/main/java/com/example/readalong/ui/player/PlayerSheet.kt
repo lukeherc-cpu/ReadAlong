@@ -1,5 +1,6 @@
 package com.example.readalong.ui.player
 
+import com.example.readalong.domain.i18n.tr
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -110,7 +111,7 @@ fun PlayerTransform(book: Book, readerTheme: String, progress: () -> Float, modi
                     }
                 }
                 Text(book.title, Modifier.fillMaxWidth(), color = playerColors.onSurface, style = MaterialTheme.typography.headlineMedium, maxLines = 1, softWrap = false, overflow = TextOverflow.Clip)
-                if (chapterTitle.isNotBlank()) Text(chapterTitle, color = playerColors.onSurfaceVariant, style = MaterialTheme.typography.titleMedium, maxLines = 1)
+                if (chapterTitle.isNotBlank()) Text(tr(chapterTitle), color = playerColors.onSurfaceVariant, style = MaterialTheme.typography.titleMedium, maxLines = 1)
             }
         }
         // The mini player's row rides the top of the container and fades as it grows.

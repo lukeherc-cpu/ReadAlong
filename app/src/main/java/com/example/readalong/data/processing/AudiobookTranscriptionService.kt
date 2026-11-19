@@ -137,7 +137,8 @@ class AudiobookTranscriptionService : Service() {
                                 val began = android.os.SystemClock.elapsedRealtime()
                                 var previousTime = began
                                 val budget = com.example.readalong.domain.transcription.TranscriptionBatch()
-                                val engine = WhistleTranscriptionEngine(app, app.speechModel, job.engineId, connection) { message -> status(book, workId, "PROCESSING", message) }
+                                val language = app.appPreferences.preferences.first().transcriptionLanguage
+                                val engine = WhistleTranscriptionEngine(app, app.speechModel, job.engineId, connection, language) { message -> status(book, workId, "PROCESSING", message) }
                                 ProcessingRunner(app.database, app.generatedEpub).run(book, workId, engine, com.example.readalong.domain.transcription.TranscriptionBatch.MAX_UNITS) {
                                     try { app.importedEpub.requestAlignment(book) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { }
                                     val now = android.os.SystemClock.elapsedRealtime()

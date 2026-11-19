@@ -1,5 +1,6 @@
 package com.example.readalong.data.audible
 
+import com.example.readalong.domain.i18n.tr
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
@@ -69,9 +70,9 @@ class AudibleDownloadWorker(context: Context, parameters: WorkerParameters) : Co
 
     private fun notification(title: String, fraction: Float?): android.app.Notification {
         applicationContext.getSystemService(NotificationManager::class.java)
-            .createNotificationChannel(NotificationChannel(CHANNEL, "Audible downloads", NotificationManager.IMPORTANCE_LOW))
+            .createNotificationChannel(NotificationChannel(CHANNEL, tr("Audible downloads"), NotificationManager.IMPORTANCE_LOW))
         return NotificationCompat.Builder(applicationContext, CHANNEL).setSmallIcon(com.example.readalong.R.drawable.ic_notification)
-            .setContentTitle("Downloading from Audible").setContentText(title).setOngoing(true).setOnlyAlertOnce(true)
+            .setContentTitle(tr("Downloading from Audible")).setContentText(title).setOngoing(true).setOnlyAlertOnce(true)
             .setProgress(100, ((fraction ?: 0f) * 100).toInt(), fraction == null)
             .addAction(0, "Cancel", WorkManager.getInstance(applicationContext).createCancelPendingIntent(id)).build()
     }

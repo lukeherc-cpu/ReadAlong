@@ -1,5 +1,6 @@
 package com.example.readalong.ui.about
 
+import com.example.readalong.domain.i18n.tr
 import android.content.Context
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -75,18 +76,18 @@ private fun UpdateDialog(release: AppRelease) {
         Surface(Modifier.fillMaxWidth().testTag("update_dialog"), shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp), color = colors.surfaceContainerHigh) {
             Column(Modifier.padding(horizontal = 24.dp, vertical = 28.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Icon(androidx.compose.ui.res.painterResource(com.example.readalong.R.drawable.ic_readalong), null, Modifier.size(72.dp), tint = androidx.compose.ui.graphics.Color.Unspecified)
-                Text("Update available", style = MaterialTheme.typography.headlineSmall, color = colors.onSurface)
+                Text(tr("Update available"), style = MaterialTheme.typography.headlineSmall, color = colors.onSurface)
                 Spacer(Modifier.height(4.dp))
                 Button(onClick = {
                     runCatching { uriHandler.openUri(release.apkUrl ?: release.pageUrl) }
                     PhoneUpdates.offer.value = null
-                }, Modifier.fillMaxWidth().height(52.dp).testTag("update_download")) { Text("Download", style = MaterialTheme.typography.titleMedium) }
+                }, Modifier.fillMaxWidth().height(52.dp).testTag("update_download")) { Text(tr("Download"), style = MaterialTheme.typography.titleMedium) }
                 FilledTonalButton(onClick = { PhoneUpdates.offer.value = null }, Modifier.fillMaxWidth().height(52.dp).testTag("update_later")) {
-                    Text("Later", style = MaterialTheme.typography.titleMedium)
+                    Text(tr("Later"), style = MaterialTheme.typography.titleMedium)
                 }
                 // Not offered again automatically until a newer version is out; Check now in Settings still shows it.
                 TextButton(onClick = { PhoneUpdates.skip(context, release) }, Modifier.testTag("update_skip")) {
-                    Text("Skip ${release.version}", style = MaterialTheme.typography.titleSmall)
+                    Text(tr("Skip ${release.version}"), style = MaterialTheme.typography.titleSmall)
                 }
             }
         }

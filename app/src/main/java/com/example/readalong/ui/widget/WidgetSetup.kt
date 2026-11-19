@@ -1,5 +1,6 @@
 package com.example.readalong.ui.widget
 
+import com.example.readalong.domain.i18n.tr
 import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent

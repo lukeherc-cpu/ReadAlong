@@ -1,5 +1,6 @@
 package com.example.readalong.ui.library
 
+import com.example.readalong.domain.i18n.tr
 import com.example.readalong.ui.components.userMessage
 
 import android.net.Uri
@@ -46,7 +47,7 @@ class BookActionsViewModel(private val app: ReadAlongApplication) : ViewModel() 
             app.processing.clearStoppedNotification(book.id)
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (failure: Exception) {
-            android.widget.Toast.makeText(app, "Couldn't delete ${book.title}. Try again.", android.widget.Toast.LENGTH_LONG).show()
+            android.widget.Toast.makeText(app, tr("Couldn't delete ${book.title}. Try again."), android.widget.Toast.LENGTH_LONG).show()
             throw failure
         }
     }
@@ -54,7 +55,7 @@ class BookActionsViewModel(private val app: ReadAlongApplication) : ViewModel() 
     /** Links the chosen EPUB to this book, the same way one found beside the audio is: it's matched to the ReadAlong as that's made. */
     fun addEpub(book: Book, uri: Uri, onAdded: () -> Unit) = action {
         app.importedEpub.import(book.id, uri)
-        android.widget.Toast.makeText(app, "EPUB added. It's matched to the audio as the ReadAlong is made.", android.widget.Toast.LENGTH_LONG).show()
+        android.widget.Toast.makeText(app, tr("EPUB added. It's matched to the audio as the ReadAlong is made."), android.widget.Toast.LENGTH_LONG).show()
         onAdded()
     }
     fun dismissError() { error.value = null }
@@ -111,7 +112,7 @@ fun BookActions(book: Book, model: BookActionsViewModel, onDismiss: () -> Unit) 
                 book.author?.takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             }
         }
-        error?.let { Text(it, Modifier.padding(horizontal = 24.dp, vertical = 4.dp), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
+        error?.let { Text(tr(it), Modifier.padding(horizontal = 24.dp, vertical = 4.dp), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
         if (busy) LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 4.dp))
     }) {
         if (!book.isDemo) item { Column {
@@ -148,18 +149,18 @@ fun BookActions(book: Book, model: BookActionsViewModel, onDismiss: () -> Unit) 
     if (details) {
         var title by rememberSaveable(book.id) { mutableStateOf(book.title) }
         var author by rememberSaveable(book.id) { mutableStateOf(book.author.orEmpty()) }
-        AlertDialog(onDismissRequest = { details = false }, title = { Text("Edit title and author") },
+        AlertDialog(onDismissRequest = { details = false }, title = { Text(tr("Edit title and author")) },
             text = { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(title, { title = it.take(500) }, label = { Text("Title") }, singleLine = true, modifier = Modifier.testTag("book_edit_title"))
-                OutlinedTextField(author, { author = it.take(500) }, label = { Text("Author") }, singleLine = true, modifier = Modifier.testTag("book_edit_author"))
+                OutlinedTextField(title, { title = it.take(500) }, label = { Text(tr("Title")) }, singleLine = true, modifier = Modifier.testTag("book_edit_title"))
+                OutlinedTextField(author, { author = it.take(500) }, label = { Text(tr("Author")) }, singleLine = true, modifier = Modifier.testTag("book_edit_author"))
             } },
             confirmButton = { TextButton(enabled = title.isNotBlank(), onClick = {
                 model.edit(book, title = title.takeIf { it != book.title }, author = author.takeIf { it != book.author.orEmpty() }); details = false
-            }) { Text("Save") } }, dismissButton = { TextButton(onClick = { details = false }) { Text("Cancel") } })
+            }) { Text(tr("Save")) } }, dismissButton = { TextButton(onClick = { details = false }) { Text(tr("Cancel")) } })
     }
     if (internetCover) InternetCoverPicker(book.title, onDismiss = { internetCover = false }, onSave = { model.edit(book, cover = it); internetCover = false })
-    if (delete) AlertDialog(onDismissRequest = { delete = false }, title = { Text("Delete this book?") },
-        text = { Text("This removes the book, its ReadAlong and its listening position from ReadAlong. The audio and EPUB files stay in your folders.") },
-        confirmButton = { TextButton(onClick = { model.delete(book); onDismiss() }) { Text("Delete book", color = MaterialTheme.colorScheme.error) } },
-        dismissButton = { TextButton(onClick = { delete = false }) { Text("Cancel") } })
+    if (delete) AlertDialog(onDismissRequest = { delete = false }, title = { Text(tr("Delete this book?")) },
+        text = { Text(tr("This removes the book, its ReadAlong and its listening position from ReadAlong. The audio and EPUB files stay in your folders.")) },
+        confirmButton = { TextButton(onClick = { model.delete(book); onDismiss() }) { Text(tr("Delete book"), color = MaterialTheme.colorScheme.error) } },
+        dismissButton = { TextButton(onClick = { delete = false }) { Text(tr("Cancel")) } })
 }

@@ -1,5 +1,6 @@
 package com.example.readalong.ui.importing
 
+import com.example.readalong.domain.i18n.tr
 import android.net.Uri
 import android.text.format.DateUtils
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -92,14 +93,14 @@ fun FoldersScreen(model: ImportViewModel, onBack: () -> Unit) {
         PullToRefreshBox(isRefreshing = false, onRefresh = model::refreshLibrary, modifier = Modifier.fillMaxSize().padding(insets)) {
             Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
                 IconButton(onClick = onBack, modifier = Modifier.padding(top = 8.dp)) {
-                    Icon(painterResource(R.drawable.ic_back), "Back to library")
+                    Icon(painterResource(R.drawable.ic_back), tr("Back to library"))
                 }
                 LazyColumn(Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     item {
                         Column(Modifier.fillMaxWidth().padding(bottom = 4.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text("Library folders", style = MaterialTheme.typography.headlineMedium, textAlign = TextAlign.Center)
-                            Text(if (shown.isEmpty()) "Add a folder and ReadAlong keeps checking it for new books. Your audio stays where it is."
-                                else "Pull down to check every folder for new books", style = MaterialTheme.typography.bodyMedium,
+                            Text(tr("Library folders"), style = MaterialTheme.typography.headlineMedium, textAlign = TextAlign.Center)
+                            Text(tr(if (shown.isEmpty()) "Add a folder and ReadAlong keeps checking it for new books. Your audio stays where it is."
+                                else "Pull down to check every folder for new books"), style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
                         }
                     }
@@ -117,25 +118,25 @@ fun FoldersScreen(model: ImportViewModel, onBack: () -> Unit) {
                     }
                 }
                 message?.takeIf { scanningFolder == null }?.let {
-                    Text(it, Modifier.fillMaxWidth().padding(bottom = 8.dp), style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
+                    Text(tr(it), Modifier.fillMaxWidth().padding(bottom = 8.dp), style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
                 }
                 Column(Modifier.fillMaxWidth().padding(bottom = 16.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Button(onClick = add, enabled = !busy, modifier = Modifier.fillMaxWidth().heightIn(min = 60.dp).testTag("choose_folder"), shape = CircleShape) {
                         Icon(painterResource(R.drawable.ic_add), null, Modifier.size(22.dp))
                         Spacer(Modifier.width(10.dp))
-                        Text("Add audiobooks", style = MaterialTheme.typography.titleMedium)
+                        Text(tr("Add audiobooks"), style = MaterialTheme.typography.titleMedium)
                     }
-                    TextButton(onClick = { audible = true }, enabled = !busy) { Text("Import from Audible") }
+                    TextButton(onClick = { audible = true }, enabled = !busy) { Text(tr("Import from Audible")) }
                 }
             }
         }
     }
     if (audible) com.example.readalong.ui.audible.AudibleImportEntry(onChooseFolder = { audible = false; add() }, onDismiss = { audible = false })
     removing?.let { folder ->
-        AlertDialog(onDismissRequest = { removing = null }, title = { Text("Remove this folder?") },
-            text = { Text("Its books leave your library, along with their ReadAlongs and listening progress. The audio files stay on your phone.") },
-            confirmButton = { TextButton(onClick = { model.remove(folder); removing = null }) { Text("Remove folder", color = MaterialTheme.colorScheme.error) } },
-            dismissButton = { TextButton(onClick = { removing = null }) { Text("Cancel") } })
+        AlertDialog(onDismissRequest = { removing = null }, title = { Text(tr("Remove this folder?")) },
+            text = { Text(tr("Its books leave your library, along with their ReadAlongs and listening progress. The audio files stay on your phone.")) },
+            confirmButton = { TextButton(onClick = { model.remove(folder); removing = null }) { Text(tr("Remove folder"), color = MaterialTheme.colorScheme.error) } },
+            dismissButton = { TextButton(onClick = { removing = null }) { Text(tr("Cancel")) } })
     }
 }
 
@@ -149,18 +150,18 @@ private fun FolderCard(folder: FolderEntity, covers: List<Book>, count: Int, bad
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(folder.name, style = MaterialTheme.typography.titleLarge)
                     when {
-                        lostAccess -> Text("ReadAlong lost access to this folder", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
-                        scanning && progress != null -> Text("Reading books… ${progress.remaining()}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
-                        scanning -> Text("Looking for books… found $count so far", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
-                        else -> Text(summary(count, folder.lastScanAt), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        lostAccess -> Text(tr("ReadAlong lost access to this folder"), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+                        scanning && progress != null -> Text(tr("Reading books… ${progress.remaining()}"), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+                        scanning -> Text(tr("Looking for books… found $count so far"), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+                        else -> Text(tr(summary(count, folder.lastScanAt)), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
-                if (lostAccess) FilledTonalButton(onClick = onChooseAgain, enabled = enabled) { Text("Choose again") }
+                if (lostAccess) FilledTonalButton(onClick = onChooseAgain, enabled = enabled) { Text(tr("Choose again")) }
                 else FolderMenu(folder.name, enabled && !scanning, onCheck, onRemove)
             }
             // A scan that stopped part way keeps its message; other problems (an empty folder, unreadable files) show here too.
             if (!lostAccess && !scanning) folder.error?.takeIf { it != SCAN_INCOMPLETE }?.let {
-                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                Text(tr(it), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
             }
             // The same bar as the library's Reading “…” line: it fills once the books are counted.
             if (scanning) com.example.readalong.ui.library.FolderProgressBar(com.example.readalong.ui.library.animatedScanFraction(progress))
@@ -177,11 +178,11 @@ private fun FolderMenu(name: String, enabled: Boolean, onCheck: () -> Unit, onRe
     var open by remember { mutableStateOf(false) }
     Box {
         FilledTonalIconButton(onClick = { open = true }, enabled = enabled, colors = IconButtonDefaults.filledTonalIconButtonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-            Icon(painterResource(R.drawable.ic_more), "Options for $name")
+            Icon(painterResource(R.drawable.ic_more), tr("Options for $name"))
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }, shape = RoundedCornerShape(16.dp)) {
-            DropdownMenuItem(text = { Text("Check for new books") }, onClick = { open = false; onCheck() })
-            DropdownMenuItem(text = { Text("Remove folder", color = MaterialTheme.colorScheme.error) }, onClick = { open = false; onRemove() })
+            DropdownMenuItem(text = { Text(tr("Check for new books")) }, onClick = { open = false; onCheck() })
+            DropdownMenuItem(text = { Text(tr("Remove folder"), color = MaterialTheme.colorScheme.error) }, onClick = { open = false; onRemove() })
         }
     }
 }
@@ -209,7 +210,7 @@ private fun CoverStrip(covers: List<Book>, count: Int, badges: Map<String, BookB
     }
     androidx.compose.foundation.layout.FlowRow(
         Modifier.fillMaxWidth().animateContentSize(spring(dampingRatio = .9f, stiffness = 320f))
-            .semantics { contentDescription = "$count books" },
+            .semantics { contentDescription = tr("$count books") },
         horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         shown.forEachIndexed { index, book ->
@@ -234,14 +235,14 @@ private fun CoverStrip(covers: List<Book>, count: Int, badges: Map<String, BookB
                 Surface(onClick = { expanded = !expanded }, modifier = tile.testTag(if (expanded) "folder_covers_less" else "folder_covers_more"),
                     shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.primaryContainer, border = BorderStroke(2.dp, surface)) {
                     Box(contentAlignment = Alignment.Center) {
-                        Text(if (expanded) "Less" else "+$extra", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.semantics { contentDescription = if (expanded) "Show fewer books" else "Show all $count books" })
+                        Text(tr(if (expanded) "Less" else "+$extra"), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.semantics { contentDescription = tr(if (expanded) "Show fewer books" else "Show all $count books") })
                     }
                 }
             }
         } else if (extra > 0) Surface(tile, shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.primaryContainer, border = BorderStroke(2.dp, surface)) {
             Box(contentAlignment = Alignment.Center) {
-                Text("+$extra", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                Text(tr("+$extra"), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
             }
         }
     }
@@ -252,7 +253,7 @@ private fun CoverStrip(covers: List<Book>, count: Int, badges: Map<String, BookB
 private fun CoverBadges(badges: BookBadges?, modifier: Modifier = Modifier) {
     if (badges == null || (!badges.epub && !badges.readAlong)) return
     Row(modifier.semantics(mergeDescendants = true) {
-        contentDescription = listOfNotNull("ReadAlong ready".takeIf { badges.readAlong }, "EPUB linked".takeIf { badges.epub }).joinToString(", ")
+        contentDescription = tr(listOfNotNull("ReadAlong ready".takeIf { badges.readAlong }, "EPUB linked".takeIf { badges.epub }).joinToString(", "))
     }, horizontalArrangement = Arrangement.spacedBy(1.dp)) {
         if (badges.readAlong) ReadAlongBadge()
         if (badges.epub) EpubBadge()
@@ -281,13 +282,13 @@ private fun ReadAlongBadge() {
 private fun BadgeKey() {
     val style = MaterialTheme.typography.bodySmall
     val color = MaterialTheme.colorScheme.onSurfaceVariant
-    Row(Modifier.clearAndSetSemantics { contentDescription = "Badges: book means EPUB linked, ReadAlong logo means ReadAlong ready" },
+    Row(Modifier.clearAndSetSemantics { contentDescription = tr("Badges: book means EPUB linked, ReadAlong logo means ReadAlong ready") },
         horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-            EpubBadge(); Text("= linked EPUB", style = style, color = color)
+            EpubBadge(); Text(tr("= linked EPUB"), style = style, color = color)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-            ReadAlongBadge(); Text("= ReadAlong ready", style = style, color = color)
+            ReadAlongBadge(); Text(tr("= ReadAlong ready"), style = style, color = color)
         }
     }
 }

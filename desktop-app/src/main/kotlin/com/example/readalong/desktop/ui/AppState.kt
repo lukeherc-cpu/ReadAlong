@@ -21,6 +21,8 @@ sealed interface Screen {
     data object Settings : Screen
     /** Settings → Transcription (ReadAlong): where to run, language and speech model. */
     data object TranscriptionSettings : Screen
+    /** Settings → Languages: the language books are transcribed in, from every language Whisper knows. */
+    data object LanguageSettings : Screen
     /** Settings → Link a phone. */
     data object PhoneSettings : Screen
     data object Audible : Screen
@@ -52,6 +54,8 @@ class AppState(val scope: CoroutineScope, private val background: Boolean = true
 
     var screen by mutableStateOf<Screen>(Screen.Library)
         private set
+    /** Settings → Languages opens on this tab: 0 for books, 1 for the app's own text. */
+    var languageTab by mutableStateOf(0)
     private val history = ArrayDeque<Screen>()
     val messages = MutableSharedFlow<String>(extraBufferCapacity = 8)
     /** Ctrl+F in the reader. */

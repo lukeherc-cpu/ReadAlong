@@ -1,5 +1,6 @@
 package com.example.readalong.data.link
 
+import com.example.readalong.domain.i18n.tr
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
@@ -41,9 +42,9 @@ class LinkSyncWorker(context: Context, params: WorkerParameters) : CoroutineWork
 
     private fun foreground(progress: SyncProgress): ForegroundInfo {
         val manager = applicationContext.getSystemService(NotificationManager::class.java)
-        manager.createNotificationChannel(NotificationChannel(CHANNEL, "Sync with computer", NotificationManager.IMPORTANCE_LOW))
+        manager.createNotificationChannel(NotificationChannel(CHANNEL, tr("Sync with computer"), NotificationManager.IMPORTANCE_LOW))
         val notification = NotificationCompat.Builder(applicationContext, CHANNEL).setSmallIcon(com.example.readalong.R.drawable.ic_notification)
-            .setContentTitle("Syncing with your computer").setContentText(progress.text).setOngoing(true).setOnlyAlertOnce(true).setSilent(true)
+            .setContentTitle(tr("Syncing with your computer")).setContentText(progress.text).setOngoing(true).setOnlyAlertOnce(true).setSilent(true)
             .apply { progress.fraction?.let { setProgress(1000, (it * 1000).toInt(), false) } ?: setProgress(0, 0, true) }
             .addAction(0, "Stop", WorkManager.getInstance(applicationContext).createCancelPendingIntent(id)).build()
         return if (Build.VERSION.SDK_INT >= 29) ForegroundInfo(NOTIFICATION, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC) else ForegroundInfo(NOTIFICATION, notification)

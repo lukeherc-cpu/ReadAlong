@@ -1,5 +1,6 @@
 package com.example.readalong.ui.reading
 
+import com.example.readalong.domain.i18n.tr
 import com.example.readalong.ui.components.userMessage
 
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -34,14 +35,14 @@ internal fun AppFontDialog(value: String, onDismiss: () -> Unit, onSave: (String
         }
     }
     val choices = listOf("SANS" to "Sans serif", "SERIF" to "Serif", "MONO" to "Monospace") + ReaderFonts.bundled.map { it.first to it.second } + imports
-    AlertDialog(onDismissRequest = { if (!busy) onDismiss() }, title = { Text("App font") }, text = {
+    AlertDialog(onDismissRequest = { if (!busy) onDismiss() }, title = { Text(tr("App font")) }, text = {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             FontChoice("Font", draft, choices) { draft = it }
-            Text("Library, player and settings preview", fontFamily = readingFont(draft), modifier = Modifier.fillMaxWidth())
-            TextButton(enabled = !busy, onClick = { picker.launch(arrayOf("*/*")) }) { Text(if (busy) "Importing font…" else "Import font…") }
-            Text("Accepted file types: TTF, OTF, TTC.", style = MaterialTheme.typography.bodySmall)
-            error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            Text(tr("Library, player and settings preview"), fontFamily = readingFont(draft), modifier = Modifier.fillMaxWidth())
+            TextButton(enabled = !busy, onClick = { picker.launch(arrayOf("*/*")) }) { Text(tr(if (busy) "Importing font…" else "Import font…")) }
+            Text(tr("Accepted file types: TTF, OTF, TTC."), style = MaterialTheme.typography.bodySmall)
+            error?.let { Text(tr(it), color = MaterialTheme.colorScheme.error) }
         }
-    }, confirmButton = { TextButton(enabled = !busy, onClick = { onSave(draft) }) { Text("Apply") } },
-        dismissButton = { TextButton(enabled = !busy, onClick = onDismiss) { Text("Cancel") } })
+    }, confirmButton = { TextButton(enabled = !busy, onClick = { onSave(draft) }) { Text(tr("Apply")) } },
+        dismissButton = { TextButton(enabled = !busy, onClick = onDismiss) { Text(tr("Cancel")) } })
 }

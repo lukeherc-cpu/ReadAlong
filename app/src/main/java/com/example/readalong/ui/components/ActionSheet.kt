@@ -1,5 +1,6 @@
 package com.example.readalong.ui.components
 
+import com.example.readalong.domain.i18n.tr
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -44,8 +45,8 @@ fun ActionSheet(
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)) {
         Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(bottom = 16.dp)) {
             if (title != null) Row(Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, bottom = 8.dp)) {
-                Text(title, Modifier.weight(1f).alignByBaseline(), style = MaterialTheme.typography.titleLarge)
-                if (meta != null) Text(meta, Modifier.alignByBaseline(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(tr(title), Modifier.weight(1f).alignByBaseline(), style = MaterialTheme.typography.titleLarge)
+                if (meta != null) Text(tr(meta), Modifier.alignByBaseline(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             header?.invoke(this)
             LazyColumn(Modifier.fillMaxWidth().weight(1f, fill = false), state = listState, content = content)
@@ -89,10 +90,10 @@ fun SheetRow(
     ) {
         if (icon != null) Icon(painterResource(icon), null, Modifier.size(22.dp), tint = muted)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(text, style = MaterialTheme.typography.bodyLarge, color = ink, fontWeight = weight, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            if (supporting != null) Text(supporting, style = MaterialTheme.typography.bodySmall, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(tr(text), style = MaterialTheme.typography.bodyLarge, color = ink, fontWeight = weight, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            if (supporting != null) Text(tr(supporting), style = MaterialTheme.typography.bodySmall, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        if (meta != null) Text(meta, style = MaterialTheme.typography.bodyMedium, color = muted)
+        if (meta != null) Text(tr(meta), style = MaterialTheme.typography.bodyMedium, color = muted)
         if (on) Icon(painterResource(R.drawable.ic_check), null, Modifier.size(22.dp), tint = colors.primary)
         trailing?.invoke()
     }
@@ -110,7 +111,7 @@ fun <T> ChoiceGrid(choices: List<T>, label: (T) -> String, selected: (T) -> Bool
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 row.forEach { choice ->
                     FilterChip(selected(choice), { onPick(choice) }, {
-                        Text(label(choice), Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center, maxLines = 1)
+                        Text(tr(label(choice)), Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center, maxLines = 1)
                     }, Modifier.weight(1f).heightIn(min = 44.dp).testTag(tag(choice)))
                 }
                 repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }

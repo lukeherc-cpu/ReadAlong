@@ -1,5 +1,6 @@
 package com.example.readalong.desktop.ui
 
+import com.example.readalong.domain.i18n.tr
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -37,7 +38,7 @@ fun AudibleScreen(app: AppState) {
         Row(Modifier.padding(vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
             AppIconButton("ic_back", "Back (Esc)", { app.back() })
             Spacer(Modifier.width(10.dp))
-            Text("Import from Audible", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
+            Text(tr("Import from Audible"), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
         }
         val current = account
         if (current == null) AudibleSignIn(app) else AudibleLibrary(app, current.customerName, current.locale.label)
@@ -88,37 +89,37 @@ private fun AudibleSignIn(app: AppState) {
     }
     DisposableEffect(Unit) { onDispose { AudibleSignInWindow.close() } }
     Column(Modifier.widthIn(max = 720.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Text("Sign in with your Amazon account to see your Audible library and download your books.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(tr("Sign in with your Amazon account to see your Audible library and download your books."), color = MaterialTheme.colorScheme.onSurfaceVariant)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
             Box {
                 PillButton("Store: ${locale.label}", { choosing = true }, filled = false, enabled = !working)
                 DropdownMenu(choosing, { choosing = false }) {
-                    AudibleLocale.entries.forEach { option -> DropdownMenuItem({ Text(option.label) }, { locale = option; choosing = false; AudibleSignInWindow.close(); inWindow = null }) }
+                    AudibleLocale.entries.forEach { option -> DropdownMenuItem({ Text(tr(option.label)) }, { locale = option; choosing = false; AudibleSignInWindow.close(); inWindow = null }) }
                 }
             }
             PillButton(if (working) "Signing in…" else if (inWindow != null) "Start again" else "Sign in to Amazon", { signIn() }, enabled = !working)
             if (working) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
         }
         when (inWindow) {
-            true -> Text("Sign in in the window that opened. ReadAlong finishes by itself once Amazon is done.", style = MaterialTheme.typography.bodyMedium)
-            false -> Text("Sign in in your browser. When Amazon ends on a \"page not found\", copy that page's address (Ctrl+L, then Ctrl+C) and ReadAlong takes it from there.",
+            true -> Text(tr("Sign in in the window that opened. ReadAlong finishes by itself once Amazon is done."), style = MaterialTheme.typography.bodyMedium)
+            false -> Text(tr("Sign in in your browser. When Amazon ends on a \"page not found\", copy that page's address (Ctrl+L, then Ctrl+C) and ReadAlong takes it from there."),
                 style = MaterialTheme.typography.bodyMedium)
             null -> {}
         }
-        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        error?.let { Text(tr(it), color = MaterialTheme.colorScheme.error) }
         if (inWindow != null || pasting) {
-            if (!pasting) TextButton({ pasting = true }) { Text("Paste the address instead") }
+            if (!pasting) TextButton({ pasting = true }) { Text(tr("Paste the address instead")) }
             else {
                 app.audible.login?.url?.let { address ->
                     val clipboard = LocalClipboardManager.current
                     PillButton("Copy sign-in link", { clipboard.setText(AnnotatedString(address)) }, filled = false)
                 }
                 OutlinedTextField(redirect, { redirect = it }, Modifier.fillMaxWidth(), singleLine = true, enabled = !working,
-                    placeholder = { Text("https://www.amazon…/ap/maplanding?…") })
+                    placeholder = { Text(tr("https://www.amazon…/ap/maplanding?…")) })
                 PillButton("Finish signing in", { finish(redirect) }, enabled = redirect.isNotBlank() && !working, filled = false)
             }
         }
-        Text("Your password goes only to Amazon. Nothing is uploaded anywhere else.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(tr("Your password goes only to Amazon. Nothing is uploaded anywhere else."), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -135,7 +136,7 @@ private fun AudibleLibrary(app: AppState, name: String, store: String) {
     LaunchedEffect(Unit) { if (library.isEmpty()) audible.sync() }
     val remaining = remember(library, downloads) { library.filter { book -> downloads[book.asin].let { it == null || it is AudibleDownload.Failed || it == AudibleDownload.Removed } } }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("Signed in${if (name.isNotEmpty()) " as $name" else ""} · $store", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+        Text(tr("Signed in${if (name.isNotEmpty()) " as $name" else ""} · $store"), color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
         if (remaining.isNotEmpty()) PillButton("Download all (${remaining.size})", { confirmAll = true })
         if (downloads.values.any { it is AudibleDownload.Queued || it is AudibleDownload.Running }) PillButton("Stop downloads", audible::cancelDownloads, filled = false)
         PillButton(if (syncing) "Refreshing…" else "Refresh library", audible::sync, filled = false, enabled = !syncing)
@@ -144,7 +145,7 @@ private fun AudibleLibrary(app: AppState, name: String, store: String) {
     // Books already downloaded elsewhere (Libation, LibriSync, another computer) come in as a library folder.
     PillButton("Add audiobook folder", { chooseFolder()?.let { app.addPaths(listOf(it)) } }, Modifier.padding(top = 12.dp), icon = "ic_folder", filled = false)
     OutlinedTextField(query, { query = it }, Modifier.widthIn(max = 860.dp).fillMaxWidth().padding(vertical = 12.dp), singleLine = true,
-        placeholder = { Text("Search your Audible library") })
+        placeholder = { Text(tr("Search your Audible library")) })
     if (syncing) LinearProgressIndicator(Modifier.widthIn(max = 860.dp).fillMaxWidth())
     val shown = remember(library, query) { library.filter { query.isBlank() || query.lowercase() in "${it.title} ${it.authors}".lowercase() } }
     val list = rememberLazyListState()
@@ -154,15 +155,15 @@ private fun AudibleLibrary(app: AppState, name: String, store: String) {
     }
     if (confirmAll) {
         val hours = remaining.sumOf { it.runtimeMinutes } / 60
-        AlertDialog({ confirmAll = false }, title = { Text("Download ${remaining.size} ${if (remaining.size == 1) "book" else "books"}?") },
-            text = { Text("They download one at a time${if (hours > 0) ", about $hours hours of listening" else ""}, while ReadAlong is open. Each one appears in your library as soon as it's done.") },
-            confirmButton = { TextButton({ confirmAll = false; audible.downloadAll(remaining.map { it.asin }) }) { Text("Download all") } },
-            dismissButton = { TextButton({ confirmAll = false }) { Text("Cancel") } })
+        AlertDialog({ confirmAll = false }, title = { Text(tr("Download ${remaining.size} ${if (remaining.size == 1) "book" else "books"}?")) },
+            text = { Text(tr("They download one at a time${if (hours > 0) ", about $hours hours of listening" else ""}, while ReadAlong is open. Each one appears in your library as soon as it's done.")) },
+            confirmButton = { TextButton({ confirmAll = false; audible.downloadAll(remaining.map { it.asin }) }) { Text(tr("Download all")) } },
+            dismissButton = { TextButton({ confirmAll = false }) { Text(tr("Cancel")) } })
     }
-    if (signingOut) AlertDialog({ signingOut = false }, title = { Text("Sign out of Audible?") },
-        text = { Text("ReadAlong is removed from your Amazon devices. Books you've already imported stay in your library.") },
-        confirmButton = { TextButton({ signingOut = false; scope.launch { audible.signOut() } }) { Text("Sign out") } },
-        dismissButton = { TextButton({ signingOut = false }) { Text("Cancel") } })
+    if (signingOut) AlertDialog({ signingOut = false }, title = { Text(tr("Sign out of Audible?")) },
+        text = { Text(tr("ReadAlong is removed from your Amazon devices. Books you've already imported stay in your library.")) },
+        confirmButton = { TextButton({ signingOut = false; scope.launch { audible.signOut() } }) { Text(tr("Sign out")) } },
+        dismissButton = { TextButton({ signingOut = false }) { Text(tr("Cancel")) } })
 }
 
 @Composable
@@ -178,17 +179,17 @@ private fun AudibleRow(book: AudibleBook, state: AudibleDownload?, onDownload: (
             when (state) {
                 is AudibleDownload.Running -> {
                     ProgressLine(state.fraction, Modifier.fillMaxWidth().padding(top = 4.dp))
-                    Text(when (state.stage) {
+                    Text(tr(when (state.stage) {
                         AudibleDownloader.Stage.LICENSING -> "Asking Audible…"
                         AudibleDownloader.Stage.DOWNLOADING -> "Downloading ${(state.fraction * 100).toInt()}%"
                         AudibleDownloader.Stage.UNLOCKING -> "Unlocking…"
-                    }, style = MaterialTheme.typography.bodySmall)
+                    }), style = MaterialTheme.typography.bodySmall)
                 }
-                is AudibleDownload.Failed -> Text(state.reason, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-                AudibleDownload.Queued -> Text("Waiting to download", style = MaterialTheme.typography.bodySmall)
-                AudibleDownload.Done -> Text("In your library", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
-                AudibleDownload.Removed -> Text("Removed from your library", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                null -> if (book.runtimeMinutes > 0) Text("${book.runtimeMinutes / 60}h ${book.runtimeMinutes % 60}m", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                is AudibleDownload.Failed -> Text(tr(state.reason), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                AudibleDownload.Queued -> Text(tr("Waiting to download"), style = MaterialTheme.typography.bodySmall)
+                AudibleDownload.Done -> Text(tr("In your library"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                AudibleDownload.Removed -> Text(tr("Removed from your library"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                null -> if (book.runtimeMinutes > 0) Text(tr("${book.runtimeMinutes / 60}h ${book.runtimeMinutes % 60}m"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         if (state == null || state is AudibleDownload.Failed || state == AudibleDownload.Removed)

@@ -1,5 +1,6 @@
 package com.example.readalong.ui.about
 
+import com.example.readalong.domain.i18n.tr
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.selection.toggleable
@@ -36,8 +37,8 @@ fun TipJarSection(inOther: Boolean, onMove: (Boolean) -> Unit) {
                 horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 Icon(painterResource(R.drawable.ic_tip_jar), null, Modifier.size(width = 48.dp, height = 64.dp), tint = colors.primary)
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Tip jar", style = MaterialTheme.typography.titleLarge, color = colors.onSurface)
-                    Text("Support the development of ReadAlong", style = MaterialTheme.typography.bodySmall, color = colors.primary)
+                    Text(tr("Tip jar"), style = MaterialTheme.typography.titleLarge, color = colors.onSurface)
+                    Text(tr("Support the development of ReadAlong"), style = MaterialTheme.typography.bodySmall, color = colors.primary)
                 }
                 Text("›", style = MaterialTheme.typography.headlineMedium, color = colors.onSurface)
             }
@@ -46,12 +47,12 @@ fun TipJarSection(inOther: Boolean, onMove: (Boolean) -> Unit) {
             .toggleable(value = inOther, role = Role.Checkbox, onValueChange = onMove)
             .padding(vertical = 8.dp, horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Checkbox(inOther, onCheckedChange = null)
-            Text("Move tip jar to the bottom", Modifier.padding(start = 10.dp), style = MaterialTheme.typography.bodyMedium)
+            Text(tr("Move tip jar to the bottom"), Modifier.padding(start = 10.dp), style = MaterialTheme.typography.bodyMedium)
         }
     }
     if (unavailable) AlertDialog(onDismissRequest = { unavailable = false },
-        title = { Text("Tip jar") },
-        text = { Text(if (BuildConfig.KOFI_URL.isBlank()) "Tips aren’t available yet. All ReadAlong features remain free."
-            else "Open the Ko-fi page in a browser to leave an optional tip. All ReadAlong features remain free.") },
-        confirmButton = { TextButton(onClick = { unavailable = false }) { Text("Close") } })
+        title = { Text(tr("Tip jar")) },
+        text = { Text(tr(if (BuildConfig.KOFI_URL.isBlank()) "Tips aren’t available yet. All ReadAlong features remain free."
+            else "Open the Ko-fi page in a browser to leave an optional tip. All ReadAlong features remain free.")) },
+        confirmButton = { TextButton(onClick = { unavailable = false }) { Text(tr("Close")) } })
 }

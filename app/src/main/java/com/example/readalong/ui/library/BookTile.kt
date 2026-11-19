@@ -1,5 +1,6 @@
 package com.example.readalong.ui.library
 
+import com.example.readalong.domain.i18n.tr
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -42,7 +43,7 @@ fun BookTile(book: Book, selected: Boolean = false, onLongClick: () -> Unit = {}
     val showMetadata = com.example.readalong.ui.theme.LocalAppSettings.current.showTitleAndAuthor
     val openLabel = stringResource(R.string.open_book, book.title)
     Column(
-        Modifier.fillMaxWidth().testTag("book:${book.id}").semantics { if (!showMetadata) contentDescription = openLabel }
+        Modifier.fillMaxWidth().testTag("book:${book.id}").semantics { if (!showMetadata) contentDescription = tr(openLabel) }
             .combinedClickable(role = Role.Button, onClickLabel = openLabel, onLongClickLabel = "Edit book", onLongClick = onLongClick, onClick = onClick),
     ) {
         Box {
@@ -116,7 +117,7 @@ fun BookListRow(book: Book, selected: Boolean = false, onLongClick: () -> Unit =
                     trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = .12f), strokeCap = androidx.compose.ui.graphics.StrokeCap.Round,
                     gapSize = 0.dp, drawStopIndicator = {})
                 // Fixed width, so every row's bar ends in the same place.
-                Text(if (book.isFinished) "Finished" else "${book.progressPercent}%", Modifier.widthIn(min = 58.dp), style = MaterialTheme.typography.bodySmall,
+                Text(tr(if (book.isFinished) "Finished" else "${book.progressPercent}%"), Modifier.widthIn(min = 58.dp), style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.Start, maxLines = 1)
             }
         }

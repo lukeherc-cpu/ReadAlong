@@ -1,5 +1,6 @@
 package com.example.readalong.ui.book
 
+import com.example.readalong.domain.i18n.tr
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -77,7 +78,7 @@ fun BookScreen(
                         Spacer(Modifier.height(8.dp))
                         LinearProgressIndicator(progress = { book.progressPercent / 100f }, modifier = Modifier.fillMaxWidth())
                         Text(stringResource(R.string.progress_complete, book.progressPercent), style = MaterialTheme.typography.bodyMedium)
-                        Text(remainingTimeLabel(book), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(tr(remainingTimeLabel(book)), color = MaterialTheme.colorScheme.onSurfaceVariant)
                         book.description?.let { Text(it, style = MaterialTheme.typography.bodyLarge) }
                         Text(stringResource(R.string.player_preview_message), color = MaterialTheme.colorScheme.onSurfaceVariant)
                         OutlinedButton(

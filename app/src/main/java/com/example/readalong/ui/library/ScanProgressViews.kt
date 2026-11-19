@@ -1,5 +1,6 @@
 package com.example.readalong.ui.library
 
+import com.example.readalong.domain.i18n.tr
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -36,10 +37,10 @@ fun ReadingFolderLine(progress: ScanProgress, modifier: Modifier = Modifier) {
         stateDescription = "Reading ${progress.folder}, ${progress.done} of ${progress.total}"
     }) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Reading “${progress.folder}”", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall,
+            Text(tr("Reading “${progress.folder}”"), Modifier.weight(1f), style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.width(12.dp))
-            Text(progress.remaining(), style = figures, color = MaterialTheme.colorScheme.primary, maxLines = 1)
+            Text(tr(progress.remaining()), style = figures, color = MaterialTheme.colorScheme.primary, maxLines = 1)
         }
         Spacer(Modifier.height(8.dp))
         FolderProgressBar(fraction)

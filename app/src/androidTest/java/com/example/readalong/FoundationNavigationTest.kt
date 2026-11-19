@@ -96,21 +96,23 @@ class FoundationNavigationTest {
 
     }
 
-    @Test fun readAlongMoreKeepsDiagnosticsWithoutDesktopTranscriptImport() {
+    @Test fun playerMenuKeepsListeningToolsWithoutDesktopTranscriptImport() {
         waitForLibrary()
         compose.onNodeWithTag("library_grid").performScrollToNode(hasTestTag("book:demo-night-orchard"))
         compose.onNodeWithTag("book:demo-night-orchard").performClick()
-        compose.waitUntil(5000) { compose.onAllNodesWithContentDescription("Collapse player").fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(5000) { compose.onAllNodesWithContentDescription("Close player").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Details", substring = false).assertDoesNotExist()
-        compose.onNodeWithContentDescription("Hide ReadAlong bar").performScrollTo().performClick()
-        compose.onNodeWithContentDescription("Hide ReadAlong bar").assertDoesNotExist()
-        compose.onNodeWithText("More", substring = false).performScrollTo().performClick()
-        compose.onNodeWithText("Keep ReadAlong bar on player").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("Copy transcription diagnostics").assertExists()
+        compose.onNodeWithContentDescription("More options").performClick()
+        compose.onNodeWithText("Mark as finished").assertIsDisplayed()
+        compose.onNodeWithText("Save as EPUB").assertIsDisplayed()
+        // Bookmarks and Listening history live behind the Bookmark button, not in the menu.
+        compose.onNodeWithText("Bookmarks").assertDoesNotExist()
+        compose.onNodeWithText("Listening history").assertDoesNotExist()
         compose.onNodeWithText("Import transcript", substring = false).assertDoesNotExist()
-        compose.onRoot().captureToImage().asAndroidBitmap().let { bitmap ->
+        // The open menu is a second root (a popup), so capture the player underneath.
+        compose.onAllNodes(isRoot()).onFirst().captureToImage().asAndroidBitmap().let { bitmap ->
             val app = compose.activity.application as ReadAlongApplication
-            java.io.File(app.getExternalFilesDir(null), "verification-desktop-import-ui.png").outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+            java.io.File(app.getExternalFilesDir(null), "verification-player-menu.png").outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
         }
     }
 
@@ -121,14 +123,14 @@ class FoundationNavigationTest {
             waitForLibrary()
             compose.onNodeWithTag("library_grid").performScrollToNode(hasTestTag("book:demo-night-orchard"))
             compose.onNodeWithTag("book:demo-night-orchard").performClick()
-            compose.waitUntil(5000) { compose.onAllNodesWithContentDescription("Collapse player").fetchSemanticsNodes().isNotEmpty() }
+            compose.waitUntil(5000) { compose.onAllNodesWithContentDescription("Close player").fetchSemanticsNodes().isNotEmpty() }
             kotlinx.coroutines.runBlocking { app.appPreferences.update { it.copy(openingView = "READ_ONLY") } }
-            compose.onNodeWithContentDescription("Collapse player").performClick()
+            compose.onNodeWithContentDescription("Close player").performClick()
             compose.waitUntil(5000) { compose.onAllNodesWithContentDescription("Expand mini player").fetchSemanticsNodes().isNotEmpty() }
             compose.runOnUiThread { app.playback.toggle() }
             compose.waitUntil(5000) { app.playback.state.value.isPlaying }
             compose.onNodeWithContentDescription("Expand mini player").performClick()
-            compose.waitUntil(5000) { compose.onAllNodesWithContentDescription("Collapse player").fetchSemanticsNodes().isNotEmpty() }
+            compose.waitUntil(5000) { compose.onAllNodesWithContentDescription("Close player").fetchSemanticsNodes().isNotEmpty() }
             org.junit.Assert.assertTrue("Expanding the mini-player must not enter silent book mode or pause playback", app.playback.state.value.isPlaying)
         } finally { compose.runOnUiThread { app.playback.pause() }; kotlinx.coroutines.runBlocking { app.appPreferences.update { original } } }
     }
@@ -142,7 +144,7 @@ class FoundationNavigationTest {
         compose.waitUntil(5000) { app.playback.state.value.bookId == id }
         compose.runOnUiThread { app.playback.seek(12000);app.playback.play() }
         compose.waitUntil(5000) { app.playback.state.value.isPlaying }
-        compose.onNodeWithContentDescription("Collapse player").performClick()
+        compose.onNodeWithContentDescription("Close player").performClick()
         compose.onNodeWithContentDescription("Expand mini player").performTouchInput { swipeLeft() }
         compose.waitUntil(5000) { app.playback.state.value.bookId == null }
         org.junit.Assert.assertFalse(app.playback.state.value.isPlaying)
@@ -153,7 +155,7 @@ class FoundationNavigationTest {
         org.junit.Assert.assertTrue(saved.positionMs >= 12000)
         compose.onNodeWithTag("library_grid").performScrollToNode(hasTestTag("book:$id"))
         compose.onNodeWithTag("book:$id").performClick()
-        compose.waitUntil(5000) { compose.onAllNodesWithContentDescription("Collapse player").fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(5000) { compose.onAllNodesWithContentDescription("Close player").fetchSemanticsNodes().isNotEmpty() }
         org.junit.Assert.assertTrue(app.playback.state.value.positionMs >= 12000)
     }
 
@@ -184,8 +186,8 @@ class FoundationNavigationTest {
             compose.onNodeWithContentDescription("Settings").performClick()
             compose.onNodeWithContentDescription("Light theme").performClick()
             compose.onNodeWithContentDescription("Match mini player to book colors").performClick()
-            compose.onNodeWithContentDescription("Follow along").performScrollTo().performClick()
-            compose.onNodeWithContentDescription("Open Read Along in full screen").performScrollTo().performClick()
+            compose.onNodeWithContentDescription("ReadAlong text").performScrollTo().performClick()
+            compose.onNodeWithContentDescription("Open the text in full screen").performScrollTo().performClick()
             compose.onNodeWithText("Reading fonts and appearance").performScrollTo().performClick()
             compose.onNodeWithText("Preview font", substring = true).performClick()
             compose.onNodeWithText("Sans serif").performClick()
@@ -193,7 +195,7 @@ class FoundationNavigationTest {
             compose.activityRule.scenario.recreate()
             compose.onNodeWithContentDescription("Light theme").performScrollTo().assertIsOff()
             compose.onNodeWithContentDescription("Match mini player to book colors").assertIsOff()
-            compose.onNodeWithContentDescription("Open Read Along in full screen").performScrollTo().assertIsOn()
+            compose.onNodeWithContentDescription("Open the text in full screen").performScrollTo().assertIsOn()
             kotlinx.coroutines.runBlocking {
                 org.junit.Assert.assertEquals("SANS", app.readerPreferences.preferences.first().previewFont)
                 org.junit.Assert.assertEquals("FULLSCREEN", app.appPreferences.preferences.first().openingView)
@@ -214,12 +216,12 @@ class FoundationNavigationTest {
             compose.onNodeWithTag("library_view_list").performClick()
             compose.waitUntil(5000) { kotlinx.coroutines.runBlocking { app.appPreferences.preferences.first().listLibrary } }
             compose.onRoot().captureToImage().asAndroidBitmap().let { bitmap -> java.io.File(app.getExternalFilesDir(null), "verification-library-list.png").outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) } }
-            compose.onNodeWithContentDescription("Settings").performScrollTo().performClick()
+            compose.onNodeWithContentDescription("Settings").performClick()
             compose.onRoot().captureToImage().asAndroidBitmap().let { bitmap -> java.io.File(app.getExternalFilesDir(null), "verification-modern-settings.png").outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) } }
             compose.onNodeWithText("Accent color").performScrollTo().performClick()
             compose.onNodeWithText("Orange").performClick()
             compose.onNodeWithText("Set", substring = false).performClick()
-            compose.onNodeWithContentDescription("Always use basic color").performScrollTo().performClick()
+            compose.onNodeWithContentDescription("Use accent color instead of cover colors").performScrollTo().performClick()
             compose.onNodeWithText("Player background").performScrollTo().performClick()
             compose.onNodeWithText("Solid color").performClick()
             compose.activityRule.scenario.recreate()
@@ -230,7 +232,7 @@ class FoundationNavigationTest {
                 org.junit.Assert.assertFalse(saved.blurredPlayer)
                 org.junit.Assert.assertTrue(saved.listLibrary)
             }
-            compose.onNodeWithContentDescription("Always use basic color").performScrollTo().assertIsOn()
+            compose.onNodeWithContentDescription("Use accent color instead of cover colors").performScrollTo().assertIsOn()
         } finally { kotlinx.coroutines.runBlocking { app.appPreferences.update { com.example.readalong.data.preferences.AppPreferences(batteryWarningSeen = true, homeGuideHidden = true, playerGuideHidden = true, readerGuideHidden = true) } } }
     }
 
@@ -238,17 +240,17 @@ class FoundationNavigationTest {
     fun searchByAuthorAndOpenBook() {
         waitForLibrary()
         compose.onNodeWithContentDescription("Search library").performClick()
-            compose.onNodeWithText("Search title or author").performTextInput("Mira")
+        compose.onNodeWithTag("library_search").performTextInput("Mira")
         compose.onNodeWithTag("library_grid").performScrollToNode(hasTestTag("book:demo-night-orchard"))
         compose.onNodeWithTag("book:demo-night-orchard").performClick()
         compose.waitUntil(10_000) {
-            compose.onAllNodesWithContentDescription("Collapse player").fetchSemanticsNodes().isNotEmpty()
+            compose.onAllNodesWithContentDescription("Close player").fetchSemanticsNodes().isNotEmpty()
         }
         compose.onNodeWithText("The Night Orchard").assertIsDisplayed()
         compose.activityRule.scenario.recreate()
         compose.onNodeWithText("The Night Orchard").assertIsDisplayed()
         pressBack()
-        compose.onNodeWithText("Search title or author").assertExists()
+        compose.onNodeWithTag("library_search").assertExists()
     }
 
 }

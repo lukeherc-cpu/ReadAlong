@@ -1,5 +1,6 @@
 package com.example.readalong.desktop.ui
 
+import com.example.readalong.domain.i18n.tr
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -39,9 +40,9 @@ fun PhoneLinkCard(app: AppState) {
             if (state.devices.isEmpty()) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text("Link your phone", style = MaterialTheme.typography.titleSmall)
-                        Text("Scan a code with ReadAlong on your phone, then choose audiobook folders to keep in sync. Whenever both are on the same Wi-Fi, " +
-                            "books, ReadAlongs and listening progress copy across. No account or cloud: they talk directly, encrypted.",
+                        Text(tr("Link your phone"), style = MaterialTheme.typography.titleSmall)
+                        Text(tr("Scan a code with ReadAlong on your phone, then choose audiobook folders to keep in sync. Whenever both are on the same Wi-Fi, ") + tr(
+                            "books, ReadAlongs and listening progress copy across. No account or cloud: they talk directly, encrypted."),
                             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Spacer(Modifier.width(16.dp))
@@ -50,19 +51,19 @@ fun PhoneLinkCard(app: AppState) {
             } else {
                 // For a phone that can't find this computer on its own (a guest network, or a router that blocks discovery).
                 remember { com.example.readalong.desktop.link.DeviceLink.localAddresses() }.takeIf { it.isNotEmpty() }?.let { addresses ->
-                    Text("This computer's address: ${addresses.joinToString(" or ")}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(tr("This computer's address: ${addresses.joinToString(" or ")}"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 state.devices.forEach { device ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text(device.name, style = MaterialTheme.typography.titleSmall)
-                            Text(device.lastSeen?.let { "Last synced ${DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(it))}" } ?: "Linked, not synced yet",
+                            Text(tr(device.lastSeen?.let { "Last synced ${DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(it))}" } ?: "Linked, not synced yet"),
                                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             com.example.readalong.desktop.core.versionNote(device.appVersion, System.getProperty("readalong.version"))?.let {
-                                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(tr(it), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
-                        TextButton({ link.unlink(device.id) }) { Text("Unlink") }
+                        TextButton({ link.unlink(device.id) }) { Text(tr("Unlink")) }
                     }
                 }
                 val requested by link.syncRequested.collectAsState()
@@ -70,14 +71,14 @@ fun PhoneLinkCard(app: AppState) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     PillButton("Sync to phone", { app.syncToPhone() }, icon = "ic_sync", filled = false)
                     Spacer(Modifier.width(12.dp))
-                    Text(if (requested != null) "Waiting for your phone. It syncs within a minute while ReadAlong is open on it."
-                        else "Your phone also syncs by itself whenever this computer has something new.",
+                    Text(tr(if (requested != null) "Waiting for your phone. It syncs within a minute while ReadAlong is open on it."
+                        else "Your phone also syncs by itself whenever this computer has something new."),
                         Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                activity?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary) }
+                activity?.let { Text(tr(it), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary) }
                 Spacer(Modifier.height(12.dp))
-                Text("Folders synced with your phone", style = MaterialTheme.typography.labelLarge)
-                if (folders.isEmpty()) Text("Add a library folder first.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(tr("Folders synced with your phone"), style = MaterialTheme.typography.labelLarge)
+                if (folders.isEmpty()) Text(tr("Add a library folder first."), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 folders.forEach { folder ->
                     val on = folder in state.shared
                     Row(Modifier.fillMaxWidth().clickable { link.setShared(if (on) state.shared - folder else state.shared + folder) }, verticalAlignment = Alignment.CenterVertically) {
@@ -101,20 +102,20 @@ fun PhoneLinkCard(app: AppState) {
 @Composable
 private fun PairingDialog(code: String, onCancel: () -> Unit) {
     var copied by remember { mutableStateOf(false) }
-    AlertDialog(onDismissRequest = onCancel, title = { Text("Link your phone") }, text = {
+    AlertDialog(onDismissRequest = onCancel, title = { Text(tr("Link your phone")) }, text = {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("On your phone, open ReadAlong, go to Settings › Link a computer, and scan this code. Keep both on the same Wi-Fi.",
+            Text(tr("On your phone, open ReadAlong, go to Settings › Link a computer, and scan this code. Keep both on the same Wi-Fi."),
                 style = MaterialTheme.typography.bodyMedium)
             Spacer(Modifier.height(16.dp))
             QrCode(code, Modifier.size(260.dp))
             Spacer(Modifier.height(12.dp))
-            Text("If Windows or macOS asks, allow ReadAlong on private networks so your phone can reach it.", style = MaterialTheme.typography.bodySmall,
+            Text(tr("If Windows or macOS asks, allow ReadAlong on private networks so your phone can reach it."), style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-    }, confirmButton = { TextButton(onCancel) { Text("Cancel") } }, dismissButton = {
+    }, confirmButton = { TextButton(onCancel) { Text(tr("Cancel")) } }, dismissButton = {
         TextButton({
             java.awt.Toolkit.getDefaultToolkit().systemClipboard.setContents(java.awt.datatransfer.StringSelection(code), null); copied = true
-        }) { Text(if (copied) "Copied" else "Copy code instead") }
+        }) { Text(tr(if (copied) "Copied" else "Copy code instead")) }
     })
 }
 
@@ -122,12 +123,12 @@ private fun PairingDialog(code: String, onCancel: () -> Unit) {
 @Composable
 private fun FolderPrompt(phone: String, folders: List<String>, skipped: Set<String>, onSkipped: (Set<String>) -> Unit, onAnswer: (List<String>?) -> Unit) {
     var chosen by remember { mutableStateOf(folders.toSet()) }
-    AlertDialog(onDismissRequest = { onAnswer(null) }, title = { Text("Sync your audiobook folders?") }, text = {
+    AlertDialog(onDismissRequest = { onAnswer(null) }, title = { Text(tr("Sync your audiobook folders?")) }, text = {
         Column {
-            Text("$phone is linked. Choose the folders to keep in sync: whenever both are on the same Wi-Fi, your phone copies over the books it doesn't have " +
-                "and sends back its own, with ReadAlongs and listening progress. Nothing is ever deleted.", style = MaterialTheme.typography.bodyMedium)
+            Text(tr("$phone is linked. Choose the folders to keep in sync: whenever both are on the same Wi-Fi, your phone copies over the books it doesn't have ") + tr(
+                "and sends back its own, with ReadAlongs and listening progress. Nothing is ever deleted."), style = MaterialTheme.typography.bodyMedium)
             Spacer(Modifier.height(12.dp))
-            if (folders.isEmpty()) Text("You have no library folders yet. Your phone can still send its books here: they go in Audiobooks in your home folder.",
+            if (folders.isEmpty()) Text(tr("You have no library folders yet. Your phone can still send its books here: they go in Audiobooks in your home folder."),
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             folders.forEach { folder ->
                 Row(Modifier.fillMaxWidth().clickable { chosen = if (folder in chosen) chosen - folder else chosen + folder }, verticalAlignment = Alignment.CenterVertically) {
@@ -141,8 +142,8 @@ private fun FolderPrompt(phone: String, folders: List<String>, skipped: Set<Stri
             Spacer(Modifier.height(12.dp))
             SyncKinds(skipped, onSkipped)
         }
-    }, confirmButton = { TextButton({ onAnswer(chosen.toList()) }, enabled = chosen.isNotEmpty() || folders.isEmpty()) { Text(if (folders.isEmpty()) "OK" else "Sync these folders") } },
-        dismissButton = { TextButton({ onAnswer(null) }) { Text("Not now") } })
+    }, confirmButton = { TextButton({ onAnswer(chosen.toList()) }, enabled = chosen.isNotEmpty() || folders.isEmpty()) { Text(tr(if (folders.isEmpty()) "OK" else "Sync these folders")) } },
+        dismissButton = { TextButton({ onAnswer(null) }) { Text(tr("Not now")) } })
 }
 
 @Composable
@@ -161,14 +162,14 @@ private fun QrCode(text: String, modifier: Modifier) {
 /** "What to sync": the companion files that travel with the books, all on by default. Audio always syncs. */
 @Composable
 private fun SyncKinds(skipped: Set<String>, onChange: (Set<String>) -> Unit) {
-    Text("What to sync", style = MaterialTheme.typography.labelLarge)
-    Text("Audiobooks always sync. Untick anything you'd rather keep separate on each device.", style = MaterialTheme.typography.bodySmall,
+    Text(tr("What to sync"), style = MaterialTheme.typography.labelLarge)
+    Text(tr("Audiobooks always sync. Untick anything you'd rather keep separate on each device."), style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant)
     FolderSyncPlan.checkboxes.forEach { (label, ids) ->
         val on = ids.none { it in skipped }
         Row(Modifier.fillMaxWidth().clickable { onChange(if (on) skipped + ids else skipped - ids) }, verticalAlignment = Alignment.CenterVertically) {
             Checkbox(on, { onChange(if (on) skipped + ids else skipped - ids) })
-            Text(label, style = MaterialTheme.typography.bodyMedium)
+            Text(tr(label), style = MaterialTheme.typography.bodyMedium)
         }
     }
 }

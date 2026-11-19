@@ -1,5 +1,6 @@
 package com.example.readalong.ui.library
 
+import com.example.readalong.domain.i18n.tr
 import com.example.readalong.ui.components.userMessage
 
 import android.graphics.Bitmap
@@ -67,10 +68,10 @@ fun InternetCoverPicker(title: String, onDismiss: () -> Unit, onSave: (Uri) -> U
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(shape = MaterialTheme.shapes.large, modifier = Modifier.fillMaxWidth(.94f).heightIn(max = 720.dp)) {
             Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(if (selected == null) "Cover from internet" else "Crop cover", style = MaterialTheme.typography.titleLarge)
+                Text(tr(if (selected == null) "Cover from internet" else "Crop cover"), style = MaterialTheme.typography.titleLarge)
                 if (selected == null) {
-                    OutlinedTextField(query, { query = it }, singleLine = true, label = { Text("Search audiobook covers") }, modifier = Modifier.fillMaxWidth())
-                    TextButton(onClick = ::search, enabled = !busy) { Text("Search") }
+                    OutlinedTextField(query, { query = it }, singleLine = true, label = { Text(tr("Search audiobook covers")) }, modifier = Modifier.fillMaxWidth())
+                    TextButton(onClick = ::search, enabled = !busy) { Text(tr("Search")) }
                     LazyVerticalGrid(GridCells.Adaptive(100.dp), modifier = Modifier.weight(1f, fill = false).heightIn(min = 180.dp, max = 400.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         items(covers, key = { it.url }) { cover ->
                             Column(Modifier.clickable(enabled = !busy) { scope.launch {
@@ -82,7 +83,7 @@ fun InternetCoverPicker(title: String, onDismiss: () -> Unit, onSave: (Uri) -> U
                             } }) {
                                 CoverThumbnail(cover.url)
                                 Text(cover.title, maxLines = 2, style = MaterialTheme.typography.labelSmall)
-                                Text(cover.source, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(tr(cover.source), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                     }
@@ -100,13 +101,13 @@ fun InternetCoverPicker(title: String, onDismiss: () -> Unit, onSave: (Uri) -> U
                                 Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)) }
                         }
                     }
-                    Text("Pinch to zoom and drag to crop", style = MaterialTheme.typography.bodySmall)
+                    Text(tr("Pinch to zoom and drag to crop"), style = MaterialTheme.typography.bodySmall)
                     Slider(zoom, { zoom = it; pan = clamp(bitmap, pan, zoom) }, valueRange = 1f..5f)
                 }
                 if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-                error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+                error?.let { Text(tr(it), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    TextButton(onClick = { if (busy || selected == null) onDismiss() else selected = null }) { Text(if (selected != null) "Back" else "Cancel") }
+                    TextButton(onClick = { if (busy || selected == null) onDismiss() else selected = null }) { Text(tr(if (selected != null) "Back" else "Cancel")) }
                     if (selected != null) TextButton(enabled = !busy, onClick = { scope.launch {
                         busy = true; error = null
                         try {
@@ -129,7 +130,7 @@ fun InternetCoverPicker(title: String, onDismiss: () -> Unit, onSave: (Uri) -> U
                         } catch (cancelled: CancellationException) { throw cancelled }
                         catch (e: Exception) { error = e.userMessage("Couldn't save the cover") }
                         finally { busy = false }
-                    } }) { Text("Use cover") }
+                    } }) { Text(tr("Use cover")) }
                 }
             }
         }

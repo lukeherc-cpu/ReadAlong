@@ -1,5 +1,6 @@
 package com.example.readalong.ui.about
 
+import com.example.readalong.domain.i18n.tr
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -49,20 +50,20 @@ fun SupportPrompt(app: com.example.readalong.ReadAlongApplication) {
                 FilledTonalIconButton(::close, Modifier.align(Alignment.TopEnd).padding(10.dp).size(34.dp)) { Text("✕") }
                 Column(Modifier.padding(start = 22.dp, end = 22.dp, top = 28.dp, bottom = 14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     com.example.readalong.ui.launch.PageTurnLogo(0f, Modifier.size(104.dp))
-                    Text("Enjoying ReadAlong?", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = colors.onSurface)
+                    Text(tr("Enjoying ReadAlong?"), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = colors.onSurface)
                     Spacer(Modifier.height(6.dp))
-                    Text("You've listened to ${s.listenedMs / 3_600_000} hours of audiobooks. ReadAlong is free and open source, so " +
-                        (if (donate) "a small donation or a star really helps." else "a star really helps."),
+                    Text(tr("You've listened to ${s.listenedMs / 3_600_000} hours of audiobooks. ReadAlong is free and open source, so ") +
+                        tr(if (donate) "a small donation or a star really helps." else "a star really helps."),
                         style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant, textAlign = TextAlign.Center)
                     Spacer(Modifier.height(18.dp))
                     if (donate) {
-                        Button({ open(BuildConfig.KOFI_URL) }, Modifier.fillMaxWidth().height(48.dp)) { Text("♥  Donate", fontWeight = FontWeight.Bold) }
+                        Button({ open(BuildConfig.KOFI_URL) }, Modifier.fillMaxWidth().height(48.dp)) { Text(tr("♥  Donate"), fontWeight = FontWeight.Bold) }
                         Spacer(Modifier.height(10.dp))
-                        FilledTonalButton({ open(GITHUB_URL) }, Modifier.fillMaxWidth().height(48.dp)) { Text("★  Give us a star on GitHub", fontWeight = FontWeight.Bold) }
-                    } else Button({ open(GITHUB_URL) }, Modifier.fillMaxWidth().height(48.dp)) { Text("★  Give us a star on GitHub", fontWeight = FontWeight.Bold) }
+                        FilledTonalButton({ open(GITHUB_URL) }, Modifier.fillMaxWidth().height(48.dp)) { Text(tr("★  Give us a star on GitHub"), fontWeight = FontWeight.Bold) }
+                    } else Button({ open(GITHUB_URL) }, Modifier.fillMaxWidth().height(48.dp)) { Text(tr("★  Give us a star on GitHub"), fontWeight = FontWeight.Bold) }
                     Row(Modifier.padding(top = 6.dp).toggleable(never, role = Role.Checkbox) { never = it }.padding(end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(never, null)
-                        Text("Don't show this again", Modifier.padding(start = 4.dp), style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant)
+                        Text(tr("Don't show this again"), Modifier.padding(start = 4.dp), style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant)
                     }
                 }
             }
