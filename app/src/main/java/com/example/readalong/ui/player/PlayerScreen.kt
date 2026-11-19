@@ -282,8 +282,10 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
                         Column(Modifier.width(wideControls).verticalScroll(androidx.compose.foundation.rememberScrollState()),
                             verticalArrangement = Arrangement.spacedBy(if (compact) 2.dp else 6.dp), content = controls)
                     }
-                } else if (large) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    // Upright tablet: the cover and the controls share one width and sit centred on the screen.
+                } else if (large) Box(Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.BiasAlignment(0f, -0.25f)) {
+                    // Upright tablet: the cover and the controls share one width, centred across and sitting a
+                    // little above the middle (3/8 of the spare height above, 5/8 below), so it doesn't look low
+                    // under the top bar.
                     Column(Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         Box(Modifier.width(tallCover)) { artwork() }
