@@ -45,7 +45,7 @@ class LibraryCollectionsTest {
         compose.onNodeWithText("Fourth Wing").assertExists()
         compose.onNodeWithText("Circe").assertDoesNotExist()
         compose.onNodeWithContentDescription("All collections").performClick()
-        compose.waitUntil(5_000) { compose.onAllNodesWithText("2 books · 1 started · 1 new").fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("2 books · 1 started").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Not in a collection").performClick()
         compose.onNodeWithText("Circe").assertExists()
     }

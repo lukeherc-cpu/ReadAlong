@@ -86,7 +86,7 @@ class FoundationNavigationTest {
         compose.onNodeWithTag("library_grid").performScrollToNode(hasTestTag("book:demo-night-orchard"))
         compose.onNodeWithTag("book:demo-night-orchard").performTouchInput { longClick() }
         // "Mark as not started" is only offered once the book has been started.
-        val order = listOf("Edit title", "Edit author", "Choose cover from files", "Find cover online", "Mark as not started", "Mark as finished", "Delete book")
+        val order = listOf("Edit title and author", "Change cover", "Mark as finished", "Mark as not started", "Delete book")
             .filter { it != "Mark as not started" || compose.onAllNodesWithText(it).fetchSemanticsNodes().isNotEmpty() }
         order.forEach { compose.onNodeWithText(it).assertExists() }
         val tops = order.map { compose.onNodeWithText(it).fetchSemanticsNode().boundsInRoot.top }

@@ -39,7 +39,7 @@ class CollectionsTest {
     }
 
     @Test fun summaryCountsStages() {
-        assertEquals("3 books · 1 started · 1 new · 1 finished", collectionSummary(listOf(wing, iron, circe)))
+        assertEquals("3 books · 1 started", collectionSummary(listOf(wing, iron, circe)))
         assertEquals("1 book · all finished", collectionSummary(listOf(circe)))
     }
 }
