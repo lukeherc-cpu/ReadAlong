@@ -2,7 +2,6 @@ package com.example.readalong.ui.reading
 
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.drawscope.withTransform
@@ -19,23 +18,6 @@ class ReaderTransitionFrame(val layer: GraphicsLayer) {
     /** Where the spoken line sat on the full page (from the page's top), for the way back to the card. */
     var readerAnchor: ReaderVisualAnchor? = null
 }
-
-/**
- * The reader's text column for a page [viewWidthPx] wide. On a phone held upright the card is nearly as
- * wide as the page, so the reader keeps the card's column and its lines never rewrap at the handoff. On
- * a wider window (a tablet, or a phone on its side) the card sits beside the controls and is much narrower
- * than the page; keeping it would leave the whole reader as a narrow strip, so the page uses its full
- * width and the line anchor alone carries the spoken line across.
- */
-fun ReaderTransitionFrame?.readerColumnPx(viewWidthPx: Int, density: androidx.compose.ui.unit.Density): Int =
-    readerColumnPx(this?.previewWidthPx ?: 0, viewWidthPx, density)
-
-internal fun readerColumnPx(previewWidthPx: Int, viewWidthPx: Int, density: androidx.compose.ui.unit.Density): Int {
-    val compact = with(density) { viewWidthPx.toDp() } < CompactReaderWidth
-    return if (compact && previewWidthPx in 1..viewWidthPx) previewWidthPx else viewWidthPx
-}
-
-private val CompactReaderWidth = 600.dp
 
 data class ReaderVisualAnchor(val paragraphId: String, val character: Int, val y: Float)
 

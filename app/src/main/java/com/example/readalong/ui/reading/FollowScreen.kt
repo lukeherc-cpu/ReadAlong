@@ -270,7 +270,7 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
                 val index = target.index.coerceIn(0, items.itemCount - 1)
                 val paragraph = if (index < items.itemCount) items.peek(index) else null
                 val expectedSize = preferences.fontSize * if (paragraph?.formatting?.kind?.startsWith("H") == true) 1.25f else 1f
-                val columnPx = frame.readerColumnPx(view.width, textDensity)
+                val columnPx = frame?.previewWidthPx?.takeIf { it > 0 } ?: view.width
                 val quoteInset = if (paragraph?.formatting?.kind in listOf("QUOTE", "LIST")) 16.dp else 0.dp
                 val expectedWidth = columnPx - with(textDensity) { (preferences.margin.dp * 2 + quoteInset).roundToPx() }
                 val layout = layouts[index]?.takeIf {
@@ -453,10 +453,9 @@ fun FollowScreen(book: Book, state: PlaybackState, playback: PlaybackControls, m
         val density = androidx.compose.ui.platform.LocalDensity.current
         val fullWidth = with(density) { view.width.toDp() }
         val fullHeight = with(density) { view.height.toDp() }
-        // On a phone, keep the preview's column width while revealing the taller page, so glyphs never
-        // rewrap at the handoff; the user's margins apply inside the same centered reading column.
-        // On a tablet or in landscape the card is far narrower than the page, which takes its full width.
-        val columnWidth = with(density) { frame.readerColumnPx(view.width, density).toDp() }
+        // Keep the preview's column width while revealing the taller page. Glyphs never rewrap
+        // at the handoff; the user's margins apply inside the same centered reading column.
+        val columnWidth = frame?.previewWidthPx?.takeIf { it > 0 }?.let { with(density) { it.toDp() } } ?: fullWidth
         val columnInset = ((fullWidth - columnWidth) / 2).coerceAtLeast(0.dp)
         Scaffold(modifier = Modifier.wrapContentSize(androidx.compose.ui.Alignment.TopCenter, unbounded = true)
             .requiredSize(fullWidth, fullHeight).pointerInput(book.id) {
