@@ -78,13 +78,14 @@ class TabletReaderWidthTest {
         val window = compose.activity.window.decorView
         val density = compose.activity.resources.displayMetrics.density
         assumeTablet(window.width / density, window.height / density)
-        compose.waitUntil(10_000) { compose.onAllNodesWithContentDescription("Search library").fetchSemanticsNodes().isNotEmpty() }
-        compose.onNodeWithContentDescription("Search library").performClick()
-        compose.onNodeWithText("Search title or author").performTextInput("Mira")
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("library_grid").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("library_grid").performScrollToNode(hasTestTag("book:demo-night-orchard"))
         compose.onNodeWithTag("book:demo-night-orchard").performClick()
         compose.waitUntil(5000) { app.playback.state.value.bookId == "demo-night-orchard" }
         compose.runOnUiThread { app.playback.pause(); app.playback.seek(20_000) }
         compose.waitUntil(5000) { app.playback.state.value.positionMs == 20_000L }
+        // The player composes after navigation (slower on a cold emulator): wait for the cover first.
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("flip_cover", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("flip_cover", useUnmergedTree = true).performClick()
         compose.waitUntil(5000) { compose.onAllNodesWithTag("follow_card", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
         compose.waitForIdle()
