@@ -36,15 +36,48 @@ class PlayerRulesTest {
         assertEquals(0f, sleepFadeVolume(-5))
     }
 
+    /** Feeds [seconds] of 50 Hz samples: the phone lying flat plus [amplitude] m/s² swinging along x at [hz]. */
+    private fun ShakeDetector.feed(fromMs: Long, seconds: Double, amplitude: Float, hz: Double): List<Long> {
+        val shakes = mutableListOf<Long>()
+        var t = 0L
+        while (t < seconds * 1000) {
+            val swing = amplitude * kotlin.math.sin(2 * Math.PI * hz * t / 1000.0).toFloat()
+            if (onSample(swing, 0f, 9.81f, fromMs + t)) shakes += fromMs + t
+            t += 20
+        }
+        return shakes
+    }
+
     @Test
-    fun aShakeNeedsTwoJoltsCloseTogether() {
+    fun anOrdinaryShakeResetsTheTimer() {
+        // About 1.5 g back and forth, three times a second: a sleepy but deliberate shake.
+        assertEquals(1, ShakeDetector().feed(0, 1.0, 15f, 3.0).size)
+        // A harder, faster shake still counts once, not once per sample.
+        assertEquals(1, ShakeDetector().feed(0, 0.8, 30f, 5.0).size)
+    }
+
+    @Test
+    fun keepShakingAndItResetsAgainAfterACooldown() {
+        val shakes = ShakeDetector().feed(0, 4.0, 15f, 3.0)
+        assertTrue(shakes.size in 2..3)
+        shakes.zipWithNext().forEach { (a, b) -> assertTrue(b - a >= 1_500) }
+    }
+
+    @Test
+    fun stillnessWalkingAndASingleBumpAreNotShakes() {
+        assertTrue(ShakeDetector().feed(0, 5.0, 0f, 1.0).isEmpty())
+        // Walking: about half a g, twice a second.
+        assertTrue(ShakeDetector().feed(0, 5.0, 5f, 2.0).isEmpty())
+        // One knock on the bedside table.
         val shake = ShakeDetector()
-        assertFalse(shake.onSample(0f, 0f, 9.81f, 0))
-        assertFalse(shake.onSample(30f, 0f, 0f, 100))
-        assertTrue(shake.onSample(30f, 0f, 0f, 300))
-        assertFalse(shake.onSample(30f, 0f, 0f, 500))
-        assertFalse(shake.onSample(30f, 0f, 0f, 1_200))
-        assertFalse(shake.onSample(30f, 0f, 0f, 2_400))
-        assertTrue(shake.onSample(30f, 0f, 0f, 2_600))
+        shake.feed(0, 1.0, 0f, 1.0)
+        assertFalse(shake.onSample(40f, 0f, 9.81f, 1_000))
+        assertTrue(shake.feed(1_020, 2.0, 0f, 1.0).isEmpty())
+    }
+
+    @Test
+    fun theTimeOfDayDoesNotMatter() {
+        // Sensor timestamps count from boot, so a shake hours in works the same as one at the start.
+        assertEquals(1, ShakeDetector().feed(5 * 3_600_000L, 1.0, 15f, 3.0).size)
     }
 }

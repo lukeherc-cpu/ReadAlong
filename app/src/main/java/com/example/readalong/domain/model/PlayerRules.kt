@@ -45,16 +45,55 @@ fun sleepFadeVolume(remainingMs: Long?): Float = when {
     else -> remainingMs.toFloat() / SLEEP_FADE_MS
 }
 
-/** A deliberate shake: two strong jolts (over 2.5 g) within 600 ms, at most once every 2 seconds. */
-class ShakeDetector(private val threshold: Float = 2.5f) {
-    private var lastJolt = Long.MIN_VALUE / 2
+/**
+ * A deliberate shake, at any strength a sleepy hand manages: gravity is filtered out, and three
+ * swings of the phone (over about 1.1 g each) within 1.2 seconds count as one shake, at most once
+ * every 1.5 seconds. Walking, turning over in bed or setting the phone down stay well under that.
+ *
+ * Each swing is counted once, however many samples it spans: the next one only counts after the
+ * movement has eased off again, so the sensor's sampling rate doesn't change what a shake is.
+ */
+class ShakeDetector(
+    private val threshold: Float = 11f,
+    private val rearm: Float = 6f,
+    private val swingsNeeded: Int = 3,
+    private val windowMs: Long = 1_200,
+    private val cooldownMs: Long = 1_500,
+) {
+    private var gravityX = 0f
+    private var gravityY = 0f
+    private var gravityZ = 0f
+    private var lastSample = Long.MIN_VALUE
+    private var armed = true
+    private val swings = ArrayDeque<Long>()
     private var lastShake = Long.MIN_VALUE / 2
+
+    /** Takes one accelerometer sample in m/s² (gravity included) at [timeMs]; true when it completes a shake. */
     fun onSample(x: Float, y: Float, z: Float, timeMs: Long): Boolean {
-        val g = sqrt(x * x + y * y + z * z) / 9.81f
-        if (g < threshold) return false
-        val shake = timeMs - lastJolt in 80..600 && timeMs - lastShake > 2_000
-        lastJolt = timeMs
-        if (shake) lastShake = timeMs
-        return shake
+        if (lastSample == Long.MIN_VALUE || timeMs - lastSample > 1_000) {
+            // First sample, or the sensor paused: start the gravity estimate from here.
+            gravityX = x; gravityY = y; gravityZ = z; lastSample = timeMs; armed = true; swings.clear()
+            return false
+        }
+        val dt = (timeMs - lastSample).coerceAtLeast(1).toFloat()
+        lastSample = timeMs
+        val alpha = dt / (GRAVITY_SMOOTHING_MS + dt)
+        gravityX += alpha * (x - gravityX); gravityY += alpha * (y - gravityY); gravityZ += alpha * (z - gravityZ)
+        val lx = x - gravityX; val ly = y - gravityY; val lz = z - gravityZ
+        val force = sqrt(lx * lx + ly * ly + lz * lz)
+        if (!armed) {
+            if (force < rearm) armed = true
+            return false
+        }
+        if (force < threshold) return false
+        armed = false
+        swings.addLast(timeMs)
+        while (swings.isNotEmpty() && timeMs - swings.first() > windowMs) swings.removeFirst()
+        if (swings.size < swingsNeeded || timeMs - lastShake < cooldownMs) return false
+        swings.clear()
+        lastShake = timeMs
+        return true
     }
+
+    private companion object { const val GRAVITY_SMOOTHING_MS = 400f }
 }
