@@ -12,6 +12,9 @@ on:
       unit_tests:
         description: "Also run these JVM unit tests first (a Gradle --tests filter, e.g. com.example.readalong.ui.widget.*)"
         default: ""
+      window:
+        description: "Emulate another screen before the tests: wm size and density, e.g. 2400x1602 240 for a landscape tablet"
+        default: ""
 
 jobs:
   emulator:
@@ -55,6 +58,7 @@ jobs:
             # The emulator's launcher often ANRs while it boots; its "not responding" dialog then takes window focus
             # from every test. Hide error dialogs and close any that are already up.
             adb shell settings put global hide_error_dialogs 1
+            if [ -n "${{ github.event.inputs.window }}" ]; then set -- ${{ github.event.inputs.window }}; adb shell wm size "$1"; adb shell wm density "$2"; sleep 15; adb shell wm size; adb shell wm density; fi
             adb shell am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS || true
             adb install -r -g app/build/outputs/apk/github/debug/app-github-debug.apk
             adb install -r -g app/build/outputs/apk/androidTest/github/debug/app-github-debug-androidTest.apk
