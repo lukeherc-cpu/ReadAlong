@@ -190,7 +190,11 @@ class AudiobookService : MediaLibraryService() {
                                     player.seekTo(chapter.fileIndex, chapter.fileStartMs)
                                     publish(); save()
                                 }
-                                SLEEP_TIMER -> {
+                                SLEEP_TIMER -> if (args.containsKey("addMinutes")) {
+                                    // +5 / +15 in the sheet: more time, same length for a shake or Restart.
+                                    sleepEndsAt = sleepEndsAt?.let { maxOf(it, System.currentTimeMillis()) + args.getInt("addMinutes") * 60_000L }
+                                    publish()
+                                } else {
                                     sleepChapter = if (args.getBoolean("chapterEnd")) snapshot().let { it.chapters.getOrNull(it.chapterIndex) } else null
                                     sleepMinutes = args.getInt("minutes")
                                     sleepEndsAt = sleepMinutes.takeIf { it > 0 }?.let { System.currentTimeMillis() + it * 60_000L }
@@ -397,7 +401,7 @@ class AudiobookService : MediaLibraryService() {
         val chapterIndex = (if (totalDuration > 0) chapters.indexOfLast { it.startMs <= position }
             else chapters.indexOfLast { it.fileIndex == fileIndex && it.fileStartMs <= filePosition }).coerceAtLeast(0)
         return PlaybackState(bookId, position, totalDuration, player.isPlaying,
-            player.playbackParameters.speed, sleepEndsAt, sleepChapter != null, error,
+            player.playbackParameters.speed, sleepEndsAt, sleepChapter != null, sleepMinutes = if (sleepEndsAt != null) sleepMinutes else 0, error = error,
             chapters = chapters, chapterIndex = chapterIndex, filePositionMs = filePosition, isLoading = player.playbackState == Player.STATE_BUFFERING)
     }
     private fun publish() { app.playbackStore.publish(snapshot()) }

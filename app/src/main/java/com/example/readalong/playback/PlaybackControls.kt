@@ -16,6 +16,8 @@ interface PlaybackControls {
     fun speed(value: Float)
     fun sleep(minutes: Int?)
     fun sleepAtChapterEnd()
+    /** Adds [minutes] to a running timed sleep timer, keeping the length a shake or Restart starts again. */
+    fun sleepMore(minutes: Int) = Unit
     fun chapter(index: Int)
 }
 

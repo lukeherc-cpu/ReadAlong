@@ -86,6 +86,9 @@ class PlaybackCoordinator(context: Context, repository: BookRepository, private 
     override fun sleep(minutes: Int?) = if (selectedDemo.value) demo.sleep(minutes) else run {
         connection.command(SLEEP_TIMER, Bundle().apply { putInt("minutes", minutes ?: 0) })
     }
+    override fun sleepMore(minutes: Int) = if (selectedDemo.value) demo.sleepMore(minutes) else run {
+        connection.command(SLEEP_TIMER, Bundle().apply { putInt("addMinutes", minutes) })
+    }
     override fun sleepAtChapterEnd() = if (selectedDemo.value) demo.sleepAtChapterEnd() else run {
         connection.command(SLEEP_TIMER, Bundle().apply { putBoolean("chapterEnd", true) })
     }

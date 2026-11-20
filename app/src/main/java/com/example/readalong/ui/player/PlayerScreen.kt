@@ -321,24 +321,7 @@ fun PlayerScreen(book: Book, state: PlaybackState, playback: PlaybackControls, o
 private fun PlayerPanel(panel: String, book: Book, state: PlaybackState, playback: PlaybackControls, close: () -> Unit) {
     when (panel) {
         "speed" -> SpeedSheet(state.speed, book.title, playback::speed, close)
-        "sleep" -> {
-            val left = state.sleepEndsAt?.let { it - System.currentTimeMillis() }
-            // No subheading: the button under the player already counts down, and the fade is explained in Settings.
-            val running = state.sleepAtChapterEnd || left != null
-            val chapterLeft = ((state.chapterDurationMs - state.chapterPositionMs) / state.speed.coerceAtLeast(.1f)).toLong()
-            com.example.readalong.ui.components.ActionSheet(close, "Sleep timer") {
-                item {
-                    // Off, then the times as a grid of chips; End of chapter keeps its own row for its countdown.
-                    com.example.readalong.ui.components.ChoiceGrid(listOf<Int?>(null) + listOf(5, 10, 15, 30, 45, 60),
-                        label = { it?.let { m -> "$m min" } ?: "Off" }, selected = { it == null && !running },
-                        onPick = { playback.sleep(it); close() }, tag = { "sleep_${it ?: "off"}" })
-                }
-                item {
-                    com.example.readalong.ui.components.SheetRow("End of chapter", { playback.sleepAtChapterEnd(); close() }, icon = R.drawable.ic_chapters,
-                        meta = if (state.sleepAtChapterEnd) null else "in ${hoursMinutes(chapterLeft)}", selected = state.sleepAtChapterEnd)
-                }
-            }
-        }
+        "sleep" -> SleepTimerSheet(state, playback, close)
         "chapters" -> {
             val demoCount = ((state.durationMs + 1_799_999) / 1_800_000).toInt()
             val count = if (book.isDemo) demoCount else state.chapters.size

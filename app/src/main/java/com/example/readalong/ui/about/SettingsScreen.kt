@@ -132,7 +132,7 @@ fun SettingsScreen(app: ReadAlongApplication, onBack: () -> Unit, onModel: () ->
         SettingsSection("Sleep timer") {
             SettingsGroup {
                 // The sleep timer's fade is explained here rather than on the Sleep sheet.
-                PreferenceSwitch("Shake to reset", preferences.shakeToReset, summary = "Fades out over the last 20 seconds. Shake the phone to start the timer again.") { value -> save { it.copy(shakeToReset = value) } }
+                PreferenceSwitch("Shake to reset", preferences.shakeToReset, summary = "Fades out over the last 20 seconds. Shake the phone at any point to start the timer again.") { value -> save { it.copy(shakeToReset = value) } }
                 SettingsRow("Reset sound", Modifier.testTag("settings_reset_sound"), onClick = { resetSoundSheet = true }) { ValueText(resetSoundLabel(preferences.resetSound)); Chevron() }
             }
         }

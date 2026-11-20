@@ -8,6 +8,8 @@ data class PlaybackState(
     val speed: Float = 1f,
     val sleepEndsAt: Long? = null,
     val sleepAtChapterEnd: Boolean = false,
+    /** The length last chosen for a timed sleep timer, which Restart and a shake start again; 0 when none. */
+    val sleepMinutes: Int = 0,
     val error: String? = null,
     val chapters: List<PlaybackChapter> = emptyList(),
     val chapterIndex: Int = 0,
