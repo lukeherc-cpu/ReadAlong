@@ -1,0 +1,6 @@
+Installing app/io.github.lukeherc_cpu.ReadAlong/x86_64/master
+flathub	Flathub	https://dl.flathub.org/repo/	-	-	-	1		Central repository of Flatpak applications	Central repository of Flatpak applications	https://flathub.org/	https://dl.flathub.org/repo/logo.svg
+readalong	-	http://localhost:8765/repo	-	-	-	1		-	-	-	-
+ReadAlong	io.github.lukeherc_cpu.ReadAlong		master
+
+Nothing to do.
