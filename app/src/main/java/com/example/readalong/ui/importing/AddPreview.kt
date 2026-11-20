@@ -41,7 +41,7 @@ fun rememberAddAudiobooks(model: ImportViewModel, origin: String, onAdded: () ->
         uri?.let { model.previewFolder(it, origin) }
     }
     AddPreviewDialog(model, origin, onAdded)
-    return { picker.launch(null) }
+    return { picker.launch(PickerStart.take()) }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
