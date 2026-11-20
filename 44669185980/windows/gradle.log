@@ -1,0 +1,76 @@
+Starting a Gradle Daemon (subsequent builds will be faster)
+> Task :checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :convertXmlValueResourcesForMain NO-SOURCE
+> Task :copyNonXmlValueResourcesForMain NO-SOURCE
+> Task :prepareComposeResourcesTaskForMain NO-SOURCE
+> Task :generateResourceAccessorsForMain SKIPPED
+> Task :generateActualResourceCollectorsForMain SKIPPED
+> Task :generateComposeResClass SKIPPED
+> Task :sharedSources
+> Task :assembleMainResources
+> Task :sharedResources
+> Task :versionResource
+> Task :processResources
+> Task :convertXmlValueResourcesForTest NO-SOURCE
+> Task :copyNonXmlValueResourcesForTest NO-SOURCE
+> Task :prepareComposeResourcesTaskForTest NO-SOURCE
+> Task :generateResourceAccessorsForTest SKIPPED
+> Task :assembleTestResources
+> Task :processTestResources
+> Task :compileKotlin
+> Task :checkRuntime
+
+> Task :compileKotlin
+w: file:///D:/a/ReadAlong/ReadAlong/desktop-app/build/shared/com/example/readalong/audible/AudibleDownloader.kt:56:26 'constructor(p0: String!): URL' is deprecated. Deprecated in Java.
+w: file:///D:/a/ReadAlong/ReadAlong/desktop-app/build/shared/com/example/readalong/audible/AudibleHttp.kt:23:26 'constructor(p0: String!): URL' is deprecated. Deprecated in Java.
+w: file:///D:/a/ReadAlong/ReadAlong/desktop-app/build/shared/com/example/readalong/audible/AudibleHttp.kt:39:88 Condition is always 'true'.
+w: file:///D:/a/ReadAlong/ReadAlong/desktop-app/build/shared/com/example/readalong/domain/update/AppUpdate.kt:96:27 'constructor(p0: String!): URL' is deprecated. Deprecated in Java.
+w: file:///D:/a/ReadAlong/ReadAlong/desktop-app/src/main/kotlin/com/example/readalong/desktop/Main.kt:54:70 'fun painterResource(resourcePath: String): Painter' is deprecated. Migrate to the Compose resources library. See https://www.jetbrains.com/help/kotlin-multiplatform-dev/compose-images-resources.html If you need to load resources specificly from Java classpath, you should still use the new resource library and use a snippet from https://github.com/JetBrains/compose-multiplatform-core/pull/1457.
+w: file:///D:/a/ReadAlong/ReadAlong/desktop-app/src/main/kotlin/com/example/readalong/desktop/Main.kt:60:44 'fun painterResource(resourcePath: String): Painter' is deprecated. Migrate to the Compose resources library. See https://www.jetbrains.com/help/kotlin-multiplatform-dev/compose-images-resources.html If you need to load resources specificly from Java classpath, you should still use the new resource library and use a snippet from https://github.com/JetBrains/compose-multiplatform-core/pull/1457.
+w: file:///D:/a/ReadAlong/ReadAlong/desktop-app/src/main/kotlin/com/example/readalong/desktop/ui/AudibleScreen.kt:114:37 'val LocalClipboardManager: ProvidableCompositionLocal<ClipboardManager>' is deprecated. Use LocalClipboard instead which supports suspend functions.
+w: file:///D:/a/ReadAlong/ReadAlong/desktop-app/src/main/kotlin/com/example/readalong/desktop/ui/Components.kt:161:39 'val Icons.Rounded.VolumeOff: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.VolumeOff.
+w: file:///D:/a/ReadAlong/ReadAlong/desktop-app/src/main/kotlin/com/example/readalong/desktop/ui/Components.kt:161:68 'val Icons.Rounded.VolumeDown: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.VolumeDown.
+w: file:///D:/a/ReadAlong/ReadAlong/desktop-app/src/main/kotlin/com/example/readalong/desktop/ui/Components.kt:211:28 'val Icons.Rounded.VolumeUp: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.VolumeUp.
+w: file:///D:/a/ReadAlong/ReadAlong/desktop-app/src/main/kotlin/com/example/readalong/desktop/ui/MiniPlayer.kt:160:56 'val Icons.Rounded.VolumeOff: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.VolumeOff.
+w: file:///D:/a/ReadAlong/ReadAlong/desktop-app/src/main/kotlin/com/example/readalong/desktop/ui/MiniPlayer.kt:160:85 'val Icons.Rounded.VolumeUp: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.VolumeUp.
+w: file:///D:/a/ReadAlong/ReadAlong/desktop-app/src/main/kotlin/com/example/readalong/desktop/ui/PlayerScreen.kt:247:21 'fun TabRow(selectedTabIndex: Int, modifier: Modifier = ..., containerColor: Color = ..., contentColor: Color = ..., indicator: @Composable() ComposableFunction1<@ParameterName(...) List<TabPosition>, Unit> = ..., divider: @Composable() ComposableFunction0<Unit> = ..., tabs: @Composable() ComposableFunction0<Unit>): Unit' is deprecated. Replaced with PrimaryTabRow and SecondaryTabRow.
+w: file:///D:/a/ReadAlong/ReadAlong/desktop-app/src/main/kotlin/com/example/readalong/desktop/ui/SettingsScreen.kt:242:9 'fun TabRow(selectedTabIndex: Int, modifier: Modifier = ..., containerColor: Color = ..., contentColor: Color = ..., indicator: @Composable() ComposableFunction1<@ParameterName(...) List<TabPosition>, Unit> = ..., divider: @Composable() ComposableFunction0<Unit> = ..., tabs: @Composable() ComposableFunction0<Unit>): Unit' is deprecated. Replaced with PrimaryTabRow and SecondaryTabRow.
+
+> Task :compileJava NO-SOURCE
+> Task :classes
+> Task :jar
+> Task :compileTestKotlin
+> Task :createRuntimeImage
+> Task :compileTestJava NO-SOURCE
+> Task :testClasses
+> Task :test
+> Task :prepareAppResources
+> Task :unpackDefaultComposeDesktopJvmApplicationResources
+
+> Task :downloadWix
+Download https://github.com/wixtoolset/wix3/releases/download/wix3112rtm/wix311-binaries.zip
+
+> Task :unzipWix
+> Task :packageReleaseMsi
+The distribution is written to D:\a\ReadAlong\ReadAlong\desktop-app\build\compose\binaries\main-release\msi\ReadAlong-1.56.3.msi
+
+> Task :createReleaseDistributable
+The distribution is written to D:\a\ReadAlong\ReadAlong\desktop-app\build\compose\binaries\main-release\app
+gradle/actions: Writing build results to D:\a\_temp\.gradle-actions\build-results\__run_2-1795145989934.json
+
+[Incubating] Problems report is available at: file:///D:/a/ReadAlong/ReadAlong/desktop-app/build/reports/problems/problems-report.html
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/9.6.0/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD SUCCESSFUL in 2m 16s
+19 actionable tasks: 19 executed
+Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.6.0/userguide/configuration_cache_enabling.html
+total 413772
+drwxr-xr-x 1 runneradmin 197121         0 Nov 20 03:42 .
+drwxr-xr-x 1 runneradmin 197121         0 Nov 20 03:42 ..
+-rw-r--r-- 1 runneradmin 197121 210176647 Nov 20 03:42 ReadAlong-Windows-portable.zip
+-rw-r--r-- 1 runneradmin 197121 213517227 Nov 20 03:42 ReadAlong-Windows.msi
