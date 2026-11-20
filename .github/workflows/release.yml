@@ -119,6 +119,10 @@ jobs:
     needs: [release, windows, linux, macos]
     if: startsWith(github.ref, 'refs/heads/release/')
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      # Starts the website workflow, which serves the Flatpak repository.
+      actions: write
     steps:
       - uses: actions/checkout@v4
       - name: Publish once every installer is attached
@@ -127,8 +131,28 @@ jobs:
         run: |
           version=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)
           gh release view "v$version" --json assets --jq '.assets[].name'
-          for wanted in "ReadAlong-$version.apk" ReadAlong-Windows.msi ReadAlong-Windows-portable.zip ReadAlong-Linux.flatpak ReadAlong-Linux-x86_64.tar.gz ReadAlong-macOS-AppleSilicon.dmg ReadAlong-macOS-Intel.dmg; do
+          for wanted in "ReadAlong-$version.apk" ReadAlong-Windows.msi ReadAlong-Windows-portable.zip ReadAlong-Linux.flatpak ReadAlong.flatpakref ReadAlong-Linux-x86_64.tar.gz ReadAlong-macOS-AppleSilicon.dmg ReadAlong-macOS-Intel.dmg; do
             gh release view "v$version" --json assets --jq '.assets[].name' | grep -qx "$wanted" || { echo "::error::$wanted is missing from the release"; exit 1; }
           done
           if [[ "$version" == *preview* ]]; then gh release edit "v$version" --draft=false --prerelease
           else gh release edit "v$version" --draft=false --latest; fi
+
+      # Linux updates come from ReadAlong's Flatpak repository, which the website serves at /flatpak/ on GitHub Pages.
+      # Pages already deploys the website from Actions, so the repository goes on the release as one archive and the
+      # website workflow unpacks the latest release's copy into the site. It moves to the new version only once the
+      # release is published, and never to a preview.
+      - name: Download the Flatpak repository
+        uses: actions/download-artifact@v4
+        with:
+          name: flatpak-site
+          path: ${{ runner.temp }}/flatpak-site
+
+      - name: Attach the Flatpak repository and redeploy the website
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)
+          if [[ "$version" == *preview* ]]; then echo "A preview doesn't go to the Flatpak repository."; exit 0; fi
+          tar -C "$RUNNER_TEMP/flatpak-site" -cf "$RUNNER_TEMP/ReadAlong-Linux-flatpak-repo.tar" .
+          gh release upload "v$version" "$RUNNER_TEMP/ReadAlong-Linux-flatpak-repo.tar" --clobber
+          gh workflow run website.yml --ref "${{ github.event.repository.default_branch }}"
