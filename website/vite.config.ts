@@ -25,4 +25,6 @@ export default defineConfig({
   // Relative asset paths, so the site works under /ReadAlong/, a custom domain, or any other base path.
   base: './',
   plugins: [react(), tailwindcss(), seo()],
+  // The landing page, plus the Audible guide that the Play Store app links to.
+  build: { rollupOptions: { input: { main: 'index.html', audible: 'audible/index.html' } } },
 })
