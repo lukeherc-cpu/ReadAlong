@@ -47,7 +47,10 @@ class DemoPlaybackController(private val repository: BookRepository) {
     fun skip(deltaMs: Long) = seek(state.value.positionMs + deltaMs)
     fun speed(value: Float) { mutableState.value = state.value.copy(speed = com.example.readalong.domain.model.roundSpeed(value)) }
     fun sleep(minutes: Int?) {
-        mutableState.value = state.value.copy(sleepEndsAt = minutes?.let { System.currentTimeMillis() + it * 60_000L }, sleepAtChapterEnd = false)
+        mutableState.value = state.value.copy(sleepEndsAt = minutes?.let { System.currentTimeMillis() + it * 60_000L }, sleepAtChapterEnd = false, sleepMinutes = minutes ?: 0)
+    }
+    fun sleepMore(minutes: Int) {
+        state.value.sleepEndsAt?.let { mutableState.value = state.value.copy(sleepEndsAt = it + minutes * 60_000L) }
     }
     fun sleepAtChapterEnd() { mutableState.value = state.value.copy(sleepEndsAt = null, sleepAtChapterEnd = true) }
     private fun save() {
