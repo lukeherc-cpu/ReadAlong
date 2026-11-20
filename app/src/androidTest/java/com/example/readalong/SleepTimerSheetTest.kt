@@ -50,6 +50,9 @@ class SleepTimerSheetTest {
         val folder = java.io.File(app.getExternalFilesDir(null), "verification/sleep-timer").apply { mkdirs() }
         val bitmap = requireNotNull(InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot())
         java.io.File(folder, "$name.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        val small = Bitmap.createScaledBitmap(bitmap, bitmap.width / 2, bitmap.height / 2, true)
+        val bytes = java.io.ByteArrayOutputStream().also { small.compress(Bitmap.CompressFormat.JPEG, 80, it) }.toByteArray()
+        android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP).chunked(3000).forEachIndexed { i, part -> android.util.Log.i("WidgetShot", "SHOT $name $i $part") }
         bitmap.recycle()
     }
 
