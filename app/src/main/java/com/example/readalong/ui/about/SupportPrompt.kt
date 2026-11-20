@@ -52,7 +52,9 @@ fun SupportPrompt(app: com.example.readalong.ReadAlongApplication) {
                     com.example.readalong.ui.launch.PageTurnLogo(0f, Modifier.size(104.dp))
                     Text(tr("Enjoying ReadAlong?"), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = colors.onSurface)
                     Spacer(Modifier.height(6.dp))
-                    Text(tr("You've listened to ${s.listenedMs / 3_600_000} hours of audiobooks. ReadAlong is free and open source, so ") +
+                    // The Play edition is paid after its trial, so it doesn't call itself free.
+                    Text(tr(if (BuildConfig.TIP_JAR_ENABLED) "You've listened to ${s.listenedMs / 3_600_000} hours of audiobooks. ReadAlong is free and open source, so "
+                        else "You've listened to ${s.listenedMs / 3_600_000} hours of audiobooks. ReadAlong is open source, so ") +
                         tr(if (donate) "a small donation or a star really helps." else "a star really helps."),
                         style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant, textAlign = TextAlign.Center)
                     Spacer(Modifier.height(18.dp))

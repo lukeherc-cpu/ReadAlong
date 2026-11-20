@@ -102,6 +102,8 @@ dependencies {
     implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
     // Talks to the ReadAlong watch app (Wear OS).
     implementation("com.google.android.gms:play-services-wearable:19.0.0")
+    // Play edition only: the one-time $0.99 unlock after the free trial (and promo codes for it).
+    "playImplementation"("com.android.billingclient:billing:8.0.0")
     testImplementation(libs.junit)
     testImplementation("org.json:json:20240303") // real JSON for plan-codec unit tests (android.jar ships stubs)
     testImplementation(libs.kotlinx.coroutines.test)

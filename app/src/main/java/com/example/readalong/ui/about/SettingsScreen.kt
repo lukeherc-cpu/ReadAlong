@@ -161,6 +161,7 @@ fun SettingsScreen(app: ReadAlongApplication, onBack: () -> Unit, onModel: () ->
         SettingsSection("About") {
             SettingsGroup {
                 UpdateSettings()
+                FullVersionSettings()
                 SettingsRow("About ReadAlong", onClick = onAbout)
                 SettingsRow(if (copied) "Crash details copied" else "Copy crash details for support", onClick = { scope.launch {
                     val report = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {

@@ -40,4 +40,12 @@ The GitHub download is free. Its optional tip jar opens https://ko-fi.com/readal
 
 The public support URL is configured with `readalongKoFiUrl` in gradle.properties; no private payment API key is needed. Creator payment accounts are connected in Ko-fi. Contributor mode can be disabled for zero Ko-fi platform fees on basic one-time tips; payment-processor fees still apply.
 
-The planned Google Play edition is a $0.99 download with the same core features and no tip jar. Set its price in Play Console before publication. Google's guidance on prices is at https://support.google.com/googleplay/android-developer/answer/6334373. It is not currently available on Google Play.
+## Google Play edition: free trial and unlock
+
+The Google Play edition is a free download with every feature for 90 days from first install. After that it keeps working, and each time it opens it shows a reminder to unlock it for $0.99, with "I have a code" and "Not now". Settings › About shows the days left and the unlock. It has no tip jar or donate button.
+
+The unlock is a one-time in-app product with the ID `full_version` (`FullVersion.PRODUCT_ID`), sold through Google Play Billing (`app/src/play/.../ui/about/FullVersion.kt`). In Play Console, create it under Monetize with Play › Products › One-time products, set the price to $0.99 and activate it. The app listing itself stays free.
+
+Unlock codes are Play promo codes for that product (Play Console › Monetize with Play › Promo codes, type "One-time product"). A code can be redeemed in the app ("I have a code" opens Google Play with it) or directly in the Play Store, and the app picks up the unlock when it next comes on screen. Google allows up to 500 one-time-product codes per quarter.
+
+The trial starts at the first install time and is also kept in preferences, so restoring a backup does not restart it. The GitHub build has no trial and no unlock. The Play edition is not available on Google Play yet; its AAB is never published as a GitHub release.
