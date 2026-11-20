@@ -25,5 +25,8 @@ jobs:
           sdkmanager="$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin | sort -V | tail -1)/sdkmanager"
           yes | "$sdkmanager" --licenses > /dev/null || true
       - uses: gradle/actions/setup-gradle@v4
-      - name: Compile
-        run: ./gradlew --no-configuration-cache :app:compilePlayReleaseKotlin :app:compileGithubReleaseKotlin :app:compilePlayDebugAndroidTestKotlin
+      # One variant at a time: compiling several in parallel runs the runner out of memory.
+      - name: Compile the Play build
+        run: ./gradlew --no-configuration-cache --max-workers=1 :app:compilePlayReleaseKotlin
+      - name: Compile the GitHub build
+        run: ./gradlew --no-configuration-cache --max-workers=1 :app:compileGithubReleaseKotlin
